@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v6.1 - Shortcut Edition
-#   Run with 'igre' command globally
+#   GRE MASTER v6.2 - Edit & Force Install
+#   Features: Edit Configs, Force Shortcut, Visual UI
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -22,6 +22,7 @@ CACHE_V4="/tmp/gre_v4.cache"
 CACHE_V6="/tmp/gre_v6.cache"
 SHORTCUT_NAME="igre"
 SHORTCUT_PATH="/usr/local/bin/$SHORTCUT_NAME"
+# List of APIs for IP detection
 API_V4_LIST=("https://api.ipify.org" "https://ipv4.icanhazip.com" "https://ifconfig.me/ip")
 API_V6_LIST=("https://api6.ipify.org" "https://ipv6.icanhazip.com" "https://ifconfig.co/ip")
 
@@ -37,41 +38,44 @@ fi
 
 install_deps() {
     local pkgs=""
-    for tool in curl ip grep awk sed bc; do
+    # Added 'nano' for the Edit feature
+    for tool in curl ip grep awk sed bc nano; do
         if ! command -v $tool &> /dev/null; then pkgs+=" $tool"; fi
     done
     if [[ -n "$pkgs" ]]; then
-        echo -e "${GREY}📦 Installing missing dependencies:${NC} $pkgs"
+        echo -e "${GREY}📦 Installing dependencies:${NC} $pkgs"
         apt-get update -qq && apt-get install -y -qq $pkgs > /dev/null
     fi
 }
 
 install_shortcut() {
-    echo -e "\n${YELLOW}➤ INSTALLING SHORTCUT${NC}"
-    echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
+    echo -e "\n${YELLOW}➤ INSTALLING SHORTCUT (FORCE)${NC}"
+    print_line
     
-    # Get current script location
     local current_script=$(readlink -f "$0")
     
-    # Check if already running from target
-    if [[ "$current_script" == "$SHORTCUT_PATH" ]]; then
-        echo -e "   ${GREEN}✔ You are already running the global command!${NC}"
-        echo -e "   Just type ${BOLD}${CYAN}$SHORTCUT_NAME${NC} next time."
-        sleep 2
+    # Check if running from a pipe/one-liner (no physical file)
+    if [[ "$current_script" == *"/proc/"* ]] || [[ ! -f "$current_script" ]]; then
+        echo -e "   ${RED}❌ Error: Cannot install shortcut from a one-liner.${NC}"
+        echo -e "   Please save the script to a file first:"
+        echo -e "   ${WHITE}nano gre.sh${NC} -> Paste Code -> Save -> ${WHITE}bash gre.sh${NC}"
+        echo -ne "\n   Press Enter..."
+        read
         return
     fi
 
+    echo -e "   Source: ${WHITE}$current_script${NC}"
     echo -e "   Target: ${WHITE}$SHORTCUT_PATH${NC}"
-    echo -e "   Source: ${GREY}$current_script${NC}"
     
-    cp "$current_script" "$SHORTCUT_PATH"
+    # Force copy (-f)
+    cp -f "$current_script" "$SHORTCUT_PATH"
     chmod +x "$SHORTCUT_PATH"
     
     if [[ -f "$SHORTCUT_PATH" ]]; then
-        echo -e "\n   ${GREEN}✔ Success!${NC} Shortcut installed."
-        echo -e "   From now on, just type: ${BOLD}${CYAN}$SHORTCUT_NAME${NC}"
+        echo -e "\n   ${GREEN}✔ Shortcut installed/updated successfully!${NC}"
+        echo -e "   You can run the tool anytime using: ${BOLD}${CYAN}$SHORTCUT_NAME${NC}"
     else
-        echo -e "\n   ${RED}❌ Failed to create shortcut.${NC}"
+        echo -e "\n   ${RED}❌ Failed to install shortcut.${NC}"
     fi
     
     echo -ne "\n   Press Enter to continue..."
@@ -153,7 +157,7 @@ draw_header() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█ ▐█▌·▐█▄▄▌▐█•█▌"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀  ▀▀▀  ▀▀▀ .▀  ▀"
     echo -e "${NC}"
-    echo -e "           ${GREY}VPN TUNNEL MANAGER  |  VERSION 6.1${NC}"
+    echo -e "           ${GREY}VPN TUNNEL MANAGER  |  VERSION 6.2${NC}"
     echo ""
 }
 
@@ -189,7 +193,7 @@ draw_menu_item() {
 }
 
 # ==================================================
-#   ⚙️ SETUP LOGIC
+#   ⚙️ CORE LOGIC
 # ==================================================
 
 apply_sysctl() {
@@ -373,6 +377,59 @@ remove_tunnel() {
     sleep 1
 }
 
+edit_tunnel() {
+    echo -e "\n${PURPLE}➤ EDIT CONFIGURATION${NC}"
+    print_line
+    
+    # 1. List Tunnels
+    mapfile -t services < <(systemctl list-units --type=service --all --no-legend | grep -oE "gre-tun-[0-9]+" | sort -u)
+    
+    if [[ ${#services[@]} -eq 0 ]]; then 
+        echo -e "${GREY}   No active tunnels found to edit.${NC}"
+        sleep 1; return
+    fi
+    
+    echo -e "   ${BOLD}ID    Config File${NC}"
+    for i in "${!services[@]}"; do
+        local tid="${services[$i]##*-}"
+        printf "   [${WHITE}%d${NC}]   %-10s\n" "$i" "gre-tun-${tid}.service"
+    done
+    
+    echo -ne "\n   ${CYAN}Select index to edit:${NC} "; read idx
+    if [[ ! "$idx" =~ ^[0-9]+$ ]] || [[ "$idx" -ge "${#services[@]}" ]]; then echo -e "   ${RED}Invalid.${NC}"; return; fi
+    
+    local tid="${services[$idx]##*-}"
+    local s_file="/etc/systemd/system/gre-tun-${tid}.service"
+    
+    if [[ ! -f "$s_file" ]]; then
+        echo -e "   ${RED}❌ Error: Config file not found.${NC}"; return
+    fi
+
+    echo -e "\n   ${YELLOW}⚠ Opening editor...${NC}"
+    echo -e "   ${GREY}Make your changes and save (Ctrl+X, Y, Enter).${NC}"
+    sleep 1
+    
+    # Open Nano
+    nano "$s_file"
+    
+    # Ask to reload
+    echo -e "\n   ${CYAN}Applying changes...${NC}"
+    systemctl daemon-reload
+    systemctl restart "gre-tun-${tid}"
+    # Restart watchdog too, just in case remote IP changed
+    systemctl restart "gre-keepalive-${tid}"
+    
+    if systemctl is-active --quiet "gre-tun-${tid}"; then
+        echo -e "   ${GREEN}✔ Service updated and restarted successfully!${NC}"
+    else
+        echo -e "   ${RED}❌ Service failed to restart. Check your config syntax.${NC}"
+        systemctl status "gre-tun-${tid}" --no-pager | head -n 10
+    fi
+    
+    echo -ne "\n   Press Enter..."
+    read
+}
+
 # ==================================================
 #   🔄 MAIN LOOP
 # ==================================================
@@ -387,8 +444,9 @@ while true; do
     draw_menu_item "2" "📡" "New Spoke" "Setup Iran Server"
     draw_menu_item "3" "🗑️" "Uninstall" "Remove Tunnels"
     draw_menu_item "4" "🔄" "Refresh" "Update Stats"
-    draw_menu_item "5" "📲" "Install 'igre'" "Enable Global Command"
-    draw_menu_item "0" "❌" "Exit" ""
+    draw_menu_item "5" "📲" "Install 'igre'" "Force Install Global Command"
+    draw_menu_item "6" "📝" "Edit Config" "Modify Active Tunnels"
+    draw_menu_item "0" "❌" "Exit" "Close"
     
     echo ""
     print_line
@@ -401,6 +459,7 @@ while true; do
         3) remove_tunnel ;;
         4) rm -f "$CACHE_V4" "$CACHE_V6"; sleep 0.5 ;;
         5) install_shortcut ;;
+        6) edit_tunnel ;;
         0) clear; exit 0 ;;
         *) echo "Invalid option." ;;
     esac
