@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v11.0 - The Perfect Fusion
-#   Visuals: v8.0 Style | Logic: v9.0 Fixes
-#   Update: Added Simple GRE + Port Forwarding
+#   GRE MASTER v12.0 - The Perfect Fusion
+#   Visuals: v8.0 Style | Logic: v11.5 Fixes
+#   Update: Custom Port Mapping + Secured NAT
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -39,7 +39,6 @@ fi
 
 install_deps() {
     local pkgs=""
-    # Added iptables for the firewall fix
     for tool in curl ip grep awk sed bc nano iptables; do
         if ! command -v $tool &> /dev/null; then pkgs+=" $tool"; fi
     done
@@ -64,16 +63,14 @@ install_shortcut() {
     read -p "   Press Enter to continue..."
 }
 
-# --- LOGIC FIXES FROM V9 (Integrated) ---
+# --- LOGIC FIXES ---
 get_bind_ip() {
     local remote_ip=$1
-    # Smart NAT Detection
     local bind_ip=$(ip route get "$remote_ip" | grep -oP 'src \K\S+')
     echo "$bind_ip"
 }
 
 fix_firewall() {
-    # Auto-Open GRE Protocol (47)
     if command -v ufw &> /dev/null; then
         ufw allow proto gre >/dev/null 2>&1
     fi
@@ -96,7 +93,6 @@ validate_ipv6() {
 }
 
 detect_local_ips() {
-    # Standard detection for Dashboard display only
     if [[ -f "$CACHE_V4" ]] && [[ $(find "$CACHE_V4" -mmin -60 2>/dev/null) ]]; then
         LOCAL_V4=$(cat "$CACHE_V4")
     else
@@ -127,7 +123,7 @@ get_active_tunnels() {
 }
 
 # ==================================================
-#   🎨 UI COMPONENTS (Restored from v8)
+#   🎨 UI COMPONENTS
 # ==================================================
 
 draw_logo() {
@@ -139,13 +135,12 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v11.0${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v12.0${NC}"
     echo ""
 }
 
 draw_dashboard() {
     detect_local_ips
-    
     local show_v4="$LOCAL_V4"; [[ -z "$show_v4" ]] && show_v4="${RED}Not Detected${NC}"
     local show_v6="${GREEN}Online${NC}"; [[ -z "$LOCAL_V6" ]] && show_v6="${GREY}Offline${NC}"
     local tunnels=$(get_active_tunnels)
@@ -167,7 +162,7 @@ print_guide_box() {
 }
 
 # ==================================================
-#   ⚙️ CORE LOGIC (Original)
+#   ⚙️ CORE LOGIC (Standard GRE)
 # ==================================================
 
 apply_sysctl() {
@@ -183,67 +178,37 @@ EOF
 }
 
 setup_tunnel() {
-    local role=$1 # kharej or iran
-    
-    # --- HEADER ---
+    local role=$1
     echo -e "\n${YELLOW}➤ SETUP WIZARD: ${role^^}${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
-    # --- STEP 1: IP ---
     local remote_desc=""
-    if [[ "$role" == "kharej" ]]; then
-        remote_desc="Enter the Public IP of your ${BOLD}IRAN${NC} server."
-    else
-        remote_desc="Enter the Public IP of your ${BOLD}KHAREJ${NC} server."
-    fi
-    
+    [[ "$role" == "kharej" ]] && remote_desc="Enter the Public IP of your ${BOLD}IRAN${NC} server." || remote_desc="Enter the Public IP of your ${BOLD}KHAREJ${NC} server."
     print_guide_box "Remote Connection" "$remote_desc"
     
-    local r_ip=""
-    local transport_proto=""
-    # We will detect binding later to fix NAT issues
-    
+    local r_ip=""; local transport_proto=""
     while true; do
         echo -ne "   ${WHITE}➤ Remote IP:${NC} "
         read r_ip
-        if validate_ipv4 "$r_ip"; then
-            transport_proto="4"
-            echo -e "     ${GREEN}✔ IPv4 Detected.${NC}"
-            break
-        elif validate_ipv6 "$r_ip"; then
-            transport_proto="6"
-            if [[ -z "$LOCAL_V6" ]]; then
-                echo -e "     ${RED}❌ Error: You don't have IPv6 to connect with.${NC}"; return
-            fi
-            echo -e "     ${GREEN}✔ IPv6 Detected.${NC}"
-            break
-        else
-            echo -e "     ${RED}❌ Invalid IP format.${NC}"
-        fi
+        if validate_ipv4 "$r_ip"; then transport_proto="4"; echo -e "     ${GREEN}✔ IPv4 Detected.${NC}"; break
+        elif validate_ipv6 "$r_ip"; then transport_proto="6"; 
+            [[ -z "$LOCAL_V6" ]] && echo -e "     ${RED}❌ Error: You don't have IPv6.${NC}" && return
+            echo -e "     ${GREEN}✔ IPv6 Detected.${NC}"; break
+        else echo -e "     ${RED}❌ Invalid IP format.${NC}"; fi
     done
     
-    # --- STEP 2: ID ---
     echo ""
     print_guide_box "Tunnel ID" "Pick a number (1-250). ${BOLD}MUST be the same${NC} on both servers!"
-    
     local tid=""
     while true; do
-        echo -ne "   ${WHITE}➤ Tunnel ID:${NC} "
-        read tid
+        echo -ne "   ${WHITE}➤ Tunnel ID:${NC} "; read tid
         [[ "$tid" =~ ^[0-9]+$ ]] && [[ "$tid" -le 65000 ]] && break
         echo -e "     ${RED}❌ Invalid number.${NC}"
     done
 
-    # --- FIX: DETECT BIND IP (NAT & AWS Support) ---
-    local local_bind_ip=""
-    if [[ "$transport_proto" == "4" ]]; then
-        local_bind_ip=$(get_bind_ip "$r_ip")
-        echo -e "     ${GREY}ℹ️  Auto-Detected Bind IP: ${WHITE}$local_bind_ip${NC}"
-    else
-        local_bind_ip="$LOCAL_V6"
-    fi
+    local local_bind_ip=""; 
+    [[ "$transport_proto" == "4" ]] && local_bind_ip=$(get_bind_ip "$r_ip") || local_bind_ip="$LOCAL_V6"
     
-    # --- CLEANUP OLD ---
     local if_name="gre${tid}"
     [[ $role == "iran" ]] && if_name="gre-out-${tid}"
     
@@ -251,13 +216,10 @@ setup_tunnel() {
         echo -e "     ${YELLOW}⚠ Overwriting existing tunnel $tid...${NC}"
         systemctl stop "gre-tun-${tid}" "gre-keepalive-${tid}" 2>/dev/null
         rm -f "/etc/systemd/system/gre-tun-${tid}.service" "/etc/systemd/system/gre-keepalive-${tid}.service"
-        ip link del "$if_name" 2>/dev/null
-        systemctl daemon-reload
+        ip link del "$if_name" 2>/dev/null; systemctl daemon-reload
     fi
 
-    # --- CALCULATION ---
-    local octet2=$(( tid / 256 ))
-    local octet3=$(( tid % 256 ))
+    local octet2=$(( tid / 256 )); local octet3=$(( tid % 256 ))
     local v4_int=""; local v6_int=""; local v4_rem=""; local v6_rem=""
     
     if [[ $role == "kharej" ]]; then
@@ -268,10 +230,8 @@ setup_tunnel() {
         v6_int="fd00:${tid}::2/64"; v6_rem="fd00:${tid}::1"
     fi
     
-    # --- DEPLOY ---
     echo -e "\n${YELLOW}➤ Deploying configuration...${NC}"
-    apply_sysctl
-    fix_firewall # Applying firewall fix silently
+    apply_sysctl; fix_firewall
     
     local s_file="/etc/systemd/system/gre-tun-${tid}.service"
     local w_file="/etc/systemd/system/gre-keepalive-${tid}.service"
@@ -315,7 +275,6 @@ EOF
     systemctl enable --now "gre-tun-${tid}" >/dev/null 2>&1
     systemctl enable --now "gre-keepalive-${tid}" >/dev/null 2>&1
     
-    # --- FINAL RESULT ---
     clear
     echo -e "${GREEN} "
     echo "   ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄"
@@ -324,15 +283,9 @@ EOF
     echo "   █                                               █"
     echo "   ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
     echo -e "${NC}"
-    echo -e "${CYAN}   DETAILS:${NC}"
     printf "   %-15s : ${WHITE}%s${NC}\n" "Tunnel ID" "$tid"
-    printf "   %-15s : ${WHITE}%s${NC}\n" "Interface" "$if_name"
-    echo -e "${GREY}   ─────────────────────────────────────────────${NC}"
     printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv4" "$v4_int"
-    printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv6" "$v6_int"
-    echo ""
     print_guide_box "Next Step" "Copy the ${GREEN}Internal IPv4${NC} above and use it in your Panel (3x-ui/Hiddify) as the destination."
-    
     echo -ne "\n   Press Enter to return to menu..."
     read
 }
@@ -340,95 +293,72 @@ EOF
 remove_tunnel() {
     echo -e "\n${RED}➤ DELETE MENU${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
-    print_guide_box "Delete" "Select a tunnel to permanently remove it."
-    
     local files=(/etc/systemd/system/gre-tun-*.service)
-    
-    if [[ ! -e "${files[0]}" ]]; then
-        echo -e "   ${GREY}No active tunnels found.${NC}"
-        read -p "   Press Enter..."
-        return
-    fi
+    if [[ ! -e "${files[0]}" ]]; then echo -e "   ${GREY}No active tunnels found.${NC}"; read -p "   Press Enter..."; return; fi
     
     echo -e "   ${BOLD}ID    Status     Config File${NC}"
-    local count=0
-    local available_ids=()
-    
+    local count=0; local available_ids=()
     for file in "${files[@]}"; do
         if [[ $file =~ gre-tun-([0-9]+)\.service ]]; then
             local id="${BASH_REMATCH[1]}"
             local status=$(systemctl is-active "gre-tun-${id}")
             local color=$GREEN; [[ "$status" != "active" ]] && color=$RED
-            
             printf "   [${WHITE}%d${NC}]   ${color}%-9s${NC}  gre-tun-${id}\n" "$count" "$status"
-            available_ids+=("$id")
-            ((count++))
+            available_ids+=("$id"); ((count++))
         fi
     done
-    
     echo -ne "\n   ${RED}Select index to delete:${NC} "; read idx
-    
-    if [[ -z "${available_ids[$idx]}" ]]; then
-        echo -e "   ${RED}Invalid selection.${NC}"; sleep 1; return
-    fi
-    
+    if [[ -z "${available_ids[$idx]}" ]]; then echo -e "   ${RED}Invalid selection.${NC}"; sleep 1; return; fi
     local tid="${available_ids[$idx]}"
     echo -e "\n   ${YELLOW}Deleting Tunnel $tid...${NC}"
-    
     systemctl stop "gre-keepalive-${tid}" "gre-tun-${tid}" 2>/dev/null
     systemctl disable "gre-keepalive-${tid}" "gre-tun-${tid}" 2>/dev/null
     rm -f "/etc/systemd/system/gre-keepalive-${tid}.service" "/etc/systemd/system/gre-tun-${tid}.service"
-    
-    ip link del "gre${tid}" 2>/dev/null
-    ip link del "gre-out-${tid}" 2>/dev/null
-    
-    systemctl daemon-reload
-    systemctl reset-failed
-    
-    echo -e "   ${GREEN}✔ Deleted successfully.${NC}"
-    read -p "   Press Enter..."
+    ip link del "gre${tid}" 2>/dev/null; ip link del "gre-out-${tid}" 2>/dev/null
+    systemctl daemon-reload; systemctl reset-failed
+    echo -e "   ${GREEN}✔ Deleted successfully.${NC}"; read -p "   Press Enter..."
 }
 
 edit_tunnel() {
     local files=(/etc/systemd/system/gre-tun-*.service)
     if [[ ! -e "${files[0]}" ]]; then echo -e "   ${GREY}No tunnels.${NC}"; sleep 1; return; fi
-
     echo -e "\n${PURPLE}➤ EDITOR MODE${NC}"
-    print_guide_box "Edit" "Advanced: Manually edit the service file."
-    
-    local count=0
-    local available_ids=()
+    local count=0; local available_ids=()
     for file in "${files[@]}"; do
         if [[ $file =~ gre-tun-([0-9]+)\.service ]]; then
             local id="${BASH_REMATCH[1]}"
-            echo "   [$count] Tunnel $id"
-            available_ids+=("$id")
-            ((count++))
+            echo "   [$count] Tunnel $id"; available_ids+=("$id"); ((count++))
         fi
     done
-    
     echo -ne "\n   Select: "; read idx
     if [[ -z "${available_ids[$idx]}" ]]; then return; fi
-    
-    local tid="${available_ids[$idx]}"
-    nano "/etc/systemd/system/gre-tun-${tid}.service"
-    
-    systemctl daemon-reload
-    systemctl restart "gre-tun-${tid}"
-    echo -e "   ${GREEN}✔ Updated.${NC}"
-    sleep 1
+    local tid="${available_ids[$idx]}"; nano "/etc/systemd/system/gre-tun-${tid}.service"
+    systemctl daemon-reload; systemctl restart "gre-tun-${tid}"
+    echo -e "   ${GREEN}✔ Updated.${NC}"; sleep 1
 }
 
 # ==================================================
-#   🆕 SIMPLE GRE + PORT FORWARDING (Manual Method)
+#   🆕 SIMPLE GRE + PORT FORWARDING (Updated v12)
 # ==================================================
 
 setup_simple_gre() {
     local SIMPLE_SCRIPT="/opt/simple_gre_script.sh"
     local SIMPLE_SERVICE="/etc/systemd/system/simple-gre.service"
 
-    echo -e "\n${BLUE}➤ SIMPLE GRE + PORT FORWARD (Manual Method)${NC}"
+    echo -e "\n${BLUE}➤ SIMPLE GRE + PORT MAPPING${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
+    
+    # Detailed Guide (Updated for Port Mapping)
+    echo -e "${PURPLE}┌──[ 💡 HELP: MANUAL METHOD & PORT MAPPING ]───────────────────────┐${NC}"
+    echo -e "${PURPLE}│${NC} This method connects two servers and forwards specific traffic."
+    echo -e "${PURPLE}│${NC} "
+    echo -e "${PURPLE}│${NC} 1. ${BOLD}IRAN (Sender):${NC} Forwards traffic from Local Port -> Remote Port."
+    echo -e "${PURPLE}│${NC}    Example: Receive on 443 (Iran) -> Send to 8443 (Kharej)."
+    echo -e "${PURPLE}│${NC}    * NAT is restricted to the tunnel interface (Safe Mode)."
+    echo -e "${PURPLE}│${NC} "
+    echo -e "${PURPLE}│${NC} 2. ${BOLD}KHAREJ (Receiver):${NC} Just accepts the connection."
+    echo -e "${PURPLE}└──────────────────────────────────────────────────────────────────┘${NC}"
+
     echo -e " ${BOLD}[1] ${CYAN}Sender (IRAN)${NC}"
     echo -e " ${BOLD}[2] ${CYAN}Receiver (KHAREJ)${NC}"
     echo -ne "\n ${WHITE}Select Role:${NC} "
@@ -439,9 +369,6 @@ setup_simple_gre() {
         return
     fi
 
-    # -- Get Variables --
-    print_guide_box "Configuration" "Using 'ip tunnel add' method (Manual style)."
-    
     local remote_ip=""
     while true; do
         if [[ "$role_choice" == "1" ]]; then
@@ -461,36 +388,37 @@ setup_simple_gre() {
     # -- Generate Content --
     cat <<EOF > "$SIMPLE_SCRIPT"
 #!/bin/bash
-# Generated by GRE Master - Simple Mode
+# Generated by GRE Master - Simple Mode v12
 EOF
     chmod +x "$SIMPLE_SCRIPT"
 
     if [[ "$role_choice" == "1" ]]; then
         # === SENDER (IRAN) LOGIC ===
-        echo -ne "   ${WHITE}➤ Enter Port to Forward (e.g. 1717):${NC} "
-        read port_fwd
+        echo -ne "   ${WHITE}➤ Local Port (Receive on Iran):${NC} "
+        read local_port
+        echo -ne "   ${WHITE}➤ Remote Port (Send to Kharej):${NC} "
+        read remote_port
 
-        # 1. Tunnel Setup (Based on startup4.sh)
-        # We use a fixed tunnel IP range for Simple Mode: 172.16.200.0/30
-        # Iran = .1, Kharej = .2
         cat <<EOF >> "$SIMPLE_SCRIPT"
 # Tunnel Setup
 ip tunnel add gre_simp mode gre local $local_bind_ip remote $remote_ip ttl 255
 ip addr add 172.16.200.1/30 dev gre_simp
 ip link set gre_simp up
 
-# Forwarding Setup (Based on tunnel.sh)
+# Forwarding Setup
 sysctl -w net.ipv4.ip_forward=1
-iptables -t nat -A PREROUTING -p tcp --dport $port_fwd -j DNAT --to-destination 172.16.200.2:$port_fwd
-iptables -t nat -A PREROUTING -p udp --dport $port_fwd -j DNAT --to-destination 172.16.200.2:$port_fwd
-iptables -t nat -A POSTROUTING -j MASQUERADE
+# DNAT: Local Port $local_port -> Tunnel IP:Remote Port $remote_port
+iptables -t nat -A PREROUTING -p tcp --dport $local_port -j DNAT --to-destination 172.16.200.2:$remote_port
+iptables -t nat -A PREROUTING -p udp --dport $local_port -j DNAT --to-destination 172.16.200.2:$remote_port
+
+# Safe Masquerade (Only for tunnel interface)
+iptables -t nat -A POSTROUTING -o gre_simp -j MASQUERADE
 EOF
         echo -e "\n   ${GREEN}✔ Configured as SENDER.${NC}"
-        echo -e "   Forwarding traffic on port ${BOLD}$port_fwd${NC} -> Kharej (via Tunnel)"
+        echo -e "   Traffic: ${BOLD}:$local_port (IR) ${NC}--> ${BOLD}Tunnel${NC} --> ${BOLD}:$remote_port (KH)${NC}"
 
     else
         # === RECEIVER (KHAREJ) LOGIC ===
-        # Based on startup4-ServerKharej.sh
         cat <<EOF >> "$SIMPLE_SCRIPT"
 # Tunnel Setup
 ip tunnel add gre_simp mode gre local $local_bind_ip remote $remote_ip ttl 255
@@ -501,68 +429,88 @@ EOF
     fi
 
     # -- Create Persistence Service --
-    # Creating a systemd service to run this script at boot, effectively making manual commands persistent
     cat <<EOF > "$SIMPLE_SERVICE"
 [Unit]
 Description=Simple GRE Tunnel Setup
 After=network.target
-
 [Service]
 Type=oneshot
 ExecStart=$SIMPLE_SCRIPT
 RemainAfterExit=yes
-
 [Install]
 WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
     systemctl enable --now simple-gre.service >/dev/null 2>&1
-    
     echo -e "   ${GREEN}✔ Service Started & Enabled.${NC}"
-    echo -e "   ${GREY}Logs: journalctl -u simple-gre${NC}"
     echo -ne "\n   Press Enter to return..."
     read
 }
 
 remove_simple_gre() {
-    echo -e "\n${RED}➤ DELETE SIMPLE GRE${NC}"
+    local SIMPLE_SCRIPT="/opt/simple_gre_script.sh"
+    local SIMPLE_SERVICE="/etc/systemd/system/simple-gre.service"
+
+    echo -e "\n${RED}➤ DELETE SIMPLE GRE (CLEANUP)${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
-    if [[ ! -f "/opt/simple_gre_script.sh" ]]; then
-        echo -e "   ${YELLOW}⚠ No Simple GRE configuration found.${NC}"
+    # Detailed Cleanup Guide
+    echo -e "${PURPLE}┌──[ 💡 HELP: CLEANUP PROCESS ]──────────────────────────────────────┐${NC}"
+    echo -e "${PURPLE}│${NC} This function will perform a deep clean of the Simple GRE configuration."
+    echo -e "${PURPLE}│${NC} "
+    echo -e "${PURPLE}│${NC} 1. ${BOLD}Analyze:${NC} Reads existing config to find LOCAL forwarded ports."
+    echo -e "${PURPLE}│${NC} 2. ${BOLD}Revert Firewall:${NC} Deletes DNAT rules & Safe Masquerade."
+    echo -e "${PURPLE}│${NC} 3. ${BOLD}Destroy Tunnel:${NC} Removes the 'gre_simp' network interface."
+    echo -e "${PURPLE}│${NC} 4. ${BOLD}Remove Files:${NC} Deletes scripts and system services."
+    echo -e "${PURPLE}└────────────────────────────────────────────────────────────────────┘${NC}"
+
+    if [[ ! -f "$SIMPLE_SCRIPT" ]]; then
+        echo -e "   ${YELLOW}⚠ No Simple GRE configuration found on this system.${NC}"
         read -p "   Press Enter..."
         return
     fi
 
-    echo -e "   ${YELLOW}Are you sure you want to delete the Simple GRE Tunnel?${NC}"
-    echo -e "   This will remove the tunnel interface and firewall rules."
+    echo -e "   ${YELLOW}Are you sure you want to completely remove the Simple GRE Tunnel?${NC}"
     echo -ne "   (y/n): "
     read confirm
     if [[ "$confirm" != "y" ]]; then return; fi
 
-    echo -e "\n   ${CYAN}Cleaning up...${NC}"
+    echo -e "\n   ${CYAN}Starting cleanup...${NC}"
 
-    # Stop Service
+    # 1. SMART IPTABLES CLEANUP
+    # We find the LOCAL port (dport) used in PREROUTING
+    local local_port_del=$(grep "dport" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--dport ' '{print $2}' | awk '{print $1}')
+    # We also need to find the destination to delete exact rule
+    local dest_del=$(grep "to-destination" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--to-destination ' '{print $2}' | awk '{print $1}')
+
+    if [[ -n "$local_port_del" && -n "$dest_del" ]]; then
+        echo -e "   ${GREY}Removing forwarding for Local Port: $local_port_del${NC}"
+        iptables -t nat -D PREROUTING -p tcp --dport "$local_port_del" -j DNAT --to-destination "$dest_del" 2>/dev/null
+        iptables -t nat -D PREROUTING -p udp --dport "$local_port_del" -j DNAT --to-destination "$dest_del" 2>/dev/null
+    fi
+
+    # Remove the specific Masquerade rule
+    iptables -t nat -D POSTROUTING -o gre_simp -j MASQUERADE 2>/dev/null
+    echo -e "   ${GREEN}✔ Firewall rules cleaned.${NC}"
+
+    # 2. Stop Service
     systemctl stop simple-gre.service 2>/dev/null
     systemctl disable simple-gre.service 2>/dev/null
-    rm -f "/etc/systemd/system/simple-gre.service"
-    rm -f "/opt/simple_gre_script.sh"
+    rm -f "$SIMPLE_SERVICE"
+    rm -f "$SIMPLE_SCRIPT"
+    echo -e "   ${GREEN}✔ Service and files removed.${NC}"
 
-    # Remove Interface
-    ip link del gre_simp 2>/dev/null
+    # 3. Remove Interface
+    if ip link show gre_simp >/dev/null 2>&1; then
+        ip link del gre_simp
+        echo -e "   ${GREEN}✔ Tunnel interface (gre_simp) deleted.${NC}"
+    fi
 
-    # Flush NAT (Simplest safe way is to delete masquerade or warn user)
-    # Since we can't easily find the specific rule ID without complex parsing, 
-    # we will attempt to remove the generic Masquerade if it exists, 
-    # OR simpler: just removing the interface kills the route.
-    # Note: iptables rules added via script might remain until reboot or manual flush.
-    
-    echo -e "   ${GREEN}✔ Configuration files removed.${NC}"
-    echo -e "   ${YELLOW}⚠ Note:${NC} To fully clear iptables rules immediately, it is recommended to reboot,"
-    echo -e "           or verify with 'iptables -t nat -L -n -v'."
-    
     systemctl daemon-reload
+    systemctl reset-failed
+
+    echo -e "\n   ${GREEN}✅ Cleanup Complete! No reboot required.${NC}"
     read -p "   Press Enter..."
 }
 
@@ -575,7 +523,6 @@ while true; do
     draw_logo
     draw_dashboard
     
-    # Restored Menu Items from v8
     echo -e "${YELLOW} MAIN MENU${NC}"
     echo -e " ${BOLD}[1] ${CYAN}Kharej Server${NC}    ${GREY}Create tunnel (Run on Foreign VPS)${NC}"
     echo -e " ${BOLD}[2] ${CYAN}Iran Server${NC}      ${GREY}Create tunnel (Run on Iran VPS)${NC}"
@@ -585,8 +532,8 @@ while true; do
     echo -e " ${BOLD}[6] ${BLUE}Refresh Stats${NC}    ${GREY}Update IPs and Load${NC}"
     
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
-    echo -e " ${BOLD}[7] ${CYAN}Simple GRE IPv4${NC}  ${GREY}Method: Manual Script + Port FWD${NC}"
-    echo -e " ${BOLD}[10] ${RED}Delete Simple${NC}   ${GREY}Remove Simple GRE Config${NC}"
+    echo -e " ${BOLD}[7] ${CYAN}Simple GRE IPv4${NC}  ${GREY}Manual Script + Port Mapping${NC}"
+    echo -e " ${BOLD}[8] ${RED}Delete Simple${NC}    ${GREY}Clean remove of Simple GRE${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
     echo -e " ${BOLD}[0] ${WHITE}Exit${NC}"
@@ -605,7 +552,7 @@ while true; do
         
         # New Options
         7) setup_simple_gre ;;
-        10) remove_simple_gre ;;
+        8) remove_simple_gre ;;
         
         0) clear; exit 0 ;;
         *) echo "Invalid option." ;;
