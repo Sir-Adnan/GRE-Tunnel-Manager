@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v12.0 - The Perfect Fusion
-#   Visuals: v8.0 Style | Logic: v11.5 Fixes
-#   Update: Custom Port Mapping + Secured NAT
+#   GRE MASTER v12.5 - The Perfect Fusion
+#   Visuals: v8.0 Style | Logic: v12.0 Fixes
+#   Update: Fixed Internal IPv6 Display in Summary
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -135,7 +135,7 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v12.0${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v12.5${NC}"
     echo ""
 }
 
@@ -285,6 +285,7 @@ EOF
     echo -e "${NC}"
     printf "   %-15s : ${WHITE}%s${NC}\n" "Tunnel ID" "$tid"
     printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv4" "$v4_int"
+    printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv6" "$v6_int"
     print_guide_box "Next Step" "Copy the ${GREEN}Internal IPv4${NC} above and use it in your Panel (3x-ui/Hiddify) as the destination."
     echo -ne "\n   Press Enter to return to menu..."
     read
