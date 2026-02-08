@@ -516,190 +516,158 @@ remove_simple_gre() {
 }
 
 # ==================================================
-#   🆕 ADVANCED IPTABLES FORWARDING (Updated Request)
+#   🚀 ADVANCED FORWARDING (Options 9-11)
 # ==================================================
 
-FWD_SCRIPT="/opt/gre_manual_forwarding.sh"
-FWD_SERVICE="/etc/systemd/system/gre-manual-fwd.service"
+FW_SCRIPT="/usr/local/bin/gre_custom_rules.sh"
+FW_SERVICE="/etc/systemd/system/gre-custom-rules.service"
 
-init_fwd_system() {
-    if [[ ! -f "$FWD_SCRIPT" ]]; then
-        echo "#!/bin/bash" > "$FWD_SCRIPT"
-        echo "# GRE Manual Forwarding Rules" >> "$FWD_SCRIPT"
-        echo "# Do not edit this header." >> "$FWD_SCRIPT"
-        chmod +x "$FWD_SCRIPT"
+ensure_forward_service() {
+    if [[ ! -f "$FW_SCRIPT" ]]; then
+        echo "#!/bin/bash" > "$FW_SCRIPT"
+        echo "# Custom GRE Forwarding Rules" >> "$FW_SCRIPT"
+        echo "sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1" >> "$FW_SCRIPT"
+        echo "sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1" >> "$FW_SCRIPT"
+        chmod +x "$FW_SCRIPT"
     fi
 
-    if [[ ! -f "$FWD_SERVICE" ]]; then
-        cat <<EOF > "$FWD_SERVICE"
+    if [[ ! -f "$FW_SERVICE" ]]; then
+        cat <<EOF > "$FW_SERVICE"
 [Unit]
-Description=GRE Manual Forwarding Rules
+Description=GRE Custom Forwarding Rules
 After=network.target
-
 [Service]
 Type=oneshot
-ExecStart=$FWD_SCRIPT
+ExecStart=$FW_SCRIPT
 RemainAfterExit=yes
-
 [Install]
 WantedBy=multi-user.target
 EOF
         systemctl daemon-reload
-        systemctl enable gre-manual-fwd.service >/dev/null 2>&1
+        systemctl enable gre-custom-rules.service >/dev/null 2>&1
     fi
 }
 
-add_manual_forward() {
-    init_fwd_system
-    echo -e "\n${BLUE}➤ ADD MANUAL FORWARDING RULE${NC}"
+setup_advanced_forwarding() {
+    echo -e "\n${BLUE}➤ CUSTOM GRE FORWARDING${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
-    echo -e "${PURPLE}ℹ️  This tool creates a persistent forwarding rule from this server${NC}"
-    echo -e "${PURPLE}    to a remote GRE endpoint (Tunnel IP).${NC}"
-    echo ""
-
-    # 1. Local Port
-    echo -ne "   ${WHITE}➤ Local Port (Ingress on this server):${NC} "
-    read lport
-    if [[ ! "$lport" =~ ^[0-9]+$ ]]; then echo -e "   ${RED}Invalid port.${NC}"; sleep 1; return; fi
-
-    # 2. Destination IP (Remote Tunnel IP)
-    echo -ne "   ${WHITE}➤ Destination IP (Remote Tunnel IP):${NC} "
-    read rip
-    # Simple check, we allow any format but warn if empty
-    if [[ -z "$rip" ]]; then echo -e "   ${RED}IP cannot be empty.${NC}"; sleep 1; return; fi
-
-    # 3. Destination Port
-    echo -ne "   ${WHITE}➤ Destination Port (Remote Server Port):${NC} "
-    read rport
-    if [[ ! "$rport" =~ ^[0-9]+$ ]]; then echo -e "   ${RED}Invalid port.${NC}"; sleep 1; return; fi
-
-    # 4. Protocol
-    echo -ne "   ${WHITE}➤ Protocol (tcp/udp/both) [default: tcp]:${NC} "
-    read proto
-    [[ -z "$proto" ]] && proto="tcp"
-
-    # Confirm
-    echo -e "\n   ${YELLOW}Rule Summary:${NC}"
-    echo -e "   Local: ${BOLD}$lport${NC}  --->  Remote: ${BOLD}$rip:$rport${NC} ($proto)"
-    echo -ne "   Confirm? (y/n): "; read confirm
-    [[ "$confirm" != "y" ]] && return
-
-    # Apply Logic
-    echo -e "\n   ${CYAN}Applying rules...${NC}"
+    print_guide_box "Advanced Mode" "Use this to forward traffic through ${BOLD}EXISTING${NC} GRE tunnels (Option 1/2).\n  Works with both IPv4 and IPv6 Internal IPs."
     
-    # Function to append safely
-    append_rule() {
-        local p=$1
-        # ID is strictly for cleanup logic
-        local rule_id="RULE_$(date +%s)_${p}_${lport}"
-        
-        echo "# START $rule_id" >> "$FWD_SCRIPT"
-        
-        local cmd_pre="iptables -t nat -A PREROUTING -p $p --dport $lport -j DNAT --to-destination $rip:$rport"
-        local cmd_post="iptables -t nat -A POSTROUTING -d $rip -p $p --dport $rport -j MASQUERADE"
-        
-        echo "$cmd_pre" >> "$FWD_SCRIPT"
-        echo "$cmd_post" >> "$FWD_SCRIPT"
-        echo "# END $rule_id" >> "$FWD_SCRIPT"
-        
-        # Execute immediately
-        $cmd_pre
-        $cmd_post
-    }
+    ensure_forward_service
 
-    if [[ "$proto" == "both" ]]; then
-        append_rule "tcp"
-        append_rule "udp"
-    else
-        append_rule "$proto"
+    echo -ne "   ${WHITE}➤ Local Port (Entrance):${NC} "
+    read l_port
+    echo -ne "   ${WHITE}➤ Destination Tunnel IP (Other Side):${NC} "
+    read r_ip
+    echo -ne "   ${WHITE}➤ Destination Port (Remote Service):${NC} "
+    read r_port
+
+    if [[ -z "$l_port" || -z "$r_ip" || -z "$r_port" ]]; then
+        echo -e "   ${RED}❌ Error: All fields are required.${NC}"; sleep 1; return
     fi
 
-    echo -e "   ${GREEN}✔ Rule added and saved.${NC}"
+    # Determine Protocol
+    local cmd="iptables"
+    local proto="v4"
+    if [[ "$r_ip" =~ .*:.* ]]; then
+        cmd="ip6tables"
+        proto="v6"
+    fi
+
+    echo -e "\n   ${YELLOW}Adding rules...${NC}"
+
+    # Prepare Commands
+    local rule1="$cmd -t nat -A PREROUTING -p tcp --dport $l_port -j DNAT --to-destination [$r_ip]:$r_port"
+    local rule2="$cmd -t nat -A PREROUTING -p udp --dport $l_port -j DNAT --to-destination [$r_ip]:$r_port"
+    local rule3="$cmd -t nat -A POSTROUTING -d $r_ip -p tcp --dport $r_port -j MASQUERADE"
+    local rule4="$cmd -t nat -A POSTROUTING -d $r_ip -p udp --dport $r_port -j MASQUERADE"
+
+    if [[ "$proto" == "v4" ]]; then
+        # Remove brackets for IPv4
+        rule1=${rule1//[\[\]]/}
+        rule2=${rule2//[\[\]]/}
+    fi
+
+    # Execute Immediately
+    eval "$rule1"
+    eval "$rule2"
+    eval "$rule3"
+    eval "$rule4"
+
+    # Save to Script
+    echo "$rule1" >> "$FW_SCRIPT"
+    echo "$rule2" >> "$FW_SCRIPT"
+    echo "$rule3" >> "$FW_SCRIPT"
+    echo "$rule4" >> "$FW_SCRIPT"
+
+    echo -e "   ${GREEN}✔ Rules Added and Saved.${NC}"
+    echo -e "   Traffic on port ${BOLD}$l_port${NC} is now forwarding to ${BOLD}$r_ip:$r_port${NC}"
     read -p "   Press Enter..."
 }
 
-edit_manual_forward() {
-    if [[ ! -f "$FWD_SCRIPT" ]]; then echo -e "   ${GREY}No forwarding rules found.${NC}"; sleep 1; return; fi
-    echo -e "\n${PURPLE}➤ EDIT FORWARDING SCRIPT${NC}"
-    echo -e "${YELLOW}⚠ WARNING: Advanced User Mode.${NC}"
-    echo -e "   Press Enter to open Nano editor."
-    read
-    nano "$FWD_SCRIPT"
+edit_advanced_rules() {
+    ensure_forward_service
+    echo -e "\n${PURPLE}➤ EDIT FORWARDING RULES${NC}"
+    if [[ ! -s "$FW_SCRIPT" ]]; then
+        echo -e "   ${GREY}No rules found.${NC}"; sleep 1; return
+    fi
+    echo -e "   ${YELLOW}⚠ Warning: Editing manually requires knowledge of iptables syntax.${NC}"
+    read -p "   Press Enter to open editor..."
+    nano "$FW_SCRIPT"
+    
+    # Reload
     echo -e "   ${CYAN}Reloading rules...${NC}"
-    # Simple reload: we can't easily flush only our rules without tagging. 
-    # For manual edit, we assume user knows what they did.
-    # Best effort: restart service (which just runs script again, so dupes are possible if user didn't clean up).
-    # Since this is advanced, we trust the user or just warn them.
-    echo -e "   ${YELLOW}Note: If you removed rules, you may need to reboot or manually flush iptables to clear old ones.${NC}"
-    "$FWD_SCRIPT"
-    echo -e "   ${GREEN}✔ Script Executed.${NC}"; sleep 2
+    bash "$FW_SCRIPT"
+    echo -e "   ${GREEN}✔ Done.${NC}"; sleep 1
 }
 
-delete_manual_forward() {
-    if [[ ! -f "$FWD_SCRIPT" ]]; then echo -e "   ${GREY}No forwarding rules found.${NC}"; sleep 1; return; fi
-    echo -e "\n${RED}➤ DELETE FORWARDING RULE${NC}"
+delete_advanced_rules() {
+    ensure_forward_service
+    echo -e "\n${RED}➤ DELETE FORWARDING RULES${NC}"
+    echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
-    # Grep IDs and details
-    local map_file="/tmp/gre_fwd_map.txt"
-    grep -n "# START RULE_" "$FWD_SCRIPT" > "$map_file"
-    
-    if [[ ! -s "$map_file" ]]; then
-        echo -e "   ${GREY}No managed rules found in script.${NC}"; sleep 1; return
+    if [[ ! -s "$FW_SCRIPT" ]]; then
+        echo -e "   ${GREY}No custom rules found.${NC}"; sleep 1; return
     fi
+
+    # Read lines into array
+    mapfile -t lines < "$FW_SCRIPT"
+    local count=0
+    local valid_indices=()
     
-    echo -e "   ${BOLD}ID   Line   Rule Details${NC}"
-    local idx=1
-    local ids=()
-    local lines=()
+    echo -e "   ${BOLD}ID   Rule Command${NC}"
+    for i in "${!lines[@]}"; do
+        local line="${lines[$i]}"
+        if [[ "$line" =~ ^(iptables|ip6tables) ]]; then
+            # Truncate long lines for display
+            local display="${line:0:60}..."
+            echo -e "   [${WHITE}$count${NC}]  ${GREY}$display${NC}"
+            valid_indices[$count]=$i
+            ((count++))
+        fi
+    done
+
+    if [[ $count -eq 0 ]]; then echo -e "   ${GREY}No valid rules found in file.${NC}"; sleep 1; return; fi
+
+    echo -ne "\n   ${RED}Select ID to delete:${NC} "; read idx
     
-    while read -r line; do
-        # Line format: 10:# START RULE_12345_tcp_8080
-        local line_num=$(echo "$line" | cut -d: -f1)
-        local rule_tag=$(echo "$line" | cut -d: -f2 | awk '{print $3}')
-        
-        # Extract info from the actual rule commands in file (next 2 lines)
-        local cmd_line_num=$((line_num + 1))
-        local cmd_info=$(sed -n "${cmd_line_num}p" "$FWD_SCRIPT" | grep "DNAT")
-        
-        # Pretty print
-        local proto=$(echo "$rule_tag" | cut -d_ -f3)
-        local port=$(echo "$rule_tag" | cut -d_ -f4)
-        local dest=$(echo "$cmd_info" | grep -oP 'to-destination \K.*')
-        
-        printf "   [${WHITE}%d${NC}]  %-6s %s/%s -> %s\n" "$idx" "$line_num" "$port" "$proto" "$dest"
-        ids+=("$rule_tag")
-        lines+=("$line_num")
-        ((idx++))
-    done < "$map_file"
-    
-    echo -ne "\n   ${RED}Select index to delete:${NC} "; read choice
-    local array_idx=$((choice - 1))
-    
-    if [[ -z "${ids[$array_idx]}" ]]; then echo -e "   ${RED}Invalid selection.${NC}"; sleep 1; return; fi
-    
-    local target_tag="${ids[$array_idx]}"
-    
-    echo -e "   ${YELLOW}Deleting $target_tag...${NC}"
-    
-    # 1. Remove from active iptables (Reverse engineering the file content for that block)
-    # We find the block between START and END
-    local start_ln=${lines[$array_idx]}
-    local end_ln=$(grep -n "# END $target_tag" "$FWD_SCRIPT" | cut -d: -f1)
-    
-    if [[ -n "$start_ln" && -n "$end_ln" ]]; then
-        # Execute Delete Commands (sed lines, replace -A with -D, execute)
-        sed -n "$((start_ln+1)),$((end_ln-1))p" "$FWD_SCRIPT" | while read -r cmd; do
-            local del_cmd=${cmd//-A/-D}
-            $del_cmd 2>/dev/null
-        done
-        
-        # 2. Remove from file
-        sed -i "${start_ln},${end_ln}d" "$FWD_SCRIPT"
-        echo -e "   ${GREEN}✔ Removed from config and active firewall.${NC}"
-    else
-        echo -e "   ${RED}Error locating rule block.${NC}"
+    if [[ -z "${valid_indices[$idx]}" ]]; then
+        echo -e "   ${RED}Invalid selection.${NC}"; sleep 1; return
     fi
+
+    local real_line_num=${valid_indices[$idx]}
+    local command_to_run="${lines[$real_line_num]}"
     
+    # 1. Remove from System (Convert -A to -D)
+    local delete_cmd="${command_to_run/-A /-D }"
+    echo -e "   ${YELLOW}Executing: ${delete_cmd:0:40}...${NC}"
+    eval "$delete_cmd" 2>/dev/null
+
+    # 2. Remove from File
+    # sed uses 1-based indexing, array is 0-based.
+    sed -i "$((real_line_num + 1))d" "$FW_SCRIPT"
+
+    echo -e "   ${GREEN}✔ Rule deleted from System and Config.${NC}"
     read -p "   Press Enter..."
 }
 
@@ -724,9 +692,9 @@ while true; do
     echo -e " ${BOLD}[7] ${CYAN}Simple GRE IPv4${NC}  ${GREY}Manual Script + Port Mapping${NC}"
     echo -e " ${BOLD}[8] ${RED}Delete Simple${NC}    ${GREY}Clean remove of Simple GRE${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
-    echo -e " ${BOLD}[9] ${BLUE}Add Manual FWD${NC}   ${GREY}Forward Port -> Existing Tunnel IP${NC}"
-    echo -e " ${BOLD}[10]${PURPLE}Edit FWD Rules${NC}   ${GREY}Manually edit forwarding script${NC}"
-    echo -e " ${BOLD}[11]${RED}Delete FWD Rule${NC}  ${GREY}Select and remove forwarding rule${NC}"
+    echo -e " ${BOLD}[9] ${CYAN}Adv. Forwarding${NC}  ${GREY}Forward via Existing Tunnel IP${NC}"
+    echo -e " ${BOLD}[10]${PURPLE}Edit Forwarding${NC}  ${GREY}Edit rules from Opt 9${NC}"
+    echo -e " ${BOLD}[11]${RED}Del Forwarding${NC}   ${GREY}Delete rules from Opt 9${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
     echo -e " ${BOLD}[0] ${WHITE}Exit${NC}"
@@ -743,14 +711,14 @@ while true; do
         5) install_shortcut ;;
         6) rm -f "$CACHE_V4" "$CACHE_V6"; sleep 0.5 ;;
         
-        # New Options
+        # Simple GRE
         7) setup_simple_gre ;;
         8) remove_simple_gre ;;
         
-        # Requested Options
-        9) add_manual_forward ;;
-        10) edit_manual_forward ;;
-        11) delete_manual_forward ;;
+        # New Advanced Forwarding
+        9) setup_advanced_forwarding ;;
+        10) edit_advanced_rules ;;
+        11) delete_advanced_rules ;;
         
         0) clear; exit 0 ;;
         *) echo "Invalid option." ;;
