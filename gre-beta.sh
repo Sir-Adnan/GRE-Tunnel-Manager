@@ -551,7 +551,7 @@ EOF
 setup_advanced_forwarding() {
     echo -e "\n${BLUE}➤ CUSTOM GRE FORWARDING${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
-    print_guide_box "Advanced Mode" "Use this to forward traffic through ${BOLD}EXISTING${NC} GRE tunnels (Option 1/2).\n  Works with both IPv4 and IPv6 Internal IPs."
+    print_guide_box "Advanced Mode" "Use this to forward traffic through ${BOLD}EXISTING${NC} GRE tunnels (Option 1/2).\n  Works with Just IPv4 Internal IPs.\n (Don't Use IPv6)"
     
     ensure_forward_service
 
