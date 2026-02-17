@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v12.5 - The Perfect Fusion
-#   Visuals: v8.0 Style | Logic: v12.0 Fixes
-#   Update: Fixed Internal IPv6 Display in Summary
+#   GRE MASTER v13.0 - The Perfect Fusion
+#   Visuals: v8.0 Style | Logic: v13.0 (Wipe Fixes)
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -135,7 +134,7 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v12.5${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.0${NC}"
     echo ""
 }
 
@@ -622,15 +621,17 @@ edit_advanced_rules() {
 }
 
 delete_advanced_rules() {
-    ensure_forward_service
-    echo -e "\n${RED}➤ DELETE FORWARDING RULES${NC}"
+    local FW_SCRIPT="/usr/local/bin/gre_custom_rules.sh"
+    local FW_SERVICE="/etc/systemd/system/gre-custom-rules.service"
+    
+    echo -e "\n${RED}➤ DELETE SPECIFIC RULE (Advanced)${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
     if [[ ! -s "$FW_SCRIPT" ]]; then
         echo -e "   ${GREY}No custom rules found.${NC}"; sleep 1; return
     fi
 
-    # Read lines into array
+    # خواندن فایل
     mapfile -t lines < "$FW_SCRIPT"
     local count=0
     local valid_indices=()
@@ -638,8 +639,8 @@ delete_advanced_rules() {
     echo -e "   ${BOLD}ID   Rule Command${NC}"
     for i in "${!lines[@]}"; do
         local line="${lines[$i]}"
+        # نمایش فقط خطوطی که دستور iptables دارند
         if [[ "$line" =~ ^(iptables|ip6tables) ]]; then
-            # Truncate long lines for display
             local display="${line:0:60}..."
             echo -e "   [${WHITE}$count${NC}]  ${GREY}$display${NC}"
             valid_indices[$count]=$i
@@ -647,7 +648,18 @@ delete_advanced_rules() {
         fi
     done
 
-    if [[ $count -eq 0 ]]; then echo -e "   ${GREY}No valid rules found in file.${NC}"; sleep 1; return; fi
+    if [[ $count -eq 0 ]]; then 
+        echo -e "   ${GREY}File exists but has no active rules.${NC}"
+        echo -ne "   ${YELLOW}Remove empty file and service? (y/n): ${NC}"; read clean_empty
+        if [[ "$clean_empty" == "y" ]]; then
+             systemctl stop gre-custom-rules.service 2>/dev/null
+             systemctl disable gre-custom-rules.service 2>/dev/null
+             rm -f "$FW_SCRIPT" "$FW_SERVICE"
+             systemctl daemon-reload
+             echo -e "   ${GREEN}✔ Cleaned up empty configuration.${NC}"
+        fi
+        return
+    fi
 
     echo -ne "\n   ${RED}Select ID to delete:${NC} "; read idx
     
@@ -655,21 +667,107 @@ delete_advanced_rules() {
         echo -e "   ${RED}Invalid selection.${NC}"; sleep 1; return
     fi
 
-    local real_line_num=${valid_indices[$idx]}
-    local command_to_run="${lines[$real_line_num]}"
+    local real_line_index=${valid_indices[$idx]}
+    local command_to_remove="${lines[$real_line_index]}"
     
-    # 1. Remove from System (Convert -A to -D)
-    local delete_cmd="${command_to_run/-A /-D }"
-    echo -e "   ${YELLOW}Executing: ${delete_cmd:0:40}...${NC}"
+    # 1. حذف آنی از فایروال سیستم (تبدیل -A/-I به -D)
+    local delete_cmd="${command_to_remove/-A /-D }"
+    delete_cmd="${delete_cmd/-I /-D }"
+    
+    echo -e "   ${YELLOW}Removing rule from active firewall...${NC}"
     eval "$delete_cmd" 2>/dev/null
 
-    # 2. Remove from File
-    # sed uses 1-based indexing, array is 0-based.
-    sed -i "$((real_line_num + 1))d" "$FW_SCRIPT"
+    # 2. حذف دائمی از فایل (با تطبیق دقیق متن)
+    grep -v -F -x "$command_to_remove" "$FW_SCRIPT" > "${FW_SCRIPT}.tmp" && mv "${FW_SCRIPT}.tmp" "$FW_SCRIPT"
+    chmod +x "$FW_SCRIPT"
 
-    echo -e "   ${GREEN}✔ Rule deleted from System and Config.${NC}"
+    echo -e "   ${GREEN}✔ Rule removed.${NC}"
+
+    # 3. چک کردن اینکه آیا فایل خالی شده است؟
+    if ! grep -q "iptables" "$FW_SCRIPT"; then
+        echo -e "\n   ${CYAN}ℹ Info: No rules left in configuration.${NC}"
+        echo -ne "   ${YELLOW}Do you want to remove the empty service file too? (y/n): ${NC}"; read auto_clean
+        if [[ "$auto_clean" == "y" ]]; then
+             systemctl stop gre-custom-rules.service 2>/dev/null
+             systemctl disable gre-custom-rules.service 2>/dev/null
+             rm -f "$FW_SCRIPT" "$FW_SERVICE"
+             systemctl daemon-reload
+             echo -e "   ${GREEN}✔ Service fully removed.${NC}"
+        fi
+    fi
     read -p "   Press Enter..."
 }
+
+# ==================================================
+#   🔄 wipe_all_gre_configs - 12 (TOTAL RESET)
+# ==================================================
+
+wipe_all_gre_configs() {
+    echo -e "\n${RED}➤ TOTAL WIPE (RESET FORWARDING)${NC}"
+    echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
+    echo -e "${PURPLE}┌──[ ⚠ WARNING ]─────────────────────────────────────────────┐${NC}"
+    echo -e "${PURPLE}│${NC} This will completely remove:"
+    echo -e "${PURPLE}│${NC} 1. Simple GRE Tunnel (Option 7)"
+    echo -e "${PURPLE}│${NC} 2. Advanced Forwarding Rules (Option 9)"
+    echo -e "${PURPLE}│${NC} 3. All associated Services and Files"
+    echo -e "${PURPLE}│${NC} 4. Will Reload Systemd & Network Logic"
+    echo -e "${PURPLE}└────────────────────────────────────────────────────────────┘${NC}"
+    
+    echo -ne "   ${YELLOW}Are you sure you want to WIPE ALL GRE Configs? (yes/no): ${NC}"
+    read confirm
+    if [[ "$confirm" != "yes" ]]; then echo -e "   ${GREY}Cancelled.${NC}"; sleep 1; return; fi
+
+    echo -e "\n   ${CYAN}Phase 1: Removing Simple GRE...${NC}"
+    local SIMPLE_SCRIPT="/opt/simple_gre_script.sh"
+    local SIMPLE_SERVICE="/etc/systemd/system/simple-gre.service"
+    
+    if [[ -f "$SIMPLE_SCRIPT" ]]; then
+        local local_port_del=$(grep "dport" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--dport ' '{print $2}' | awk '{print $1}')
+        local dest_del=$(grep "to-destination" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--to-destination ' '{print $2}' | awk '{print $1}')
+        if [[ -n "$local_port_del" && -n "$dest_del" ]]; then
+            iptables -t nat -D PREROUTING -p tcp --dport "$local_port_del" -j DNAT --to-destination "$dest_del" 2>/dev/null
+            iptables -t nat -D PREROUTING -p udp --dport "$local_port_del" -j DNAT --to-destination "$dest_del" 2>/dev/null
+        fi
+        iptables -t nat -D POSTROUTING -o gre_simp -j MASQUERADE 2>/dev/null
+        
+        systemctl stop simple-gre.service 2>/dev/null
+        systemctl disable simple-gre.service 2>/dev/null
+        rm -f "$SIMPLE_SERVICE" "$SIMPLE_SCRIPT"
+        ip link del gre_simp 2>/dev/null
+        echo -e "   ${GREEN}✔ Simple GRE removed.${NC}"
+    else
+        echo -e "   ${GREY}Simple GRE not found (Skipping).${NC}"
+    fi
+
+    echo -e "\n   ${CYAN}Phase 2: Removing Advanced Forwarding...${NC}"
+    local FW_SCRIPT="/usr/local/bin/gre_custom_rules.sh"
+    local FW_SERVICE="/etc/systemd/system/gre-custom-rules.service"
+
+    if [[ -f "$FW_SCRIPT" ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^(iptables|ip6tables) ]]; then
+                local del_cmd="${line/-A /-D }"
+                del_cmd="${del_cmd/-I /-D }"
+                eval "$del_cmd" 2>/dev/null
+            fi
+        done < "$FW_SCRIPT"
+        
+        systemctl stop gre-custom-rules.service 2>/dev/null
+        systemctl disable gre-custom-rules.service 2>/dev/null
+        rm -f "$FW_SCRIPT" "$FW_SERVICE"
+        echo -e "   ${GREEN}✔ Advanced Rules removed.${NC}"
+    else
+        echo -e "   ${GREY}Advanced Rules not found (Skipping).${NC}"
+    fi
+
+    echo -e "\n   ${CYAN}Phase 3: System Refresh...${NC}"
+    systemctl daemon-reload
+    systemctl reset-failed
+    
+    echo -e "\n   ${GREEN}✅ ALL DONE! System is clean.${NC}"
+    read -p "   Press Enter..."
+}
+
 
 # ==================================================
 #   🔄 MAIN LOOP
@@ -694,8 +792,9 @@ while true; do
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     echo -e " ${BOLD}[9] ${CYAN}Adv. Forwarding${NC}  ${GREY}Forward via Existing Tunnel IP${NC}"
     echo -e " ${BOLD}[10]${PURPLE}Edit Forwarding${NC}  ${GREY}Edit rules from Opt 9${NC}"
-    echo -e " ${BOLD}[11]${RED}Del Forwarding${NC}   ${GREY}Delete rules from Opt 9${NC}"
+    echo -e " ${BOLD}[11]${RED}Del Forwarding${NC}   ${GREY}Delete specific rule${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
+    echo -e " ${BOLD}[12]${RED}WIPE ALL${NC}         ${GREY}Reset ALL Simple & Advanced${NC}"
     
     echo -e " ${BOLD}[0] ${WHITE}Exit${NC}"
     
@@ -715,10 +814,13 @@ while true; do
         7) setup_simple_gre ;;
         8) remove_simple_gre ;;
         
-        # New Advanced Forwarding
+        # Advanced Forwarding
         9) setup_advanced_forwarding ;;
         10) edit_advanced_rules ;;
-        11) delete_advanced_rules ;;
+        11) delete_advanced_rules ;; # فانکشن اصلاح شده
+        
+        # Total Wipe
+        12) wipe_all_gre_configs ;; # فانکشن جدید و کامل
         
         0) clear; exit 0 ;;
         *) echo "Invalid option." ;;
