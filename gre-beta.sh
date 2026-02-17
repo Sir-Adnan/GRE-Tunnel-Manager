@@ -961,6 +961,18 @@ realm_show_config() {
     fi
 }
 
+realm_edit_config() {
+    realm_section_title "EDIT CONFIG (MANUAL)"
+    echo -e "  ${YELLOW}⚠ Note: Do not break the file structure if you want 'Delete' to work.${NC}"
+    echo -e "  ${GREY}Opening config in nano...${NC}"
+    sleep 1
+    
+    realm_backup_config
+    nano "$REALM_CONFIG_FILE"
+    
+    realm_apply_config
+}
+
 realm_menu_uninstall() {
     realm_section_title "UNINSTALL REALM"
     realm_ask_input "Confirm (y/yes)"; read -r c
@@ -994,7 +1006,8 @@ run_realm_menu() {
         echo -e "  ${HI_CYAN}[1]${NC} Add Relay"
         echo -e "  ${HI_CYAN}[2]${NC} Delete Relay"
         echo -e "  ${HI_CYAN}[3]${NC} Show Config"
-        echo -e "  ${HI_CYAN}[4]${NC} Uninstall Realm"
+        echo -e "  ${HI_CYAN}[4]${NC} Edit Config ${YELLOW}(Manual)${NC}"  # <--- گزینه جدید
+        echo -e "  ${HI_CYAN}[5]${NC} Uninstall Realm"
         echo -e "  ${HI_CYAN}[0]${NC} Back to Main Menu"
         echo ""
         echo -ne "  ${HI_PINK}➤ Select Option : ${NC}"
@@ -1004,7 +1017,8 @@ run_realm_menu() {
             1) realm_add_relay ;;
             2) realm_delete_relay ;;
             3) realm_show_config ;;
-            4) realm_menu_uninstall; return ;;
+            4) realm_edit_config ;;       # <--- فانکشن جدید
+            5) realm_menu_uninstall; return ;;
             0) return ;;
         esac
     done
