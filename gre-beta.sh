@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v13.5 - The Ultimate Fusion
+#   GRE MASTER v13.6 - The Ultimate Fusion (Fixes)
 #   Includes: GRE Tunnel + Simple GRE + Realm Relay
-#   Visuals: v8.0 Style | Logic: v13.5 (Merged)
+#   Visuals: v8.0 Style | Logic: v13.6 (Bug Free)
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -168,7 +168,7 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.5${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.6${NC}"
     echo ""
 }
 
@@ -917,7 +917,9 @@ realm_add_relay() {
 realm_delete_relay() {
     realm_section_title "DELETE RELAY"
     
-    mapfile -t ports < <(grep "listen =" "$REALM_CONFIG_FILE" | grep -oE "[0-9]+" | sort -u)
+    # --- FIXED: Use Regex to extract EXACT port number, avoiding '0' ---
+    mapfile -t ports < <(grep -oE "listen = \"0.0.0.0:[0-9]+\"" "$REALM_CONFIG_FILE" | cut -d: -f2 | tr -d '"' | sort -u)
+    
     if [ ${#ports[@]} -eq 0 ]; then
         echo -e "  ${YELLOW}No active relays found.${NC}"; sleep 1; return
     fi
@@ -961,6 +963,7 @@ realm_show_config() {
     fi
 }
 
+# --- NEW: Edit Config Function ---
 realm_edit_config() {
     realm_section_title "EDIT CONFIG (MANUAL)"
     echo -e "  ${YELLOW}⚠ Note: Do not break the file structure if you want 'Delete' to work.${NC}"
@@ -1006,7 +1009,7 @@ run_realm_menu() {
         echo -e "  ${HI_CYAN}[1]${NC} Add Relay"
         echo -e "  ${HI_CYAN}[2]${NC} Delete Relay"
         echo -e "  ${HI_CYAN}[3]${NC} Show Config"
-        echo -e "  ${HI_CYAN}[4]${NC} Edit Config ${YELLOW}(Manual)${NC}"  # <--- گزینه جدید
+        echo -e "  ${HI_CYAN}[4]${NC} Edit Config ${YELLOW}(Manual)${NC}"
         echo -e "  ${HI_CYAN}[5]${NC} Uninstall Realm"
         echo -e "  ${HI_CYAN}[0]${NC} Back to Main Menu"
         echo ""
@@ -1017,7 +1020,7 @@ run_realm_menu() {
             1) realm_add_relay ;;
             2) realm_delete_relay ;;
             3) realm_show_config ;;
-            4) realm_edit_config ;;       # <--- فانکشن جدید
+            4) realm_edit_config ;;
             5) realm_menu_uninstall; return ;;
             0) return ;;
         esac
