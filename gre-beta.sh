@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v13.0 - The Perfect Fusion
-#   Visuals: v8.0 Style | Logic: v13.0 (Wipe Fixes)
+#   GRE MASTER v13.5 - The Ultimate Fusion
+#   Includes: GRE Tunnel + Simple GRE + Realm Relay
+#   Visuals: v8.0 Style | Logic: v13.5 (Merged)
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -16,15 +17,27 @@ PURPLE='\033[0;35m'
 WHITE='\033[1;37m'
 GREY='\033[0;90m'
 NC='\033[0m'
+HI_CYAN='\033[0;96m'
+HI_PINK='\033[0;95m'
+HI_GREEN='\033[0;92m'
 
-# --- CONSTANTS ---
+# --- CONSTANTS (GRE) ---
 SYSCTL_FILE="/etc/sysctl.d/99-gre-tuning.conf"
 CACHE_V4="/tmp/gre_v4.cache"
 CACHE_V6="/tmp/gre_v6.cache"
 SHORTCUT_NAME="igre"
 SHORTCUT_PATH="/usr/local/bin/$SHORTCUT_NAME"
+REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh"
 API_V4_LIST=("https://api.ipify.org" "https://ipv4.icanhazip.com" "https://ifconfig.me/ip")
 API_V6_LIST=("https://api6.ipify.org" "https://ipv6.icanhazip.com" "https://ifconfig.co/ip")
+
+# --- CONSTANTS (REALM) ---
+REALM_CONFIG_DIR="/etc/realm"
+REALM_CONFIG_FILE="/etc/realm/config.toml"
+REALM_SERVICE_FILE="/etc/systemd/system/realm.service"
+REALM_BIN="/usr/local/bin/realm"
+REALM_LOG_POLICY="/etc/realm/.journald_policy"
+REALM_JOURNALD_CONF="/etc/systemd/journald.conf.d/99-realm-manager.conf"
 
 # --- ROOT CHECK ---
 if [[ $EUID -ne 0 ]]; then
@@ -38,7 +51,7 @@ fi
 
 install_deps() {
     local pkgs=""
-    for tool in curl ip grep awk sed bc nano iptables; do
+    for tool in curl ip grep awk sed bc nano iptables lsof; do
         if ! command -v $tool &> /dev/null; then pkgs+=" $tool"; fi
     done
     if [[ -n "$pkgs" ]]; then
@@ -48,18 +61,39 @@ install_deps() {
     fi
 }
 
-install_shortcut() {
-    echo -e "\n${YELLOW}➤ INSTALLING SHORTCUT${NC}"
-    local current_script=$(readlink -f "$0")
-    if [[ "$current_script" == *"/proc/"* ]] || [[ ! -f "$current_script" ]]; then
-        echo -e "   ${RED}❌ Error: Save the script to a file first.${NC}"
-        read -p "Press Enter..."
-        return
+# --- NEW: Interactive Shortcut Install (Moved to start) ---
+setup_shortcut() {
+    if [ ! -s "$SHORTCUT_PATH" ]; then
+        echo ""
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "  ${GREEN}💿  ${BOLD}Setup '$SHORTCUT_NAME' Shortcut?${NC}"
+        echo -e "  ${BLUE}Allows you to run the manager by typing '$SHORTCUT_NAME'.${NC}"
+        echo ""
+
+        echo -ne "  ${PURPLE}➤ Install (y/yes to confirm)? : ${NC}"
+        read -r install_opt
+        install_opt=${install_opt:-y}
+
+        if [[ "$install_opt" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            echo -e "  ${YELLOW}Downloading script to $SHORTCUT_PATH...${NC}"
+            
+            # Repo check
+            if [ -z "$REPO_URL" ]; then
+                REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh"
+            fi
+
+            curl -L -o "$SHORTCUT_PATH" -fsSL "$REPO_URL"
+            
+            if [ -s "$SHORTCUT_PATH" ]; then
+                chmod +x "$SHORTCUT_PATH"
+                echo -e "  ${HI_GREEN}✔ Installed! Type '$SHORTCUT_NAME' to run.${NC}"
+                sleep 2
+            else
+                echo -e "  ${RED}✖ Download failed. Check internet connection.${NC}"
+                sleep 2
+            fi
+        fi
     fi
-    cp -f "$current_script" "$SHORTCUT_PATH"
-    chmod +x "$SHORTCUT_PATH"
-    echo -e "   ${GREEN}✔ Installed!${NC} You can now run '${BOLD}${CYAN}$SHORTCUT_NAME${NC}' anywhere."
-    read -p "   Press Enter to continue..."
 }
 
 # --- LOGIC FIXES ---
@@ -134,7 +168,7 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.0${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.5${NC}"
     echo ""
 }
 
@@ -144,10 +178,15 @@ draw_dashboard() {
     local show_v6="${GREEN}Online${NC}"; [[ -z "$LOCAL_V6" ]] && show_v6="${GREY}Offline${NC}"
     local tunnels=$(get_active_tunnels)
     local load=$(cat /proc/loadavg | awk '{print $1}')
+    
+    # Check Realm Status for Dashboard
+    local realm_status="${RED}OFF${NC}"
+    if systemctl is-active --quiet realm; then realm_status="${GREEN}ON${NC}"; fi
 
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
     printf "${CYAN}║${NC}  🌐 IPv4: %-19b   IPv6: %-22b ${CYAN}║${NC}\n" "${WHITE}$show_v4${NC}" "$show_v6"
     printf "${CYAN}║${NC}  📊 Load: %-19b   🚀 Tunnels: %-19b ${CYAN}║${NC}\n" "${WHITE}$load${NC}" "${YELLOW}$tunnels${NC}"
+    printf "${CYAN}║${NC}  🦀 Realm: %-46b ${CYAN}║${NC}\n" "$realm_status"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -348,17 +387,6 @@ setup_simple_gre() {
     echo -e "\n${BLUE}➤ SIMPLE GRE + PORT MAPPING${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
-    # Detailed Guide (Updated for Port Mapping)
-    echo -e "${PURPLE}┌──[ 💡 HELP: MANUAL METHOD & PORT MAPPING ]───────────────────────┐${NC}"
-    echo -e "${PURPLE}│${NC} This method connects two servers and forwards specific traffic."
-    echo -e "${PURPLE}│${NC} "
-    echo -e "${PURPLE}│${NC} 1. ${BOLD}IRAN (Sender):${NC} Forwards traffic from Local Port -> Remote Port."
-    echo -e "${PURPLE}│${NC}    Example: Receive on 443 (Iran) -> Send to 8443 (Kharej)."
-    echo -e "${PURPLE}│${NC}    * NAT is restricted to the tunnel interface (Safe Mode)."
-    echo -e "${PURPLE}│${NC} "
-    echo -e "${PURPLE}│${NC} 2. ${BOLD}KHAREJ (Receiver):${NC} Just accepts the connection."
-    echo -e "${PURPLE}└──────────────────────────────────────────────────────────────────┘${NC}"
-
     echo -e " ${BOLD}[1] ${CYAN}Sender (IRAN)${NC}"
     echo -e " ${BOLD}[2] ${CYAN}Receiver (KHAREJ)${NC}"
     echo -ne "\n ${WHITE}Select Role:${NC} "
@@ -415,7 +443,6 @@ iptables -t nat -A PREROUTING -p udp --dport $local_port -j DNAT --to-destinatio
 iptables -t nat -A POSTROUTING -o gre_simp -j MASQUERADE
 EOF
         echo -e "\n   ${GREEN}✔ Configured as SENDER.${NC}"
-        echo -e "   Traffic: ${BOLD}:$local_port (IR) ${NC}--> ${BOLD}Tunnel${NC} --> ${BOLD}:$remote_port (KH)${NC}"
 
     else
         # === RECEIVER (KHAREJ) LOGIC ===
@@ -455,16 +482,6 @@ remove_simple_gre() {
     echo -e "\n${RED}➤ DELETE SIMPLE GRE (CLEANUP)${NC}"
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     
-    # Detailed Cleanup Guide
-    echo -e "${PURPLE}┌──[ 💡 HELP: CLEANUP PROCESS ]──────────────────────────────────────┐${NC}"
-    echo -e "${PURPLE}│${NC} This function will perform a deep clean of the Simple GRE configuration."
-    echo -e "${PURPLE}│${NC} "
-    echo -e "${PURPLE}│${NC} 1. ${BOLD}Analyze:${NC} Reads existing config to find LOCAL forwarded ports."
-    echo -e "${PURPLE}│${NC} 2. ${BOLD}Revert Firewall:${NC} Deletes DNAT rules & Safe Masquerade."
-    echo -e "${PURPLE}│${NC} 3. ${BOLD}Destroy Tunnel:${NC} Removes the 'gre_simp' network interface."
-    echo -e "${PURPLE}│${NC} 4. ${BOLD}Remove Files:${NC} Deletes scripts and system services."
-    echo -e "${PURPLE}└────────────────────────────────────────────────────────────────────┘${NC}"
-
     if [[ ! -f "$SIMPLE_SCRIPT" ]]; then
         echo -e "   ${YELLOW}⚠ No Simple GRE configuration found on this system.${NC}"
         read -p "   Press Enter..."
@@ -479,9 +496,7 @@ remove_simple_gre() {
     echo -e "\n   ${CYAN}Starting cleanup...${NC}"
 
     # 1. SMART IPTABLES CLEANUP
-    # We find the LOCAL port (dport) used in PREROUTING
     local local_port_del=$(grep "dport" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--dport ' '{print $2}' | awk '{print $1}')
-    # We also need to find the destination to delete exact rule
     local dest_del=$(grep "to-destination" "$SIMPLE_SCRIPT" | head -n 1 | awk -F'--to-destination ' '{print $2}' | awk '{print $1}')
 
     if [[ -n "$local_port_del" && -n "$dest_del" ]]; then
@@ -768,11 +783,239 @@ wipe_all_gre_configs() {
     read -p "   Press Enter..."
 }
 
+# ==================================================
+#   🦀 REALM MODULE - 13
+# ==================================================
+
+# --- Helper Functions for Realm ---
+realm_confirm_yes() {
+    local ans="$1"
+    [[ "$ans" =~ ^[Yy]([Ee][Ss])?$ ]]
+}
+
+realm_ask_input() { echo -ne "  ${HI_PINK}➤ $1 : ${NC}"; }
+realm_section_title() { echo -e "\n  ${BOLD}${HI_CYAN}:: $1 ::${NC}"; }
+
+realm_validate_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+
+realm_backup_config() { cp "$REALM_CONFIG_FILE" "${REALM_CONFIG_FILE}.bak" 2>/dev/null; }
+
+realm_apply_config() {
+    echo -e "\n${BLUE}--- Reloading Service ---${NC}"
+    systemctl restart realm
+    sleep 1
+    if systemctl is-active --quiet realm; then
+        echo -e "  ${HI_GREEN}✔ Success! Service is running.${NC}"
+        read -r -p "  Press Enter to continue..."
+    else
+        echo -e "  ${RED}✖ Failed! Check config syntax.${NC}"
+        journalctl -u realm -n 5 --no-pager
+        read -r -p "  Press Enter..."
+    fi
+}
+
+realm_check_port_safety() {
+    local port=$1
+    if grep -q "listen =.*:$port\"" "$REALM_CONFIG_FILE"; then
+        echo -e "  ${RED}✖ Port $port is already in config!${NC}"; return 1
+    fi
+    if lsof -i :"$port" > /dev/null 2>&1; then
+        echo -e "  ${RED}✖ Port $port is busy in system!${NC}"; return 1
+    fi
+    return 0
+}
+
+realm_install_dependencies() {
+    local NEED_INSTALL=false
+    if ! command -v realm &> /dev/null; then
+        echo -e "${BLUE}Downloading Realm (Rust)...${NC}"
+        
+        local ARCH_RAW RELEASE_FILE
+        ARCH_RAW=$(uname -m)
+        if [[ "$ARCH_RAW" == "x86_64" ]]; then
+            RELEASE_FILE="realm-x86_64-unknown-linux-gnu.tar.gz"
+        elif [[ "$ARCH_RAW" == "aarch64" ]]; then
+            RELEASE_FILE="realm-aarch64-unknown-linux-gnu.tar.gz"
+        else
+            echo -e "${RED}Unsupported architecture: $ARCH_RAW${NC}"
+            return 1
+        fi
+
+        local DL_URL="https://github.com/zhboner/realm/releases/latest/download/$RELEASE_FILE"
+        local TMP_DIR
+        TMP_DIR=$(mktemp -d)
+
+        echo -e "  ${YELLOW}Fetching from GitHub...${NC}"
+        if curl -L -o "$TMP_DIR/realm.tar.gz" -fsSL "$DL_URL"; then
+            tar -xf "$TMP_DIR/realm.tar.gz" -C "$TMP_DIR"
+            mv "$TMP_DIR/realm" "$REALM_BIN"
+            chmod +x "$REALM_BIN"
+            rm -rf "$TMP_DIR"
+            echo -e "${HI_GREEN}Realm installed successfully.${NC}"
+        else
+            echo -e "${RED}Download failed.${NC}"
+            rm -rf "$TMP_DIR"
+            return 1
+        fi
+    fi
+
+    mkdir -p "$REALM_CONFIG_DIR"
+    if [ ! -f "$REALM_CONFIG_FILE" ]; then
+        echo "[network]" > "$REALM_CONFIG_FILE"
+        echo "no_tcp = false" >> "$REALM_CONFIG_FILE"
+        echo "use_udp = true" >> "$REALM_CONFIG_FILE"
+        echo "" >> "$REALM_CONFIG_FILE"
+    fi
+    
+    # Setup Service
+    cat <<EOF > "$REALM_SERVICE_FILE"
+[Unit]
+Description=Realm Relay Service (Rust)
+After=network-online.target
+Wants=network-online.target systemd-networkd-wait-online.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=$REALM_BIN -c $REALM_CONFIG_FILE
+StandardOutput=null
+StandardError=null
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable realm >/dev/null 2>&1
+}
+
+realm_add_relay() {
+    realm_section_title "ADD RELAY"
+    echo ""
+    realm_ask_input "Local Port"; read -r lport
+    realm_validate_port "$lport" || { echo -e "  ${RED}Bad Port${NC}"; sleep 1; return; }
+    realm_check_port_safety "$lport" || { sleep 1; return; }
+
+    echo ""
+    realm_ask_input "Remote IP"; read -r raw_ip
+    # Use existing GRE normalize function? No, lets use simple one
+    if [[ "$raw_ip" == *":"* && "$raw_ip" != *[* ]]; then raw_ip="[$raw_ip]"; fi
+    
+    realm_ask_input "Remote Port"; read -r dport
+    realm_validate_port "$dport" || { echo -e "  ${RED}Bad Dest Port${NC}"; sleep 1; return; }
+
+    realm_backup_config
+    echo "" >> "$REALM_CONFIG_FILE"
+    echo "[[endpoints]]" >> "$REALM_CONFIG_FILE"
+    echo "listen = \"0.0.0.0:$lport\"" >> "$REALM_CONFIG_FILE"
+    echo "remote = \"$raw_ip:$dport\"" >> "$REALM_CONFIG_FILE"
+    realm_apply_config
+}
+
+realm_delete_relay() {
+    realm_section_title "DELETE RELAY"
+    
+    mapfile -t ports < <(grep "listen =" "$REALM_CONFIG_FILE" | grep -oE "[0-9]+" | sort -u)
+    if [ ${#ports[@]} -eq 0 ]; then
+        echo -e "  ${YELLOW}No active relays found.${NC}"; sleep 1; return
+    fi
+
+    printf "  ${BLUE}%-6s %-15s${NC}\n" "ID" "LOCAL PORT"
+    echo -e "  ${BLUE}──────────────────────${NC}"
+    local i=0
+    for port in "${ports[@]}"; do
+        printf "  ${HI_CYAN}[%d]${NC}    ${BOLD}%-15s${NC}\n" "$i" "$port"
+        ((i++))
+    done
+
+    echo ""
+    realm_ask_input "Enter ID (c to cancel)"; read -r idx
+    [[ "$idx" == "c" || "$idx" == "C" ]] && return
+
+    if [[ "$idx" =~ ^[0-9]+$ ]] && [ "$idx" -lt "${#ports[@]}" ]; then
+        local target_port="${ports[$idx]}"
+        realm_backup_config
+        
+        local line_num
+        line_num=$(grep -n "listen = \"0.0.0.0:$target_port\"" "$REALM_CONFIG_FILE" | cut -d: -f1 | head -n1)
+        
+        if [[ -n "$line_num" ]]; then
+            local start_del=$((line_num - 1))
+            local end_del=$((line_num + 2))
+            sed -i "${start_del},${end_del}d" "$REALM_CONFIG_FILE"
+            sed -i '/^\s*$/d' "$REALM_CONFIG_FILE"
+            realm_apply_config
+        fi
+    fi
+}
+
+realm_show_config() {
+    clear
+    realm_section_title "REALM CONFIG (TOML)"
+    if [ -f "$REALM_CONFIG_FILE" ]; then
+        cat "$REALM_CONFIG_FILE" | less
+    else
+        echo "Config not found."
+    fi
+}
+
+realm_menu_uninstall() {
+    realm_section_title "UNINSTALL REALM"
+    realm_ask_input "Confirm (y/yes)"; read -r c
+    if realm_confirm_yes "$c"; then
+        systemctl stop realm >/dev/null 2>&1
+        systemctl disable realm >/dev/null 2>&1
+        rm -rf "$REALM_CONFIG_DIR" "$REALM_SERVICE_FILE" "$REALM_BIN"
+        systemctl daemon-reload
+        echo -e "\n  ${HI_GREEN}✔ Uninstalled Realm.${NC}"
+        sleep 2
+    fi
+}
+
+run_realm_menu() {
+    realm_install_dependencies
+    while true; do
+        clear
+        echo -e "${HI_CYAN}"
+        echo "    ____  _________    __    __  ___"
+        echo "   / __ \/ ____/   |  / /   /  |/  /"
+        echo "  / /_/ / __/ / /| | / /   / /|_/ / "
+        echo " / _, _/ /___/ ___ |/ /___/ /  / /  "
+        echo "/_/ |_/_____/_/  |_/_____/_/  /_/   "
+        echo -e "     ${PURPLE}R U S T   E D I T I O N${NC}"
+        echo ""
+        
+        local r_status="${RED}OFFLINE${NC}"
+        if systemctl is-active --quiet realm; then r_status="${HI_GREEN}ACTIVE${NC}"; fi
+        echo -e "  STATUS: $r_status"
+        echo ""
+        echo -e "  ${HI_CYAN}[1]${NC} Add Relay"
+        echo -e "  ${HI_CYAN}[2]${NC} Delete Relay"
+        echo -e "  ${HI_CYAN}[3]${NC} Show Config"
+        echo -e "  ${HI_CYAN}[4]${NC} Uninstall Realm"
+        echo -e "  ${HI_CYAN}[0]${NC} Back to Main Menu"
+        echo ""
+        echo -ne "  ${HI_PINK}➤ Select Option : ${NC}"
+        read -r ropt
+        
+        case $ropt in
+            1) realm_add_relay ;;
+            2) realm_delete_relay ;;
+            3) realm_show_config ;;
+            4) realm_menu_uninstall; return ;;
+            0) return ;;
+        esac
+    done
+}
+
 
 # ==================================================
 #   🔄 MAIN LOOP
 # ==================================================
 install_deps
+setup_shortcut  # Moved shortcut setup here to run once at start
 
 while true; do
     draw_logo
@@ -783,7 +1026,7 @@ while true; do
     echo -e " ${BOLD}[2] ${CYAN}Iran Server${NC}      ${GREY}Create tunnel (Run on Iran VPS)${NC}"
     echo -e " ${BOLD}[3] ${RED}Delete Tunnel${NC}    ${GREY}Remove existing connections${NC}"
     echo -e " ${BOLD}[4] ${PURPLE}Edit Config${NC}      ${GREY}Advanced manual edit${NC}"
-    echo -e " ${BOLD}[5] ${GREEN}Install Shortcut${NC} ${GREY}Add 'igre' command${NC}"
+    echo -e " ${BOLD}[5] ${GREEN}Re-install Shortcut${NC} ${GREY}Update 'igre' command${NC}"
     echo -e " ${BOLD}[6] ${BLUE}Refresh Stats${NC}    ${GREY}Update IPs and Load${NC}"
     
     echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
@@ -793,9 +1036,10 @@ while true; do
     echo -e " ${BOLD}[9] ${CYAN}Adv. Forwarding${NC}  ${GREY}Forward via Existing Tunnel IP${NC}"
     echo -e " ${BOLD}[10]${PURPLE}Edit Forwarding${NC}  ${GREY}Edit rules from Opt 9${NC}"
     echo -e " ${BOLD}[11]${RED}Del Forwarding${NC}   ${GREY}Delete specific rule${NC}"
-    echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
     echo -e " ${BOLD}[12]${RED}WIPE ALL${NC}         ${GREY}Reset ALL Simple & Advanced${NC}"
-    
+    echo -e "${GREY}──────────────────────────────────────────────────────────────${NC}"
+    echo -e " ${BOLD}[13]${HI_PINK}Realm Manager${NC}    ${GREY}High Performance Relay (Rust)${NC}"
+
     echo -e " ${BOLD}[0] ${WHITE}Exit${NC}"
     
     echo ""
@@ -807,7 +1051,7 @@ while true; do
         2) setup_tunnel "iran" ;;
         3) remove_tunnel ;;
         4) edit_tunnel ;;
-        5) install_shortcut ;;
+        5) rm -f "$SHORTCUT_PATH"; setup_shortcut ;;
         6) rm -f "$CACHE_V4" "$CACHE_V6"; sleep 0.5 ;;
         
         # Simple GRE
@@ -817,10 +1061,11 @@ while true; do
         # Advanced Forwarding
         9) setup_advanced_forwarding ;;
         10) edit_advanced_rules ;;
-        11) delete_advanced_rules ;; # فانکشن اصلاح شده
+        11) delete_advanced_rules ;;
+        12) wipe_all_gre_configs ;;
         
-        # Total Wipe
-        12) wipe_all_gre_configs ;; # فانکشن جدید و کامل
+        # Realm
+        13) run_realm_menu ;;
         
         0) clear; exit 0 ;;
         *) echo "Invalid option." ;;
