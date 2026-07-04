@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # ==================================================
-#   GRE MASTER v13.6 - The Ultimate Fusion (Fixes)
+#   GRE MASTER v13.7 - The Ultimate Fusion (Fixes)
 #   Includes: GRE Tunnel + Simple GRE + Realm Relay
-#   Visuals: v8.0 Style | Logic: v13.6 (Bug Free)
+#   Visuals: v8.0 Style | Logic: v13.7 (Hardened)
 # ==================================================
 
 # --- 🎨 THEME & COLORS ---
@@ -23,8 +23,9 @@ HI_GREEN='\033[0;92m'
 
 # --- CONSTANTS (GRE) ---
 SYSCTL_FILE="/etc/sysctl.d/99-gre-tuning.conf"
-CACHE_V4="/tmp/gre_v4.cache"
-CACHE_V6="/tmp/gre_v6.cache"
+CACHE_DIR="/run/gre-manager"
+CACHE_V4="$CACHE_DIR/v4.cache"
+CACHE_V6="$CACHE_DIR/v6.cache"
 SHORTCUT_NAME="igre"
 SHORTCUT_PATH="/usr/local/bin/$SHORTCUT_NAME"
 REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh"
@@ -41,9 +42,13 @@ REALM_JOURNALD_CONF="/etc/systemd/journald.conf.d/99-realm-manager.conf"
 
 # --- ROOT CHECK ---
 if [[ $EUID -ne 0 ]]; then
-    echo -e "${RED}❌ Error: This script requires root privileges (sudo).${NC}" 
+    echo -e "${RED}❌ Error: This script requires root privileges (sudo).${NC}"
     exit 1
 fi
+
+# Root-owned cache dir (tmpfs) - safe from /tmp tampering by other users
+mkdir -p "$CACHE_DIR"
+chmod 700 "$CACHE_DIR"
 
 # ==================================================
 #   🛠 UTILITIES
@@ -105,17 +110,29 @@ get_bind_ip() {
 
 fix_firewall() {
     if command -v ufw &> /dev/null; then
-        ufw allow proto gre >/dev/null 2>&1
+        ufw allow proto gre from any to any >/dev/null 2>&1
     fi
     iptables -C INPUT -p gre -j ACCEPT 2>/dev/null || iptables -A INPUT -p gre -j ACCEPT
+    # ip6gre tunnels arrive over IPv6 - open GRE protocol there too
+    if command -v ip6tables &> /dev/null; then
+        ip6tables -C INPUT -p gre -j ACCEPT 2>/dev/null || ip6tables -A INPUT -p gre -j ACCEPT
+    fi
 }
 
 validate_ipv4() {
     local ip=$1
-    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    if [[ $ip =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]]; then
+        local octet
+        for octet in "${BASH_REMATCH[@]:1}"; do
+            (( 10#$octet <= 255 )) || return 1
+        done
         return 0
     fi
     return 1
+}
+
+validate_port() {
+    [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 ))
 }
 
 validate_ipv6() {
@@ -126,9 +143,12 @@ validate_ipv6() {
 }
 
 detect_local_ips() {
+    LOCAL_V4=""
     if [[ -f "$CACHE_V4" ]] && [[ $(find "$CACHE_V4" -mmin -60 2>/dev/null) ]]; then
         LOCAL_V4=$(cat "$CACHE_V4")
-    else
+        validate_ipv4 "$LOCAL_V4" || LOCAL_V4=""
+    fi
+    if [[ -z "$LOCAL_V4" ]]; then
         for api in "${API_V4_LIST[@]}"; do
             LOCAL_V4=$(curl -s --max-time 2 -4 "$api")
             if validate_ipv4 "$LOCAL_V4"; then echo "$LOCAL_V4" > "$CACHE_V4"; break; fi
@@ -138,14 +158,17 @@ detect_local_ips() {
         fi
     fi
 
+    LOCAL_V6=""
     if [[ -f "$CACHE_V6" ]] && [[ $(find "$CACHE_V6" -mmin -60 2>/dev/null) ]]; then
         LOCAL_V6=$(cat "$CACHE_V6")
-    else
+        [[ "$LOCAL_V6" =~ ^[0-9a-fA-F:]+$ ]] || LOCAL_V6=""
+    fi
+    if [[ -z "$LOCAL_V6" ]]; then
         for api in "${API_V6_LIST[@]}"; do
             LOCAL_V6=$(curl -s --max-time 2 -6 "$api")
-            if validate_ipv6 "$LOCAL_V6"; then echo "$LOCAL_V6" > "$CACHE_V6"; break; fi
+            if [[ "$LOCAL_V6" =~ ^[0-9a-fA-F:]+$ ]] && validate_ipv6 "$LOCAL_V6"; then echo "$LOCAL_V6" > "$CACHE_V6"; break; fi
         done
-        if ! validate_ipv6 "$LOCAL_V6"; then
+        if ! validate_ipv6 "$LOCAL_V6" || ! [[ "$LOCAL_V6" =~ ^[0-9a-fA-F:]+$ ]]; then
             LOCAL_V6=$(ip -6 -o addr show scope global | grep -v "temporary" | grep -v "deprecated" | awk '{print $4}' | cut -d/ -f1 | head -n 1)
         fi
     fi
@@ -168,7 +191,7 @@ draw_logo() {
     echo "  ▐█▄▪▐█▐█•█▌ ▐█▄▄▌    ██ ██▌▐█▌▐█ ▪▐▌▐█▄▪▐█"
     echo "  ·▀Ss▀▀.▀  ▀  ▀▀▀     ▀▀  █▪▀▀▀ ▀  ▀  ▀▀▀▀ "
     echo -e "${NC}"
-    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.6${NC}"
+    echo -e "         ${GREY}VPN TUNNEL MANAGER  |  v13.7${NC}"
     echo ""
 }
 
@@ -239,14 +262,25 @@ setup_tunnel() {
     print_guide_box "Tunnel ID" "Pick a number (1-250). ${BOLD}MUST be the same${NC} on both servers!"
     local tid=""
     while true; do
-        echo -ne "   ${WHITE}➤ Tunnel ID:${NC} "; read tid
-        [[ "$tid" =~ ^[0-9]+$ ]] && [[ "$tid" -le 65000 ]] && break
-        echo -e "     ${RED}❌ Invalid number.${NC}"
+        echo -ne "   ${WHITE}➤ Tunnel ID:${NC} "; read -r tid
+        if [[ "$tid" =~ ^[0-9]+$ ]] && (( 10#$tid >= 1 && 10#$tid <= 250 )); then
+            tid=$(( 10#$tid ))
+            break
+        fi
+        echo -e "     ${RED}❌ Invalid. Enter a number between 1 and 250.${NC}"
     done
 
-    local local_bind_ip=""; 
-    [[ "$transport_proto" == "4" ]] && local_bind_ip=$(get_bind_ip "$r_ip") || local_bind_ip="$LOCAL_V6"
-    
+    local local_bind_ip=""
+    if [[ "$transport_proto" == "4" ]]; then
+        local_bind_ip=$(get_bind_ip "$r_ip")
+    else
+        local_bind_ip="$LOCAL_V6"
+    fi
+    if [[ -z "$local_bind_ip" ]]; then
+        echo -e "     ${RED}❌ Error: Could not determine local bind IP (no route to $r_ip).${NC}"
+        read -r -p "   Press Enter..."; return
+    fi
+
     local if_name="gre${tid}"
     [[ $role == "iran" ]] && if_name="gre-out-${tid}"
     
@@ -281,28 +315,30 @@ After=network.target
 Type=oneshot
 RemainAfterExit=yes" > "$s_file"
 
+    # 'key' lets multiple tunnels share the same local/remote pair (both sides use the same TID)
     if [[ "$transport_proto" == "6" ]]; then
-        echo "ExecStart=/sbin/ip -6 tunnel add $if_name mode ip6gre remote $r_ip local $local_bind_ip hoplimit 255" >> "$s_file"
+        echo "ExecStart=/sbin/ip -6 tunnel add $if_name mode ip6gre remote $r_ip local $local_bind_ip hoplimit 255 key $tid" >> "$s_file"
     else
-        echo "ExecStart=/sbin/ip tunnel add $if_name mode gre remote $r_ip local $local_bind_ip ttl 255" >> "$s_file"
+        echo "ExecStart=/sbin/ip tunnel add $if_name mode gre remote $r_ip local $local_bind_ip ttl 255 key $tid" >> "$s_file"
     fi
-    
+
     echo "ExecStart=/sbin/ip link set dev $if_name mtu 1430
 ExecStart=/sbin/ip link set dev $if_name up
 ExecStart=/sbin/ip addr add $v4_int dev $if_name
 ExecStart=/sbin/ip -6 addr add $v6_int dev $if_name
 ExecStop=/sbin/ip link set dev $if_name down
-ExecStop=/sbin/ip tunnel del $if_name
+ExecStop=/sbin/ip link del dev $if_name
 [Install]
 WantedBy=multi-user.target" >> "$s_file"
 
+    # Watchdog: restart tunnel only after 3 consecutive lost pings (ping -c 3 succeeds if ANY reply arrives)
     cat <<EOF > "$w_file"
 [Unit]
 Description=Watchdog $if_name
 After=gre-tun-${tid}.service
 [Service]
 Type=simple
-ExecStart=/bin/bash -c 'while true; do ping -c 1 -W 2 $v4_rem >/dev/null 2>&1; sleep 10; done'
+ExecStart=/bin/bash -c 'sleep 15; while true; do if ! ping -c 3 -W 3 $v4_rem >/dev/null 2>&1; then systemctl restart gre-tun-${tid}; sleep 20; fi; sleep 10; done'
 Restart=always
 RestartSec=5
 [Install]
@@ -324,6 +360,7 @@ EOF
     printf "   %-15s : ${WHITE}%s${NC}\n" "Tunnel ID" "$tid"
     printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv4" "$v4_int"
     printf "   %-15s : ${GREEN}%s${NC}\n" "Internal IPv6" "$v6_int"
+    echo -e "   ${YELLOW}⚠ Both servers must be set up with this script version (tunnels are keyed).${NC}"
     print_guide_box "Next Step" "Copy the ${GREEN}Internal IPv4${NC} above and use it in your Panel (3x-ui/Hiddify) as the destination."
     echo -ne "\n   Press Enter to return to menu..."
     read
@@ -411,6 +448,10 @@ setup_simple_gre() {
 
     # Local IP Detect (Bind IP)
     local local_bind_ip=$(get_bind_ip "$remote_ip")
+    if [[ -z "$local_bind_ip" ]]; then
+        echo -e "     ${RED}❌ Error: Could not determine local bind IP (no route to $remote_ip).${NC}"
+        read -r -p "   Press Enter..."; return
+    fi
     echo -e "     ${GREY}ℹ️  Using Local Bind IP: ${WHITE}$local_bind_ip${NC}"
 
     # -- Generate Content --
@@ -422,10 +463,18 @@ EOF
 
     if [[ "$role_choice" == "1" ]]; then
         # === SENDER (IRAN) LOGIC ===
-        echo -ne "   ${WHITE}➤ Local Port (Receive on Iran):${NC} "
-        read local_port
-        echo -ne "   ${WHITE}➤ Remote Port (Send to Kharej):${NC} "
-        read remote_port
+        while true; do
+            echo -ne "   ${WHITE}➤ Local Port (Receive on Iran):${NC} "
+            read -r local_port
+            validate_port "$local_port" && break
+            echo -e "     ${RED}❌ Invalid port (1-65535).${NC}"
+        done
+        while true; do
+            echo -ne "   ${WHITE}➤ Remote Port (Send to Kharej):${NC} "
+            read -r remote_port
+            validate_port "$remote_port" && break
+            echo -e "     ${RED}❌ Invalid port (1-65535).${NC}"
+        done
 
         cat <<EOF >> "$SIMPLE_SCRIPT"
 # Tunnel Setup
@@ -570,49 +619,43 @@ setup_advanced_forwarding() {
     ensure_forward_service
 
     echo -ne "   ${WHITE}➤ Local Port (Entrance):${NC} "
-    read l_port
+    read -r l_port
     echo -ne "   ${WHITE}➤ Destination Tunnel IP (Other Side):${NC} "
-    read r_ip
+    read -r r_ip
     echo -ne "   ${WHITE}➤ Destination Port (Remote Service):${NC} "
-    read r_port
+    read -r r_port
 
     if [[ -z "$l_port" || -z "$r_ip" || -z "$r_port" ]]; then
         echo -e "   ${RED}❌ Error: All fields are required.${NC}"; sleep 1; return
     fi
 
-    # Determine Protocol
+    if ! validate_port "$l_port" || ! validate_port "$r_port"; then
+        echo -e "   ${RED}❌ Error: Ports must be numbers between 1 and 65535.${NC}"; sleep 1; return
+    fi
+
+    # Determine Protocol + validate destination IP
     local cmd="iptables"
-    local proto="v4"
-    if [[ "$r_ip" =~ .*:.* ]]; then
+    local dest="$r_ip:$r_port"
+    if [[ "$r_ip" == *:* ]]; then
+        if ! [[ "$r_ip" =~ ^[0-9a-fA-F:]+$ ]]; then
+            echo -e "   ${RED}❌ Error: Invalid IPv6 address.${NC}"; sleep 1; return
+        fi
         cmd="ip6tables"
-        proto="v6"
+        dest="[$r_ip]:$r_port"
+    elif ! validate_ipv4 "$r_ip"; then
+        echo -e "   ${RED}❌ Error: Invalid IPv4 address.${NC}"; sleep 1; return
     fi
 
     echo -e "\n   ${YELLOW}Adding rules...${NC}"
 
-    # Prepare Commands
-    local rule1="$cmd -t nat -A PREROUTING -p tcp --dport $l_port -j DNAT --to-destination [$r_ip]:$r_port"
-    local rule2="$cmd -t nat -A PREROUTING -p udp --dport $l_port -j DNAT --to-destination [$r_ip]:$r_port"
-    local rule3="$cmd -t nat -A POSTROUTING -d $r_ip -p tcp --dport $r_port -j MASQUERADE"
-    local rule4="$cmd -t nat -A POSTROUTING -d $r_ip -p udp --dport $r_port -j MASQUERADE"
-
-    if [[ "$proto" == "v4" ]]; then
-        # Remove brackets for IPv4
-        rule1=${rule1//[\[\]]/}
-        rule2=${rule2//[\[\]]/}
-    fi
-
-    # Execute Immediately
-    eval "$rule1"
-    eval "$rule2"
-    eval "$rule3"
-    eval "$rule4"
-
-    # Save to Script
-    echo "$rule1" >> "$FW_SCRIPT"
-    echo "$rule2" >> "$FW_SCRIPT"
-    echo "$rule3" >> "$FW_SCRIPT"
-    echo "$rule4" >> "$FW_SCRIPT"
+    # Execute immediately + persist (inputs validated above, no eval needed)
+    local fw_proto
+    for fw_proto in tcp udp; do
+        "$cmd" -t nat -A PREROUTING -p "$fw_proto" --dport "$l_port" -j DNAT --to-destination "$dest"
+        "$cmd" -t nat -A POSTROUTING -d "$r_ip" -p "$fw_proto" --dport "$r_port" -j MASQUERADE
+        echo "$cmd -t nat -A PREROUTING -p $fw_proto --dport $l_port -j DNAT --to-destination $dest" >> "$FW_SCRIPT"
+        echo "$cmd -t nat -A POSTROUTING -d $r_ip -p $fw_proto --dport $r_port -j MASQUERADE" >> "$FW_SCRIPT"
+    done
 
     echo -e "   ${GREEN}✔ Rules Added and Saved.${NC}"
     echo -e "   Traffic on port ${BOLD}$l_port${NC} is now forwarding to ${BOLD}$r_ip:$r_port${NC}"
