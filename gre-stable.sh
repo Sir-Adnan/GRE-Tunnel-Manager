@@ -27,7 +27,7 @@ CACHE_V4="/tmp/gre_v4.cache"
 CACHE_V6="/tmp/gre_v6.cache"
 SHORTCUT_NAME="igre"
 SHORTCUT_PATH="/usr/local/bin/$SHORTCUT_NAME"
-REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh"
+REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre-stable.sh"
 API_V4_LIST=("https://api.ipify.org" "https://ipv4.icanhazip.com" "https://ifconfig.me/ip")
 API_V6_LIST=("https://api6.ipify.org" "https://ipv6.icanhazip.com" "https://ifconfig.co/ip")
 
@@ -79,7 +79,7 @@ setup_shortcut() {
             
             # Repo check
             if [ -z "$REPO_URL" ]; then
-                REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh"
+                REPO_URL="https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre-stable.sh"
             fi
 
             curl -L -o "$SHORTCUT_PATH" -fsSL "$REPO_URL"
