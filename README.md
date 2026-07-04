@@ -34,12 +34,12 @@ bash <(curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-
 
 ```
 
-### 🧪 نصب نسخه بتا (Beta)
+### 🧪 نصب نسخه استیبل قدیمی
 
-شامل آخرین تغییرات آزمایشی:
+این نسخه قدیمی هست، اما تست شده و جواب خودش رو پس داده :
 
 ```bash
-bash <(curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre-beta.sh)
+bash <(curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre-stable.sh)
 
 ```
 
