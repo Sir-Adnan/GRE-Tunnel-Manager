@@ -16,6 +16,7 @@ import (
 )
 
 const CookieName = "gtm_session"
+const HTTPCookieName = "gtm_session_http"
 
 type Session struct {
 	CSRF     string    `json:"csrf"`
@@ -37,6 +38,15 @@ type Store struct {
 
 func New(user, hash string, secure bool) *Store {
 	return &Store{sessions: map[[32]byte]Session{}, attempts: map[string]attempt{}, user: user, hash: hash, Secure: secure, Now: time.Now}
+}
+
+// Separate names avoid an existing Secure cookie blocking a later HTTP login
+// on the same host. Neither store accepts the other transport's cookie.
+func (s *Store) cookieName() string {
+	if s.Secure {
+		return CookieName
+	}
+	return HTTPCookieName
 }
 func Random() string {
 	b := make([]byte, 32)
@@ -94,11 +104,11 @@ func (s *Store) Login(w http.ResponseWriter, r *http.Request, user, password str
 		return Session{}, errors.New("too many active sessions")
 	}
 	s.sessions[sha256.Sum256([]byte(token))] = session
-	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: token, Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteStrictMode, MaxAge: 14400})
+	http.SetCookie(w, &http.Cookie{Name: s.cookieName(), Value: token, Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteStrictMode, MaxAge: 14400})
 	return session, nil
 }
 func (s *Store) Get(r *http.Request) (Session, bool) {
-	c, e := r.Cookie(CookieName)
+	c, e := r.Cookie(s.cookieName())
 	if e != nil || len(c.Value) > 64 {
 		return Session{}, false
 	}
@@ -113,12 +123,12 @@ func (s *Store) Get(r *http.Request) (Session, bool) {
 	return v, ok
 }
 func (s *Store) Logout(w http.ResponseWriter, r *http.Request) {
-	if c, e := r.Cookie(CookieName); e == nil {
+	if c, e := r.Cookie(s.cookieName()); e == nil {
 		s.mu.Lock()
 		delete(s.sessions, sha256.Sum256([]byte(c.Value)))
 		s.mu.Unlock()
 	}
-	http.SetCookie(w, &http.Cookie{Name: CookieName, Value: "", Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: s.cookieName(), Value: "", Path: "/", HttpOnly: true, Secure: s.Secure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 }
 func OriginOK(r *http.Request) bool {
 	u, e := url.Parse(r.Header.Get("Origin"))

@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Require a matching release tag
+        run: |
+          version="$(bash gre.sh --version)"
+          [[ "$GITHUB_REF" == "refs/tags/$version" ]] || { echo 'Select the matching version tag; source branches cannot replace a published package.' >&2; exit 1; }
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24'
@@ -28,12 +32,12 @@ jobs:
         working-directory: panel
       - name: Package Linux binaries
         run: python3 tools/package_panel.py
+      - run: env GTM_PANEL_TEST_BINARY="$PWD/panel/bin/gtm-panel-linux-amd64" python3 -m unittest discover -s tests -p test_panel_setup_pty.py -v
       - name: Publish checked packages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="$(bash gre.sh --version)"
-          if ! gh release view "$version" >/dev/null 2>&1; then
-            gh release create "$version" --title "GRE Tunnel Manager $version" --notes-file panel/RELEASE.md --target "$GITHUB_SHA"
-          fi
-          gh release upload "$version" panel/bin/*.tar.gz panel/bin/SHA256SUMS --clobber
+          gh release create "$version" panel/bin/*.tar.gz panel/bin/SHA256SUMS \
+            --verify-tag --title "GRE Tunnel Manager $version" \
+            --notes-file panel/RELEASE.md --target "$GITHUB_SHA"

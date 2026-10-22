@@ -36,6 +36,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { PanelSidebar } from "@/components/PanelSidebar";
+import { AccessStatus } from "@/components/AccessStatus";
 import { ActionButton } from "@/components/help";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Address, PageTitle } from "@/components/shared";
@@ -292,6 +293,9 @@ export default function App() {
                       {inventory.host.addresses[0]}
                     </Address>
                   )}
+                </span>
+                <span className="hidden xl:inline-flex">
+                  <AccessStatus />
                 </span>
                 <ActionButton
                   variant="ghost"

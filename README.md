@@ -42,6 +42,8 @@ curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/p
 
 Choose a port (blank selects a random free port), create an administrator username/password, and open the printed **HTTPS** address. Verify the initial self-signed certificate fingerprint over SSH and allow the chosen TCP port. Includes Persian/English, desktop/mobile, tunnel management, presets and optional traffic counters. No Go, Node or database is needed on the server. Also available from **8 · Web Panel** in the terminal. [Setup, features and scope](docs/WEB-PANEL.md).
 
+**Current source:** quick setup, explicit HTTP/HTTPS, automatic IP discovery and eight-character user passwords are implemented for the next panel package. The published v1.3.0 binary still uses its earlier HTTPS setup. See the [installation guide](docs/WEB-PANEL.md#published-package-versus-current-source) for the supported path and local-package testing.
+
 ## Choose what you need
 
 | Menu | Use it for |

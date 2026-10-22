@@ -7,7 +7,6 @@ import {
   Network,
   Server,
   Settings2,
-  ShieldCheck,
   Workflow,
 } from "lucide-react";
 import {
@@ -26,6 +25,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { AccessStatus } from "@/components/AccessStatus";
 import { Logo } from "@/components/shared";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
@@ -142,13 +142,12 @@ export function PanelSidebar({
               <bdi>{inventory?.host.hostname || "Server"}</bdi>
             </p>
             <p className="text-xs text-muted-foreground">
-              <bdi>
-                v{inventory?.version || "1.3.0"} ·{" "}
-                {location.protocol === "https:" ? "HTTPS" : "HTTP"}
-              </bdi>
+              <bdi>v{inventory?.version || "1.3.0"}</bdi>
             </p>
           </div>
-          <ShieldCheck className="size-4 shrink-0 group-data-[collapsible=icon]:hidden" />
+          <span className="group-data-[collapsible=icon]:hidden">
+            <AccessStatus />
+          </span>
         </div>
       </SidebarFooter>
     </Sidebar>

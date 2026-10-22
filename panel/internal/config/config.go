@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"os"
@@ -36,6 +37,8 @@ type Config struct {
 	PrivateKey   string `json:"private_key"`
 	BrokerSocket string `json:"broker_socket"`
 	PublicIP     string `json:"public_ip,omitempty"`
+	Protocol     string `json:"protocol,omitempty"`
+	PublicHost   string `json:"public_host,omitempty"`
 }
 
 var UserPattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,40}$`)
@@ -52,6 +55,12 @@ func (c Config) Validate() error {
 	if c.PublicIP != "" && net.ParseIP(c.PublicIP) == nil {
 		return errors.New("invalid public IP")
 	}
+	if c.Protocol != "" && c.Protocol != "https" && c.Protocol != "http" {
+		return errors.New("protocol must be https or http")
+	}
+	if c.PublicHost != "" && !ValidHost(c.PublicHost) {
+		return errors.New("public host must be an IP address or ASCII domain")
+	}
 	if !UserPattern.MatchString(c.Username) {
 		return errors.New("username must be 3–40 ASCII letters, digits, dots, dashes or underscores")
 	}
@@ -59,7 +68,7 @@ func (c Config) Validate() error {
 	if e != nil || cost < 12 {
 		return errors.New("invalid password hash")
 	}
-	if !filepath.IsAbs(c.Certificate) || !filepath.IsAbs(c.PrivateKey) || !path.IsAbs(c.BrokerSocket) || c.Version != 1 {
+	if (c.Scheme() == "https" && (!filepath.IsAbs(c.Certificate) || !filepath.IsAbs(c.PrivateKey))) || !path.IsAbs(c.BrokerSocket) || c.Version != 1 {
 		return errors.New("invalid panel configuration")
 	}
 	return nil
@@ -75,6 +84,10 @@ func Load(path string) (Config, error) {
 	d.DisallowUnknownFields()
 	if e = d.Decode(&c); e != nil {
 		return c, e
+	}
+	var extra any
+	if d.Decode(&extra) != io.EOF {
+		return c, errors.New("one configuration object required")
 	}
 	return c, c.Validate()
 }
@@ -110,14 +123,36 @@ func Save(path string, value any, mode os.FileMode) error {
 	return e
 }
 func New(path, host string, port int, user, password string, ips []string) (Config, string, error) {
+	return Create(path, Options{Listen: host, Port: port, Username: user, Password: password, Protocol: "https", Addresses: ips})
+}
+
+type Options struct {
+	Listen, Username, Password, Protocol, PublicHost string
+	Port                                             int
+	Addresses                                        []string
+}
+
+func Create(path string, o Options) (Config, string, error) {
 	var c Config
-	if !UserPattern.MatchString(user) || len(password) < 12 || len(password) > 72 {
-		return c, "", errors.New("use a valid username and a password of 12–72 bytes")
+	if !UserPattern.MatchString(o.Username) {
+		return c, "", errors.New("username must be 3–40 ASCII letters, digits, dots, dashes or underscores")
 	}
-	if net.ParseIP(host) == nil || port < 0 || port > 65535 {
+	if e := ValidatePassword(o.Password); e != nil {
+		return c, "", e
+	}
+	if o.Protocol != "https" && o.Protocol != "http" {
+		return c, "", errors.New("protocol must be https or http")
+	}
+	if o.PublicHost != "" && !ValidHost(o.PublicHost) {
+		return c, "", errors.New("invalid public address")
+	}
+	if _, e := os.Lstat(path); !os.IsNotExist(e) {
+		return c, "", errors.New("configuration already exists or cannot be inspected")
+	}
+	if net.ParseIP(o.Listen) == nil || o.Port < 0 || o.Port > 65535 {
 		return c, "", errors.New("invalid address or port")
 	}
-	listener, e := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprint(port)))
+	listener, e := net.Listen("tcp", net.JoinHostPort(o.Listen, fmt.Sprint(o.Port)))
 	if e != nil {
 		return c, "", e
 	}
@@ -126,16 +161,35 @@ func New(path, host string, port int, user, password string, ips []string) (Conf
 	if e = os.MkdirAll(filepath.Dir(path), 0750); e != nil {
 		return c, "", e
 	}
-	hash, e := bcrypt.GenerateFromPassword([]byte(password), 12)
+	hash, e := bcrypt.GenerateFromPassword([]byte(o.Password), 12)
 	if e != nil {
 		return c, "", e
 	}
-	c = Config{Version: 1, Listen: address, Username: user, PasswordHash: string(hash), Certificate: filepath.Join(filepath.Dir(path), "server.crt"), PrivateKey: filepath.Join(filepath.Dir(path), "server.key"), BrokerSocket: Socket}
-	fingerprint, e := certificate(c.Certificate, c.PrivateKey, ips)
+	c = Config{Version: 1, Listen: address, Username: o.Username, PasswordHash: string(hash), BrokerSocket: Socket, Protocol: o.Protocol, PublicHost: o.PublicHost}
+	if net.ParseIP(o.PublicHost) != nil {
+		c.PublicIP = o.PublicHost
+	}
+	fingerprint := ""
+	if o.Protocol == "https" {
+		c.Certificate = filepath.Join(filepath.Dir(path), "server.crt")
+		c.PrivateKey = filepath.Join(filepath.Dir(path), "server.key")
+		for _, name := range []string{c.Certificate, c.PrivateKey} {
+			if _, e := os.Lstat(name); !os.IsNotExist(e) {
+				return c, "", errors.New("certificate files already exist or cannot be inspected; preserve or relocate them before setup")
+			}
+		}
+		fingerprint, e = certificate(c.Certificate, c.PrivateKey, append(o.Addresses, o.PublicHost))
+		if e != nil {
+			return c, "", e
+		}
+	}
+	// O_EXCL also protects direct, concurrent `gtm-panel setup` invocations;
+	// the initial existence check alone is not a no-overwrite guarantee.
+	data, e := json.MarshalIndent(c, "", "  ")
 	if e != nil {
 		return c, "", e
 	}
-	if e = Save(path, c, 0640); e != nil {
+	if e = writeNew(path, append(data, '\n'), 0640); e != nil {
 		return c, "", e
 	}
 	return c, fingerprint, nil
@@ -155,6 +209,8 @@ func certificate(certPath, keyPath string, addresses []string) (string, error) {
 	for _, address := range addresses {
 		if ip := net.ParseIP(address); ip != nil {
 			t.IPAddresses = append(t.IPAddresses, ip)
+		} else if ValidHost(address) {
+			t.DNSNames = append(t.DNSNames, address)
 		}
 	}
 	der, e := x509.CreateCertificate(rand.Reader, &t, &t, &key.PublicKey, key)
@@ -165,12 +221,31 @@ func certificate(certPath, keyPath string, addresses []string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	if e = os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: raw}), 0640); e != nil {
+	if e = writeNew(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: raw}), 0640); e != nil {
 		return "", e
 	}
-	if e = os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0644); e != nil {
+	if e = writeNew(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0644); e != nil {
+		os.Remove(keyPath)
 		return "", e
 	}
 	sum := sha256.Sum256(der)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+func writeNew(path string, data []byte, mode os.FileMode) error {
+	file, e := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if e != nil {
+		return e
+	}
+	_, e = file.Write(data)
+	if e == nil {
+		e = file.Sync()
+	}
+	if closeError := file.Close(); e == nil {
+		e = closeError
+	}
+	if e != nil {
+		os.Remove(path)
+	}
+	return e
 }

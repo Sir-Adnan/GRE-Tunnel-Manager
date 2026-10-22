@@ -6,9 +6,10 @@ Start with the [README](../README.md), then the guides below. Maintained documen
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
 | [PHASE-1-REVIEW.md](PHASE-1-REVIEW.md) | Completed interface corrections, validation evidence and remaining boundaries |
+| [PHASE-2-REVIEW.md](PHASE-2-REVIEW.md) | Quick/custom installation, HTTP/HTTPS, credential preservation and validation boundaries |
 | [USER-GUIDE.md](USER-GUIDE.md) | Usage reference, engine selection, GRE, reverse setup and operational limits |
 | [TERMINAL-UI.md](TERMINAL-UI.md) | Terminal setup, staged forms, dedicated managers and fixed-color troubleshooting |
-| [WEB-PANEL.md](WEB-PANEL.md) | Optional Go panel installation, HTTPS, supported adapters, metrics, architecture and limits |
+| [WEB-PANEL.md](WEB-PANEL.md) | Optional Go panel installation, HTTP/HTTPS, supported adapters, metrics, architecture and limits |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | script layout, control flow, naming/addressing scheme, design decisions |
 | [ARTIFACTS.md](ARTIFACTS.md) | every file/service/iptables rule created on servers + reboot/cleanup behavior |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | golden rules, bash conventions, testing, release checklist, known pitfalls |

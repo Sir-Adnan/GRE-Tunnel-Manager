@@ -44,7 +44,7 @@ Still test two-server reboot persistence, systemd sandbox permissions, UFW/Docke
 
 ## Release
 
-Update English README.md, Persian README.fa.md, affected docs and changelog. Persian sentences/headings start with Persian words and code blocks remain left-to-right. Keep reciprocal language links. Bump `GTM_VERSION` in `src/core.sh`; the build header and legacy logo derive from it. Rebuild and check. Confirm `git diff -- gre-stable.sh` is empty. Do not advertise unimplemented WireGuard link provisioning, GRE-over-UDP, hostname targets or HTTP CONNECT tcpmux.
+Update the English README.md, affected guides and changelog. Maintained documentation is English-only; README.fa.md is a compatibility redirect. Keep the product UI bilingual. Bump `GTM_VERSION` in `src/core.sh`; the build header and legacy logo derive from it. Rebuild and check. Confirm `git diff -- gre-stable.sh` is empty. Do not advertise unimplemented WireGuard link provisioning, GRE-over-UDP, hostname targets or HTTP CONNECT tcpmux.
 
 ## UX references
 
@@ -63,3 +63,8 @@ Set `GTM_PANEL_TEST_BINARY` to the built Linux binary when running isolated name
 The visual system came from the user-selected Visual Experience System starter and shadcn CLI. Presets are local versioned assets, locale is independent, and feature pages use semantic tokens. Keep Nettinx source values byte-equivalent at the token level. The user explicitly requested its original colors despite five known AA contrast failures. Do not report the contrast gate as passing or silently recolor it. The registry was generated with that documented fidelity exception. Other structural/security tests are not waived.
 
 Frontend traffic tests use Node 24 type stripping with the built-in test runner. Verify switches/selection and the full form flow in a real browser; source-level checks alone cannot establish interaction correctness.
+
+
+Installation changes are tested in `panel/internal/setup` and `panel/internal/config`, with actual HTTP/TLS sessions in `panel/internal/httpapi`. The Python installer harness uses redirected temporary system paths and fake accounts/services; it does not prove live systemd deployment. On Linux it also covers upgrade preservation, installation locking, setup/config failure, version mismatch and checksum rejection. No host-wide installer test should run outside a disposable VM/container.
+
+For an unreleased build, `sudo bash panel-install.sh --package-dir panel/bin --quick --address SERVER_IP` explicitly installs locally built packages and checks their matching SHA256SUMS. Do not upload development archives over existing v1.3.0 assets. Synchronize manager/Go/frontend/installer versions before a release, rebuild the helper/frontend/packages, and create a new matching version tag. The release workflow requires that tag and creates a new release without overwriting existing assets; manual dispatch against main is refused.

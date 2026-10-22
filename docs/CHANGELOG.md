@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Phase 2 installation and access
+
+- Add modular quick/custom setup with automatic public-IP discovery, IP/domain addresses, IPv6 URL formatting, selected/random ports and generated credentials printed once.
+- Add explicit HTTP alongside default HTTPS; align listener and cookie policy while retaining exact Origin/CSRF checks. Separate transport cookie names to avoid stale Secure-cookie conflicts. Explain HTTP transport on the bilingual login page and through accessible connection help.
+- Accept user passwords with at least eight Unicode characters and at most 72 UTF-8 bytes; keep hidden confirmation and bcrypt hashing, and prohibit password arguments.
+- Preserve existing configurations and certificates, default omitted protocols to HTTPS, validate incoming config before service stop, lock concurrent installs and reject version/checksum mismatches.
+- Preserve default installation of the older published v1.3.0 package; reject unsupported new setup flags before stopping services. Support explicit local-package installation for the updated source. Preinstall engines only when requested.
+- Require a matching release tag and remove asset clobbering from release automation. No new release or tag is published by these source changes.
+
 ## Unreleased — Phase 1 interface corrections
 
 - Correct Radix state selectors for switches, checkboxes, tabs, overlays and orientation styling.
@@ -8,7 +17,7 @@
 - Redesign traffic usage into full-width settings, per-connection counters and a lazily loaded Area chart based on bounded samples fetched during the page visit. Separate actual engine names from accounting methods; never aggregate overlapping GRE/forward totals.
 - Expose optional forward/relay names in the main form and keep creation from dedicated HAProxy/Realm pages on that engine. Improve mobile form sizing and selection feedback.
 - Move maintained documentation to English and add the phase-gated Node/Agent/installation/capability roadmap.
-- This is an unreleased source change. HTTP installation and remote Node/Agent management remain planned, not implemented.
+- This is an unreleased source change. HTTP installation was subsequently implemented in Phase 2 above; remote Node/Agent management remains planned.
 
 ## v1.3.0 — Optional Go web panel
 

@@ -34,5 +34,6 @@ jobs:
         working-directory: panel
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
         working-directory: panel
+      - run: env GTM_PANEL_TEST_BINARY="$PWD/panel/bin/gtm-panel-linux-amd64" python3 -m unittest discover -s tests -p test_panel_setup_pty.py -v
       - run: sudo apt-get update && sudo apt-get install -y nftables iptables haproxy socat
       - run: sudo env GTM_PANEL_TEST_BINARY="$PWD/panel/bin/gtm-panel-linux-amd64" bash tests/linux_namespace.sh

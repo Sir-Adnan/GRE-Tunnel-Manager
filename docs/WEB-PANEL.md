@@ -2,7 +2,7 @@
 
 The optional Go panel manages connections on its own host. The interface supports Persian RTL and English LTR, desktop/mobile layouts, the original Nettinx palette and the Neutral alternative. Tunnel traffic does not pass through the panel. Stopping the panel does not stop independently managed tunnels.
 
-The [development roadmap](ROADMAP.md) distinguishes current local-host capabilities from planned Node/Agent management. The unreleased Phase 1 interface changes below are not automatically installed by the published v1.3.0 package.
+The [development roadmap](ROADMAP.md) distinguishes current local-host capabilities from planned Node/Agent management. Repository source includes the Phase 1 interface corrections and Phase 2 installation flow. The published v1.3.0 package still contains the earlier interface and HTTPS-only setup; pulling a newer installer does not rebuild that binary. See the release boundary below.
 
 ## Installation and login
 
@@ -14,15 +14,61 @@ curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/p
 
 Terminal menu **8 · Web Panel** uses the same installer. It downloads a versioned release archive and matching checksum. The package contains the Go executable, embedded built interface and matching Bash helper. Managed servers do not require Node, a Go compiler, Docker or a database server.
 
-1. Enter the public server IP for the HTTPS certificate.
-2. Choose a listen address; `0.0.0.0` listens on all IPv4 addresses, `::` selects IPv6.
-3. Enter a port, or leave it blank to choose and persist an available random port.
-4. Create an administrator username and a hidden, confirmed 12–72-byte password.
-5. Allow the chosen TCP port in host/provider firewalls and open `https://SERVER_IP:PORT`.
+### Published package versus current source
 
-Random ports do not replace authentication. The initial certificate is self-signed. Verify its printed SHA-256 fingerprint through SSH before trusting it. To use a CA certificate, edit `certificate` and `private_key` in the configuration, retain restricted `root:grepanel` key access and restart. Automatic ACME issuance/renewal is not implemented.
+The default command above remains compatible with published v1.3.0: enter the public IP, listen IP, selected/random port, administrator username and a confirmed 12–72-byte password. It installs HTTPS with a self-signed IP certificate. New options are never silently ignored: asking an older package for `--quick`, `--protocol` or other new setup options on a fresh installation fails before stopping any service.
 
-Current production installation is HTTPS-only. Explicit HTTP, quick installation, optional IP discovery and eight-character user passwords are scheduled for Phase 2; they are not available merely because they appear in the roadmap. The loopback-only demonstration uses HTTP and cannot authenticate against a production installation.
+The following flow requires a package built from the updated source (`gtm-panel setup-version` prints `2`). It has not yet been published as a new release. Developers can build matching packages using [the development guide](DEVELOPMENT.md#optional-panel), then install explicitly:
+
+```bash
+sudo bash panel-install.sh --package-dir panel/bin --quick
+```
+
+### Quick and custom setup
+
+With an updated package, ordinary installation offers **1 · Quick setup** or **2 · Custom setup**, followed by numbered HTTPS/HTTP selection. Quick setup detects the public IP, chooses an available random port and generates a strong 32-character password. It prints the URL, username and generated password once. Save that password; only its bcrypt hash is stored. Custom setup lets you choose the address, port, username and a hidden, confirmed password.
+
+For a downloaded installer and an updated published package, the direct quick-install command is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh --quick
+```
+
+Until that package is published, use `--package-dir` as above; the current published package will explicitly reject this quick command. No release/tag was replaced by the source changes.
+
+| Option | Behavior for a fresh installation |
+| --- | --- |
+| `--quick` | No setup questions; HTTPS, automatic IP, random port and generated credentials by default |
+| `--protocol https` / `--protocol http` | Choose the browser protocol explicitly; HTTPS is the default |
+| `--address IP_OR_DOMAIN` | Reachable IPv4, IPv6 or ASCII domain, without a scheme, port or path; skips online IP discovery |
+| `--port PORT` | Selected TCP port; omitted or `0` chooses an available random port |
+| `--username USER` | Default `admin`; 3–40 ASCII letters, digits, dots, dashes or underscores |
+| `--listen LOCAL_IP` | Local bind address; default all IPv4 addresses, or `::` for an explicitly supplied/detected IPv6 address |
+| `--install-engines` | Optionally preinstall all supported engines without creating tunnels; default installs none |
+| `--package-dir DIR` | Use a local matching archive and SHA256SUMS instead of downloading a release |
+
+For example, after obtaining a compatible package:
+
+```bash
+sudo bash panel-install.sh --quick --protocol http --address 203.0.113.10 --port 8080
+sudo bash panel-install.sh --quick --address panel.example.com --port 8443
+```
+
+HTTP works directly on the server IP without a certificate. Its login and management traffic are unencrypted; the login page and connection help identify this. Sessions still require authentication, HttpOnly/SameSite cookies, Origin and CSRF checks. HTTPS additionally sets the Secure cookie flag. Separate HTTP/HTTPS cookie names prevent an old Secure cookie from blocking a later HTTP login on the same host. Do not enable `Secure` on a plain HTTP listener: browsers would not send its cookie. This browser setting does not weaken the planned Agent control channel, which remains authenticated and encrypted.
+
+User-chosen passwords require at least **eight Unicode characters**, at most **72 UTF-8 bytes**, with no control characters. Hidden password entry permits up to three attempts for invalid or mismatched input. Eight non-ASCII characters can occupy more than eight bytes. Quick setup generates 24 cryptographically random bytes encoded as 32 URL-safe characters. Passwords are not accepted in command arguments, URLs or environment variables. The generated password is printed only by the foreground setup command, never by the services or `address` command. Treat that one-time output as a secret; avoid capturing it in shared terminal logs.
+
+### Address discovery, certificates and access
+
+When the address is omitted, setup tries bounded HTTPS requests to `api.ipify.org` and `api6.ipify.org` (six seconds overall, at most 128 response bytes accepted). This discovers the outgoing public IP, which can differ from the reachable entrance on NAT, proxy or multi-address hosts. Supplying `--address` avoids those requests. A failed quick discovery stops before writing a configuration; retry with an explicit address. Custom setup offers manual entry. Discovery creates no daemon or periodic task.
+
+A domain must already resolve to the server. Setup does not register a domain, edit DNS or provision an arbitrary public hostname. Domain listeners default to IPv4; use `--listen ::` when IPv6 binding is needed. An IPv6 URL is printed with brackets. Opening host/provider firewalls remains an operator action; random ports do not replace authentication. The chosen port is checked against TCP sockets, but custom/manual DNAT rules and a race with another process after setup are not fully modeled. Service startup reports failure if it cannot bind.
+
+HTTPS creates a self-signed certificate with the selected IP/domain SAN and local addresses. Verify its SHA-256 fingerprint through SSH before trusting it. A domain SAN does not make a self-signed certificate publicly trusted. To use an operator-managed CA certificate, set absolute `certificate` and `private_key` paths in the configuration, keep restricted `root:grepanel` access and restart. Automatic ACME issuance/renewal and trusted reverse-proxy/forwarded-header support are not implemented; protocol and Origin checks refer to the direct listener.
+
+### Existing installations and recovery
+
+Reinstallation preserves protocol, address, port, credentials and certificates, including operator certificates. Setup flags do not reconfigure an existing installation. Old configurations without `protocol` retain HTTPS; no credential migration is required. The incoming binary validates configuration before any service stop. A single installer lock prevents concurrent installs. Failed checksums, wrong binary versions, invalid existing config and failed initial setup stop before replacing the executable or stopping a working panel.
 
 ```bash
 sudo gtm-panel address
@@ -33,7 +79,9 @@ sudo systemctl stop gre-manager-panel gre-manager-panel-broker
 sudo systemctl start gre-manager-panel
 ```
 
-Restart after password reset to revoke existing in-memory sessions. Change `listen` in `/etc/gre-manager-panel/config.json` and restart to change ports. Reinstallation preserves existing port, credentials and certificate. The panel is enabled at boot; temporary stop and disabling boot startup are different actions.
+`address` prints the configured URL and username, never a password. For old wildcard configs without a saved public IP, it reports the listener and asks you to use a reachable IP. Restart after password reset to revoke existing sessions. Back up the restricted config before manual edits to `listen`, `protocol` (`https`/`http`) or `public_host`, then restart. Switching an HTTP-only installation to HTTPS additionally requires certificate/key files and their absolute paths. Existing TLS files are retained when selecting HTTP.
+
+Setup refuses an existing config or TLS files rather than overwriting them. If an interrupted first setup leaves only TLS files, inspect and move those manager-owned files to a private backup before retrying. A new config contains fields an older published binary may reject; downgrade requires the matching prior configuration and binary. Updating files/services is not a host-wide atomic transaction: an unexpected disk/systemd/startup failure after replacement requires inspecting `journalctl`, retaining the config and restoring the previous matched package if necessary. The installer does not flush firewall rules or remove tunnels.
 
 ## Supported adapters
 
@@ -81,15 +129,16 @@ Phase 1 adds a lazily loaded shadcn/Recharts Area chart for each resource, using
 
 ## Architecture and security
 
-The public HTTPS service runs as restricted `grepanel`. Privileged operations go to a local root broker through a group-protected Unix socket. Requests are closed, typed operations; no arbitrary shell, argv or file API is exposed. Both Go and Bash validate inputs. Forward writes use the shared lock, complete-state reload, native preflight, snapshots and recovery. Per-row revisions reject stale updates/deletions.
+The public HTTP/HTTPS service runs as restricted `grepanel`. Privileged operations go to a local root broker through a group-protected Unix socket. Requests are closed, typed operations; no arbitrary shell, argv or file API is exposed. Both Go and Bash validate inputs. Forward writes use the shared lock, complete-state reload, native preflight, snapshots and recovery. Per-row revisions reject stale updates/deletions.
 
-Sessions live in memory for four hours with HttpOnly/Secure/SameSite cookies. Writes require exact Origin and CSRF validation. Login attempts, request/output sizes, sessions and jobs are bounded. Passwords use bcrypt and production has no default credentials. The loopback-only demo is explicitly simulated and cannot execute system commands. Sessions/jobs reset when the public process restarts; a broker-owned operation can finish independently, so refresh actual state after reconnecting.
+Sessions live in memory for four hours with HttpOnly/SameSite cookies and the Secure flag on HTTPS. Writes require exact Origin and CSRF validation. Login attempts, request/output sizes, sessions and jobs are bounded. Passwords use bcrypt and production has no default credentials. The loopback-only demo is explicitly simulated and cannot execute system commands. Sessions/jobs reset when the public process restarts; a broker-owned operation can finish independently, so refresh actual state after reconnecting.
 
 | Module | Responsibility |
 | --- | --- |
 | `panel/internal/model` | Typed contracts, capability matrix, TSV validation/conversion |
 | `panel/internal/control` | Local broker, Bash adapter, inventory and accounting |
 | `panel/internal/auth` | Login, sessions and CSRF |
+| `panel/internal/setup`, `panel/internal/config` | One-time setup, bounded address discovery, access validation and certificate/config persistence |
 | `panel/internal/httpapi` | HTTP boundary and bounded asynchronous jobs |
 | `panel/web/src/features` | Feature pages/forms, independent of theme choices |
 | `panel/web/src/experience` | Appearance contract, selection, themes and direction |

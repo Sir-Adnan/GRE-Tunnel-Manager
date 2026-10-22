@@ -56,11 +56,11 @@ Legacy rules keep their ownership. Strict generated DNAT syntax is grouped for d
 
 Realm advanced records use version 3 with the same 13-field layout and bounded network options: TCP/UDP timeout, keepalive/probes, PROXY send/version/accept/timeout and logging. Existing v1/v2 remain readable; older releases cannot read v3. Terminal edits retain options without needing a new terminal form.
 
-The optional panel has typed capability contracts, an unprivileged public HTTPS server, bcrypt sessions with CSRF/Origin checks, and a local root broker over a group-protected Unix socket. All forwarding writes use the Bash API and reload full state under the shared lock. Row revisions protect edits and bulk selection from stale requests. GRE and reverse adapters never receive arbitrary commands/config text.
+The optional panel has typed capability contracts, an unprivileged public HTTP/HTTPS server, bcrypt sessions with CSRF/Origin checks, and a local root broker over a group-protected Unix socket. All forwarding writes use the Bash API and reload full state under the shared lock. Row revisions protect edits and bulk selection from stale requests. GRE and reverse adapters never receive arbitrary commands/config text.
 
 ## Runtime
 
-- The Bash manager has no resident process. The explicitly installed Go web panel adds separate public HTTPS and private broker services; optional metrics sampling runs only when enabled. See [WEB-PANEL.md](WEB-PANEL.md).
+- The Bash manager has no resident process. The explicitly installed Go web panel adds separate public HTTP/HTTPS and private broker services; optional metrics sampling runs only when enabled. See [WEB-PANEL.md](WEB-PANEL.md).
 - Kernel forwarding uses a oneshot boot reconciler. Root-owned serialized Bash functions form its standalone runner, supporting process-substitution startup.
 - Realm/HAProxy: one service per enabled connection. Unchanged running config and unit are retained. HAProxy configuration-only changes use a master-worker reload when the unit and previous worker socket are compatible; readiness requires a new worker PID. Unit/FD budget changes or missing old readiness require restart. Local stats use mode-600 Unix sockets; socat is an explicit HAProxy command dependency, not a daemon. No HTTP admin endpoint is exposed.
 - FRP: separate entrance/destination services. TCP destinations can share a group/public port.
@@ -75,3 +75,6 @@ The optional panel has typed capability contracts, an unprivileged public HTTPS 
 Modern navigation is default. `--legacy` preserves numbers 1–14; 15 returns to modern. GRE keys, addressing, interface/unit names, IDs 1–250 and MTU 1430 remain compatible with v13.7+. Side A maps to old kharej, Side B to iran, irrespective of geography. `gre-stable.sh` remains frozen v13.6. GRE deletion is guarded by managed-record references to its interface or default internal address range (including disabled records). Unknown manual/legacy rules and custom routes are outside that guard; no forwards are automatically deleted.
 
 Legacy 10 is now read-only script inspection, 12 is scoped cleanup, and 14 is explicit journaled tuning. Bulk removal refuses unknown commands/custom units. No saved shell line is executed by cleanup. New GRE setup no longer writes global TCP/conntrack/IPv6 tuning. Historical files can be retired only when recognized, with unknown runtime values preserved. New tuning uses an independent before/applied journal and conditional restore; see [TUNING-CLEANUP.md](TUNING-CLEANUP.md).
+
+
+Panel installation is independent of runtime control. `panel/internal/setup` owns the quick/custom terminal flow and one-time bounded IP discovery; `panel/internal/config` validates addresses, protocols and passwords and persists config/certificates. Missing protocol fields preserve older HTTPS installations. The public server selects both its listener and cookie policy from that validated protocol. Origin checks use the actual direct HTTP/TLS connection, never an untrusted forwarded header. No browser transport setting changes tunnel-engine behavior or exposes the broker socket remotely.

@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/tls"
 	"golang.org/x/crypto/bcrypt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -49,6 +50,42 @@ func TestSessionsCookieExpiryAndLogout(t *testing.T) {
 	now = now.Add(5 * time.Hour)
 	if _, ok := s.Get(r); ok {
 		t.Fatal("expired session accepted")
+	}
+}
+
+func TestHTTPLoginDoesNotReuseTheHTTPSCookieName(t *testing.T) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("12345678"), 12)
+	for _, secure := range []bool{true, false} {
+		s := New("admin", string(hash), secure)
+		r := httptest.NewRequest("POST", "http://panel.example/api/login", nil)
+		w := httptest.NewRecorder()
+		if _, e := s.Login(w, r, "admin", "12345678"); e != nil {
+			t.Fatal(e)
+		}
+		cookie := w.Result().Cookies()[0]
+		r.AddCookie(cookie)
+		if _, ok := s.Get(r); !ok {
+			t.Fatal("expected transport cookie rejected")
+		}
+		if secure {
+			cookie.Name = HTTPCookieName
+		} else {
+			cookie.Name = CookieName
+		}
+		r = httptest.NewRequest("GET", "http://panel.example/api/session", nil)
+		r.AddCookie(cookie)
+		if _, ok := s.Get(r); ok {
+			t.Fatal("opposite transport cookie accepted")
+		}
+		// An unrelated stale HTTPS cookie must not be changed by HTTP logout.
+		if !secure {
+			r.AddCookie(&http.Cookie{Name: CookieName, Value: "stale-secure-cookie"})
+			w = httptest.NewRecorder()
+			s.Logout(w, r)
+			if w.Result().Cookies()[0].Name != HTTPCookieName {
+				t.Fatal("HTTP logout touched HTTPS cookie")
+			}
+		}
 	}
 }
 func TestBruteForceBounded(t *testing.T) {

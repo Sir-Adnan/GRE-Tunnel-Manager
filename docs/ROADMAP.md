@@ -4,7 +4,7 @@ Work is phase-gated. Complete one phase, validate it, report evidence and limita
 
 ## Phase 1: Interaction fixes and responsive interface
 
-Status: implemented and locally validated; awaiting the user's instruction before Phase 2.
+Status: implemented and validated in the preceding phase.
 
 - Fix Switch/Checkbox state styling against the actual Radix API, including keyboard interaction and partial selection.
 - Use the installed Radix/shadcn foundation; adopt the official sidebar composition and Area chart components without migrating to Base UI.
@@ -21,7 +21,7 @@ Acceptance: switches visibly toggle and persist after saving; row selection and 
 
 ## Phase 2: Simple installation and access
 
-Status: awaiting start instruction.
+Status: implemented and validated in source; awaiting the user's instruction before Phase 3. No replacement release was published. See [Phase 2 review](PHASE-2-REVIEW.md) and [installation guide](WEB-PANEL.md#installation-and-login).
 
 - Explicit HTTP or HTTPS on IP, plus domain addresses. HTTPS remains the recommended choice; HTTP clearly identifies its unencrypted transport. Cookie and Origin checks must follow the configured protocol.
 - Quick installation with automatic IP detection when omitted, optional/random port and generated administrator credentials, printed once. The installer cannot provision an arbitrary public domain without DNS access.

@@ -250,6 +250,12 @@ const words = {
     "Encrypted connection · Private management",
     "اتصال رمزگذاری‌شده · مدیریت اختصاصی",
   ],
+  accessSecurity: ["Panel connection", "اتصال به پنل"],
+  httpAccess: ["HTTP · Unencrypted connection", "اتصال HTTP · بدون رمزگذاری"],
+  httpHelp: [
+    "This panel uses HTTP. Passwords and management traffic travel unencrypted. Use HTTPS for encrypted access.",
+    "این پنل با HTTP باز شده است. رمز عبور و ترافیک مدیریت بدون رمزگذاری منتقل می‌شوند. برای اتصال رمزگذاری‌شده از HTTPS استفاده کنید.",
+  ],
   demo: [
     "DEMO · Changes are simulated. No server is modified.",
     "نسخهٔ نمایشی؛ تغییرات شبیه‌سازی می‌شوند و روی سرور اعمال نمی‌شوند.",

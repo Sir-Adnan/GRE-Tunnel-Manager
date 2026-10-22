@@ -5,6 +5,7 @@ import {
   Loader2,
   Network,
   Server,
+  ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,12 @@ export function Login({
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
+                {!demo && location.protocol !== "https:" && (
+                  <Alert>
+                    <ShieldAlert />
+                    <AlertDescription>{t("httpHelp")}</AlertDescription>
+                  </Alert>
+                )}
                 <TextField
                   id="username"
                   label={t("username")}
@@ -148,8 +155,14 @@ export function Login({
               {t("signIn")}
             </Button>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ShieldCheck className="size-3.5" />
-              {demo ? "LOCAL DEMO" : t("secure")}
+              {location.protocol === "https:" ? (
+                <ShieldCheck className="size-3.5" />
+              ) : (
+                <ShieldAlert className="size-3.5" />
+              )}
+              {demo
+                ? "LOCAL DEMO"
+                : t(location.protocol === "https:" ? "secure" : "httpAccess")}
             </span>
           </CardFooter>
         </Card>

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -13,8 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -23,6 +20,7 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/control"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/httpapi"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/model"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/setup"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/ui"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
@@ -73,14 +71,26 @@ func run() error {
 		fmt.Print(control.MetricsRules(control.Inventory{Connections: connections}, control.MetricsSettings{Enabled: true, Interval: 60}))
 		return nil
 	case "address":
-		c, e := config.Load(config.DefaultPath)
+		fs := flag.NewFlagSet("address", flag.ContinueOnError)
+		path := fs.String("config", config.DefaultPath, "configuration path")
+		if e := fs.Parse(os.Args[2:]); e != nil {
+			return e
+		}
+		c, e := config.Load(*path)
 		if e != nil {
 			return e
 		}
-		fmt.Printf("HTTPS listener: %s\nUse your server's reachable IP with this port.\n", c.Listen)
+		if address := c.URL(); address != "" {
+			fmt.Printf("Panel URL: %s\nUsername: %s\n", address, c.Username)
+		} else {
+			fmt.Printf("%s listener: %s\nUse your server's reachable IP with this port.\n", c.Scheme(), c.Listen)
+		}
 		return nil
 	case "setup":
-		return setup(os.Args[2:])
+		return (setup.Console{In: os.Stdin, Out: os.Stdout, Password: password, Discover: setup.Discover}).Run(ctx, os.Args[2:])
+	case "setup-version":
+		fmt.Println("2")
+		return nil
 	case "reset-password":
 		return reset(os.Args[2:])
 	case "broker":
@@ -107,7 +117,10 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		server := httpapi.New(ctx, auth.New(c.Username, c.PasswordHash, true), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
+		server := httpapi.New(ctx, auth.New(c.Username, c.PasswordHash, c.Scheme() == "https"), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
+		if c.Scheme() == "http" {
+			return serve(ctx, c.Listen, server, "", "")
+		}
 		return serve(ctx, c.Listen, server, c.Certificate, c.PrivateKey)
 	case "demo":
 		fs := flag.NewFlagSet("demo", flag.ContinueOnError)
@@ -149,96 +162,34 @@ func serve(ctx context.Context, address string, handler http.Handler, certificat
 	}
 	return e
 }
-func ask(reader *bufio.Reader, label, fallback string) (string, error) {
-	fmt.Printf("%s [%s]: ", label, fallback)
-	text, e := reader.ReadString('\n')
-	if e != nil {
-		return "", e
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		text = fallback
-	}
-	return text, nil
-}
 func password() (string, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return "", errors.New("password entry requires a terminal; passwords are never accepted as command-line arguments")
 	}
-	fmt.Print("Admin password (12–72 bytes): ")
-	first, e := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if e != nil {
-		return "", e
-	}
-	fmt.Print("Confirm password: ")
-	second, e := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if e != nil {
-		return "", e
-	}
-	if string(first) != string(second) || len(first) < 12 || len(first) > 72 {
-		return "", errors.New("passwords must match and contain 12–72 bytes")
-	}
-	return string(first), nil
-}
-func setup(args []string) error {
-	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
-	path := fs.String("config", config.DefaultPath, "configuration path")
-	public := fs.String("public-ip", "", "public IP for certificate SAN")
-	if e := fs.Parse(args); e != nil {
-		return e
-	}
-	if *public != "" && net.ParseIP(*public) == nil {
-		return errors.New("public IP must be a literal IPv4 or IPv6 address")
-	}
-	if _, e := os.Lstat(*path); e == nil {
-		return errors.New("configuration already exists; use reset-password or edit the listen address locally")
-	}
-	reader := bufio.NewReader(os.Stdin)
-	bind, e := ask(reader, "Listen IP", "0.0.0.0")
-	if e != nil {
-		return e
-	}
-	value, e := ask(reader, "Panel port (empty = random available port)", "0")
-	if e != nil {
-		return e
-	}
-	port, e := strconv.Atoi(value)
-	if e != nil {
-		return e
-	}
-	user, e := ask(reader, "Admin username", "admin")
-	if e != nil {
-		return e
-	}
-	secret, e := password()
-	if e != nil {
-		return e
-	}
-	ips := []string{*public}
-	addresses, _ := net.InterfaceAddrs()
-	for _, address := range addresses {
-		host, _, e := net.ParseCIDR(address.String())
-		if e == nil {
-			ips = append(ips, host.String())
+	for attempt := 0; attempt < 3; attempt++ {
+		fmt.Print("Admin password (8+ characters, at most 72 bytes): ")
+		first, e := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if e != nil {
+			return "", e
 		}
+		if e = config.ValidatePassword(string(first)); e != nil {
+			fmt.Println(e)
+			continue
+		}
+		fmt.Print("Confirm password: ")
+		second, e := term.ReadPassword(int(os.Stdin.Fd()))
+		fmt.Println()
+		if e != nil {
+			return "", e
+		}
+		if string(first) != string(second) {
+			fmt.Println("Passwords do not match. Please try again.")
+			continue
+		}
+		return string(first), nil
 	}
-	c, fingerprint, e := config.New(*path, bind, port, user, secret, ips)
-	if e != nil {
-		return e
-	}
-	c.PublicIP = *public
-	if e = config.Save(*path, c, 0640); e != nil {
-		return e
-	}
-	_, chosen, _ := net.SplitHostPort(c.Listen)
-	host := *public
-	if host == "" {
-		host = bind
-	}
-	fmt.Printf("\nPanel URL: https://%s\nCertificate SHA-256: %s\nSelf-signed HTTPS: verify this fingerprint before trusting the certificate.\n", net.JoinHostPort(host, chosen), fingerprint)
-	return nil
+	return "", errors.New("password entry failed after three attempts")
 }
 func reset(args []string) error {
 	fs := flag.NewFlagSet("reset-password", flag.ContinueOnError)

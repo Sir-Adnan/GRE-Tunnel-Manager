@@ -89,10 +89,11 @@ Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journ
 | --- | --- |
 | `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend |
 | `/usr/local/lib/gre-manager/manager.sh` | Matching root-only Bash API helper |
-| `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen port, username, bcrypt hash and TLS paths |
-| `/etc/gre-manager-panel/server.{crt,key}` | Initial IP-SAN self-signed certificate/key; key mode 640, root:grepanel |
-| `gre-manager-panel.service` | Public HTTPS process as grepanel; explicit optional installation, enabled at boot |
+| `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths |
+| `/etc/gre-manager-panel/server.{crt,key}` | Initial IP/domain-SAN self-signed certificate/key for HTTPS; key mode 640, root:grepanel |
+| `gre-manager-panel.service` | Public HTTP/HTTPS process as grepanel; explicit optional installation, enabled at boot |
 | `gre-manager-panel-broker.service` | Private root broker with grepanel group; stops when no longer required |
+| `/run/gre-manager-panel-install.lock` | Root-owned installer lock; prevents concurrent panel installation |
 | `/run/gre-manager-panel/broker.sock` | Group-protected local socket, mode 660 inside mode-750 runtime directory |
 | `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |
 | `/var/lib/gre-manager-panel/audit.jsonl{,.1}` | Root-only bounded action metadata; no tokens, keys, passwords or request bodies |
