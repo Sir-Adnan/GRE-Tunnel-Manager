@@ -10,9 +10,9 @@ GRE · iptables · nftables · HAProxy · Realm · FRP · rathole
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
 ![Bash](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
 
-**English** · [فارسی](README.fa.md)
+Documentation in English · Web interface in Persian and English
 
-[Quick start](#quick-start) · [User guide](docs/USER-GUIDE.md) · [HAProxy](docs/HAPROXY.md) · [Changelog](docs/CHANGELOG.md)
+[Quick start](#quick-start) · [User guide](docs/USER-GUIDE.md) · [HAProxy](docs/HAPROXY.md) · [Changelog](docs/CHANGELOG.md) · [Roadmap](docs/ROADMAP.md)
 
 </div>
 
@@ -57,7 +57,7 @@ Choose a port (blank selects a random free port), create an administrator userna
 
 Each engine has its own menu. Add, show, edit and delete are together; type an option number and press Enter. GRE is optional for direct forwarding.
 
-The header keeps your server's IP addresses, host/OS and network provider in view. Public and local addresses are labeled separately; provider information is approximate and falls back gracefully when offline. Refresh it in **Tools → Refresh Server Info**. See the [header guide](docs/TERMINAL-UI.md#اطلاعات-سرور-در-هدر) to disable the optional online lookup.
+The header keeps your server's IP addresses, host/OS and network provider in view. Public and local addresses are labeled separately; provider information is approximate and falls back gracefully when offline. Refresh it in **Tools → Refresh Server Info**. See the [header guide](docs/TERMINAL-UI.md#server-information-in-the-header) to disable the optional online lookup.
 
 ## Your first HAProxy tunnel
 

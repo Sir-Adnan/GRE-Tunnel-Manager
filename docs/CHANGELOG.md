@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — Phase 1 interface corrections
+
+- Correct Radix state selectors for switches, checkboxes, tabs, overlays and orientation styling.
+- Adopt shadcn sidebar navigation, top-bar appearance controls, action tooltips and hover/focus/tap help.
+- Use Vazirmatn throughout the UI, localize display numbers and correct RTL alignment without reversing IP/port/code strings.
+- Redesign traffic usage into full-width settings, per-connection counters and a lazily loaded Area chart based on bounded samples fetched during the page visit. Separate actual engine names from accounting methods; never aggregate overlapping GRE/forward totals.
+- Expose optional forward/relay names in the main form and keep creation from dedicated HAProxy/Realm pages on that engine. Improve mobile form sizing and selection feedback.
+- Move maintained documentation to English and add the phase-gated Node/Agent/installation/capability roadmap.
+- This is an unreleased source change. HTTP installation and remote Node/Agent management remain planned, not implemented.
+
 ## v1.3.0 — Optional Go web panel
 
 - Add an optional self-contained Go HTTPS panel with an embedded React/shadcn frontend, Persian RTL/English LTR, mobile navigation, the original user-selected Nettinx palette and a neutral alternative. Keep terminal styling independent. Document the preserved theme's known contrast failures.

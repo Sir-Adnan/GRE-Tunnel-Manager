@@ -20,7 +20,7 @@ jobs:
           go-version: '1.27.3'
           cache-dependency-path: panel/go.sum
       - run: python3 tools/build.py --check
-      - run: npm ci && npm run build && npm run lint && npm audit --audit-level=high
+      - run: npm ci && npm run build && npm run lint && npm test && npm audit --audit-level=high
         working-directory: panel/web
       - run: go test -race ./... && go vet ./...
         working-directory: panel

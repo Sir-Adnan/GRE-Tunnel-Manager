@@ -1,28 +1,28 @@
-# وب‌پنل GRE Tunnel Manager
+# GRE Tunnel Manager web panel
 
-پنل اختیاری Go برای مدیریت اتصال‌های همین سرور است. رابط فارسی راست‌چین و انگلیسی چپ‌چین، موبایل و دسکتاپ، تم اصلی Nettinx و تم Neutral را پشتیبانی می‌کند. ترافیک از پنل عبور نمی‌کند و توقف پنل، تونل‌ها را متوقف نمی‌کند.
+The optional Go panel manages connections on its own host. The interface supports Persian RTL and English LTR, desktop/mobile layouts, the original Nettinx palette and the Neutral alternative. Tunnel traffic does not pass through the panel. Stopping the panel does not stop independently managed tunnels.
 
-## نصب و ورود
+The [development roadmap](ROADMAP.md) distinguishes current local-host capabilities from planned Node/Agent management. The unreleased Phase 1 interface changes below are not automatically installed by the published v1.3.0 package.
 
-فرمان نصب مستقیم روی سرور Debian/Ubuntu با systemd:
+## Installation and login
+
+On Debian/Ubuntu with systemd:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh
 ```
 
-گزینهٔ **Web Panel** در منوی اصلی اسکریپت نیز همین نصب‌کننده را اجرا می‌کند. نصب‌کننده بستهٔ نسخه‌دار و checksum آن را از GitHub Releases می‌گیرد؛ بسته شامل فایل اجرایی Go، رابط ساخته‌شده و نسخهٔ هماهنگ هستهٔ Bash است. سرور به Node.js، Go، Docker یا دیتابیس نیاز ندارد.
+Terminal menu **8 · Web Panel** uses the same installer. It downloads a versioned release archive and matching checksum. The package contains the Go executable, embedded built interface and matching Bash helper. Managed servers do not require Node, a Go compiler, Docker or a database server.
 
-مراحل نصب:
+1. Enter the public server IP for the HTTPS certificate.
+2. Choose a listen address; `0.0.0.0` listens on all IPv4 addresses, `::` selects IPv6.
+3. Enter a port, or leave it blank to choose and persist an available random port.
+4. Create an administrator username and a hidden, confirmed 12–72-byte password.
+5. Allow the chosen TCP port in host/provider firewalls and open `https://SERVER_IP:PORT`.
 
-1. آدرس عمومی سرور را برای گواهی HTTPS وارد کنید.
-2. آدرس شنود را انتخاب کنید؛ مقدار پیش‌فرض `0.0.0.0` برای همهٔ آدرس‌های IPv4 است. برای IPv6 می‌توانید `::` انتخاب کنید.
-3. پورت دلخواه وارد کنید؛ ورودی خالی، پورت آزاد تصادفی انتخاب می‌کند و همان پورت ذخیره می‌شود. انتخاب تصادفی جایگزین احراز هویت نیست.
-4. نام کاربری و رمز ۱۲ تا ۷۲ بایتی تعیین کنید؛ رمز روی صفحه نمایش داده نمی‌شود.
-5. پورت TCP انتخابی را در فایروال سرور و ارائه‌دهنده باز کنید و آدرس `https://SERVER_IP:PORT` را باز کنید.
+Random ports do not replace authentication. The initial certificate is self-signed. Verify its printed SHA-256 fingerprint through SSH before trusting it. To use a CA certificate, edit `certificate` and `private_key` in the configuration, retain restricted `root:grepanel` key access and restart. Automatic ACME issuance/renewal is not implemented.
 
-گواهی اولیه خودامضاست. مرورگر آن را خودکار معتبر نمی‌داند؛ اثرانگشت SHA-256 چاپ‌شده در SSH را پیش از اعتماد بررسی کنید. برای گواهی معتبر از CA، مسیرهای `certificate` و `private_key` را در فایل تنظیمات تغییر دهید؛ کلید فقط برای `root:grepanel` خواندنی بماند و سرویس پنل را restart کنید. پنل ACME یا تمدید خودکار گواهی ندارد. رمز روی HTTP عمومی ارسال نمی‌شود.
-
-دستورهای مدیریت:
+Current production installation is HTTPS-only. Explicit HTTP, quick installation, optional IP discovery and eight-character user passwords are scheduled for Phase 2; they are not available merely because they appear in the roadmap. The loopback-only demonstration uses HTTP and cannot authenticate against a production installation.
 
 ```bash
 sudo gtm-panel address
@@ -33,70 +33,72 @@ sudo systemctl stop gre-manager-panel gre-manager-panel-broker
 sudo systemctl start gre-manager-panel
 ```
 
-بازنشانی رمز باید با restart پنل همراه باشد تا نشست‌های قبلی باطل شوند. تغییر پورت با ویرایش محلی `listen` در `/etc/gre-manager-panel/config.json` و restart پنل انجام می‌شود. نصب مجدد تنظیمات موجود، پورت، رمز و گواهی را حفظ می‌کند. پنل به‌صورت سرویس هنگام بوت فعال می‌شود؛ توقف موقت با غیرفعال‌کردن اجرای هنگام بوت تفاوت دارد.
+Restart after password reset to revoke existing in-memory sessions. Change `listen` in `/etc/gre-manager-panel/config.json` and restart to change ports. Reinstallation preserves existing port, credentials and certificate. The panel is enabled at boot; temporary stop and disabling boot startup are different actions.
 
-## قابلیت‌های موجود
+## Supported adapters
 
-| بخش | قابلیت |
+| Area | Supported operations |
 | --- | --- |
-| مدیریت فوروارد | ساخت چندپورت، ویرایش تک‌پورت، انتخاب گروهی، فعال/غیرفعال و حذف با بررسی پیش از اعمال |
-| پشتیبانی iptables و nftables | ورودی IPv4/IPv6، پروتکل TCP/UDP/هر دو، DNAT، تغییر پورت مقصد، masquerade یا حفظ مبدأ، انتخاب رابط و توزیع وزنی |
-| مدیریت HAProxy | حالت TCP، وزن مقصدها، round robin، leastconn، source، failover، ۱۳ تنظیم محدودشدهٔ timeout/queue/maxconn/health check/slow start/PROXY/log و پریست‌های متعادل، VPN و کم‌مصرف |
-| مدیریت Realm | حالت TCP/UDP/هر دو، چند مقصد با وزن، round robin و iphash، تنظیم timeout، keepalive، تعداد probe، هدرهای PROXY ورودی/خروجی و سطح لاگ |
-| مدیریت GRE | ساخت GRE/ip6gre با شناسه، نقش، آدرس محلی/مقابل و MTU؛ وضعیت، start/stop/restart، لاگ و حذف با کنترل وابستگی‌ها |
-| مدیریت FRP | ورودی/مقصد، پروتکل TCP یا UDP، انتقال TCP/WS/WSS/QUIC، stream multiplexing و گروه لودبالانس TCP |
-| مدیریت rathole | ورودی/مقصد، سرویس TCP/UDP/هر دو، Noise NK، ساخت کلید در ورودی و pin کلید عمومی در مقصد |
-| مدیریت موتورهای تونل | نصب انتخابی یا یکجای موتورهای اختیاری، بدون ساخت تونل |
+| Forward/relay management | Multi-port creation, individual edits, bulk selection, enable/disable/delete and review before application |
+| iptables/nftables | IPv4/IPv6, TCP/UDP/both, DNAT, destination-port mapping, masquerade/preserve source, interface selection and weighted distribution |
+| HAProxy | TCP, weighted targets, round robin/leastconn/source/failover, 13 bounded timeout/queue/maxconn/check/slow-start/PROXY/log options and balanced/VPN/lean presets |
+| Realm | TCP/UDP/both, weighted targets, round robin/iphash, timeouts, keepalive/probes, incoming/outgoing PROXY metadata and log level |
+| GRE | GRE/ip6gre creation with ID, role, local/peer IP and MTU; service state/actions/logs and dependency-aware deletion |
+| FRP | Entrance/destination, TCP/UDP services, TCP/WS/WSS/QUIC transports, stream multiplexing and TCP balancing groups |
+| rathole | Entrance/destination, TCP/UDP/both, Noise NK, entrance key creation and public-key pinning at destination |
+| Engine installation | Install optional engines selectively or together without creating tunnels |
 
-مرز پشتیبانی مشخص است: پنل ویرایشگر همهٔ قابلیت‌های بومی HAProxy، Realm یا تمام قوانین فایروال لینوکس نیست. ویرایش دلخواه متن config، HAProxy HTTP/ACL/TLS routing، انتقال رمزگذاری‌شدهٔ بومی Realm، MPTCP، hostname مقصد، مدیریت هم‌زمان چند سرور و ویرایش فایل دلخواه از طریق وب ارائه نمی‌شوند. بخش قابلیت‌ها در API و فرم‌ها مبنای پشتیبانی است. انتقال‌های رمزگذاری‌شدهٔ فعلی از FRP و rathole ارائه می‌شوند.
+This is a bounded adapter set, not a complete editor for every native engine feature. Arbitrary config/file editing, HAProxy HTTP/ACL/TLS routing, native encrypted Realm transports, MPTCP, hostname destinations and multi-server orchestration are not currently exposed. Capabilities advertised by the API and forms define supported behavior. FRP and rathole provide the currently exposed encrypted transports.
 
-پریست‌ها مقدار اولیهٔ تنظیمات را انتخاب می‌کنند؛ عملکرد یا مصرف یکسان روی همهٔ شبکه‌ها تضمین نمی‌کنند. هدر PROXY فقط وقتی روشن شود که برنامهٔ همسایه آن را انتظار داشته باشد. حفظ آی‌پی مبدأ به مسیر برگشت صحیح نیاز دارد. وضعیت «تنظیم‌شده» برای فوروارد کرنل، گواه دسترس‌پذیری مقصد نیست و سرویس فعال نیز اتصال صحیح همتا را اثبات نمی‌کند.
+Presets initialize settings; they do not guarantee throughput or resource usage on every route. PROXY metadata requires a compatible receiver. Preserved source IP requires correct return routing. A kernel forward marked configured does not prove peer reachability; an active relay process does not prove end-to-end tunnel health.
 
-پیکربندی طرف دیگر GRE و Reverse روی همان سرور دیگر انجام می‌شود. فرم GRE وب، watchdog یا تغییرات سراسری فایروال/sysctl ایجاد نمی‌کند؛ پروتکل ۴۷ و سیاست‌های عبور ترافیک باید در شبکه مجاز باشند. شناسه و نقش‌های آن با قرارداد keyed فعلی سازگارند. تنظیمات GRE و Reverse خارج از restore point فورواردها باقی می‌مانند.
+Configure GRE/reverse peers independently on each host today. The GRE web form does not add watchdogs or global firewall/sysctl changes. Protocol 47 must be allowed by the network. GRE IDs/roles preserve the existing keyed wire contract. GRE/reverse configuration is outside forwarding restore points.
 
-## آمار اختیاری
+## Interface corrections in Phase 1
 
-ثبت آمار پیش‌فرض خاموش است. با روشن‌کردن، جدول اختصاصی `inet gtm_panel_metrics` فقط شمارنده اضافه می‌کند؛ هیچ ruleset سراسری پاک نمی‌شود و verdict عبور/مسدودسازی اضافه نمی‌شود. برای آمار فوروارد، حتی وقتی موتور iptables است، نصب nftables لازم است. خاموش‌کردن ثبت، جدول اختصاصی را حذف و نمونه‌برداری را متوقف می‌کند؛ مجموع‌های ذخیره‌شده باقی می‌مانند.
+The interface remains on Radix/shadcn; Base UI examples are references, not a second installed primitive system. Switches/checkboxes use Radix `data-state` styling, with visible checked states, partial selection, keyboard controls and labels. Dedicated HAProxy/Realm creation pages retain their engine. Optional forward/relay names are available in the normal form; empty names use the existing automatic default. Names still follow backend ASCII/length validation. Independent GRE/reverse display names require the later metadata work in Phase 5.
 
-شیوهٔ شمارش:
+The header exposes light/dark/system controls. The official shadcn sidebar composition handles desktop collapse and mobile navigation. Application typography uses locally served Vazirmatn; display numbers follow locale, while IPs, ports and code retain readable LTR isolation. Forms use mobile input sizing and reachable action footers. Action tooltips support hover/focus; question-mark help also opens on click/tap.
 
-- شمارنده‌های فوروارد کرنل، مسیر forward و جهت اصلی/برگشت conntrack را اندازه می‌گیرند؛ شمارندهٔ زنجیرهٔ NAT معیار حجم کل نیست.
-- شمارنده‌های HAProxy و Realm، سمت ورودی کاربر را در input/output اندازه می‌گیرند و اتصال دوم رله به مقصد دوباره جمع زده نمی‌شود.
-- شمارنده‌های Reverse، پورت عمومی سمت ورودی را اندازه می‌گیرند؛ حجم هر سرویس در کانال چندگانهٔ سمت مقصد از روی حجم کانال کنترل حدس زده نمی‌شود.
-- شمارنده‌های GRE از rx/tx رابط خوانده می‌شوند. همان بسته ممکن است در آمار GRE و فوروارد دیده شود؛ این مجموع‌ها به هم اضافه نمی‌شوند.
+Traffic settings, usage and charts occupy separate full-width sections. Changes remain drafts until **Save & apply** completes. The collection badge reflects saved state rather than the draft switch. Failed reads/applies remain visible. Selecting a subset requires at least one resource when enabling, because an empty API selection means all resources.
 
-حجم‌ها شامل بایت‌های لایهٔ شبکه‌اند، نه حجم خالص برنامه یا صورتحساب دیتاسنتر. جهت دریافت/ارسال به سمت ورودی یا رابط اندازه‌گیری‌شده اشاره دارد. نشست‌های NOTRACK، offloadهایی که مسیر شمارش را دور می‌زنند، DNAT به خود میزبان و مسیرهای سفارشی می‌توانند خارج از پوشش شمارندهٔ forward باشند. بازهٔ نمونه‌برداری ۱۵ تا ۳۶۰۰ ثانیه و پیش‌فرض ۶۰ ثانیه است؛ همهٔ موارد یا موارد انتخابی قابل ثبت‌اند.
+A connection's ID, engine and accounting source are different concepts. For example, `F000003` is a managed record ID; `HAProxy` is its relay engine; `nftables` may be its accounting mechanism. The interface shows the engine beside its name and explains the ID/accounting mechanism in contextual help.
 
-مجموع‌ها و آخرین نمونه به‌صورت دوره‌ای ذخیره می‌شوند و کاهش شمارنده، reset تشخیص داده می‌شود. توقف ناگهانی یا حذف شمارنده پیش از نمونهٔ بعدی ممکن است بخشی از حجم را از دست بدهد؛ ثبت صورتحساب دقیق ادعا نمی‌شود. هنگام توقف پنل با آمار روشن، شمارنده‌های کرنل باقی می‌مانند؛ برای حذف هزینهٔ شمارش، ابتدا ثبت را خاموش کنید.
+## Optional traffic accounting
 
-## معماری و توسعه
+Collection defaults to off. Enabling creates separate `inet gtm_panel_metrics` counters and periodic sampling. No global ruleset is flushed and no forwarding/blocking verdict is added. Port accounting requires nftables even when the forwarding engine is iptables. Disabling removes the owned accounting table and stops periodic sampling while retaining stored totals. A lightweight enabled-state timer remains in the broker.
 
-سرویس عمومی با کاربر محدود `grepanel` و HTTPS اجرا می‌شود؛ عملیات شبکه از طریق Unix socket با دسترسی گروهی به broker محلی می‌روند. درخواست‌ها ساختار مشخص دارند، فرمان دلخواه اجرا نمی‌شود، ورودی‌ها هم در Go و هم Bash بررسی می‌شوند و shell interpolation/eval استفاده نمی‌شود. عملیات فوروارد از قفل، state کامل، پیش‌بررسی، snapshot و بازیابی موجود استفاده می‌کند. revision هر ردیف جلوی بازنویسی و حذف انتخاب‌های قدیمی را می‌گیرد.
+- Kernel forwards use forward-hook accounting and conntrack original/reply directions, not NAT-chain counters as a measure of the complete flow.
+- HAProxy/Realm account the user-facing entrance leg in input/output. Their second outgoing relay connection is not counted again.
+- Reverse accounting measures public entrance service ports. Per-service destination volume is not inferred from multiplexed control-channel bytes.
+- GRE uses interface rx/tx counters. The same traffic may appear in GRE and forward views; these totals are never summed into an overall total.
 
-نشست‌ها در حافظه و با عمر چهار ساعت‌اند؛ cookie دارای HttpOnly، Secure و SameSite است. تغییرها به بررسی Origin و CSRF نیاز دارند. ورود محدود می‌شود، اندازهٔ ورودی و خروجی و تعداد عملیات محدود است. پسورد با bcrypt ذخیره می‌شود؛ پیش‌فرض قابل ورود برای نصب واقعی وجود ندارد. محیط demo فقط روی loopback اجرا می‌شود و به فرمان‌های سیستم دسترسی ندارد.
+These are network-layer bytes, not application payload or provider billing. NOTRACK, bypassing offloads, DNAT to the local host and custom/asymmetric routing can fall outside coverage. Select all or particular supported resources and an interval from 15–3600 seconds, default 60.
 
-ساختار کد:
+Counters/totals are checkpointed and decreasing raw counters are treated as resets. Abrupt termination or deleting counters before the next sample can lose increments. This is not billing-grade accounting. Stopping the panel with accounting enabled leaves kernel counters installed; disable collection first to remove that overhead.
 
-| مسیر | مسئولیت |
+Phase 1 adds a lazily loaded shadcn/Recharts Area chart for each resource, using at most 60 distinct samples fetched during the current page visit. Refresh after a later sample to add a point; duplicate timestamps do not invent new points. Two actual samples are needed. Leaving the page clears this chart history; no browser persistence, cross-resource sum or persistent historical series is implied. Persistent optional history and retention are Phase 5 work. A chart is not an automatic background poller.
+
+## Architecture and security
+
+The public HTTPS service runs as restricted `grepanel`. Privileged operations go to a local root broker through a group-protected Unix socket. Requests are closed, typed operations; no arbitrary shell, argv or file API is exposed. Both Go and Bash validate inputs. Forward writes use the shared lock, complete-state reload, native preflight, snapshots and recovery. Per-row revisions reject stale updates/deletions.
+
+Sessions live in memory for four hours with HttpOnly/Secure/SameSite cookies. Writes require exact Origin and CSRF validation. Login attempts, request/output sizes, sessions and jobs are bounded. Passwords use bcrypt and production has no default credentials. The loopback-only demo is explicitly simulated and cannot execute system commands. Sessions/jobs reset when the public process restarts; a broker-owned operation can finish independently, so refresh actual state after reconnecting.
+
+| Module | Responsibility |
 | --- | --- |
-| پوشهٔ `panel/internal/model` | قراردادها، قابلیت‌ها، تبدیل و اعتبارسنجی state |
-| پوشهٔ `panel/internal/control` | broker، آداپتر Bash، موجودی و آمار |
-| پوشهٔ `panel/internal/auth` | ورود، نشست و CSRF |
-| پوشهٔ `panel/internal/httpapi` | HTTP و عملیات پس‌زمینهٔ محدود |
-| پوشهٔ `panel/web/src/features` | صفحه‌ها و فرم‌ها، مستقل از تم |
-| پوشهٔ `panel/web/src/experience` | قرارداد ظاهر، تم‌ها، انتخاب و جهت زبان |
-| ماژول‌های `src/api.sh` و `src/links.sh` و `src/reverse_api.sh` | عملیات غیرتعاملی اعتبارسنجی‌شده |
+| `panel/internal/model` | Typed contracts, capability matrix, TSV validation/conversion |
+| `panel/internal/control` | Local broker, Bash adapter, inventory and accounting |
+| `panel/internal/auth` | Login, sessions and CSRF |
+| `panel/internal/httpapi` | HTTP boundary and bounded asynchronous jobs |
+| `panel/web/src/features` | Feature pages/forms, independent of theme choices |
+| `panel/web/src/experience` | Appearance contract, selection, themes and direction |
+| `src/api.sh`, `src/links.sh`, `src/reverse_api.sh` | Validated noninteractive local operations |
 
-ظاهر دقیق Nettinx با درخواست کاربر حفظ شده است. نسبت کنتراست متن سفید دکمهٔ اصلی حدود ۲٫۵:۱ در روشن و ۲٫۶۲:۱ در تیره است و برخی رنگ‌های منوی کناری نیز AA را تأمین نمی‌کنند. این محدودیت ثبت شده و به‌عنوان عبور از آزمون کنتراست گزارش نمی‌شود. تم Neutral برای انتخاب جداگانه وجود دارد. فونت‌ها محلی‌اند؛ حروف فارسی tracking ندارند و IP/پورت/لاگ مستقل چپ‌به‌راست‌اند.
+Existing TSV v1/v2 remain supported; advanced Realm options use v3. Older releases cannot load v3: downgrade requires a suitable older snapshot. The terminal keeps its fixed English interface.
 
-## English reference
+## Appearance fidelity and limits
 
-The optional panel serves an embedded React/shadcn frontend from a prebuilt Go binary. Install with the command above, choose a port (blank selects a free random port), and create administrator credentials. Open **HTTPS**, allow the chosen TCP port, and verify the self-signed certificate fingerprint through SSH. You can replace the certificate/key paths with trusted certificate files; automatic ACME renewal is not included.
+The original Nettinx colors are preserved by explicit user choice. White primary-button text has approximately 2.5:1 contrast in light mode and 2.62:1 in dark mode; some sidebar combinations also fail AA. These are recorded limitations, not a passed contrast gate. Neutral remains an alternative. The later explicit Vazirmatn font choice changes application typography without altering original palette source values.
 
-The restricted public service delegates allowlisted operations to a private root broker over a group-protected Unix socket. The existing Bash manager remains the state and reconciliation authority. Tunnel traffic never crosses the panel. Existing TSV v1/v2 remain compatible; Realm advanced options use v3. Older releases cannot load v3: use a suitable older snapshot before downgrade.
-
-The capability table above lists the supported adapters. This is not a full native configuration editor. HAProxy HTTP/TLS/ACL routing, native Realm encrypted transports, arbitrary firewall rules, and multi-server orchestration remain separate future work. GRE and reverse peers are configured independently on each host.
-
-Metrics are off by default. Enable nftables accounting for managed entrance ports and interface counters for GRE; choose all or selected resources and a 15–3600 second sample interval. Counters measure network bytes, not application payload or billable traffic. NAT chains are not used as full-flow byte counters. GRE and forwarded traffic may overlap. Totals are checkpointed; abrupt resets can lose uncollected increments. Disable collection to remove its separate nftables table and periodic sampling.
-
-The original user-selected Nettinx colors are preserved, including known contrast failures. Locale/direction, appearance, engine capabilities and security remain independent. The terminal keeps its fixed English interface.
+Fonts are served locally, Persian letter-spacing is zero and technical values retain LTR isolation. Node, Vite and TypeScript are build-time tools; the browser executes the built React JavaScript. Two Go processes run in production, plus whichever tunnel engines are enabled. `GOMEMLIMIT=64MiB` per Go process is a soft runtime memory setting, not a hard RSS cap or measurement of actual use.

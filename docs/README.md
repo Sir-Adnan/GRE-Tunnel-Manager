@@ -1,11 +1,13 @@
 # Documentation
 
-Start with the [English README](../README.md) or [Persian README](../README.fa.md), then the user guides below. Technical references cover the modular v1 Bash manager. [AGENTS.md](../AGENTS.md) is the canonical agent instruction source; CLAUDE.md only points to it.
+Start with the [README](../README.md), then the guides below. Maintained documentation is written in English; the web interface supports Persian and English. Technical references cover the modular v1 Bash manager. [AGENTS.md](../AGENTS.md) is the canonical agent instruction source; CLAUDE.md only points to it.
 
 | Doc | Read it when you need... |
 | --- | --- |
-| [USER-GUIDE.md](USER-GUIDE.md) | Persian usage reference, engine selection, GRE, reverse setup and operational limits |
-| [TERMINAL-UI.md](TERMINAL-UI.md) | Persian terminal setup, staged forms, dedicated managers and fixed-color troubleshooting |
+| [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
+| [PHASE-1-REVIEW.md](PHASE-1-REVIEW.md) | Completed interface corrections, validation evidence and remaining boundaries |
+| [USER-GUIDE.md](USER-GUIDE.md) | Usage reference, engine selection, GRE, reverse setup and operational limits |
+| [TERMINAL-UI.md](TERMINAL-UI.md) | Terminal setup, staged forms, dedicated managers and fixed-color troubleshooting |
 | [WEB-PANEL.md](WEB-PANEL.md) | Optional Go panel installation, HTTPS, supported adapters, metrics, architecture and limits |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | script layout, control flow, naming/addressing scheme, design decisions |
 | [ARTIFACTS.md](ARTIFACTS.md) | every file/service/iptables rule created on servers + reboot/cleanup behavior |
@@ -16,3 +18,5 @@ Start with the [English README](../README.md) or [Persian README](../README.fa.m
 | [REVIEW-ROADMAP.md](REVIEW-ROADMAP.md) | current findings, Kariz/rathole comparison, prioritized methods and acceptance gates |
 | [HAPROXY.md](HAPROXY.md) | TCP settings, state v2, restricted stats, worker reload, limitations and next features |
 | [TUNING-CLEANUP.md](TUNING-CLEANUP.md) | closed legacy cleanup, global tuning journal, drift-aware restore and historical migration |
+
+The current phase-gated development plan is tracked in [ROADMAP.md](ROADMAP.md).

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Pencil, Play, Search, Square, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ActionButton, HelpTip } from "@/components/help";
+import { engineName, number } from "@/lib/format";
+import { LocaleContext } from "@/lib/i18n";
 import { Blank, Status } from "@/components/shared";
 import { endpoint } from "@/lib/api";
 import type { Connection } from "@/lib/api";
@@ -38,6 +41,7 @@ export function ConnectionTable({
   compact?: boolean;
 }) {
   const t = useT();
+  const locale = useContext(LocaleContext);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
@@ -78,7 +82,7 @@ export function ConnectionTable({
           {picked.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                {picked.length}
+                {number(picked.length, locale)}
               </span>
               <Button
                 variant="outline"
@@ -122,6 +126,10 @@ export function ConnectionTable({
                       checked={
                         shown.length > 0 &&
                         shown.every((row) => selected.includes(row.id))
+                          ? true
+                          : shown.some((row) => selected.includes(row.id))
+                            ? "indeterminate"
+                            : false
                       }
                       onCheckedChange={(checked) =>
                         setSelected(
@@ -176,11 +184,11 @@ export function ConnectionTable({
                       </span>
                       <div className="flex flex-col gap-1">
                         <span className="font-medium">{row.name}</span>
-                        <span
-                          className="text-xs text-muted-foreground"
-                          dir="ltr"
-                        >
-                          {row.engine} · {row.id}
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <bdi>{engineName(row.engine)}</bdi>
+                          <HelpTip
+                            label={t("connectionID")}
+                          >{`${t("connectionID")}: ${row.id}`}</HelpTip>
                         </span>
                       </div>
                     </div>
@@ -214,20 +222,22 @@ export function ConnectionTable({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
-                      <Button
+                      <ActionButton
                         variant="ghost"
                         size="icon"
-                        aria-label={`${t("edit")} ${row.name}`}
+                        label={`${t("edit")} ${row.name}`}
+                        disabled={busy}
                         onClick={() => onEdit(row)}
                       >
                         <Pencil />
-                      </Button>
+                      </ActionButton>
                       {!compact && (
                         <>
-                          <Button
+                          <ActionButton
                             variant="ghost"
                             size="icon"
-                            aria-label={`${t(row.enabled ? "disable" : "enable")} ${row.name}`}
+                            label={`${t(row.enabled ? "disable" : "enable")} ${row.name}`}
+                            disabled={busy}
                             onClick={() =>
                               void action(row.enabled ? "disable" : "enable", [
                                 row,
@@ -235,12 +245,12 @@ export function ConnectionTable({
                             }
                           >
                             {row.enabled ? <Square /> : <Play />}
-                          </Button>
+                          </ActionButton>
                           {["realm", "haproxy"].includes(row.engine) && (
-                            <Button
+                            <ActionButton
                               variant="ghost"
                               size="icon"
-                              aria-label={t("logs")}
+                              label={t("logs")}
                               onClick={() =>
                                 void run({
                                   action: "logs",
@@ -249,19 +259,20 @@ export function ConnectionTable({
                               }
                             >
                               <FileText />
-                            </Button>
+                            </ActionButton>
                           )}
-                          <Button
+                          <ActionButton
                             variant="ghost"
                             size="icon"
-                            aria-label={`${t("delete")} ${row.name}`}
+                            label={`${t("delete")} ${row.name}`}
+                            disabled={busy}
                             onClick={() => {
                               setSelected([row.id]);
                               setDeleting(true);
                             }}
                           >
                             <Trash2 />
-                          </Button>
+                          </ActionButton>
                         </>
                       )}
                     </div>

@@ -24,4 +24,4 @@ Bash-based Linux tunnel and forwarding manager with an optional Go web panel. Sh
 - Run ShellCheck for the modern modules listed in `.github/workflows/checks.yml` and `git diff --check`.
 - For panel changes, build `panel/web` with `npm ci && npm run build`, then run `go test -race ./...` and `go vet ./...` in `panel/`. Keep public HTTP unprivileged and privileged operations allowlisted through the local broker and Bash API. Preserve the user-selected Nettinx palette.
 - For networking changes, run `sudo bash tests/linux_namespace.sh` in its isolated namespaces. Distinguish local tests from checks that still require real servers.
-- Update affected guides and `docs/CHANGELOG.md` when behavior changes. Keep `README.md` and `README.fa.md` consistent; Persian prose starts with Persian words and commands remain left-to-right.
+- Update affected guides and `docs/CHANGELOG.md` when behavior changes. Write maintained documentation in English. Keep the web UI bilingual (Persian RTL / English LTR); the archived legacy scripts remain unchanged.

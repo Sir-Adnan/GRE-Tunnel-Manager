@@ -13,6 +13,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TextField, Choice } from "@/components/shared";
+import { HelpTip, ActionButton } from "@/components/help";
+import { engineName } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { endpoint } from "@/lib/api";
 import type { Connection, Inventory } from "@/lib/api";
@@ -20,6 +22,7 @@ import type { Connection, Inventory } from "@/lib/api";
 type Props = {
   inventory: Inventory;
   engine: string;
+  engines?: string[];
   original?: Connection;
   onClose: () => void;
   onSubmit: (request: unknown) => Promise<void>;
@@ -27,6 +30,7 @@ type Props = {
 export function ConnectionForm({
   inventory,
   engine,
+  engines,
   original,
   onClose,
   onSubmit,
@@ -121,7 +125,7 @@ export function ConnectionForm({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
         closeLabel={t("close")}
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
+        className="form-dialog sm:max-w-2xl"
       >
         <DialogHeader>
           <DialogTitle>
@@ -189,20 +193,22 @@ export function ConnectionForm({
             }}
           >
             <FieldGroup>
-              {!original && (
+              {!original && (!engines || engines.length > 1) && (
                 <Choice
                   id="engine"
                   label={t("method")}
                   value={value.engine}
-                  choices={inventory.capabilities.map((cap) => ({
-                    value: cap.id,
-                    label:
-                      cap.id === "haproxy"
-                        ? "HAProxy"
-                        : cap.id === "realm"
-                          ? "Realm"
-                          : cap.id,
-                  }))}
+                  choices={inventory.capabilities
+                    .filter((cap) => !engines || engines.includes(cap.id))
+                    .map((cap) => ({
+                      value: cap.id,
+                      label:
+                        cap.id === "haproxy"
+                          ? "HAProxy"
+                          : cap.id === "realm"
+                            ? "Realm"
+                            : cap.id,
+                    }))}
                   onChange={(next) => {
                     const cap = inventory.capabilities.find(
                       (item) => item.id === next,
@@ -225,6 +231,21 @@ export function ConnectionForm({
                   }}
                 />
               )}
+              <TextField
+                id="connection-name"
+                label={`${t("name")} · ${t("optional")}`}
+                placeholder={`${value.engine}-${value.ports || "443"}`}
+                help={t("autoName")}
+                value={value.name}
+                onChange={(event) => patch("name", event.target.value)}
+                maxLength={40}
+              />
+              <p className="text-sm text-muted-foreground">
+                {t("connectionEngine")}:{" "}
+                <bdi className="font-medium text-foreground">
+                  {engineName(value.engine)}
+                </bdi>
+              </p>
               <TextField
                 id="ports"
                 label={t("localPorts")}
@@ -256,6 +277,16 @@ export function ConnectionForm({
                     dir="ltr"
                     value={target.ip}
                     onChange={(event) =>
+                      patch(
+                        "targets",
+                        value.targets.map((item, i) =>
+                          i === index
+                            ? { ...item, ip: event.target.value }
+                            : item,
+                        ),
+                      )
+                    }
+                    onBlur={(event) =>
                       parseCombinedIP(index, event.target.value)
                     }
                     required
@@ -304,11 +335,11 @@ export function ConnectionForm({
                           )
                         }
                       />
-                      <Button
+                      <ActionButton
                         type="button"
                         variant="ghost"
                         size="icon"
-                        title={t("delete")}
+                        label={t("delete")}
                         onClick={() =>
                           patch(
                             "targets",
@@ -317,7 +348,7 @@ export function ConnectionForm({
                         }
                       >
                         <Trash2 />
-                      </Button>
+                      </ActionButton>
                     </>
                   )}
                 </div>
@@ -381,14 +412,6 @@ export function ConnectionForm({
               </Button>
               {advanced && (
                 <FieldGroup>
-                  <TextField
-                    id="connection-name"
-                    label={`${t("name")} · ${t("optional")}`}
-                    placeholder={t("autoName")}
-                    value={value.name}
-                    onChange={(event) => patch("name", event.target.value)}
-                    maxLength={40}
-                  />
                   <TextField
                     id="bind"
                     label={t("bind")}
@@ -461,9 +484,14 @@ export function ConnectionForm({
                     ),
                   )}
                   {capability.options.length > 0 && (
-                    <p className="text-xs leading-6 text-muted-foreground">
-                      {t("proxyHelp")}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {t("proxyGuide")}
+                      </span>
+                      <HelpTip label={t("proxyGuide")}>
+                        {t("proxyHelp")}
+                      </HelpTip>
+                    </div>
                   )}
                   <Field orientation="horizontal">
                     <FieldLabel htmlFor="connection-enabled">

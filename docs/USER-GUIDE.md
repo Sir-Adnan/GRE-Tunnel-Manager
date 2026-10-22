@@ -1,87 +1,88 @@
-# راهنمای استفاده
+# User guide
 
-برای شروع، [راهنمای فارسی](../README.fa.md) یا [راهنمای انگلیسی](../README.md) را ببینید. برای جزئیات نمایش و مراحل فرم‌ها، [راهنمای ترمینال](TERMINAL-UI.md) در دسترس است.
+Start with the [README](../README.md). See [Terminal UI](TERMINAL-UI.md) for prompts and header behavior, and [Web panel](WEB-PANEL.md) for browser management.
 
-## منوی اصلی
+## Main menu
 
-| بخش | کاربرد |
+| Section | Purpose |
 | --- | --- |
-| گزینهٔ یک؛ تونل GRE | ساخت، نمایش، ویرایش و حذف GRE یا Simple GRE |
-| گزینهٔ دو؛ فوروارد پورت | مدیریت فوروارد iptables یا nftables |
-| گزینهٔ سه؛ هاپروکسی | مدیریت تونل، لودبالانس، سرویس و لاگ HAProxy |
-| گزینهٔ چهار؛ ریلم | مدیریت تونل، لودبالانس و سرویس Realm |
-| گزینهٔ پنج؛ تونل معکوس | راه‌اندازی FRP یا rathole |
-| گزینهٔ شش؛ لودبالانس | انتخاب موتور و افزودن چند مقصد |
-| گزینهٔ هفت؛ ابزارها | وضعیت، بازیابی، به‌روزرسانی، پاک‌سازی و راهنما |
+| 1 · GRE Tunnel | Create, inspect, edit and delete GRE / Simple GRE |
+| 2 · Port Forwarding | Manage iptables/nftables forwarding |
+| 3 · HAProxy Tunnel | Manage TCP relays, balancing, services and logs |
+| 4 · Realm Tunnel | Manage TCP/UDP relays and services |
+| 5 · Reverse Tunnel | Configure FRP or rathole |
+| 6 · Load Balancing | Choose an engine and multiple destinations |
+| 7 · Tools | Status, restore, update, cleanup and help |
+| 8 · Web Panel | Optional browser interface and engine preinstallation |
 
-## ساخت تونل GRE
+## GRE between two servers
 
-روی یکی از دو سرور، بخش **GRE Tunnel → Kharej Server** و روی دیگری **GRE Tunnel → Iran Server** را انتخاب کنید. نام‌ها نقش دو سمت هستند؛ کشور سرورها می‌تواند متفاوت باشد.
+Choose **GRE Tunnel → Kharej Server** on one server and **GRE Tunnel → Iran Server** on the other. These labels identify complementary roles; the servers need not be in those countries.
 
-برای هر دو سمت، شناسهٔ یکسان از ۱ تا ۲۵۰ بدهید. برای نمونه، شناسهٔ ۱۰ آدرس داخلی `10.0.10.1` را در سمت خارج و `10.0.10.2` را در سمت ایران ایجاد می‌کند. مقدار پیش‌فرض MTU برابر ۱۴۳۰ است و قرارداد key و آدرس‌دهی با نسخه‌های v13.7 به بعد حفظ شده است.
+Use the same ID from 1–250 at both ends. ID 10 gives `10.0.10.1` on the Kharej side and `10.0.10.2` on the Iran side. The default MTU is 1430. Key/address compatibility with v13.7 and later is preserved.
 
-برای فوروارد روی GRE، آی‌پی داخلی سمت دیگر را مقصد بدهید. تونل GRE خودش رمزنگاری ندارد. هنگام حذف، ارجاع‌های شناخته‌شدهٔ فورواردهای جدید، حتی موارد خاموش، بررسی می‌شوند؛ مسیرها و قوانین دستی را جدا بررسی کنید.
+To forward over GRE, use the other endpoint's internal address as the destination. GRE does not encrypt traffic. Deletion checks known modern forwarding references, including disabled entries; manually created routes/rules require separate inspection.
 
-## ساخت تونل یا فوروارد
+## Creating a forward or relay
 
-ابتدا بخش موتور را باز کنید و افزودن را بزنید. برای فوروارد کرنلی، یکی از **Add iptables forward** یا **Add nftables forward** را انتخاب کنید.
+Open the engine manager and its add action. Kernel forwards offer **Add iptables forward** and **Add nftables forward**.
 
-- ابتدا پورت یا پورت‌های ورودی را بدهید؛ فهرست `443,8443` و بازهٔ `8000-8003` پذیرفته می‌شوند.
-- سپس آی‌پی مقصد و پورت مقصد را جدا وارد کنید؛ قالب `203.0.113.20:443` و قالب `[2001:db8::1]:443` هم پذیرفته می‌شوند.
-- برای ریلم و فوروارد کرنلی، پروتکل را عددی انتخاب کنید. برای هاپروکسی، پروتکل همواره TCP است.
-- سپس صفحهٔ مرور را بخوانید و ذخیره را بزنید. نام خودکار ساخته می‌شود و تنظیمات اضافه اختیاری‌اند.
+1. Enter local ports, for example `443,8443` or `8000-8003`.
+2. Enter destination IP and port separately. Combined `203.0.113.20:443` and `[2001:db8::1]:443` are accepted.
+3. Select TCP/UDP/both numerically for Realm or kernel forwarding. HAProxy is TCP-only.
+4. Review the mapping and save. Names are automatic unless specified; additional settings are optional.
 
-برای چند پورت، حداکثر ۳۲ مورد در یک راه‌اندازی پذیرفته می‌شود. انتخاب عددی مشخص می‌کند همه به پورت مقصد داده‌شده منتقل شوند یا شمارهٔ پورت ورودی را حفظ کنند. هر پورت، رکورد و شناسهٔ مستقل دارد؛ همهٔ رکوردها با یک مرحلهٔ اعمال و یک نقطهٔ بازیابی ذخیره می‌شوند. ویرایش موارد موجود، تک‌به‌تک است.
+Up to 32 ports are accepted in one setup. Choose whether all map to the entered destination port or preserve their local port numbers. Each local port has its own record/ID; creation uses one apply step and restore point. Existing records are edited individually.
 
-## آدرس شنود و تنظیمات اختیاری
+## Listen addresses and source policy
 
-به‌صورت پیش‌فرض، هاپروکسی و ریلم روی همهٔ آدرس‌های محلی IPv4 گوش می‌دهند. در **Optional settings → Listen address** می‌توان آدرس خاص یا همهٔ آدرس‌های IPv6 را انتخاب کرد. شنود IPv6 به تنظیمات سیستم‌عامل هم وابسته است.
+HAProxy and Realm default to all local IPv4 addresses. **Optional settings → Listen address** can choose a specific address or all IPv6 addresses; actual IPv6 behavior also depends on the OS.
 
-برای فوروارد کرنلی، آدرس محلی مشخص لازم است. مدیر با خواندن مسیر اصلی، آدرس را پیشنهاد می‌دهد و بسته‌ای برای این تشخیص نمی‌فرستد؛ در صورت نبود مسیر، آدرس را می‌پرسد. آدرس پشت NAT ابری ممکن است خصوصی باشد. برای تغییر آن، از تنظیمات اختیاری استفاده کنید.
+Kernel forwarding requires a specific local address. The terminal suggests one from routing information without sending a discovery packet; it asks when no suitable route exists. A cloud-NAT address may be private. Review the address before applying.
 
-در حالت معمول، سیاست مبدأ برابر `masquerade` است. حفظ آی‌پی کلاینت در فوروارد کرنلی به مسیر برگشت درست در مقصد نیاز دارد. تونل‌های ریلم و هاپروکسی اتصال خروجی جدید می‌سازند؛ اطلاعات PROXY در هاپروکسی فقط با پشتیبانی و تنظیم متناظر در مقصد قابل‌استفاده است و آی‌پی شبکهٔ اتصال خروجی را عوض نمی‌کند.
+The usual source policy is `masquerade`. Preserving client IP for a kernel forward requires a valid destination return route. HAProxy/Realm create a new outgoing connection. HAProxy PROXY metadata requires compatible configuration in the receiving application and does not change the outgoing packet's network source address.
 
-## لودبالانس
+## Load balancing
 
-داخل منوی هاپروکسی یا ریلم، گزینهٔ **Load Balancing** را انتخاب کنید. پس از هر مقصد، ادامه یا افزودن سرور دیگر را عددی انتخاب کنید. وزن یکسان پیش‌فرض است؛ قالب پیشرفتهٔ `203.0.113.20:443@2` وزن دو را تعیین می‌کند.
+Open **Load Balancing** inside HAProxy or Realm. Add destinations one at a time using numbered choices. Weights default to one; advanced input `203.0.113.20:443@2` selects weight two.
 
-| موتور | ترافیک و رفتار |
+| Engine | Supported behavior |
 | --- | --- |
-| فوروارد کرنلی | انتقال TCP/UDP با توزیع وزن‌دار؛ بدون بررسی سلامت مقصد |
-| تونل ریلم | انتقال TCP/UDP با round robin یا source hash؛ بدون بررسی سلامت در این تنظیمات |
-| تونل هاپروکسی | انتقال TCP با round robin، leastconn، source یا primary/backup؛ همراه TCP check |
-| تونل FRP | گروه مقصد TCP با بررسی اتصال مقصد |
-| تونل rathole | یک مقصد در هر نمونه؛ بدون لودبالانس در این تنظیمات |
+| Kernel forwarding | TCP/UDP weighted distribution; no destination health checks |
+| Realm | TCP/UDP round robin or source hash; no active health checks in this adapter |
+| HAProxy | TCP round robin, leastconn, source or primary/backup, with TCP checks |
+| FRP | TCP destination groups and connection checks |
+| rathole | One destination per instance; no balancing in this adapter |
 
-تقسیم بار برای اتصال‌های جدید است؛ حفظ اتصال فعال هنگام جابه‌جایی مقصد تضمین نمی‌شود. بررسی TCP نیز سلامت کامل برنامه یا VPN مقصد را ثابت نمی‌کند.
+Balancing selects destinations for new connections; moving an existing connection without interruption is not guaranteed. A successful TCP check does not prove the complete VPN/application is healthy.
 
-## نمایش، ویرایش و حذف
+## Inspecting, editing and deleting
 
-هر موتور، فهرست خودش را نشان می‌دهد. انتخاب ردیف در یک بخش، موارد موتورهای دیگر را حذف نمی‌کند. برای حذف چند مورد، شمارهٔ ردیف‌ها را با فاصله بدهید. ویرایش، وضعیت خاموش/روشن، سیاست مبدأ و تنظیمات پیشرفتهٔ هاپروکسی را حفظ می‌کند. تغییر هم‌زمان همان رکورد در نشست دیگر، ذخیره را متوقف می‌کند.
+Each manager lists its own entries. A filtered selection never becomes the complete state being saved. Delete multiple entries using space-separated row numbers. Edits preserve enabled state, source policy and supported advanced options. Concurrent changes to the same record cause stale edits to fail.
 
-برای مشاهدهٔ سرویس، لاگ یا ریستارت، وارد **Status & Logs** شوید و تونل را انتخاب کنید. برای خاموش یا روشن کردن از **Start / Stop** استفاده کنید؛ خاموش‌کردن، تنظیمات را نگه می‌دارد.
+Use **Status & Logs** for a selected service and its logs/restart. **Start / Stop** retains configuration while changing enabled state.
 
-## تنظیمات هاپروکسی
+## HAProxy options
 
-داخل **HAProxy Tunnel → Advanced Settings** تونل را انتخاب کنید. انتخاب‌ها تا **Save & apply** در فرم می‌مانند. گزینه‌های زمان انتظار، بررسی سلامت، محدودیت اتصال، پیش‌تنظیم VPN و PROXY/لاگ در دسترس‌اند. گزینه‌های چندحالته عددی هستند؛ مقادیر مدت‌زمان و محدودیت‌ها به‌صورت عدد وارد می‌شوند.
+Open **HAProxy Tunnel → Advanced Settings** and select a connection. Edits remain in the form until **Save & apply**. Options include timeouts, health checks, limits, the VPN preset, PROXY metadata and logging. Choices are numbered; durations and limits use numeric input.
 
-وضعیت مقصد از سوکت Unix با دسترسی محدود خوانده می‌شود؛ رابط آماری خود HAProxy عمومی باز نمی‌شود؛ وب‌پنل اختیاری مدیر مستقل است. تغییر سازگارِ تنظیمات با reload و تأیید worker جدید اعمال می‌شود؛ تغییر سرویس یا محدودیت فایل‌دسکریپتور می‌تواند restart بخواهد. جزئیات و سازگاری رکوردهای نسخهٔ ۲ در [راهنمای هاپروکسی](HAPROXY.md) آمده است.
+Status is read through a restricted Unix socket. HAProxy's native statistics interface is not exposed publicly. Compatible changes use worker reload with readiness checks; service/file-descriptor changes may require restart. See [HAProxy](HAPROXY.md) for state-v2 compatibility and scope.
 
-## تونل معکوس
+## Reverse tunnels
 
-داخل **Reverse Tunnel** موتور را انتخاب کنید. روی سرور عمومی گزینهٔ **Setup Server** و روی سرور مقصد گزینهٔ **Setup Client** را اجرا کنید. نام، پورت کنترل، پورت عمومی و token دو سمت باید هماهنگ باشند. نام پیش‌فرض از پورت عمومی ساخته می‌شود؛ برای چند نمونه نام‌های جدا بدهید.
+Open **Reverse Tunnel** and choose an engine. Use **Setup Server** on the public entrance and **Setup Client** on the destination. Match service name, control/public ports and shared token. Default names derive from the public port; use distinct names for separate instances.
 
-برای تونل FRP، انتخاب انتقال TCP، WS، WSS یا QUIC عددی است. نوع TCP Mux در این پروژه، stream multiplexing است و HTTP CONNECT tcpmux نیست. حالت WSS به گواهی و کلید روی ورودی و فایل اعتماد روی مقصد نیاز دارد؛ تنظیم و تمدید گواهی بر عهدهٔ مدیر سرور است.
+FRP supports TCP, WS, WSS and QUIC transport choices. TCP Mux here means stream multiplexing, not HTTP CONNECT tcpmux. WSS requires existing certificate/key files at the entrance and trust configuration at the destination. Certificate provisioning and renewal remain the operator's responsibility.
 
-برای تونل rathole، فقط کلید عمومی ورودی را از مسیر مورداعتماد به مقصد منتقل کنید. کلید خصوصی و token در تنظیمات محدود می‌مانند. ترافیک UDP هم در این حالت از TCP عبور می‌کند و در مسیر پرتلفات می‌تواند تأخیر داشته باشد. حذف یک سمت، سمت دیگر را حذف نمی‌کند.
+For rathole, transfer only the entrance public key through a trusted channel. Private keys and tokens remain in restricted configuration files. UDP uses a TCP-based transport in this adapter, which can add delay on lossy paths. Removing one endpoint does not remove its peer.
 
-## بازیابی و پاک‌سازی
+## Restore and cleanup
 
-برای بازیابی فورواردها و رله‌های مدیریت‌شده، وارد **Tools → Restore Backup** شوید. نقاط بازیابی TSV، تونل GRE، نمونه‌های FRP/rathole، گواهی‌ها و تنظیمات سراسری میزبان را برنمی‌گردانند؛ از آن‌ها جدا نسخهٔ پشتیبان بگیرید.
+Use **Tools → Restore Backup** for managed forwarding/relay restore points. TSV snapshots do not restore GRE units, FRP/rathole instances, certificates or global host settings; back those up separately.
 
-برای قوانین قدیمی، بخش **Port Forwarding → Old forwarding rules** در دسترس است. پاک‌سازی کلی در **Tools → Cleanup** فقط منابع شناخته‌شده را می‌پذیرد و ابتدا پشتیبان می‌گیرد. وجود دستور ناشناس یا سرویس سفارشی، حذف کلی را متوقف می‌کند. توضیح بازیابی خطای جزئی و تنظیمات سراسری در [راهنمای پاک‌سازی](TUNING-CLEANUP.md) است.
+**Port Forwarding → Old forwarding rules** handles recognized historical entries. **Tools → Cleanup** accepts only known resources and takes a backup first. Unknown commands/custom services block whole cleanup. See [Tuning and cleanup](TUNING-CLEANUP.md) for partial-failure recovery and global settings.
 
-## بررسی بدون تغییر
+## Read-only checks
 
 ```bash
 bash gre.sh --version
@@ -91,8 +92,8 @@ sudo bash gre.sh --doctor
 sudo bash gre.sh --haproxy-status F000001
 ```
 
-برای کاربر root، بخش `sudo` را حذف کنید. شناسهٔ نمونه را با شناسهٔ تونل خود جایگزین کنید. فرمان‌های بررسی، سلامت کامل مسیر یا ظرفیت را ثابت نمی‌کنند؛ خروجی plan هم شامل آدرس‌هاست. جزئیات خطا، بازیابی و آزمون روی سرور واقعی در [راهنمای عملیات](OPERATIONS.md) آمده است.
+Omit `sudo` when root; replace the example connection ID. Checks do not prove end-to-end health or capacity. Plan output contains addresses. See [Operations](OPERATIONS.md) for recovery and real-server validation.
 
-## مدیریت در مرورگر
+## Browser management
 
-گزینهٔ هشتم منوی اصلی، وب‌پنل اختیاری را نصب یا مدیریت می‌کند. رابط فارسی و انگلیسی، فرم‌های مرحله‌ای، عملیات گروهی و آمار اختیاری در [راهنمای وب‌پنل](WEB-PANEL.md) توضیح داده شده‌اند. نصب موتورهای تونل از قبل نیز در بخش ابزارها و داخل پنل قابل انجام است.
+Main-menu option 8 installs/manages the optional panel. It has Persian RTL and English LTR, staged forms, bulk actions and optional accounting. Tunnel engines can also be installed in advance. The current panel manages its own host; remote Nodes/Agents are planned in the [phase-gated roadmap](ROADMAP.md).

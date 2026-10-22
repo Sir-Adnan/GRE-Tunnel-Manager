@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import {
   Activity,
   ArrowDownLeft,
@@ -20,7 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Address, PageTitle, SectionLink } from "@/components/shared";
 import { ConnectionTable } from "@/features/connections/ConnectionTable";
-import { bytes } from "@/lib/api";
+import { number, trafficBytes, uptime } from "@/lib/format";
+import { LocaleContext } from "@/lib/i18n";
 import type { Connection, Inventory } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -38,6 +40,7 @@ export function Overview({
   run: (request: unknown) => Promise<void>;
 }) {
   const t = useT();
+  const locale = useContext(LocaleContext);
   const h = inventory.host;
   const used = h.memory_total - h.memory_available;
   const online =
@@ -46,25 +49,30 @@ export function Overview({
   const cards = [
     {
       label: "managed",
-      value: String(inventory.connections.length),
-      extra: `${inventory.connections.filter((c) => c.enabled).length} ${t("configured")}`,
+      value: number(inventory.connections.length, locale),
+      extra: `${number(inventory.connections.filter((c) => c.enabled).length, locale)} ${t("configured")}`,
       icon: Layers3,
     },
     {
       label: "services",
-      value: String(online),
+      value: number(online, locale),
       extra: "HAProxy · Realm · GRE · Reverse",
       icon: Activity,
     },
     {
       label: "memory",
       value: h.memory_total
-        ? `${Math.round((used / h.memory_total) * 100)}%`
+        ? `${number(Math.round((used / h.memory_total) * 100), locale)}${locale === "fa" ? "٪" : "%"}`
         : "—",
-      extra: `${bytes(used)} / ${bytes(h.memory_total)}`,
+      extra: `${trafficBytes(used, locale)} / ${trafficBytes(h.memory_total, locale)}`,
       icon: MemoryStick,
     },
-    { label: "uptime", value: h.uptime || "—", extra: h.os, icon: Clock3 },
+    {
+      label: "uptime",
+      value: uptime(h.uptime, locale),
+      extra: h.os,
+      icon: Clock3,
+    },
   ];
   return (
     <div className="page-stack">
@@ -92,21 +100,16 @@ export function Overview({
         {cards.map(({ label, value, extra, icon: Icon }) => (
           <Card key={label}>
             <CardHeader>
-              <CardDescription className="flex items-center justify-between gap-2">
-                {t(label)}
+              <CardDescription className="flex items-center gap-2">
                 <Icon className="size-4" />
+                {t(label)}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="stat-value" dir="ltr">
-                {value}
-              </div>
+              <div className="stat-value">{value}</div>
             </CardContent>
             <CardFooter>
-              <span
-                className="truncate text-xs text-muted-foreground"
-                dir={label === "memory" ? "ltr" : undefined}
-              >
+              <span className="truncate text-xs text-muted-foreground">
                 {extra}
               </span>
             </CardFooter>
@@ -160,7 +163,9 @@ export function Overview({
               <Badge variant="outline">
                 {t("traffic")} · {t("optional")}
               </Badge>
-              <Badge variant="outline">HTTPS</Badge>
+              <Badge variant="outline">
+                {location.protocol === "https:" ? "HTTPS" : "HTTP"}
+              </Badge>
             </div>
           </CardContent>
           <CardFooter>

@@ -2,7 +2,8 @@ import type { ComponentProps, ReactNode } from "react";
 import { ArrowUpRight, Copy, Network, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { HelpTip } from "@/components/help";
 import { Input } from "@/components/ui/input";
 import {
   NativeSelect,
@@ -57,9 +58,11 @@ export function TextField({
 }: { label: string; help?: string } & ComponentProps<typeof Input>) {
   return (
     <Field>
-      <FieldLabel htmlFor={props.id}>{label}</FieldLabel>
+      <div className="flex items-center gap-1">
+        <FieldLabel htmlFor={props.id}>{label}</FieldLabel>
+        {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
+      </div>
       <Input {...props} />
-      {help && <FieldDescription>{help}</FieldDescription>}
     </Field>
   );
 }

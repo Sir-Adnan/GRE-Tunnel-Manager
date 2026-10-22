@@ -1,9 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource/poppins/400.css";
-@import "@fontsource/poppins/500.css";
-@import "@fontsource/poppins/600.css";
-@import "@fontsource-variable/geist";
 @import "@fontsource-variable/vazirmatn";
 @import "@fontsource-variable/jetbrains-mono";
 @import "./experience/theme.css";
@@ -53,39 +49,8 @@
   .app-shell {
     min-height: 100dvh;
   }
-  .desktop-sidebar {
-    @apply fixed inset-y-0 start-0 hidden w-60 flex-col gap-8 border-e border-sidebar-border bg-sidebar px-4 lg:flex;
-  }
-  .sidebar-brand {
-    @apply flex h-[78px] items-center px-3;
-  }
   .brand-mark {
     @apply flex size-9 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary;
-  }
-  .nav-group-title {
-    @apply mb-2 px-3 text-[10px] font-medium tracking-widest text-muted-foreground;
-  }
-  .nav-item {
-    @apply flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
-  }
-  .nav-item[data-active="true"] {
-    @apply bg-secondary text-secondary-foreground;
-    box-shadow: inset 3px 0 var(--primary);
-  }
-  [dir="rtl"] .nav-item[data-active="true"] {
-    box-shadow: inset -3px 0 var(--primary);
-  }
-  .nav-count {
-    @apply ms-auto rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px];
-  }
-  .sidebar-footer {
-    @apply mt-auto px-2;
-  }
-  .server-avatar {
-    @apply flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted;
-  }
-  .app-main {
-    @apply flex min-h-dvh flex-col lg:ms-60;
   }
   .topbar {
     @apply sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur-sm sm:px-7 lg:px-10;
@@ -210,5 +175,67 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Application typography is a user choice, independent of preset colors. */
+[data-style] {
+  --font-sans: "Vazirmatn Variable", sans-serif;
+  --font-heading: "Vazirmatn Variable", sans-serif;
+}
+@layer components {
+  .form-dialog {
+    @apply max-h-[92dvh] overflow-y-auto;
+  }
+  .form-dialog [data-slot="dialog-header"] {
+    @apply pe-7;
+  }
+  .form-dialog [data-slot="dialog-footer"] {
+    @apply sticky -bottom-4 mt-2 bg-muted;
+  }
+  .stat-value {
+    @apply break-words tabular-nums;
+    font-size: clamp(1.15rem, 2.4vw, 2rem);
+  }
+  [data-slot="sidebar-menu-button"] {
+    @apply min-h-10;
+  }
+  [data-slot="sidebar-wrapper"] {
+    @apply min-w-0;
+  }
+  [data-slot="table-cell"] {
+    text-align: start;
+  }
+}
+@media (max-width: 639px) {
+  [data-slot="input"],
+  [data-slot="native-select"] {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  [data-slot="button"][data-size="default"],
+  [data-slot="button"][data-size="lg"],
+  [data-slot="button"][data-size="icon"] {
+    min-height: 44px;
+  }
+  [data-slot="button"][data-size="icon"] {
+    min-width: 44px;
+  }
+  .form-dialog {
+    max-width: calc(100% - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+  .destination-fields:has(> :nth-child(3)) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .destination-fields:has(> :nth-child(3)) > :first-child {
+    grid-column: 1 / -1;
+  }
+  .review-grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.5rem;
+  }
+  .review-grid dd {
+    margin-bottom: 0.75rem;
   }
 }

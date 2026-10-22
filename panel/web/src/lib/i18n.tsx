@@ -2,6 +2,77 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  help: ["Help", "راهنما"],
+  toggleSidebar: ["Toggle navigation", "باز و بسته‌کردن منو"],
+  connectionEngine: ["Tunnel engine", "موتور اتصال"],
+  connectionID: ["Internal connection ID", "شناسهٔ داخلی اتصال"],
+  proxyGuide: ["PROXY protocol guide", "راهنمای هدر PROXY"],
+  collectionSettings: ["Traffic collection", "تنظیمات ثبت مصرف"],
+  collecting: ["Collection active", "ثبت مصرف فعال است"],
+  collectionPaused: ["Collection paused", "ثبت مصرف خاموش است"],
+  collectionSummary: [
+    "Choose what to track, then save your changes.",
+    "موارد دلخواه را انتخاب کنید و تغییرات را ذخیره کنید.",
+  ],
+  collectionOnDraft: [
+    "Enabled in this form. Save to apply.",
+    "در فرم روشن است؛ برای اعمال، ذخیره کنید.",
+  ],
+  collectionOffDraft: [
+    "Disabled in this form. Save to apply.",
+    "در فرم خاموش است؛ برای اعمال، ذخیره کنید.",
+  ],
+  intervalHelp: [
+    "15–3600 seconds. Longer intervals reduce collection work; default: 60 seconds.",
+    "بین ۱۵ تا ۳۶۰۰ ثانیه؛ فاصلهٔ بیشتر، نمونه‌برداری کمتری دارد. پیش‌فرض ۶۰ ثانیه است.",
+  ],
+  trackedResources: ["Connections to track", "انتخاب اتصال‌ها برای ثبت مصرف"],
+  trackedResource: ["Connection", "اتصال"],
+  noTrackableResources: [
+    "No supported connections yet.",
+    "هنوز اتصال پشتیبانی‌شده‌ای وجود ندارد.",
+  ],
+  selectResourceFirst: [
+    "Select at least one connection, or enable tracking all connections.",
+    "حداقل یک اتصال انتخاب کنید یا ثبت همهٔ اتصال‌ها را روشن کنید.",
+  ],
+  unsavedChanges: ["Unsaved changes", "تغییرات هنوز ذخیره نشده‌اند"],
+  settingsApplied: [
+    "Showing saved settings",
+    "تنظیمات ذخیره‌شده نمایش داده می‌شوند",
+  ],
+  usageByConnection: ["Usage by connection", "مصرف هر اتصال"],
+  trafficTableHelp: [
+    "Received, sent and total usage are shown separately for each tunnel or port.",
+    "حجم دریافت، ارسال و مجموع برای هر تونل یا پورت جدا نمایش داده می‌شود.",
+  ],
+  waitingSample: ["Waiting for the first sample", "در انتظار اولین نمونه"],
+  waitingSampleHelp: [
+    "Collection is enabled. Refresh after the sampling interval; the first sample may establish a baseline.",
+    "ثبت روشن است؛ پس از فاصلهٔ نمونه‌برداری به‌روزرسانی کنید. اولین نمونه ممکن است فقط مبنای شمارش را ثبت کند.",
+  ],
+  counterSource: ["Measurement method", "روش اندازه‌گیری"],
+  nftAccounting: ["nftables network counters", "شمارنده‌های شبکهٔ nftables"],
+  counterSourceHelp: [
+    "The measurement method does not change the tunnel engine. HAProxy and Realm usage can also be measured with nftables.",
+    "روش شمارش، موتور تونل را تغییر نمی‌دهد؛ مصرف HAProxy و Realm هم می‌تواند با nftables اندازه‌گیری شود.",
+  ],
+  removedResource: ["Previous connection", "اتصال قبلی"],
+  separateTotals: [
+    "Totals remain per connection. GRE and forwarded bytes may overlap, so no combined total is calculated.",
+    "مجموع هر اتصال جداست؛ حجم GRE و فوروارد ممکن است هم‌پوشانی داشته باشد و با هم جمع نمی‌شود.",
+  ],
+  trafficTrend: ["Connection usage trend", "روند مصرف اتصال"],
+  sessionChartHelp: [
+    "Cumulative usage from samples fetched during this visit. No history is invented or stored in the browser.",
+    "حجم تجمعی از نمونه‌های دریافت‌شده در همین بازدید؛ تاریخچهٔ ساختگی یا ذخیره‌سازی در مرورگر وجود ندارد.",
+  ],
+  chartWaiting: ["A chart needs two samples", "برای نمودار دو نمونه لازم است"],
+  chartWaitingHelp: [
+    "Enable collection and refresh after a later sample. Each connection is charted separately; leaving this page clears the chart session.",
+    "ثبت را روشن کنید و پس از نمونهٔ بعدی به‌روزرسانی کنید. هر اتصال نمودار جدا دارد؛ با خروج از این صفحه، نمونه‌های نمودار پاک می‌شوند.",
+  ],
+  sessionSamples: ["samples in this visit", "نمونه در این بازدید"],
   tcp_timeout: ["TCP connect timeout (s)", "مهلت اتصال TCP؛ ثانیه"],
   udp_timeout: ["UDP association timeout (s)", "مهلت نشست UDP؛ ثانیه"],
   tcp_keepalive: ["TCP keepalive interval (s)", "فاصلهٔ نگه‌داشتن TCP؛ ثانیه"],

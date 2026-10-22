@@ -1,12 +1,10 @@
-# راهنمای ترمینال و مراحل کار
+# Terminal interface and setup flows
 
-برای دریافت برنامه، [راهنمای فارسی](../README.fa.md) یا [راهنمای انگلیسی](../README.md) را ببینید.
+See the [README](../README.md) for installation. The terminal interface stays in English; web-panel language and appearance settings do not affect it.
 
-## اجرای رابط
+## Launching the interface
 
-رابط در همان پنجرهٔ SSH باز می‌شود. هر ابزار، مانند هاپروکسی و ریلم، هدر و منوی اختصاصی دارد. گزینه‌ها را با شماره و Enter انتخاب کنید؛ برای برگشت از منوها عدد صفر را بزنید.
-
-دریافت و اجرای نسخهٔ جدید روی سرور:
+The manager opens in the current SSH terminal. Each engine has its own header and menu. Enter a number and press Enter; use `0` to go back.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh
@@ -14,69 +12,65 @@ bash gre.sh --version
 sudo bash gre.sh
 ```
 
-برای کاربر root، بخش `sudo` را حذف کنید. فایل محلی جایگزین می‌شود؛ دریافت فایل به‌تنهایی تنظیمات تونل را تغییر نمی‌دهد. برای به‌روزرسانی میان‌بر، گزینهٔ **Tools → Install / Update igre** را اجرا کنید و میان‌بر را دوباره باز کنید.
+Omit `sudo` when already root. Downloading replaces the local script but does not itself change tunnels. Update an installed shortcut through **Tools → Install / Update igre**, then reopen it.
 
-## مسیر ساخت تونل هاپروکسی
+## HAProxy setup
 
-1. ابتدا گزینهٔ **HAProxy Tunnel** و سپس **Add Tunnel** را انتخاب کنید.
-2. بعد پورت ورودی را بدهید؛ یک پورت، فهرستی با ویرگول یا بازهٔ کوتاه پذیرفته می‌شود.
-3. سپس آی‌پی مقصد و پورت مقصد را جدا وارد کنید؛ ترکیب `IP:port` هم پذیرفته می‌شود.
-4. در پایان، نگاشت را بررسی کنید و **Save & apply** را بزنید.
+1. Open **HAProxy Tunnel → Add Tunnel**.
+2. Enter a local port, comma-separated list or short range.
+3. Enter the destination IP and destination port separately; combined `IP:port` is also accepted.
+4. Review the mapping and choose **Save & apply**.
 
-نام خودکار است و هاپروکسی فقط TCP را منتقل می‌کند، پس انتخاب پروتکل اضافه ندارد. برای تغییر نام یا آی‌پی شنود، گزینهٔ **Optional settings** در صفحهٔ مرور در دسترس است. برای چند پورت، انتخاب عددی مشخص می‌کند پورت مقصد ثابت باشد یا شمارهٔ پورت‌های ورودی حفظ شود.
+Names are generated automatically. This adapter is TCP-only. Change the name or listen address through **Optional settings** in the review step. For several ports, choose numerically whether destinations use the entered port or preserve each local port number.
 
-## مسیر ساخت تونل ریلم یا فوروارد
+## Realm and kernel forwarding
 
-مراحل پورت و مقصد مشابه هاپروکسی هستند. انتخاب پروتکل با منوی عددی انجام می‌شود: گزینهٔ یک برای TCP، گزینهٔ دو برای UDP و گزینهٔ سه برای هر دو است. نیازی به تایپ نام پروتکل نیست.
+The port/destination flow is the same. Select the protocol numerically: TCP, UDP or both. Optional settings can stay closed for ordinary setups. HAProxy/Realm default to all local IPv4 addresses; kernel forwarding proposes a specific local address from routing information. Behind cloud NAT this may be private. Review shows the actual address before application.
 
-برای استفادهٔ معمول، تنظیمات اختیاری را باز نکنید. تونل‌های هاپروکسی و ریلم روی همهٔ آدرس‌های محلی IPv4 گوش می‌دهند. فوروارد کرنلی، آدرس اصلی محلی را از جدول مسیریابی پیشنهاد می‌دهد؛ پشت NAT ابری، این آدرس می‌تواند خصوصی باشد. آدرس و نگاشت نهایی همیشه پیش از اعمال نمایش داده می‌شوند.
+## Dedicated managers
 
-## منوی اختصاصی هر ابزار
-
-| کار | مسیر |
+| Task | Menu action |
 | --- | --- |
-| افزودن تونل | انتخاب **Add Tunnel** |
-| افزودن چند مقصد | انتخاب **Load Balancing** |
-| نمایش، ویرایش یا حذف | انتخاب همان کار در منوی ابزار |
-| روشن یا خاموش کردن | انتخاب **Start / Stop** |
-| دیدن وضعیت، لاگ یا ریستارت | انتخاب **Status & Logs** |
-| تغییر جزئیات هاپروکسی | انتخاب **Advanced Settings** |
+| Create a connection | Add Tunnel / Add forward |
+| Add destinations | Load Balancing |
+| Inspect, edit or delete | Corresponding action in the engine menu |
+| Enable/disable without deleting configuration | Start / Stop |
+| Service status, logs or restart | Status & Logs |
+| HAProxy options | Advanced Settings |
 
-گزینهٔ نمایش یا حذف هر ابزار فقط موارد همان ابزار را نشان می‌دهد. در فوروارد پورت، انتخاب چند ردیف با فاصله، مانند `1 3 4`، امکان‌پذیر است. خاموش‌کردن، تنظیمات را نگه می‌دارد؛ حذف، مورد انتخاب‌شده را از تنظیمات مدیر برمی‌دارد.
+Each engine lists only its own resources. Group deletion accepts space-separated row numbers such as `1 3 4`. Disabling retains configuration; deleting removes the selected managed entry.
 
-## اطلاعات سرور در هدر
+## Server information in the header
 
-هدر یا بنر ترمینال، نام برنامه، نسخه و بخش فعلی را نشان می‌دهد. نوشتهٔ بزرگ ابتدای آن «بنر هنری متنی» یا ASCII Art Banner نام دارد. این نوشته فقط در پنجره‌هایی با حداقل ۶۸ ستون و ۳۴ سطر نمایش داده می‌شود؛ در پنجره‌های کوچک، عنوان کوتاه جای آن را می‌گیرد تا منو جا داشته باشد.
+The terminal header/banner shows the application, version and current section. The large title is an **ASCII art banner**, shown only when at least 68 columns and 34 rows are available. Smaller windows use a compact title.
 
-اطلاعات هدر شامل نام میزبان، سیستم‌عامل در پنجره‌های عریض، آدرس عمومی خروجی و آدرس‌های محلی است. آدرس‌ها کوتاه نمی‌شوند؛ در عرض کم، عنوان آدرس به سطر جدا می‌رود و در پنجره‌های بسیار باریک، آدرس کامل در چند سطر نمایش داده می‌شود. هنگام مراحل تعاملی ساخت، هدر دوباره نمایش داده می‌شود. آدرس را با انتخاب متن و قابلیت کپی برنامهٔ SSH خود بردارید؛ دکمه یا کنترل کلیپ‌بورد اضافه نشده است.
+Host information includes hostname, OS on wide screens, observed public egress IP and locally assigned addresses. Addresses are not silently truncated. Narrow windows wrap their labels or the full address. Interactive setup redisplays the header. Copy an address using the SSH client's normal text selection; the terminal manager does not control the clipboard.
 
-برچسب **Public v4/v6** آدرس خروجی مشاهده‌شده از اینترنت و برچسب **Local v4/v6** آدرس اختصاص‌یافته به سرور است. پشت NAT این دو می‌توانند متفاوت باشند. آدرس عمومی لزوماً برای شنود محلی قابل استفاده نیست؛ هدر، آدرس پیش‌فرض ساخت تونل یا فوروارد را عوض نمی‌کند. اطلاعات IPv6 فقط در صورت شناسایی نمایش داده می‌شود و تأیید دسترسی از بیرون نیست.
+**Public v4/v6** means the egress address observed externally; **Local v4/v6** means an address assigned to the server. NAT can make them different. A public address is not necessarily valid for local binding. Header discovery does not change setup defaults. Showing IPv6 does not prove inbound reachability.
 
-عنوان **Provider** نام مالک شبکه، شمارهٔ ASN و کشور تقریبی را نشان می‌دهد؛ نام دقیق دیتاسنتر یا فروشندهٔ سرور تضمین نمی‌شود. برای دریافت این اطلاعات و آی‌پی عمومی، یک درخواست HTTPS به [سرویس اطلاعات آی‌پی](https://ipwhois.io/documentation) ارسال می‌شود. مهلت کل درخواست دو ثانیه است و در صورت شکست، هدر با اطلاعات محلی باز می‌شود. فقط خانوادهٔ آدرسی که سرویس خارجی مشاهده کرده، عمومی معرفی می‌شود؛ بررسی جداگانهٔ هر دو خانواده انجام نمی‌شود.
+**Provider** shows the network owner, ASN and approximate country; it does not guarantee the exact datacenter or reseller. One optional HTTPS request to the [IP information service](https://ipwhois.io/documentation) obtains this information, with a two-second total timeout and local fallback. Only the address family actually observed by that service is labeled public; both families are not probed separately.
 
-اطلاعات و نتیجهٔ ناموفق فقط در حافظهٔ همان اجرای اسکریپت نگه داشته می‌شوند؛ بازکردن زیرمنوها درخواست را تکرار نمی‌کند. برای دریافت دوباره، از **Tools → Refresh Server Info** استفاده کنید. هیچ فایل کش، تایمر یا سرویس پس‌زمینه ساخته نمی‌شود. حالت پیش‌نمایش و دمو از اطلاعات نمونه استفاده می‌کنند؛ دستورات بررسی و اجرای غیرتعاملی درخواست آنلاین هدر ندارند.
+Successful and failed results are cached only in memory for the current script run. Opening submenus does not repeat the request. Use **Tools → Refresh Server Info** to retry. There is no cache file, timer or background service. Preview/demo use sample information; noninteractive commands do not perform this online header lookup.
 
-برای نمایش اطلاعات محلی بدون درخواست آنلاین، از این دستور استفاده کنید:
+Disable online lookup:
 
 ```bash
 sudo env GTM_SERVER_LOOKUP=0 bash gre.sh
 ```
 
-برای کاربر root، دستور `GTM_SERVER_LOOKUP=0 bash gre.sh` کافی است.
+## Fixed terminal colors
 
-## رنگ‌بندی
+The interface uses a fixed cyan, purple and green palette without repainting the terminal background. Terminal themes, light/dark settings, layout choices and Persian/Finglish modes have been removed. Older appearance files are not read or executed; existing files are not silently deleted.
 
-رنگ‌بندی ثابت شامل فیروزه‌ای، بنفش و سبز است و پس‌زمینهٔ ترمینال را رنگ نمی‌کند. تنظیم تم، لایت یا دارک، انتخاب چیدمان، فارسی و فینگلیش از رابط حذف شده‌اند. فایل تنظیمات ظاهرِ نسخه‌های قبلی خوانده یا اجرا نمی‌شود؛ فایل موجود بدون درخواست شما حذف نمی‌شود.
-
-اگر ترمینال رنگ را درست نشان نمی‌دهد، از اجرای بدون رنگ استفاده کنید:
+For plain output:
 
 ```bash
 sudo env NO_COLOR=1 bash gre.sh
 ```
 
-برای کاربر root، دستور `NO_COLOR=1 bash gre.sh` کافی است. خروجی در فایل یا pipe و ترمینال با نوع `dumb` هم بدون رنگ است. تنظیمات فونت و پس‌زمینه در برنامهٔ SSH شما انجام می‌شود.
+Redirected output, pipes and `TERM=dumb` also omit colors. Fonts and the terminal background belong to the SSH application.
 
-## پیش‌نمایش بدون تغییر سرور
+## Safe interface previews
 
 ```bash
 bash gre.sh --preview home
@@ -85,4 +79,4 @@ bash gre.sh --preview realm
 bash gre.sh --demo
 ```
 
-حالت پیش‌نمایش به root نیاز ندارد. رابط واقعی از Bash ساخته شده است؛ طرح HTML اولیه فقط نمونهٔ طراحی بود و پنل وب نصب نمی‌شود.
+Previews do not require root. The Bash interface is the actual terminal UI; the earlier HTML terminal mockup was a design artifact. The optional Go web panel is a separate installation.

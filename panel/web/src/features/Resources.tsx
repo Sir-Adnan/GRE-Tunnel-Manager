@@ -27,6 +27,7 @@ import {
   Status,
   TextField,
 } from "@/components/shared";
+import { ActionButton } from "@/components/help";
 import { useT } from "@/lib/i18n";
 import type { Inventory, Resource } from "@/lib/api";
 
@@ -114,11 +115,11 @@ export function Resources({
                   const name = action as string;
                   const Glyph = Icon as typeof Play;
                   return (
-                    <Button
+                    <ActionButton
                       key={name}
                       variant="ghost"
                       size="icon"
-                      title={t(name)}
+                      label={t(name)}
                       onClick={() =>
                         void run({
                           action: name === "logs" ? "logs" : "service",
@@ -128,17 +129,17 @@ export function Resources({
                       }
                     >
                       <Glyph />
-                    </Button>
+                    </ActionButton>
                   );
                 })}
-                <Button
+                <ActionButton
                   variant="ghost"
                   size="icon"
-                  title={t("delete")}
+                  label={t("delete")}
                   onClick={() => setDeleting(resource)}
                 >
                   <Trash2 />
-                </Button>
+                </ActionButton>
               </CardFooter>
             </Card>
           ))}
@@ -255,7 +256,7 @@ function ResourceForm({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
         closeLabel={t("close")}
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
+        className="form-dialog sm:max-w-xl"
       >
         <DialogHeader>
           <DialogTitle>

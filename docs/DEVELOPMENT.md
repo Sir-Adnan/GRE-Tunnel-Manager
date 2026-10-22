@@ -56,8 +56,10 @@ The modular manager starts at v1.0.1. Use MAJOR.MINOR.PATCH: patch for compatibl
 
 ## Optional panel
 
-Build with `npm ci && npm run build && npm run lint` in `panel/web`, then `go test -race ./... && go vet ./...` in `panel`. Run `python3 tools/package_panel.py` from the repository root to cross-build prebuilt packages. UI assets are embedded; never require Node on managed servers. Use the loopback-only `gtm-panel demo` for browser checks.
+Build with `npm ci && npm run build && npm run lint && npm test` in `panel/web`, then `go test -race ./... && go vet ./...` in `panel`. Run `python3 tools/package_panel.py` from the repository root to cross-build prebuilt packages. UI assets are embedded; never require Node on managed servers. Use the loopback-only `gtm-panel demo` for browser checks.
 
 Set `GTM_PANEL_TEST_BINARY` to the built Linux binary when running isolated namespace tests to exercise actual nftables flow accounting in both directions and removal without disturbing forwarding. Public two-server, reboot, provider firewall, sustained load and resource benchmarks remain separate deployment checks.
 
 The visual system came from the user-selected Visual Experience System starter and shadcn CLI. Presets are local versioned assets, locale is independent, and feature pages use semantic tokens. Keep Nettinx source values byte-equivalent at the token level. The user explicitly requested its original colors despite five known AA contrast failures. Do not report the contrast gate as passing or silently recolor it. The registry was generated with that documented fidelity exception. Other structural/security tests are not waived.
+
+Frontend traffic tests use Node 24 type stripping with the built-in test runner. Verify switches/selection and the full form flow in a real browser; source-level checks alone cannot establish interaction correctness.
