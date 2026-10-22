@@ -13,5 +13,5 @@ jobs:
       - run: python tools/build.py --check
       - run: python -m unittest discover -s tests -v
       - run: sudo apt-get update && sudo apt-get install -y nftables iptables haproxy socat shellcheck
-      - run: shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,tuning,cleanup,menus}.sh
+      - run: shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,menus}.sh
       - run: sudo bash tests/linux_namespace.sh

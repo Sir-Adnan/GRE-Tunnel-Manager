@@ -161,19 +161,16 @@ gtm_haproxy_settings() {
     original=${rows[$((10#$choice-1))]}
     gtm_record_validate "$original" || return 1; id=$R_ID
     while true; do
-        gtm_header "HAProxy / $id / TCP settings"
-        gtm_help haproxy
-        printf '  Connect %ss | Idle %ss | Queue %ss | Max connections %s\n' "$H_CONNECT" "$H_IDLE" "$H_QUEUE" "$H_MAXCONN"
-        printf '  Check every %ss; fall %s / rise %s; port %s (0 = service port)\n' "$H_CHECK_INTERVAL" "$H_CHECK_FALL" "$H_CHECK_RISE" "$H_CHECK_PORT"
-        printf '  Per-target cap %s | Slow start %ss | PROXY %s | Logs %s\n\n' "$H_SERVER_MAXCONN" "$H_SLOWSTART" "$H_PROXY" "$H_LOG"
-        gtm_option 1 'Balanced defaults' 'Reset staged settings'
-        gtm_option 2 'Long-lived VPN preset' '24h inactivity timeout; errors-only logs'
-        gtm_option 3 Timeouts 'Connect / idle / queue; seconds'
-        gtm_option 4 'Health checks' 'Interval / timeout / fall / rise / alternate port'
-        gtm_option 5 'Capacity & recovery' 'Connection caps and slow start'
-        gtm_option 6 'Client metadata & logs' 'PROXY protocol requires destination support'
-        gtm_option 7 'Live target status' 'Read-only local socket; no web endpoint'
-        gtm_option 8 'Save & apply' 'Validate, snapshot, then reload or restart as required'
+        gtm_header "HAProxy / $id / Advanced Settings"
+        printf '  Changes stay in this form until Save & apply.\n\n'
+        gtm_option 1 'Reset defaults'
+        gtm_option 2 'VPN preset' 'Long connections / fewer logs'
+        gtm_option 3 Timeouts
+        gtm_option 4 'Health checks'
+        gtm_option 5 'Connection limits'
+        gtm_option 6 'PROXY protocol / logs'
+        gtm_option 7 'Server status'
+        gtm_option 8 'Save & apply'
         gtm_option 0 Cancel
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -184,7 +181,10 @@ gtm_haproxy_settings() {
             5) gtm_default 'Connection cap [1-100000; measure RAM/FD usage]' H_MAXCONN "$H_MAXCONN" && gtm_default 'Per-target cap [0 = unlimited]' H_SERVER_MAXCONN "$H_SERVER_MAXCONN" && gtm_default 'Slow start [0-3600s]' H_SLOWSTART "$H_SLOWSTART" || return;;
             6)
                 printf '  PROXY adds a header. Enable it on the destination first; otherwise traffic breaks.\n  It passes client metadata; it does not preserve the network source address.\n'
-                gtm_default 'Send PROXY [off/v1/v2]' H_PROXY "$H_PROXY" && gtm_default 'Logs [connections/errors/off]' H_LOG "$H_LOG" || return;;
+                gtm_choose 'PROXY protocol' "$H_PROXY" Off off 'Version 1' v1 'Version 2' v2 || continue
+                H_PROXY=$GTM_REPLY
+                gtm_choose Logs "$H_LOG" Connections connections 'Errors only' errors Off off || continue
+                H_LOG=$GTM_REPLY;;
             7) (gtm_haproxy_status "$id"); gtm_pause;;
             8) break;; 0) return;; *) continue;;
         esac

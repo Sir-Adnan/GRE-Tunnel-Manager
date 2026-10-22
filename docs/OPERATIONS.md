@@ -32,9 +32,13 @@ Inspection exit codes: 0 for completed inspection, 1 for invalid/unreadable stat
 
 The complete operation is not atomic across kernel tables and systemd. Optional package installation and separate FRP/legacy operations are outside the managed-TSV rollback. Existing sessions can end or retain an old conntrack mapping until normal expiry; the host conntrack table is never flushed.
 
+Port-first setup accepts up to 32 local ports and shows fixed/matching destination-port mapping before apply. It creates a separate record per listener, allocating IDs under one lock and committing the full batch once. Each HAProxy/Realm record still owns its own service, so more listeners also mean more relay processes. Editing remains per record. Names are automatic; advanced source/listen choices and disabled state are preserved during edits.
+
+New relay forms default to listening on all IPv4 addresses. Review exposes this scope and Optional settings can restrict it. Kernel listeners require a concrete local IP, suggested with a packet-free route lookup. Preflight additionally rejects a wildcard relay targeting a local address on its own listening port.
+
 ## Restore or investigate a failure
 
-Use **Settings & Tools → Backup / restore**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
+Use **Tools → Restore Backup**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
 
 ```bash
 sudo journalctl -u gre-manager-forwarding.service -n 100 --no-pager
@@ -50,7 +54,7 @@ For nftables, inspect the host's other base chains: an ACCEPT in the manager tab
 
 ## Rathole reverse connections
 
-Choose **Reverse Tunnel → rathole**. On the public entrance choose **Set up entrance**; on the private/destination host choose **Set up destination**. Match the instance name, service protocol, control TCP port and token. The generated service names append `_tcp`/`_udp`, so select the same protocol set on both peers. Copy the entrance's displayed Noise public key over a trusted channel. The private key stays in its mode-600 server config. Do not copy private keys, tokens or entire configs into public logs.
+Choose **Reverse Tunnel → rathole**. On the public entrance choose **Setup Server**; on the private/destination host choose **Setup Client**. Match the instance name, service protocol, control TCP port and token. The generated service names append `_tcp`/`_udp`, so select the same protocol set on both peers. Copy the entrance's displayed Noise public key over a trusted channel. The private key stays in its mode-600 server config. Do not copy private keys, tokens or entire configs into public logs.
 
 The entrance binds a control TCP listener and public TCP/UDP service port(s) to the selected local IP. Allow them explicitly in host/provider firewalls. UDP service traffic also travels through Noise over TCP; this preset has no QUIC or UDP underlay. One destination per instance; use FRP destination groups or HAProxy for the relevant load-balancing scenario.
 

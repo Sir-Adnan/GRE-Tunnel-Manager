@@ -23,7 +23,9 @@ The source strategy hashes the source IP observed by HAProxy. If traffic reaches
 
 ## Settings and record compatibility
 
-Open **HAProxy Tunnel → Tunnel settings**. Settings are staged in memory until confirmation. The long-lived preset changes only idle timeout and log level, retaining other current choices. Balanced defaults explicitly reset staged values.
+Open **HAProxy Tunnel → Advanced Settings**. Settings are staged in memory until confirmation. The VPN preset changes only idle timeout and log level, retaining other current choices. Reset defaults explicitly resets staged values. PROXY/log choices are numbered.
+
+For normal setup choose **Add Tunnel**: local port(s), remote IP and remote port, then review. Combined IP:port is accepted and a name is generated automatically. The default listener is all IPv4 addresses; Optional settings on review can restrict the local address. Batch ports create separate managed records/services, using one full-state apply. **Load Balancing** collects at least two targets. **Status & Logs** offers scoped status, recent journal output and checked restart for a selected enabled tunnel.
 
 Version-1 records retain their 12 fields and load the baseline defaults. An advanced HAProxy save writes version 2 with the same first 12 fields (`version=2`) and a 13th field of semicolon-separated `key=value` options. Only the HAProxy engine accepts version 2. Missing optional keys use defaults; duplicate/unknown keys, empty values, control characters, out-of-range integers and raw config snippets are rejected. No data is sourced or evaluated.
 

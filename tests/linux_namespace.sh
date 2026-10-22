@@ -128,8 +128,9 @@ if command -v iptables-restore >/dev/null; then
 fi
 
 if command -v haproxy >/dev/null; then
-    line=$'F000001\tChecked failover\thaproxy\ttcp\t127.0.0.1\t28443\tfailover\t1\tpreserve\tany\t203.0.113.20:28002@1,203.0.113.20:28001@1\t1'
+    line=$'F000001\tChecked failover\thaproxy\ttcp\t0.0.0.0\t28443\tfailover\t1\tpreserve\tany\t203.0.113.20:28002@1,203.0.113.20:28001@1\t1'
     gtm_record_validate "$line"
+    gtm_relay_loop_check
     gtm_haproxy_render > "$test_dir/haproxy.conf"
     haproxy -c -f "$test_dir/haproxy.conf"
     if command -v systemd-analyze >/dev/null; then
@@ -171,12 +172,14 @@ if command -v haproxy >/dev/null; then
 fi
 
 if command -v realm >/dev/null; then
-    line=$'F000001\tRealm test\trealm\tboth\t127.0.0.1\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28001@1\t1'
+    line=$'F000001\tRealm test\trealm\tboth\t0.0.0.0\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28001@1\t1'
     gtm_record_validate "$line"
+    gtm_relay_loop_check
     gtm_realm_render > "$test_dir/realm.toml"
     realm -c "$test_dir/realm.toml" > "$test_dir/realm.log" 2>&1 & relay_pid=$!
     sleep 0.3
     python3 tests/packet_probe.py client 127.0.0.1 28443
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
     kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
 fi
 

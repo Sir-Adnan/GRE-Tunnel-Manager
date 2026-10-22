@@ -28,6 +28,44 @@ gtm_local_address() {
     gtm_error "Entrance IP is not assigned locally: $wanted"
 }
 
+gtm_relay_address_key() {
+    local key
+    key=$(gtm_ip_key "$1") || return 1
+    # A hexadecimal IPv4-mapped IPv6 address still connects to an IPv4 socket.
+    if [[ ${key:0:24} == 00000000000000000000ffff ]]; then
+        printf '%d.%d.%d.%d' "$((16#${key:24:2}))" "$((16#${key:26:2}))" "$((16#${key:28:2}))" "$((16#${key:30:2}))"
+    else printf '%s' "$key"; fi
+}
+
+# Relays must not loop into their own listener, including mapped address aliases.
+gtm_relay_loop_check() {
+    local bind_key target address key listing
+    local -a fields=() targets=()
+    bind_key=$(gtm_relay_address_key "$R_BIND") || return 1
+    listing=''
+    IFS=, read -r -a targets <<< "$R_TARGETS"
+    for target in "${targets[@]}"; do
+        gtm_endpoint "$target" || return 1
+        ((10#$EP_PORT == 10#$R_PORT)) || continue
+        key=$(gtm_relay_address_key "$EP_IP") || return 1
+        if [[ $bind_key != 0.0.0.0 && $bind_key != 00000000000000000000000000000000 ]]; then
+            [[ $bind_key != "$key" ]] || { gtm_error "Tunnel $R_ID points back to its own listening port."; return 1; }
+            continue
+        fi
+        [[ $bind_key != 0.0.0.0 || $key == *.* ]] || continue
+        [[ -n $listing ]] || listing=$(ip -o address show) || return 1
+        while read -r -a fields; do
+            [[ ${fields[2]:-} == inet || ${fields[2]:-} == inet6 ]] || continue
+            address=${fields[3]%/*}
+            if [[ $(gtm_relay_address_key "$address") == "$key" ]]; then
+                gtm_error "Tunnel $R_ID points back to its own listening port. Choose a different remote port or server."
+                return 1
+            fi
+        done <<< "$listing"
+    done
+    return 0
+}
+
 # Called before replacing desired state. Temporary files contain no executable input.
 gtm_preflight_checks() {
     local file=$1 line family table tool has4=0 has6=0 hasnft=0
@@ -36,6 +74,7 @@ gtm_preflight_checks() {
         gtm_record_validate "$line" || return 1
         [[ $R_ENABLED == 1 ]] || continue
         gtm_need ip && gtm_local_address "$R_BIND" || return 1
+        if [[ $R_ENGINE == haproxy || $R_ENGINE == realm ]]; then gtm_relay_loop_check || return 1; fi
         if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
             [[ $R_IFACE == any ]] || ip link show dev "$R_IFACE" >/dev/null || return 1
             if [[ $R_BIND == *:* ]] && [[ $(sysctl -n net.ipv6.conf.all.forwarding) != 1 ]]; then

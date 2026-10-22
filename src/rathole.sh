@@ -147,30 +147,37 @@ gtm_rathole_remove() {
 
 gtm_rathole_setup() {
     local role=$1 keys public_key result
-    gtm_prepare && gtm_install_component rathole || return 1
     RATH_ROLE=$role; RATH_LOCAL_IP=127.0.0.1; RATH_LOCAL_PORT=443
-    gtm_read 'Connection name [same on both servers]: ' RATH_NAME || return
-    gtm_read 'Entrance IP (local bind on entrance): ' RATH_HOST || return
-    gtm_default 'Control TCP port' RATH_CONTROL 2333 || return
-    gtm_default 'Public service port' RATH_PUBLIC 443 || return
-    gtm_default 'Service protocol [tcp/udp/both]' RATH_PROTO tcp || return
+    gtm_step 1 3 Ports
+    gtm_ask_port 'Public port (users connect here)' 443 || return; RATH_PUBLIC=$GTM_REPLY
+    gtm_ask_port 'Tunnel control port (same on both servers)' 2333 || return; RATH_CONTROL=$GTM_REPLY
+    gtm_step 2 3 'Server & connection'
+    gtm_ask_ip 'Public server IP' '' || return; RATH_HOST=$GTM_REPLY
+    gtm_choose Protocol tcp TCP tcp UDP udp 'TCP + UDP' both || return; RATH_PROTO=$GTM_REPLY
+    gtm_default 'Connection name (same on both servers)' RATH_NAME "tunnel-$RATH_PUBLIC" || return
     printf '  Use the same service name, protocol and token on both servers.\n'
     read -r -s -p '  Shared token [24-128 letters/digits/_/-]: ' RATH_TOKEN || return; printf '\n'
+    if [[ $role == entrance ]]; then
+        # Validation placeholder only; replaced by a generated key before creation.
+        RATH_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    else
+        gtm_read 'Entrance Noise public key (copy over a trusted channel): ' RATH_KEY || return
+        gtm_ask_ip 'Service IP' 127.0.0.1 || return; RATH_LOCAL_IP=$GTM_REPLY
+        gtm_ask_port 'Service port' "$RATH_PUBLIC" || return; RATH_LOCAL_PORT=$GTM_REPLY
+    fi
+    gtm_rathole_validate || { gtm_error 'Invalid rathole settings.'; return 1; }
+    gtm_step 3 3 Review
+    printf '\n  %s / %s / %s / Noise over TCP\n  Control %s:%s | Public port %s\n' "$role" "$RATH_NAME" "$RATH_PROTO" "$RATH_HOST" "$RATH_CONTROL" "$RATH_PUBLIC"
+    printf '  UDP services also travel over TCP: packet loss can delay other datagrams.\n'
+    printf '  Allow the control TCP port and selected public service protocols in the host firewall.\n'
+    gtm_confirm && gtm_prepare && gtm_install_component rathole || return
     if [[ $role == entrance ]]; then
         keys=$(rathole --genkey) || return 1
         RATH_KEY=$(awk '/^Private Key:/ {getline; print; exit}' <<< "$keys")
         public_key=$(awk '/^Public Key:/ {getline; print; exit}' <<< "$keys")
-        gtm_rathole_key "$public_key" || { gtm_error 'Could not generate a valid Noise key pair.'; return 1; }
-    else
-        gtm_read 'Entrance Noise public key (copy over a trusted channel): ' RATH_KEY || return
-        gtm_default 'Destination service IP' RATH_LOCAL_IP 127.0.0.1 || return
-        gtm_read 'Destination service port: ' RATH_LOCAL_PORT || return
+        gtm_rathole_key "$public_key" && gtm_rathole_validate || { gtm_error 'Could not generate valid Noise keys.'; return 1; }
     fi
-    gtm_rathole_validate || { gtm_error 'Invalid rathole settings.'; return 1; }
-    printf '\n  %s / %s / %s / Noise over TCP\n  Control %s:%s | Public port %s\n' "$role" "$RATH_NAME" "$RATH_PROTO" "$RATH_HOST" "$RATH_CONTROL" "$RATH_PUBLIC"
-    printf '  UDP services also travel over TCP: packet loss can delay other datagrams.\n'
-    printf '  Allow the control TCP port and selected public service protocols in the host firewall.\n'
-    gtm_confirm && gtm_lock || return
+    gtm_lock || return
     gtm_rathole_create; result=$?
     gtm_unlock
     if ((result==0)) && [[ $role == entrance ]]; then
@@ -183,12 +190,9 @@ gtm_rathole_setup() {
 
 gtm_rathole_menu() {
     local choice
-    gtm_header 'Reverse connections / rathole'
-    gtm_help reverse
-    printf '  Authenticated Noise over TCP. TCP / UDP services. One peer per instance.\n'
-    printf '  No QUIC, UDP transport or load balancing in this preset.\n\n'
-    gtm_option 1 'Set up entrance' 'Public server; generates a Noise key pair'
-    gtm_option 2 'Set up destination' 'Connect to entrance using its public key'
+    gtm_header 'rathole Manager'
+    gtm_option 1 'Setup Server' 'Public entry server'
+    gtm_option 2 'Setup Client' 'Server running your service'
     gtm_option 3 'List / remove' 'Managed rathole instances on this server'
     gtm_option 0 Back
     gtm_read 'Choose: ' choice || return

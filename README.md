@@ -2,99 +2,77 @@
 
 # GRE Tunnel Manager
 
-### تونل، فوروارد پورت و لودبالانس؛ ساده و در دسترس
+### Server tunnels and port forwarding, made simple.
 
-مدیریت تونل و فوروارد روی سرورهای لینوکس، با Bash ماژولار و بدون پنل وب.
+GRE · iptables · nftables · HAProxy · Realm · FRP · rathole
 
-[![Release](https://img.shields.io/badge/release-v1.2.1-0891b2?style=flat-square)](docs/CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-v1.2.2-0891b2?style=flat-square)](docs/CHANGELOG.md)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
-![Platform](https://img.shields.io/badge/Linux-Debian%20%2F%20Ubuntu-334155?style=flat-square)
-![Runtime](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
+![Bash](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
 
-[شروع سریع](#شروع-سریع) · [راهنمای استفاده](docs/USER-GUIDE.md) · [تنظیمات ظاهر](docs/TERMINAL-UI.md) · [تاریخچه](docs/CHANGELOG.md)
+**English** · [فارسی](README.fa.md)
+
+[Quick start](#quick-start) · [User guide](docs/USER-GUIDE.md) · [HAProxy](docs/HAPROXY.md) · [Changelog](docs/CHANGELOG.md)
 
 </div>
 
 ---
 
-## شروع سریع
+## Quick start
 
-**نیازمندی‌ها:** سرور Debian یا Ubuntu با systemd، دسترسی SSH، ابزار `curl` و دسترسی root یا `sudo`.
+**You need:** a Debian/Ubuntu server with systemd, SSH access, `curl`, and root or sudo access.
 
-در ترمینال سرور، این **دستور تک‌خطی** را وارد کنید:
+Paste this **single command** into your server's terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh && sudo bash gre.sh
 ```
 
-فایل `gre.sh` در پوشهٔ فعلی ذخیره و منوی برنامه باز می‌شود. نصب اجزای موردنیاز هنگام انتخاب روش مربوط انجام می‌شود. برای اجرای دوباره، در همان پوشه `sudo bash gre.sh` را بزنید.
+Already logged in as **root**? Leave out `sudo`. The script is saved as `gre.sh` in your current folder. To run it again, use `sudo bash gre.sh` from that folder. Downloading again replaces that local copy.
 
-<details>
-<summary>با root وارد شده‌ام، یا curl نصب نیست</summary>
+Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y curl` first. Optional tunnel engines are installed only when you choose to apply a setup that needs them.
 
-اگر با کاربر **root** وارد شده‌اید، از این دستور استفاده کنید؛ `sudo` لازم نیست:
+## Choose what you need
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh && bash gre.sh
-```
-
-اگر خطای `curl: command not found` دیدید، ابتدا نصبش کنید و دستور بالا را دوباره بزنید:
-
-```bash
-sudo apt-get update && sudo apt-get install -y curl
-```
-
-برای کاربر root، `sudo` را از فرمان نصب هم حذف کنید. دریافت دوباره، فایل `gre.sh` پوشهٔ فعلی را با نسخهٔ مخزن جایگزین می‌کند.
-
-</details>
-
-## از کجا شروع کنم؟
-
-1. بخش موردنیاز را انتخاب کنید؛ مثلاً **GRE Tunnel** یا **Port Forwarding**.
-2. IP سرورها، پورت ورودی و مقصد را طبق راهنمای منو وارد کنید.
-3. خلاصهٔ تنظیمات را بخوانید و تغییرات را تأیید کنید.
-
-| می‌خواهم… | بخش مناسب |
+| Menu | Use it for |
 | --- | --- |
-| تونل GRE بسازم | **1: GRE Tunnel**؛ سپس Kharej Server یا Iran Server |
-| یک پورت را مستقیم یا روی GRE فوروارد کنم | **2: Port Forwarding** |
-| تونل HAProxy یا Realm بسازم | **3: HAProxy Tunnel** یا **4: Realm Tunnel** |
-| تونل معکوس بسازم | **5: Reverse Tunnel**؛ FRP یا rathole |
-| بین چند سرور لودبالانس کنم | **6: Load Balancing** |
+| **1 · GRE Tunnel** | Create, show or delete GRE and Simple GRE tunnels |
+| **2 · Port Forwarding** | Forward TCP/UDP ports with iptables or nftables |
+| **3 · HAProxy Tunnel** | Manage HAProxy TCP tunnels, balancing, services and logs |
+| **4 · Realm Tunnel** | Manage Realm TCP/UDP tunnels and services |
+| **5 · Reverse Tunnel** | Set up FRP or rathole on both servers |
+| **6 · Load Balancing** | Send traffic to more than one server |
+| **7 · Tools** | Server status, backups, cleanup and help |
 
-نمایش، ویرایش و حذف، داخل همان بخش هستند؛ مثلاً برای حذف HAProxy وارد **HAProxy Tunnel → Delete tunnel** شوید.
+Each engine has its own menu. Add, show, edit and delete are together; type an option number and press Enter. GRE is optional for direct forwarding.
 
-برای فوروارد مستقیم نیازی به ساخت GRE ندارید. سرویس مقصد باید از قبل فعال باشد؛ این برنامه کانفیگ یا کلیدهای VPN را نمی‌سازد.
+## Your first HAProxy tunnel
 
-## چه امکاناتی دارد؟
+1. Open **HAProxy Tunnel → Add Tunnel** and enter the **local port**, such as `443`.
+2. Enter the **remote IP**, then the **remote port**. A combined `IP:port` also works.
+3. Review the mapping and choose **Save & apply**.
 
-- **GRE / ip6gre:** ارتباط شبکه بین سرورها با مدیریت لینک و MTU.
-- **iptables / nftables:** فوروارد TCP و UDP در کرنل، بدون سرویس دائمیِ مدیر.
-- **HAProxy / Realm:** انتقال ترافیک و چند مقصد؛ HAProxy برای TCP همراه با بررسی اتصال مقصد و failover.
-- **FRP / rathole:** ارتباط معکوس؛ FRP با TCP، WS، WSS و QUIC، و rathole با Noise روی TCP.
-- **مدیریت اتصال‌ها:** شناسهٔ مستقل، ویرایش، فعال/غیرفعال‌سازی، حذف گروهی و نقاط بازیابی فورواردها.
-- **ظاهر قابل‌انتخاب:** Dark، Light و Plain، چهار رنگ اصلی، چیدمان Guided و Compact، راهنمای English، Finglish و فارسی.
+The tunnel gets a name automatically. Renaming and a specific listen IP are optional. HAProxy and Realm listen on all local IPv4 addresses by default; kernel forwarding selects a local address from the server's routing information. Review shows the chosen address before applying.
 
-## ظاهر ترمینال
+Need several ports? Enter `443,8443` or a short range such as `8000-8003`. Choose whether they all use the entered remote port or keep their original port numbers. Every mapping is shown before saving, with a separate managed entry per local port; up to 32 ports per setup. Existing entries are edited individually.
 
-رابط برنامه داخل **همان ترمینال SSH** باز می‌شود؛ مرورگر یا پنل وب لازم ندارد. در **Settings & Tools → Appearance & language** تم، رنگ و زبان راهنما را انتخاب کنید. برای خوانایی فارسی، ابتدا **Test Farsi display** را ببینید.
+## What is included?
 
-```bash
-sudo bash gre.sh --theme dark --layout guided --language finglish
-```
+- **GRE / ip6gre** with the existing peer configuration and MTU controls.
+- **Kernel forwarding** for TCP/UDP, without a resident manager process.
+- **HAProxy TCP** with health checks, failover, timeouts and restricted local status.
+- **Realm TCP/UDP**, plus **FRP** TCP/WS/WSS/QUIC and **rathole** Noise reverse tunnels.
+- **Managed changes:** validation, grouped deletion and automatic forwarding restore points.
+- **A fixed English terminal UI:** dedicated headers, numbered choices and short setup steps. No theme or language setup is required.
 
-اگر رنگ یا کادرها درست دیده نمی‌شوند، [راهنمای نمایش و تنظیمات ترمینال](docs/TERMINAL-UI.md) را ببینید. پیش‌نمایش بدون تغییر شبکه: `bash gre.sh --preview home`.
+## Before using your main service
 
-## چند نکتهٔ مهم
+Allow the required ports and protocols in your server/provider firewall. GRE needs protocol 47 and does not encrypt traffic. Use UDP forwarding for WireGuard/AmneziaWG; this HAProxy adapter is TCP-only. Test a separate port before moving a live service.
 
-- پورت‌ها و پروتکل موردنیاز را در فایروال سرور و ارائه‌دهنده مجاز کنید. GRE رمزنگاری ندارد و باید در شبکهٔ ارائه‌دهنده پشتیبانی شود.
-- برای WireGuard و AmneziaWG مسیر **UDP** انتخاب کنید؛ HAProxy این پروژه فقط TCP را منتقل می‌کند.
-- پیش از جابه‌جایی سرویس اصلی، اتصال را روی یک پورت جدا آزمایش کنید. انتخاب روش و ظرفیت به مسیر و منابع سرورها بستگی دارد.
+## Documentation
 
-## راهنماهای بیشتر
+[Terminal & setup guide](docs/TERMINAL-UI.md) · [Detailed user guide](docs/USER-GUIDE.md) · [Operations & recovery](docs/OPERATIONS.md) · [HAProxy settings](docs/HAPROXY.md) · [Legacy cleanup](docs/TUNING-CLEANUP.md)
 
-[راهنمای استفاده](docs/USER-GUIDE.md) · [HAProxy](docs/HAPROXY.md) · [عیب‌یابی و بازیابی](docs/OPERATIONS.md) · [پاک‌سازی Legacy و تنظیمات سراسری](docs/TUNING-CLEANUP.md)
+For contributors: [Architecture & docs](docs/README.md) · [Development](docs/DEVELOPMENT.md) · [AGENTS.md](AGENTS.md)
 
-برای توسعه‌دهندگان: [معماری و مستندات](docs/README.md) · [مشارکت و تست](docs/DEVELOPMENT.md) · [AGENTS.md](AGENTS.md)
-
-نسخهٔ قدیمی v13.9 و راهنمای آن در [legacy](legacy/README.md) نگهداری می‌شود.
+The historical v13.9 code and its documentation are kept in [legacy](legacy/README.md).

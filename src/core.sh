@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.2.1
+GTM_VERSION=1.2.2
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
@@ -86,15 +86,14 @@ gtm_pause() { [[ -t 0 ]] && { printf '\n'; read -r -p 'Enter to continue... ' _;
 
 gtm_confirm() {
     local answer
-    gtm_help confirm
-    read -r -p 'Apply these changes? [y/N]: ' answer || return 1
-    [[ $answer == y || $answer == Y ]]
+    printf '\n  [1] Confirm\n  [0] Cancel\n'
+    gtm_default 'Select option' answer 0 || return 1
+    [[ $answer == 1 || $answer == y || $answer == Y || $answer == yes ]]
 }
 
 gtm_paths() {
     GTM_CONFIG_DIR=${GTM_CONFIG_DIR:-/etc/gre-manager}
     GTM_STATE="$GTM_CONFIG_DIR/connections.tsv"
-    GTM_PREFS="$GTM_CONFIG_DIR/preferences.tsv"
     GTM_RUN_DIR=${GTM_RUN_DIR:-/run/gre-manager}
     GTM_SERVICE_DIR=${GTM_SERVICE_DIR:-/etc/systemd/system}
     GTM_RUNTIME=${GTM_RUNTIME:-/usr/local/lib/gre-manager/apply.sh}

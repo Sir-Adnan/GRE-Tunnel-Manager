@@ -40,42 +40,34 @@ gtm_wss_haproxy_render() {
 
 gtm_frp_menu() {
     local choice id file unit bin name
-    gtm_header 'Reverse connections / TCP, TCP Mux, WS, WSS, QUIC'
-    gtm_help relay
-    printf '  The entrance runs frps. One or more destination servers run frpc.\n'
-    printf '  TCP groups share a public port; FRP checks destination health.\n'
-    printf '  TCP Mux means stream multiplexing, not an HTTP CONNECT service.\n\n'
-    gtm_option 1 'Set up entrance' 'Run on the public entrance server'
-    gtm_option 2 'Set up destination' 'Run on each destination server'
+    gtm_header 'FRP Manager'
+    gtm_option 1 'Setup Server' 'Public entry server'
+    gtm_option 2 'Setup Client' 'Server running your service'
     gtm_option 3 'List / remove' 'Managed FRP connections'
     gtm_option 0 Back
     gtm_read 'Choose: ' choice || return
     [[ $choice == 0 ]] && return
     [[ $choice != 3 ]] || { gtm_frp_remove; return; }
     case $choice in 1) P_ROLE=entrance;; 2) P_ROLE=destination;; *) return;; esac
-    gtm_prepare || return
-    gtm_install_component frp || return
-    gtm_read 'Connection name [letters, digits, dash]: ' name || return
-    [[ $name =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || { gtm_error 'Use 1-32 letters, digits, dash or underscore.'; return; }
-    P_NAME=$name
-    gtm_read 'Entrance IP (bind IP on entrance): ' P_HOST || return
-    gtm_read 'Control port [7000]: ' P_CONTROL || return; P_CONTROL=${P_CONTROL:-7000}
-    gtm_read 'Public service port [443]: ' P_PUBLIC || return; P_PUBLIC=${P_PUBLIC:-443}
-    gtm_read 'Transport [tcp/websocket/wss/quic, default tcp]: ' P_TRANSPORT || return; P_TRANSPORT=${P_TRANSPORT:-tcp}
-    gtm_read 'Enable TCP stream mux [true/false, default true]: ' P_MUX || return; P_MUX=${P_MUX:-true}
+    gtm_step 1 3 Ports
+    gtm_ask_port 'Public port (users connect here)' 443 || return; P_PUBLIC=$GTM_REPLY
+    gtm_ask_port 'Tunnel control port (same on both servers)' 7000 || return; P_CONTROL=$GTM_REPLY
+    gtm_step 2 3 'Server & connection'
+    gtm_ask_ip 'Public server IP' '' || return; P_HOST=$GTM_REPLY
+    gtm_choose Transport tcp TCP tcp WebSocket websocket WSS wss QUIC quic || return; P_TRANSPORT=$GTM_REPLY
+    gtm_choose 'TCP multiplexing' true Enabled true Disabled false || return; P_MUX=$GTM_REPLY
     P_LOCAL_IP=127.0.0.1; P_LOCAL_PORT=$P_PUBLIC; P_PROTO=tcp; P_GROUP=default
     printf '  Use the SAME token on both sides (24-128 letters/digits/_/-).\n'
     read -r -s -p '  Shared token: ' P_TOKEN || return; printf '\n'
     if [[ $P_ROLE == destination ]]; then
-        gtm_read 'Destination service IP [127.0.0.1]: ' P_LOCAL_IP || return; P_LOCAL_IP=${P_LOCAL_IP:-127.0.0.1}
-        gtm_read 'Destination port: ' P_LOCAL_PORT || return
-        gtm_read 'Service protocol [tcp/udp, default tcp]: ' P_PROTO || return; P_PROTO=${P_PROTO:-tcp}
+        gtm_ask_ip 'Service IP' 127.0.0.1 || return; P_LOCAL_IP=$GTM_REPLY
+        gtm_ask_port 'Service port' "$P_PUBLIC" || return; P_LOCAL_PORT=$GTM_REPLY
+        gtm_choose Protocol tcp TCP tcp UDP udp || return; P_PROTO=$GTM_REPLY
         gtm_read 'Load balance group [default]: ' P_GROUP || return; P_GROUP=${P_GROUP:-default}
     fi
     if [[ $P_TRANSPORT == wss ]]; then
         if [[ $P_ROLE == entrance ]]; then
             printf '  WSS uses HAProxy for TLS and a loopback-only FRP listener.\n'
-            gtm_install_component haproxy || return
             gtm_read 'Internal FRP control port [7001]: ' P_INTERNAL || return; P_INTERNAL=${P_INTERNAL:-7001}
             gtm_read 'TLS PEM path (certificate chain + private key; under /etc): ' P_GATEWAY_CERT || return
             [[ $P_GATEWAY_CERT == /etc/* && -r $P_GATEWAY_CERT ]] || { gtm_error 'Use a readable PEM file under /etc (service sandbox restriction).'; return; }
@@ -84,12 +76,18 @@ gtm_frp_menu() {
             [[ $P_TLS_CA == /etc/* && -r $P_TLS_CA ]] || { gtm_error 'Use a readable trusted certificate under /etc (service sandbox restriction).'; return; }
         fi
     fi
+    gtm_default 'Connection name (same on both servers)' name "tunnel-$P_PUBLIC" || return
+    [[ $name =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || { gtm_error 'Use 1-32 letters, digits, dash or underscore.'; return; }
+    P_NAME=$name
     gtm_frp_validate || { gtm_error 'Invalid connection settings.'; return; }
+    gtm_step 3 3 Review
     printf '\n  %s / %s / %s / public port %s\n' "$P_ROLE" "$P_NAME" "$P_TRANSPORT" "$P_PUBLIC"
     printf '  Allow the control port and public service port in the host firewall.\n'
     if [[ $P_TRANSPORT == wss ]]; then printf '  WSS verifies the entrance certificate using the selected CA. Use an IP SAN matching the entrance IP.\n'
     else printf '  TLS encrypts the connection. This preset uses token authentication; custom CA verification is not configured.\n'; fi
     gtm_confirm || return
+    gtm_prepare && gtm_install_component frp || return
+    [[ $P_TRANSPORT != wss ]] || gtm_install_component haproxy || return
     gtm_lock || return
     id="gtm-frp-$P_ROLE-$P_NAME"
     if [[ $P_ROLE == entrance ]]; then

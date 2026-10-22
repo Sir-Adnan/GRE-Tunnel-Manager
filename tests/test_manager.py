@@ -16,7 +16,7 @@ BASH = os.environ.get('BASH_BIN') or (r'C:\Program Files\Git\bin\bash.exe' if os
 
 
 def bash(code, stdin=None):
-    prefix = 'source ./gre.sh\ngtm_paths\nGTM_THEME=plain\nGTM_LANGUAGE=en\ngtm_palette\n'
+    prefix = 'source ./gre.sh\ngtm_paths\ngtm_palette\n'
     result = subprocess.run([BASH, '-c', prefix + code], cwd=ROOT,
                             input=None if stdin is None else stdin.encode('utf-8'), capture_output=True, timeout=20)
     result.stdout = result.stdout.decode('utf-8')
@@ -138,7 +138,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.2.1')
+        self.assertEqual(result.stdout.strip(),'v1.2.2')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)
@@ -264,7 +264,7 @@ gtm_commit() { printf 'FINAL:%s\n' "${GTM_RECORDS[0]}"; }
 gtm_new_forward nftables F000001
 '''
         original=record(enabled='0',snat='preserve')
-        result=bash(code,original+'\n'+'\n'*7)
+        result=bash(code,original+'\n\n\n1\n')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('FINAL:'+original,result.stdout)
 
@@ -344,17 +344,14 @@ gtm_listener_check tcp 192.0.2.10 443
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Demo mode', result.stderr)
 
-    def test_languages_and_terminal_ascii(self):
-        for lang in ['en','finglish','fa']:
-            result = subprocess.run([BASH,'gre.sh','--preview','home','--language',lang,'--theme','plain'],cwd=ROOT,capture_output=True,text=True,encoding='utf-8')
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertNotIn('\x1b',result.stdout)
-            if lang != 'fa': self.assertTrue(result.stdout.isascii())
-            else: self.assertIn('مدیریت', result.stdout)
-
-    def test_prefs_are_data_not_shell(self):
-        result = bash('GTM_PREFS=<(printf "language\\tfa\\ntheme\\tplain\\ninvalid\\t\\$(exit 8)\\n") gtm_preferences; [[ $GTM_LANGUAGE == fa && $GTM_THEME == plain ]]')
+    def test_fixed_interface_is_ascii_and_removed_switches_are_rejected(self):
+        result = bash('gtm_main --preview home')
         self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('\x1b',result.stdout)
+        self.assertTrue(result.stdout.isascii())
+        for flag in ['--theme','--language','--layout']:
+            result = bash('gtm_main '+flag+' ignored')
+            self.assertEqual(result.returncode,2)
 
     def test_failed_apply_restores_previous_state(self):
         (ROOT / '.work').mkdir(exist_ok=True)

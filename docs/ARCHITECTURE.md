@@ -1,11 +1,11 @@
-# Architecture — v1.2.1
+# Architecture — v1.2.2
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
 | Module | Responsibility |
 | --- | --- |
 | core | Bounded validators, endpoints, paths, privileges, flock |
-| ui | Responsive terminal panels, palettes, Guided/Compact preferences, English/Finglish/Farsi help |
+| ui | Fixed ANSI styling, dedicated headers, numbered selectors and input rendering |
 | haproxy | Validated TCP options, rendering, local stats, worker readiness and settings UI |
 | state | TSV records, conflicts, snapshots, apply/recovery |
 | firewall | Owned iptables chains and native nftables table |
@@ -14,6 +14,7 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | rathole | Pinned optional installer, Noise NK reverse connections, scoped services/removal |
 | catalog | Offline capability guide and reverse-engine selection |
 | inspect | Offline previews/validation, preflight, host health report, GRE dependencies |
+| forms | Read-only staged setup, port lists, remote endpoints, optional details and batch save |
 | tuning | Explicit global sysctl profiles, before/applied journal, drift-aware restore |
 | cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
 | menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
@@ -21,9 +22,13 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 
 ## Navigation
 
-The main menu has seven named sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing and Settings & Tools. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. Legacy numbers 1–14 remain in Settings & Tools → Old menu and `--legacy`.
+The main menu has seven sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing and Tools. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. Legacy numbers 1–14 remain in Tools → Old Menu and `--legacy`.
 
-Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Guided shows short option descriptions; Compact hides them. Preferences remain data, including the optional layout key; older preference files still load.
+Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Styling is fixed, English-only and foreground-only, respecting NO_COLOR/non-TTY/dumb output. Old preferences are ignored and no preference file is created. Theme/language/layout switches are removed.
+
+Setup collects local ports, remote address and remote port, then shows review. Protocols, transport, balancing and PROXY/log options are numbered. Names are generated; optional details are off the main path. Relays default to an IPv4 wildcard listener; kernel rules require a concrete local address, suggested by a route lookup without transmitting packets. Wildcard relay preflight rejects a target matching a local address on its own listening port.
+
+One setup accepts up to 32 unique local ports, including bounded ranges. Each port becomes an independent existing-schema record and ID. The user chooses fixed destination port(s) or matching local/remote ports. The full batch is rendered/validated, then appended to freshly loaded full state under one lock, with one counter update and one commit/preflight/snapshot/apply. Editing remains single-record and preserves the old options/state/source policy. Service install is after review and outside rollback, as before.
 
 ## State
 
@@ -35,7 +40,7 @@ HAProxy advanced settings use version 2 with a 13th options field. The first 12 
 
 Only an absent default state is treated as a new installation. Explicit missing files, directories, dangling links and unreadable state fail closed; they must not reconcile as an empty configuration. CLI state inspection requires regular files, not streams.
 
-Targets: comma-separated `IPv4:port@weight` or `[IPv6]:port@weight`. IDs: F plus six digits. Names: bounded ASCII. All fields are validated before rendering. Kernel target address families must match bind; relays can mix families. Canonical comparison keys make equivalent IPv6 spellings identical for listener conflicts, duplicate targets and direct self-loops; record spelling itself is preserved. Only kernel listeners can be separated by explicit entrance interfaces; relay sockets cannot. Files are never sourced/evaluated. Preferences have a closed-key TSV parser.
+Targets: comma-separated `IPv4:port@weight` or `[IPv6]:port@weight`. IDs: F plus six digits. Names: bounded ASCII. All fields are validated before rendering. Kernel target address families must match bind; relays can mix families. Canonical comparison keys make equivalent IPv6 spellings identical for listener conflicts, duplicate targets and direct self-loops; record spelling itself is preserved. Only kernel listeners can be separated by explicit entrance interfaces; relay sockets cannot. Files are never sourced/evaluated.
 
 Mutations acquire flock, reload state, validate a candidate and preflight it before snapshotting and replacing the data file. Edits compare the current row against the exact row originally opened; a concurrent change requires reopening the editor. Preflight checks assigned addresses, existing entrance interfaces, IPv6 forwarding and native syntax checks for iptables/nftables/HAProxy without applying rules. Realm has schema/render validation only. Failure after state replacement atomically restores the previous state and attempts both kernel and relay reconciliation; recovery failure is reported. There is no globally atomic transaction across multiple kernel tables and systemd. Native nftables uses one batch; iptables uses per-table restore batches. Optional package installation occurs earlier and is not rolled back by this transaction.
 

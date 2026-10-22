@@ -87,7 +87,7 @@ gtm_prepare() { :; }; gtm_install_component() { :; }; gtm_confirm() { :; }
 gtm_legacy_listener_check() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
 gtm_load_records() { GTM_RECORDS=("$saved"); }; gtm_commit() { printf '%s\n' "${GTM_RECORDS[@]}"; }
 gtm_new_forward haproxy F000001
-''',row+'\n'+'\n'*7)
+''',row+'\n\n\n1\n')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('\t2\tidle=86400;proxy=v2',result.stdout)
 

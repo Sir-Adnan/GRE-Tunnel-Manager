@@ -11,16 +11,16 @@ Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.s
 - Operate only on owned chains/table/services, not host firewall state.
 - Cross-module results: R_* validated record, EP_* endpoint, P_* FRP config.
 - Keep LF endings. Source modules are bundled, not downloaded at runtime.
-- Farsi help is separate from ASCII technical values. Never reverse strings or assume terminal shaping support.
-- UI panels use optional tput size/color detection with bounded fallbacks. Keep colors over the full row, reset each row and preserve plain/no-color ASCII output. Guided/Compact are terminal layouts, not web views; preview mode remains read-only.
+- The terminal UI is English-only with one fixed foreground palette, dedicated engine headers and numbered choices. No themes, translations, background fills or preference files. Respect NO_COLOR/non-TTY/dumb output.
+- Forms collect data without installing or changing resources. Local ports come first; remote IP and port are separate with IP:port convenience input. Names are automatic; optional details are on review. Batch at most 32 listeners into existing records and reconcile the full state once under lock. Never lose other engines through presentation filters.
 
 ## Checks
 
 ```bash
 python3 tools/build.py --check
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,tuning,cleanup,menus}.sh
-bash gre.sh --preview home --language finglish --theme plain
+shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,menus}.sh
+bash gre.sh --preview haproxy
 sudo bash tests/linux_namespace.sh
 ```
 
@@ -34,13 +34,19 @@ GRE tests capture real outgoing SYN options with an AF_PACKET socket, checking t
 
 HAProxy tests query real restricted sockets, reload a master while keeping a TCP session open and verify both old-session traffic and new connections. A real destination decodes PROXY v1/v2 and verifies the client's source metadata. The namespace suite also removes duplicate legacy rules and a peer-matched Simple GRE interface while checking unrelated rules survive. Service operations in cleanup tests are stubbed; actual systemd boot/reload ordering still needs target-host rollout tests. Unit tests mock sysctl files, test partial apply recovery, drift preservation, unknown legacy refusal and failed deletion retaining persistence; they never change host sysctls.
 
+Form regressions exercise numbered choices, cancellation before any mutation, automatic names, split/combined targets, IPv6, port batches, ID allocation, preserving unrelated engines and edit options, duplicate targets and wildcard self-loop rejection. Namespace tests exercise the new wildcard HAProxy/Realm listeners on loopback and an actual namespace interface; PTY tests exercise real terminal dimensions and color output.
+
 ## Rollout requirements
 
 Still test two-server reboot persistence, systemd sandbox permissions, UFW/Docker policies, provider GRE/UDP filtering, IPv6 RA/routing, asymmetric return paths, MTU/large packets, certificates, multiple destinations and failure/recovery with sessions. Benchmark throughput, packets/s, connections/s, latency/jitter and RAM/CPU on real workloads before capacity claims.
 
 ## Release
 
-Update Persian README, affected docs and changelog. Bump `GTM_VERSION` in `src/core.sh`; the build header and legacy logo derive from it. Rebuild and check. Confirm `git diff -- gre-stable.sh` is empty. Do not advertise unimplemented WireGuard link provisioning, GRE-over-UDP, hostname targets or HTTP CONNECT tcpmux.
+Update English README.md, Persian README.fa.md, affected docs and changelog. Persian sentences/headings start with Persian words and code blocks remain left-to-right. Keep reciprocal language links. Bump `GTM_VERSION` in `src/core.sh`; the build header and legacy logo derive from it. Rebuild and check. Confirm `git diff -- gre-stable.sh` is empty. Do not advertise unimplemented WireGuard link provisioning, GRE-over-UDP, hostname targets or HTTP CONNECT tcpmux.
+
+## UX references
+
+The numbered choices and direct engine-specific workflows were reviewed in [Musixal HAProxy](https://github.com/Musixal/HAProxy), [Musixal Rathole-Tunnel](https://github.com/Musixal/Rathole-Tunnel), [Gost-Manager](https://github.com/Sir-Adnan/Gost-Manager) and [Realm-Tunnel-Manager](https://github.com/Sir-Adnan/Realm-Tunnel-Manager). They are visual/workflow references; the local forms and backend ownership/lifecycle implementation remain this repository's code.
 
 ## Version policy
 

@@ -4,7 +4,7 @@ These are separate operations with separate backups. Removing a forward does not
 
 ## Recognized legacy cleanup
 
-**Legacy → 12** offers all recognized legacy forwards, Simple GRE removal and tuning management. Numbers remain compatible; the old destructive bulk implementation has been removed. **Legacy → 10** now inspects the saved script without editing/replaying arbitrary shell commands. Use modern connections for new configurations.
+**Tools → Cleanup** offers all recognized legacy forwards, Simple GRE removal and tuning management. **Old Menu → 12** retains the same route and original numbering. The old destructive bulk implementation has been removed. **Old Menu → 10** inspects the saved script without editing/replaying arbitrary shell commands. Use the current engine/forwarding sections for new configurations.
 
 Bulk forward removal requires a regular nonsymlink file with the known generator header. Only strict TCP/UDP DNAT commands and the generated target-matching SNAT/FORWARD commands are recognized. Exact old forwarding/conntrack sysctl preambles are recognized as historical persistence, not executed. Unknown commands, orphan target rules, malformed addresses/ports or a customized unit refuse the whole bulk operation before mutation. Grouped deletion remains available to remove recognized groups while keeping unknown lines.
 
@@ -16,7 +16,7 @@ Untagged legacy rules have no cryptographic ownership marker. Recognition relies
 
 ## Explicit journaled tuning
 
-**Legacy → 14** now offers inspection, conntrack/queue capacity, a local TCP preset, tracked restore and historical retirement. Entering this submenu through the legacy flow holds the manager mutation lock; exit the submenu to let other manager operations proceed.
+**Tools → Performance**, also available as **Old Menu → 14**, offers inspection, conntrack/queue capacity, a local TCP preset, tracked restore and historical retirement. Entering this submenu holds the manager mutation lock; exit it to let other manager operations proceed.
 
 - GRE creation no longer rewrites BBR, TCP buffers, conntrack or IPv6 forwarding.
 - New legacy forwarding no longer automatically sizes conntrack or enables IPv6 forwarding/RA. IPv4 forwarding is still enabled when IPv4 NAT requires it; IPv6 routing must be deliberately configured by the operator.
