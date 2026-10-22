@@ -9,6 +9,7 @@
     "contract": "^1.0.0"
   },
   "defaultStyleId": "nettinx",
+  "compatibleStyleIds": ["nettinx", "neutral"],
   "shell": "./Shell.tsx",
   "templates": {
     "dashboard": "./templates/Dashboard.tsx",

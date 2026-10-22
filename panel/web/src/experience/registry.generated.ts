@@ -88,7 +88,7 @@ export const registry: GeneratedRegistry = {
       packVersion: "1.0.0",
       extends: null,
       defaultStyleId: "nettinx",
-      compatibleStyleIds: ["nettinx"],
+      compatibleStyleIds: ["nettinx", "neutral"],
       shell: () => import("./packs/tunnel-admin/Shell"),
       templates: {
         auth: {
