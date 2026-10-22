@@ -25,7 +25,7 @@ gtm_install_component() {
             gtm_need apt-get || return 1
             local -a packages=("$component")
             [[ $component != haproxy ]] || packages+=(socat)
-            apt-get update && apt-get install -y "${packages[@]}" || return 1
+            gtm_install_packages "${packages[@]}" || return 1
             # HAProxy uses per-connection units, not the distribution's default unit.
             return 0 ;;
     esac
@@ -53,13 +53,36 @@ gtm_install_component() {
     rm -rf "$tmp"
 }
 
+# Do not start distribution services just because optional binaries are installed.
+# An existing local policy is respected. This temporary policy is removed on exit.
+gtm_install_packages() (
+    local owned=0 policy=/usr/sbin/policy-rc.d package had_haproxy=0
+    command -v haproxy >/dev/null 2>&1 && had_haproxy=1
+    if [[ ! -e $policy && ! -L $policy ]]; then
+        if (set -o noclobber; printf '#!/bin/sh\n# GTM temporary install policy\nexit 101\n' > "$policy") 2>/dev/null; then
+            owned=1; chmod 755 "$policy" || exit 1
+        fi
+    fi
+    trap 'if ((owned)); then rm -f "$policy"; fi' EXIT
+    apt-get update && apt-get install -y "$@" || exit 1
+    if ((had_haproxy==0)); then
+        for package in "$@"; do
+            [[ $package != haproxy ]] || systemctl disable --now haproxy.service || exit 1
+        done
+    fi
+)
+
 gtm_realm_render() {
     local target remote index=0 weights='' algorithm=roundrobin
     local -a targets
     IFS=, read -r -a targets <<< "$R_TARGETS"
     [[ $R_STRATEGY == source ]] && algorithm=iphash
-    printf '[log]\nlevel = "warn"\noutput = "stdout"\n\n[network]\nno_tcp = %s\nuse_udp = %s\n' "$([[ $R_PROTO == udp ]] && echo true || echo false)" "$([[ $R_PROTO == tcp ]] && echo false || echo true)"
-    printf 'tcp_timeout = 5\nudp_timeout = 30\ntcp_keepalive = 15\n\n[[endpoints]]\nlisten = "%s"\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")"
+    printf '[log]\nlevel = "%s"\noutput = "stdout"\n\n[network]\nno_tcp = %s\nuse_udp = %s\n' "$M_LOG" "$([[ $R_PROTO == udp ]] && echo true || echo false)" "$([[ $R_PROTO == tcp ]] && echo false || echo true)"
+    printf 'tcp_timeout = %d\nudp_timeout = %d\ntcp_keepalive = %d\n' "$((10#$M_TCP_TIMEOUT))" "$((10#$M_UDP_TIMEOUT))" "$((10#$M_KEEPALIVE))"
+    if [[ $R_VERSION == 3 ]]; then
+        printf 'tcp_keepalive_probe = %d\nsend_proxy = %s\nsend_proxy_version = %d\naccept_proxy = %s\naccept_proxy_timeout = %d\n' "$((10#$M_PROBES))" "$M_SEND_PROXY" "$M_PROXY_VERSION" "$M_ACCEPT_PROXY" "$((10#$M_ACCEPT_TIMEOUT))"
+    fi
+    printf '\n[[endpoints]]\nlisten = "%s"\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; remote=$(gtm_address "$EP_IP" "$EP_PORT")
         if (( index == 0 )); then printf 'remote = "%s"\n' "$remote"

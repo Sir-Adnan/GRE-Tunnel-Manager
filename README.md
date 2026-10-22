@@ -6,7 +6,7 @@
 
 GRE · iptables · nftables · HAProxy · Realm · FRP · rathole
 
-[![Release](https://img.shields.io/badge/release-v1.2.3-0891b2?style=flat-square)](docs/CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-v1.3.0-0891b2?style=flat-square)](docs/CHANGELOG.md)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
 ![Bash](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
 
@@ -30,7 +30,17 @@ curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/g
 
 Already logged in as **root**? Leave out `sudo`. The script is saved as `gre.sh` in your current folder. To run it again, use `sudo bash gre.sh` from that folder. Downloading again replaces that local copy.
 
-Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y curl` first. Optional tunnel engines are installed only when you choose to apply a setup that needs them.
+Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y curl` first. Optional engines can be installed ahead of time in Tools or when applying a setup that needs them.
+
+## Web panel
+
+Prefer a browser? Install the optional **Go web panel** directly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh
+```
+
+Choose a port (blank selects a random free port), create an administrator username/password, and open the printed **HTTPS** address. Verify the initial self-signed certificate fingerprint over SSH and allow the chosen TCP port. Includes Persian/English, desktop/mobile, tunnel management, presets and optional traffic counters. No Go, Node or database is needed on the server. Also available from **8 · Web Panel** in the terminal. [Setup, features and scope](docs/WEB-PANEL.md).
 
 ## Choose what you need
 
@@ -43,6 +53,7 @@ Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y cu
 | **5 · Reverse Tunnel** | Set up FRP or rathole on both servers |
 | **6 · Load Balancing** | Send traffic to more than one server |
 | **7 · Tools** | Server status, backups, cleanup and help |
+| **8 · Web Panel** | Install, start, stop and manage browser access |
 
 Each engine has its own menu. Add, show, edit and delete are together; type an option number and press Enter. GRE is optional for direct forwarding.
 

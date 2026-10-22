@@ -1,0 +1,15 @@
+{
+  "contractVersion": "1.0.0",
+  "selectionSchemaVersion": 1,
+  "tokens": "./token-contract.json",
+  "surfaces": {
+    "admin": {
+      "defaultPackId": "tunnel-admin",
+      "requiredPageKinds": ["dashboard", "list", "detail", "settings", "auth"],
+      "optionalPageKinds": []
+    }
+  },
+  "presentationRequirements": [],
+  "sectionTypes": [],
+  "axes": {}
+}

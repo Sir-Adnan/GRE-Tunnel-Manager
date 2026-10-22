@@ -6,6 +6,7 @@ Start with the [English README](../README.md) or [Persian README](../README.fa.m
 | --- | --- |
 | [USER-GUIDE.md](USER-GUIDE.md) | Persian usage reference, engine selection, GRE, reverse setup and operational limits |
 | [TERMINAL-UI.md](TERMINAL-UI.md) | Persian terminal setup, staged forms, dedicated managers and fixed-color troubleshooting |
+| [WEB-PANEL.md](WEB-PANEL.md) | Optional Go panel installation, HTTPS, supported adapters, metrics, architecture and limits |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | script layout, control flow, naming/addressing scheme, design decisions |
 | [ARTIFACTS.md](ARTIFACTS.md) | every file/service/iptables rule created on servers + reboot/cleanup behavior |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | golden rules, bash conventions, testing, release checklist, known pitfalls |

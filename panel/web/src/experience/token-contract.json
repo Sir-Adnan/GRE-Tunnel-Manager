@@ -1,0 +1,434 @@
+{
+  "$comment": "Default token contract for shadcn/ui (Tailwind v4 naming) plus status and readable-text tokens. Copy into the project as token-contract.json and edit it to match the project's real token names. Pairs with level 'error' fail validation; 'warn' pairs report known-risky combinations without failing. derived tokens are written by scripts/fix-contrast.mjs into a style's adjustments when the style does not define them. palettes list colors that must stay distinguishable from each other, with typical vision and simulated protanopia, deuteranopia and tritanopia (minDistance is a ΔEOK).",
+  "name": "shadcn-v4",
+  "modes": ["light", "dark"],
+  "tokens": {
+    "background": {
+      "type": "color",
+      "required": true
+    },
+    "foreground": {
+      "type": "color",
+      "required": true
+    },
+    "card": {
+      "type": "color",
+      "required": true
+    },
+    "card-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "popover": {
+      "type": "color",
+      "required": true
+    },
+    "popover-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "primary": {
+      "type": "color",
+      "required": true
+    },
+    "primary-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "secondary": {
+      "type": "color",
+      "required": true
+    },
+    "secondary-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "muted": {
+      "type": "color",
+      "required": true
+    },
+    "muted-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "accent": {
+      "type": "color",
+      "required": true
+    },
+    "accent-foreground": {
+      "type": "color",
+      "required": true
+    },
+    "destructive": {
+      "type": "color",
+      "required": true
+    },
+    "border": {
+      "type": "color",
+      "required": true
+    },
+    "input": {
+      "type": "color",
+      "required": true
+    },
+    "ring": {
+      "type": "color",
+      "required": true
+    },
+    "radius": {
+      "type": "dimension",
+      "required": true,
+      "modeIndependent": true
+    },
+    "chart-1": {
+      "type": "color"
+    },
+    "chart-2": {
+      "type": "color"
+    },
+    "chart-3": {
+      "type": "color"
+    },
+    "chart-4": {
+      "type": "color"
+    },
+    "chart-5": {
+      "type": "color"
+    },
+    "sidebar": {
+      "type": "color"
+    },
+    "sidebar-foreground": {
+      "type": "color"
+    },
+    "sidebar-primary": {
+      "type": "color"
+    },
+    "sidebar-primary-foreground": {
+      "type": "color"
+    },
+    "sidebar-accent": {
+      "type": "color"
+    },
+    "sidebar-accent-foreground": {
+      "type": "color"
+    },
+    "sidebar-border": {
+      "type": "color"
+    },
+    "sidebar-ring": {
+      "type": "color"
+    },
+    "destructive-foreground": {
+      "type": "color"
+    },
+    "font-sans": {
+      "type": "fontFamily",
+      "modeIndependent": true
+    },
+    "font-serif": {
+      "type": "fontFamily",
+      "modeIndependent": true
+    },
+    "font-mono": {
+      "type": "fontFamily",
+      "modeIndependent": true
+    },
+    "success": {
+      "type": "color"
+    },
+    "success-foreground": {
+      "type": "color"
+    },
+    "warning": {
+      "type": "color"
+    },
+    "warning-foreground": {
+      "type": "color"
+    },
+    "info": {
+      "type": "color"
+    },
+    "info-foreground": {
+      "type": "color"
+    },
+    "spacing": {
+      "type": "dimension",
+      "modeIndependent": true
+    }
+  },
+  "allowedExtraPatterns": [
+    "^shadow",
+    "^tracking-",
+    "^letter-spacing$",
+    "^font-",
+    "^chart-\\d+$"
+  ],
+  "pairs": [
+    {
+      "fg": "foreground",
+      "bg": "background",
+      "min": 4.5,
+      "level": "error",
+      "use": "body text"
+    },
+    {
+      "fg": "card-foreground",
+      "bg": "card",
+      "min": 4.5,
+      "level": "error",
+      "use": "card text"
+    },
+    {
+      "fg": "popover-foreground",
+      "bg": "popover",
+      "min": 4.5,
+      "level": "error",
+      "use": "menus, dialogs"
+    },
+    {
+      "fg": "primary-foreground",
+      "bg": "primary",
+      "min": 4.5,
+      "level": "error",
+      "use": "primary button label"
+    },
+    {
+      "fg": "secondary-foreground",
+      "bg": "secondary",
+      "min": 4.5,
+      "level": "error",
+      "use": "secondary button label"
+    },
+    {
+      "fg": "accent-foreground",
+      "bg": "accent",
+      "min": 4.5,
+      "level": "error",
+      "use": "hovered menu item"
+    },
+    {
+      "fg": "muted-foreground",
+      "bg": "background",
+      "min": 4.5,
+      "level": "error",
+      "use": "secondary text on page"
+    },
+    {
+      "fg": "muted-foreground",
+      "bg": "muted",
+      "min": 4.5,
+      "level": "warn",
+      "use": "secondary text on muted surface"
+    },
+    {
+      "fg": "muted-foreground",
+      "bg": "card",
+      "min": 4.5,
+      "level": "warn",
+      "use": "secondary text in cards"
+    },
+    {
+      "fg": "destructive",
+      "bg": "background",
+      "min": 4.5,
+      "level": "warn",
+      "use": "form error text"
+    },
+    {
+      "fg": "#ffffff",
+      "bg": "destructive",
+      "min": 4.5,
+      "level": "warn",
+      "use": "destructive button label (text-white)"
+    },
+    {
+      "fg": "ring",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "focus indicator (WCAG 1.4.11)"
+    },
+    {
+      "fg": "input",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "form control boundary (WCAG 1.4.11)"
+    },
+    {
+      "fg": "sidebar-foreground",
+      "bg": "sidebar",
+      "min": 4.5,
+      "level": "error",
+      "use": "sidebar text",
+      "optional": true
+    },
+    {
+      "fg": "sidebar-primary-foreground",
+      "bg": "sidebar-primary",
+      "min": 4.5,
+      "level": "error",
+      "use": "active sidebar item",
+      "optional": true
+    },
+    {
+      "fg": "sidebar-accent-foreground",
+      "bg": "sidebar-accent",
+      "min": 4.5,
+      "level": "error",
+      "use": "hovered sidebar item",
+      "optional": true
+    },
+    {
+      "fg": "chart-1",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "chart series",
+      "optional": true
+    },
+    {
+      "fg": "chart-2",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "chart series",
+      "optional": true
+    },
+    {
+      "fg": "chart-3",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "chart series",
+      "optional": true
+    },
+    {
+      "fg": "chart-4",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "chart series",
+      "optional": true
+    },
+    {
+      "fg": "chart-5",
+      "bg": "background",
+      "min": 3,
+      "level": "warn",
+      "use": "chart series",
+      "optional": true
+    },
+    {
+      "fg": "success-foreground",
+      "bg": "success",
+      "min": 4.5,
+      "level": "error",
+      "use": "label on a success fill",
+      "optional": true
+    },
+    {
+      "fg": "warning-foreground",
+      "bg": "warning",
+      "min": 4.5,
+      "level": "error",
+      "use": "label on a warning fill",
+      "optional": true
+    },
+    {
+      "fg": "info-foreground",
+      "bg": "info",
+      "min": 4.5,
+      "level": "error",
+      "use": "label on an info fill",
+      "optional": true
+    },
+    {
+      "fg": "primary-text",
+      "bg": ["background", "card"],
+      "min": 4.5,
+      "level": "error",
+      "use": "primary as text (links, error messages, status words)",
+      "optional": true
+    },
+    {
+      "fg": "destructive-text",
+      "bg": ["background", "card"],
+      "min": 4.5,
+      "level": "error",
+      "use": "destructive as text (links, error messages, status words)",
+      "optional": true
+    },
+    {
+      "fg": "success-text",
+      "bg": ["background", "card"],
+      "min": 4.5,
+      "level": "error",
+      "use": "success as text (links, error messages, status words)",
+      "optional": true
+    },
+    {
+      "fg": "warning-text",
+      "bg": ["background", "card"],
+      "min": 4.5,
+      "level": "error",
+      "use": "warning as text (links, error messages, status words)",
+      "optional": true
+    },
+    {
+      "fg": "info-text",
+      "bg": ["background", "card"],
+      "min": 4.5,
+      "level": "error",
+      "use": "info as text (links, error messages, status words)",
+      "optional": true
+    }
+  ],
+  "derived": {
+    "primary-text": {
+      "from": "primary",
+      "readableOn": ["background", "card"],
+      "min": 4.5,
+      "use": "primary hue as readable text"
+    },
+    "destructive-text": {
+      "from": "destructive",
+      "readableOn": ["background", "card"],
+      "min": 4.5,
+      "use": "destructive hue as readable text"
+    },
+    "success-text": {
+      "from": "success",
+      "readableOn": ["background", "card"],
+      "min": 4.5,
+      "use": "success hue as readable text"
+    },
+    "warning-text": {
+      "from": "warning",
+      "readableOn": ["background", "card"],
+      "min": 4.5,
+      "use": "warning hue as readable text"
+    },
+    "info-text": {
+      "from": "info",
+      "readableOn": ["background", "card"],
+      "min": 4.5,
+      "use": "info hue as readable text"
+    }
+  },
+  "palettes": {
+    "chart": {
+      "tokens": ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"],
+      "minDistance": 0.06,
+      "level": "warn",
+      "use": "chart series"
+    },
+    "status": {
+      "tokens": ["destructive", "success", "warning", "info"],
+      "minDistance": 0.06,
+      "level": "warn",
+      "use": "status colors"
+    }
+  }
+}

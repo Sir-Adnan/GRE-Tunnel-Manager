@@ -1,0 +1,21 @@
+{
+  "id": "tunnel-admin",
+  "name": "Tunnel Admin",
+  "description": "Responsive bilingual tunnel management",
+  "kind": "code",
+  "packVersion": "1.0.0",
+  "surface": "admin",
+  "requires": {
+    "contract": "^1.0.0"
+  },
+  "defaultStyleId": "nettinx",
+  "shell": "./Shell.tsx",
+  "templates": {
+    "dashboard": "./templates/Dashboard.tsx",
+    "list": "./templates/List.tsx",
+    "detail": "./templates/Detail.tsx",
+    "settings": "./templates/Settings.tsx",
+    "auth": "./templates/Auth.tsx"
+  },
+  "supportedPresentation": {}
+}

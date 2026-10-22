@@ -117,7 +117,7 @@ gtm_inspect_state() {
     local file=${1:-$GTM_STATE}
     [[ -f $file && -r $file ]] || { gtm_error "State file is missing or unreadable: $file"; return 1; }
     gtm_load_records "$file" || return 1
-    printf 'Valid state: %d connection(s), supported record versions v1/v2.\n' "${#GTM_RECORDS[@]}"
+    printf 'Valid state: %d connection(s), supported record versions v1/v2/v3.\n' "${#GTM_RECORDS[@]}"
 }
 
 # Offline deterministic preview: no root, package installs, temp files or probes.

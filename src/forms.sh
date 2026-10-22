@@ -221,7 +221,7 @@ gtm_form_rows() {
         fi
         local row
         row=$(printf 'F000000\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$name" "$W_ENGINE" "$W_PROTO" "$W_BIND" "$port" "$W_STRATEGY" "$W_ENABLED" "$W_SNAT" "$W_IFACE" "$targets" "$W_VERSION")
-        [[ $W_VERSION != 2 ]] || row+=$'\t'"$W_OPTIONS"
+        [[ $W_VERSION == 1 ]] || row+=$'\t'"$W_OPTIONS"
         gtm_record_validate "$row" || { gtm_error 'Check the address family, ports and destinations.'; return 1; }
         GTM_FORM_ROWS+=("$row")
     done

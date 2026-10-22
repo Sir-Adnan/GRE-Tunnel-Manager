@@ -76,3 +76,7 @@ HTTP/WebSocket reverse proxying, caches and compression belong to a separate HTT
 - [Master-worker lifecycle](https://docs.haproxy.org/3.0/management.html) — SIGUSR2 reload and management socket behavior.
 - [TCP and application health checks](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/reliability/health-checks/).
 - [PROXY protocol requirements](https://www.haproxy.com/documentation/haproxy-configuration-tutorials/proxying-essentials/client-ip-preservation/enable-proxy-protocol/).
+
+## Optional web controls
+
+The Go panel exposes the same managed TCP adapter, all 13 bounded options and balanced/VPN/low-resource presets. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated HTTPS endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).

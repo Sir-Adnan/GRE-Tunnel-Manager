@@ -6,7 +6,7 @@ Header server information is cached only in process memory. It creates no files 
 
 | Path | Owner / lifecycle |
 | --- | --- |
-| `/etc/gre-manager/connections.tsv` | Validated v1/v2 connection records; atomic replacement |
+| `/etc/gre-manager/connections.tsv` | Validated v1/v2/v3 connection records; atomic replacement |
 | `/etc/gre-manager/preferences.tsv` | Historical appearance preferences; ignored by v1.2.2+, retained if already present |
 | `/etc/gre-manager/manager.lock` | Exclusive mutation lock |
 | `/etc/gre-manager/id-counter` | Monotonic connection ID allocation, retained across deletion/restore |
@@ -82,3 +82,21 @@ The following inventory includes historical artifacts for migration. New GRE cre
 Units and sysctl drop-ins are configured to restore at boot; verify real network readiness and host firewall ordering during rollout. `/run` caches vanish and are re-probed.
 
 Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journal and survive tunnel removal. Review these retained policies for the host's needs. Old tuning files need explicit historical retirement. Managed forwarding references block standard GRE/Simple GRE removal where recognized. Manual rules/custom routes and historical runtime RPS/NOTRACK still need operator inspection. New cleanup never calls an unscoped `systemctl reset-failed`.
+
+## Optional web panel
+
+| Path/resource | Ownership and lifecycle |
+| --- | --- |
+| `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend |
+| `/usr/local/lib/gre-manager/manager.sh` | Matching root-only Bash API helper |
+| `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen port, username, bcrypt hash and TLS paths |
+| `/etc/gre-manager-panel/server.{crt,key}` | Initial IP-SAN self-signed certificate/key; key mode 640, root:grepanel |
+| `gre-manager-panel.service` | Public HTTPS process as grepanel; explicit optional installation, enabled at boot |
+| `gre-manager-panel-broker.service` | Private root broker with grepanel group; stops when no longer required |
+| `/run/gre-manager-panel/broker.sock` | Group-protected local socket, mode 660 inside mode-750 runtime directory |
+| `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |
+| `/var/lib/gre-manager-panel/audit.jsonl{,.1}` | Root-only bounded action metadata; no tokens, keys, passwords or request bodies |
+| `inet gtm_panel_metrics` | Optional separate nftables counters; removed when accounting is disabled |
+| `grepanel` system user/group | Restricted panel service account, no login shell |
+
+Stopping the panel does not delete tunnels, credentials, certificates or totals. Accounting counters remain if collection was enabled; disable it first to remove counting overhead. Package installation suppresses autostart of newly installed distribution HAProxy; existing operator service policy is preserved. Browser appearance/language choices are stored locally and never used for authorization. See [WEB-PANEL.md](WEB-PANEL.md).

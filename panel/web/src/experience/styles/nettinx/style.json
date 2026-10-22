@@ -1,0 +1,31 @@
+{
+  "id": "nettinx",
+  "name": "Nettinx",
+  "styleVersion": "1.0.0",
+  "surfaces": ["admin"],
+  "modes": ["light", "dark"],
+  "tokens": "./tokens.css",
+  "fonts": [
+    {
+      "family": "Poppins",
+      "source": "self-hosted @fontsource/poppins"
+    },
+    {
+      "family": "Georgia",
+      "source": "system font"
+    },
+    {
+      "family": "JetBrains Mono",
+      "source": "self-hosted @fontsource-variable/jetbrains-mono"
+    }
+  ],
+  "source": {
+    "kind": "tweakcn",
+    "url": "https://tweakcn.com/themes/cmqbb3gdw000104l29dvzaqja",
+    "license": "User-selected community preset; see source",
+    "importedAt": "2026-10-22"
+  },
+  "fidelity": {
+    "mode": "exact"
+  }
+}

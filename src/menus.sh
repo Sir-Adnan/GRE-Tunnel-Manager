@@ -359,6 +359,7 @@ gtm_home() {
     gtm_option 5 'Reverse Tunnel' 'FRP / rathole'
     gtm_option 6 'Load Balancing' 'Use more than one server'
     gtm_option 7 Tools 'Status / backup / help'
+    gtm_option 8 'Web Panel' 'Install / open / manage'
     gtm_option 0 Exit
     gtm_panel_end
 }
@@ -376,6 +377,7 @@ gtm_tools_menu() {
         gtm_option 7 'Old Menu' 'Original options 1-14'
         gtm_option 8 'Show Configuration'
         gtm_option 9 'Refresh Server Info'
+        gtm_option 10 'Install Tunnel Engines'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -387,6 +389,7 @@ gtm_tools_menu() {
             6) gtm_catalog; gtm_pause;; 7) gtm_legacy_menu;; 0) return;;
             8) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
             9) GTM_SERVER_INFO_READY=0;;
+            10) gtm_dependencies_menu;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -415,6 +418,7 @@ gtm_modern_menu() {
             1) gtm_links_menu;; 2) gtm_forward_menu;; 3) gtm_engine_menu haproxy HAProxy;;
             4) gtm_engine_menu realm Realm;; 5) gtm_reverse_menu;; 6) gtm_load_menu;;
             7) gtm_tools_menu;; 0) printf '%b' "$GTM_RESET"; return;;
+            8) gtm_panel_menu;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -457,6 +461,8 @@ gtm_main() {
     local legacy=0 preview='' action='' state_file='' status_id=''
     GTM_DEMO=0
     gtm_paths
+    if [[ ${1:-} == --api ]]; then shift; gtm_api "$@"; return $?; fi
+    if [[ ${1:-} == --panel ]]; then shift; (($#==0)) && gtm_root && gtm_panel_menu; return $?; fi
     while (( $# )); do
         case $1 in
             --help|-h) printf 'GRE Tunnel Manager %s\nUsage: bash gre.sh [--legacy] [--demo] [--preview home|forwards|haproxy|realm]\nRead only:\n  --validate | --plan [--state-file PATH]\n  --doctor | --catalog | --haproxy-status F000001\n' "$GTM_VERSION"; return;;

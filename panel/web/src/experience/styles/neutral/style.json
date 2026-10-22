@@ -1,0 +1,15 @@
+{
+  "id": "neutral",
+  "name": "Neutral",
+  "description": "shadcn/ui neutral base with contrast adjustments; the safe default for every surface.",
+  "styleVersion": "1.0.0",
+  "surfaces": ["admin"],
+  "modes": ["light", "dark"],
+  "tokens": "./tokens.css",
+  "adjustments": "./adjustments.css",
+  "source": {
+    "kind": "shadcn",
+    "url": "https://ui.shadcn.com/docs/theming",
+    "license": "MIT"
+  }
+}

@@ -65,6 +65,24 @@ GTM_RECORDS=($'F000002\tPacket test\tnftables\tboth\t192.0.2.10\t28443\tsingle\t
 gtm_preflight
 gtm_nft_render | nft -f -
 nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
+# Optional Go panel counters: both directions count actual forwarded TCP/UDP
+# packets. Removing the separate accounting table must leave forwarding intact.
+if [[ -n ${GTM_PANEL_TEST_BINARY:-} && -x $GTM_PANEL_TEST_BINARY ]]; then
+    printf '%s\n' "${GTM_RECORDS[@]}" > "$test_dir/panel-state.tsv"
+    "$GTM_PANEL_TEST_BINARY" metrics-plan --state-file "$test_dir/panel-state.tsv" > "$test_dir/panel-metrics.nft"
+    nft -c -f "$test_dir/panel-metrics.nft"
+    nft -f "$test_dir/panel-metrics.nft"
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
+    nft -j list table inet gtm_panel_metrics > "$test_dir/panel-counters.json"
+    python3 - "$test_dir/panel-counters.json" <<'PY'
+import json, sys
+counters={entry['counter']['name']:entry['counter']['bytes'] for entry in json.load(open(sys.argv[1]))['nftables'] if 'counter' in entry}
+assert counters['F000002_rx'] > 0 and counters['F000002_tx'] > 0, counters
+PY
+    nft delete table inet gtm_panel_metrics
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
+    printf 'PASS: Go panel counters measure both directions without replacing forwarding rules.\n'
+fi
 # Rejected candidates must leave already-active forwarding intact.
 nft -s list table inet gre_manager > "$test_dir/before-preflight"
 saved_record=${GTM_RECORDS[0]}
@@ -181,6 +199,26 @@ if command -v realm >/dev/null; then
     python3 tests/packet_probe.py client 127.0.0.1 28443
     nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
     kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    line=$'F000001\tRealm advanced\trealm\tboth\t0.0.0.0\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28001@1\t3\ttcp_timeout=8;udp_timeout=45;tcp_keepalive=20;tcp_keepalive_probe=4;accept_proxy_timeout=2;log=error'
+    gtm_record_validate "$line"
+    gtm_realm_render > "$test_dir/realm.toml"
+    realm -c "$test_dir/realm.toml" > "$test_dir/realm.log" 2>&1 & relay_pid=$!
+    sleep 0.3
+    python3 tests/packet_probe.py client 127.0.0.1 28443
+    kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    nsenter -t "$backend_ns" -n python3 tests/haproxy_probe.py server 192.0.2.2 > "$test_dir/proxy-server.log" 2>&1 & proxy_server_pid=$!
+    sleep 0.2
+    for proxy_version in 1 2; do
+        line=$'F000001\tRealm PROXY\trealm\ttcp\t192.0.2.10\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28003@1\t3\tsend_proxy=true;send_proxy_version='
+        line+="$proxy_version;log=error"
+        gtm_record_validate "$line"; gtm_realm_render > "$test_dir/realm.toml"
+        realm -c "$test_dir/realm.toml" > "$test_dir/realm.log" 2>&1 & relay_pid=$!
+        sleep 0.3
+        nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443 tcp
+        kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    done
+    kill "$proxy_server_pid"; wait "$proxy_server_pid" || true; proxy_server_pid=''
+    printf 'PASS: Realm v3 network options and PROXY v1/v2 metadata on real traffic.\n'
 fi
 
 if command -v frpc >/dev/null && command -v frps >/dev/null; then

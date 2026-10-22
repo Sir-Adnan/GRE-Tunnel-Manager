@@ -1,4 +1,4 @@
-# Architecture — v1.2.3
+# Architecture — v1.3.0
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
@@ -8,6 +8,7 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | server_info | Session-cached host/address metadata and bounded optional public-IP/provider lookup |
 | ui | Fixed ANSI styling, dedicated headers, numbered selectors and input rendering |
 | haproxy | Validated TCP options, rendering, local stats, worker readiness and settings UI |
+| realm_options | Validated Realm network options with compatible v3 records |
 | state | TSV records, conflicts, snapshots, apply/recovery |
 | firewall | Owned iptables chains and native nftables table |
 | relays | Optional component installation and Realm/HAProxy services |
@@ -18,12 +19,14 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | forms | Read-only staged setup, port lists, remote endpoints, optional details and batch save |
 | tuning | Explicit global sysctl profiles, before/applied journal, drift-aware restore |
 | cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
+| links / reverse_api / api | Noninteractive owned-resource operations shared with the Go panel |
+| panel | Optional panel lifecycle and engine preinstallation menus |
 | menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
 | legacy | Compatible GRE, Simple GRE, performance and old utilities |
 
 ## Navigation
 
-The main menu has seven sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing and Tools. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. Legacy numbers 1–14 remain in Tools → Old Menu and `--legacy`.
+The main menu has eight sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing, Tools and optional Web Panel. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. Legacy numbers 1–14 remain in Tools → Old Menu and `--legacy`.
 
 Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Styling is fixed, English-only and foreground-only, respecting NO_COLOR/non-TTY/dumb output. Old preferences are ignored and no preference file is created. Theme/language/layout switches are removed.
 
@@ -51,9 +54,13 @@ Mutations acquire flock, reload state, validate a candidate and preflight it bef
 
 Legacy rules keep their ownership. Strict generated DNAT syntax is grouped for deletion. Duplicates are drained; shared SNAT/FORWARD lines and unknown manual lines are preserved when needed. Old listeners must not overlap new ones.
 
+Realm advanced records use version 3 with the same 13-field layout and bounded network options: TCP/UDP timeout, keepalive/probes, PROXY send/version/accept/timeout and logging. Existing v1/v2 remain readable; older releases cannot read v3. Terminal edits retain options without needing a new terminal form.
+
+The optional panel has typed capability contracts, an unprivileged public HTTPS server, bcrypt sessions with CSRF/Origin checks, and a local root broker over a group-protected Unix socket. All forwarding writes use the Bash API and reload full state under the shared lock. Row revisions protect edits and bulk selection from stale requests. GRE and reverse adapters never receive arbitrary commands/config text.
+
 ## Runtime
 
-- No resident manager, polling service, timer or cron.
+- The Bash manager has no resident process. The explicitly installed Go web panel adds separate public HTTPS and private broker services; optional metrics sampling runs only when enabled. See [WEB-PANEL.md](WEB-PANEL.md).
 - Kernel forwarding uses a oneshot boot reconciler. Root-owned serialized Bash functions form its standalone runner, supporting process-substitution startup.
 - Realm/HAProxy: one service per enabled connection. Unchanged running config and unit are retained. HAProxy configuration-only changes use a master-worker reload when the unit and previous worker socket are compatible; readiness requires a new worker PID. Unit/FD budget changes or missing old readiness require restart. Local stats use mode-600 Unix sockets; socat is an explicit HAProxy command dependency, not a daemon. No HTTP admin endpoint is exposed.
 - FRP: separate entrance/destination services. TCP destinations can share a group/public port.

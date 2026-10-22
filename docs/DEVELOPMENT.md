@@ -1,12 +1,12 @@
 # Development
 
-Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.sh`. The build is deterministic and uses Python stdlib. Runtime is Bash, without Python/jq dependencies.
+Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.sh`. The build is deterministic and uses Python stdlib. Shell runtime is Bash without Python/jq dependencies; the optional Go panel embeds the built frontend. Node and Go are build tools, not server prerequisites.
 
 ## Contracts
 
 - Keep `gre-stable.sh` unchanged; preserve legacy numbers and GRE wire defaults.
 - `legacy/` is the supplied historical archive. Keep its script bytes unchanged; its original whitespace is excluded from diff whitespace checks through .gitattributes. Maintain legacy/README.md as an archive guide, not as current-release documentation.
-- No resident manager. Optional relay services are explicit user choices.
+- No resident Bash manager. Panel/broker and optional traffic sampling are explicit user choices.
 - Use data records, arrays, printf, read -r, bounded numeric conversion and explicit error handling. Never source user config or eval rule strings.
 - Operate only on owned chains/table/services, not host firewall state.
 - Cross-module results: R_* validated record, EP_* endpoint, P_* FRP config.
@@ -19,7 +19,7 @@ Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.s
 ```bash
 python3 tools/build.py --check
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,menus}.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy,realm_options,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,api,panel,menus}.sh panel-install.sh
 bash gre.sh --preview haproxy
 sudo bash tests/linux_namespace.sh
 ```
@@ -53,3 +53,11 @@ The numbered choices and direct engine-specific workflows were reviewed in [Musi
 ## Version policy
 
 The modular manager starts at v1.0.1. Use MAJOR.MINOR.PATCH: patch for compatible fixes, minor for compatible features, major for breaking changes. Historical v13.x releases keep their original numbers. State schema version is independent of manager version.
+
+## Optional panel
+
+Build with `npm ci && npm run build && npm run lint` in `panel/web`, then `go test -race ./... && go vet ./...` in `panel`. Run `python3 tools/package_panel.py` from the repository root to cross-build prebuilt packages. UI assets are embedded; never require Node on managed servers. Use the loopback-only `gtm-panel demo` for browser checks.
+
+Set `GTM_PANEL_TEST_BINARY` to the built Linux binary when running isolated namespace tests to exercise actual nftables flow accounting in both directions and removal without disturbing forwarding. Public two-server, reboot, provider firewall, sustained load and resource benchmarks remain separate deployment checks.
+
+The visual system came from the user-selected Visual Experience System starter and shadcn CLI. Presets are local versioned assets, locale is independent, and feature pages use semantic tokens. Keep Nettinx source values byte-equivalent at the token level. The user explicitly requested its original colors despite five known AA contrast failures. Do not report the contrast gate as passing or silently recolor it. The registry was generated with that documented fidelity exception. Other structural/security tests are not waived.
