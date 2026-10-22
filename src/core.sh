@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.2.0
+GTM_VERSION=1.2.1
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 

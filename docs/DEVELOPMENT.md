@@ -5,12 +5,14 @@ Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.s
 ## Contracts
 
 - Keep `gre-stable.sh` unchanged; preserve legacy numbers and GRE wire defaults.
+- `legacy/` is the supplied historical archive. Keep its script bytes unchanged; its original whitespace is excluded from diff whitespace checks through .gitattributes. Maintain legacy/README.md as an archive guide, not as current-release documentation.
 - No resident manager. Optional relay services are explicit user choices.
 - Use data records, arrays, printf, read -r, bounded numeric conversion and explicit error handling. Never source user config or eval rule strings.
 - Operate only on owned chains/table/services, not host firewall state.
 - Cross-module results: R_* validated record, EP_* endpoint, P_* FRP config.
 - Keep LF endings. Source modules are bundled, not downloaded at runtime.
 - Farsi help is separate from ASCII technical values. Never reverse strings or assume terminal shaping support.
+- UI panels use optional tput size/color detection with bounded fallbacks. Keep colors over the full row, reset each row and preserve plain/no-color ASCII output. Guided/Compact are terminal layouts, not web views; preview mode remains read-only.
 
 ## Checks
 

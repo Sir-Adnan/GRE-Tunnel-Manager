@@ -17,6 +17,7 @@ This repository is a modular Bash control plane for Linux server links and traff
 - Make global tuning explicit. Record prior values before a write and restore only values still matching what this manager applied. Never guess administrator defaults.
 - Keep HAProxy TCP forwarding distinct from UDP services, TLS termination and TLS passthrough. PROXY protocol is opt-in and requires a compatible destination.
 - Use ASCII technical labels. Help may be English, Finglish or opt-in Farsi; never reverse or reshape technical values.
+- Keep user-facing names familiar: GRE Tunnel, Port Forwarding, HAProxy and Realm. Keep the main menu short; put add/show/edit/delete inside each section. Engine filters are presentation-only: reload the complete state under lock before any mutation so other engines are preserved.
 - Keep Bash as the only runtime language dependency. Python is for build/tests only; optional command-line dependencies must be documented.
 - Keep LF endings, update affected docs and changelog, and use semantic release versions independently of state schema versions.
 - Do not promise universal throughput, capacity, CPU/RAM, zero downtime or latency improvements.

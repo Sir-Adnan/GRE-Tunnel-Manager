@@ -7,20 +7,30 @@ gtm_demo_records() {
     )
 }
 
-gtm_records() { if [[ ${GTM_DEMO:-0} == 1 ]]; then gtm_demo_records; else gtm_load_records; fi; }
+gtm_records() {
+    if [[ ${GTM_DEMO:-0} == 1 ]]; then gtm_demo_records; else gtm_load_records || return; fi
+    [[ -n ${GTM_ENGINE_FILTER:-} ]] || return 0
+    local row
+    local -a matching=()
+    for row in "${GTM_RECORDS[@]}"; do
+        gtm_record_validate "$row" || return 1
+        case "$GTM_ENGINE_FILTER:$R_ENGINE" in
+            kernel:iptables|kernel:nftables|haproxy:haproxy|realm:realm) matching+=("$row");;
+        esac
+    done
+    GTM_RECORDS=("${matching[@]}")
+}
 
 gtm_show_records() {
-    local line index=0 state target
+    local line index=0 state
     gtm_records || return 1
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
         ((index+=1)); state=Disabled; [[ $R_ENABLED == 1 ]] && state=Enabled
-        printf '\n  %b[%d] %s%b  %s\n' "$GTM_HIGHLIGHT" "$index" "$R_NAME" "$GTM_RESET" "$R_ID"
-        printf '      %s | %s | %s | %s\n' "$R_ENGINE" "$R_PROTO" "$R_STRATEGY" "$state"
-        printf '      Listen: %s\n' "$(gtm_address "$R_BIND" "$R_PORT")"
-        printf '      Targets: %s\n' "$R_TARGETS"
+        printf '\n'
+        gtm_connection_card "$index" "$state"
     done
-    (( index > 0 )) || printf '\n  No managed forwards yet. Choose New to get started.\n'
+    (( index > 0 )) || printf '\n  Nothing added yet. Choose Add to get started.\n'
     printf '\n  Enabled is configuration state, not a reachability test.\n'
 }
 
@@ -65,7 +75,7 @@ gtm_legacy_listener_check() {
 }
 
 gtm_new_forward() {
-    local engine=${1:-iptables} name protocol bind port strategy targets='' target snat iface line id edit_id=${2:-} old
+    local engine=${1:-iptables} name protocol bind port strategy targets='' target snat iface line id edit_id=${2:-} old advanced
     local old_name='' old_proto=tcp old_bind='' old_port='' old_targets='' old_strategy='' old_snat=masquerade old_iface=any old_enabled=1 original='' found=0 old_version=1 old_options=''
     if [[ -n $edit_id ]]; then
         gtm_records || return
@@ -78,14 +88,15 @@ gtm_new_forward() {
         done
         ((found)) || { gtm_error 'Connection no longer exists.'; return; }
     fi
-    gtm_header 'Create / edit traffic connection'
+    gtm_header 'Add / edit tunnel or forward'
     gtm_help forward
     printf '  Engine: %s\n' "$engine"
     if [[ $engine == realm || $engine == haproxy ]]; then gtm_help relay; printf '  A relay opens new outgoing connections; it does not retain client source IP.\n'; fi
     gtm_default 'Name' name "$old_name" || return
-    gtm_default 'Traffic [tcp/udp/both]' protocol "$old_proto" || return
-    gtm_default 'Entrance IP (actual local IP)' bind "$old_bind" || return
-    gtm_default 'Entrance port' port "$old_port" || return
+    if [[ $engine == haproxy ]]; then protocol=tcp
+    else gtm_default 'Protocol [tcp/udp/both]' protocol "$old_proto" || return; fi
+    gtm_default 'Local IP (this server)' bind "$old_bind" || return
+    gtm_default 'Local port' port "$old_port" || return
     gtm_help targets
     [[ -z $old_targets ]] || printf '  Current destinations: %s\n  Empty first line keeps these destinations.\n' "$old_targets"
     while true; do
@@ -107,9 +118,13 @@ gtm_new_forward() {
     fi
     snat=preserve; iface=any
     if [[ $engine == iptables || $engine == nftables ]]; then
-        printf '  Preserve needs explicit return routes on the destination.\n'
-        gtm_default 'Client source [masquerade/preserve]' snat "$old_snat" || return
-        gtm_default 'Entrance interface' iface "$old_iface" || return
+        snat=$old_snat; iface=$old_iface
+        gtm_default 'Advanced settings? [y/N]' advanced n || return
+        if [[ $advanced == y || $advanced == Y ]]; then
+            printf '  Preserve requires a return route on the target server.\n'
+            gtm_default 'Client IP [masquerade/preserve]' snat "$old_snat" || return
+            gtm_default 'Network interface (any = all)' iface "$old_iface" || return
+        fi
     fi
     line=$(printf 'F000000\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$name" "$engine" "$protocol" "$bind" "$port" "$strategy" "$old_enabled" "$snat" "$iface" "$targets" "$old_version")
     [[ $old_version != 2 ]] || line+=$'\t'"$old_options"
@@ -155,7 +170,8 @@ gtm_mutate_selected() {
     local -a selected_ids=() updated=()
     gtm_show_records || return
     (( ${#GTM_RECORDS[@]} > 0 )) || return
-    gtm_help delete
+    if [[ $operation == delete ]]; then gtm_help delete
+    else printf '\n  Select the rows to %s.\n' "$operation"; fi
     gtm_read 'Rows (example: 1 3 4; empty cancels): ' selection || return
     [[ -n $selection ]] || return
     gtm_selection "$selection" "${#GTM_RECORDS[@]}" || { gtm_error 'Choose valid row numbers.'; return; }
@@ -198,60 +214,88 @@ gtm_restore_menu() {
 }
 
 gtm_forward_menu() {
-    local choice
+    local choice GTM_ENGINE_FILTER=kernel
     while true; do
-        gtm_header 'Traffic connections / forwarding & relays'
-        gtm_show_records || { gtm_pause; return; }
-        printf '\n'
-        gtm_option 1 'New kernel forward' 'iptables: TCP / UDP / both'
-        gtm_option 2 'New nftables forward' 'TCP / UDP / both'
-        gtm_option 3 'New Realm relay' 'TCP / UDP / both; optional service'
-        gtm_option 4 'New HAProxy connection' 'TCP; health checks and load balance'
-        gtm_option 5 'Delete selected' 'Remove the whole forwarding group'
-        gtm_option 6 'Disable selected' 'Keep settings for later'
-        gtm_option 7 'Enable selected'
-        gtm_option 8 'Restore point'
-        gtm_option 9 'Edit a connection'
-        gtm_option 10 'Legacy forwarding' 'Existing v13.x rules; separate owner'
-        gtm_option 11 'Preview configuration' 'Read generated settings without applying'
-        gtm_option 12 'HAProxy settings & status' 'Presets / timeouts / checks / capacity / PROXY'
+        gtm_header 'Port Forwarding'
+        printf '\n  Forward a port to another server. GRE is optional.\n\n'
+        gtm_option 1 'Add iptables forward' 'TCP / UDP'
+        gtm_option 2 'Add nftables forward' 'TCP / UDP'
+        gtm_option 3 'Show forwards'
+        gtm_option 4 'Edit forward'
+        gtm_option 5 'Delete forward' 'Select one or more'
+        gtm_option 6 'Enable / disable'
+        gtm_option 7 'Old forwarding rules' 'Rules from v13.x'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
-            1) gtm_new_forward iptables;; 2) gtm_new_forward nftables;; 3) gtm_new_forward realm;; 4) gtm_new_forward haproxy;;
-            5) gtm_mutate_selected delete;; 6) gtm_mutate_selected disable;; 7) gtm_mutate_selected enable;; 8) gtm_restore_menu;;
-            9) gtm_edit_forward;; 10) gtm_legacy_forward_menu;;
-            11) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Offline preview: use --plan --state-file FILE with your own state.\n'; else gtm_plan; fi; gtm_pause;;
-            12) gtm_haproxy_settings;;
+            1) gtm_new_forward iptables;; 2) gtm_new_forward nftables;;
+            3) gtm_show_records; gtm_pause;; 4) gtm_edit_forward;;
+            5) gtm_mutate_selected delete;; 6) gtm_toggle_menu;; 7) gtm_legacy_forward_menu;;
             0) return;; *) gtm_error 'Choose one of the shown options.';;
         esac
     done
 }
 
-gtm_links_menu() {
-    local choice role
-    gtm_header 'Server links'
-    gtm_help links
-    printf '  GRE / ip6gre keep the existing addressing and peer compatibility.\n'
-    gtm_option 1 'Create GRE link' 'Use on either side, in any country'
-    gtm_option 2 'Remove GRE link'
-    gtm_option 3 'Inspect links'
-    gtm_option 4 'Advanced link editor'
-    gtm_option 0 Back
+gtm_toggle_menu() {
+    local choice
+    gtm_header 'Enable / disable'
+    gtm_option 1 Enable; gtm_option 2 Disable; gtm_option 0 Back
     gtm_read 'Choose: ' choice || return
-    case $choice in
-        1)
-            gtm_help links
-            gtm_read 'Side [a/b]: ' role || return
-            case $role in a) role=kharej;; b) role=iran;; *) gtm_error 'Choose a or b. Use the other side on the peer.'; return;; esac
-            [[ ${GTM_DEMO:-0} == 0 ]] || { gtm_error 'Creation disabled in demo.'; return; }
-            gtm_prepare && gtm_lock || return
-            install_deps || { gtm_unlock; return 1; }
-            detect_local_ips; setup_tunnel "$role"; gtm_unlock ;;
-        2) gtm_prepare && gtm_lock || return; remove_tunnel; gtm_unlock ;;
-        3) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'gre-out-10 / GRE / 10.0.10.2 / sample\n'; else ip -d link show type gre; ip -d link show type ip6gre; fi; gtm_pause ;;
-        4) gtm_prepare && gtm_lock || return; edit_tunnel; gtm_unlock ;;
-    esac
+    case $choice in 1) gtm_mutate_selected enable;; 2) gtm_mutate_selected disable;; esac
+}
+
+gtm_engine_menu() {
+    local engine=$1 title=$2 choice GTM_ENGINE_FILTER=$1
+    while true; do
+        gtm_header "$title Tunnel"
+        gtm_option 1 'Add tunnel'
+        gtm_option 2 'Show tunnels'
+        gtm_option 3 'Edit tunnel'
+        gtm_option 4 'Delete tunnel'
+        gtm_option 5 'Enable / disable'
+        [[ $engine != haproxy ]] || gtm_option 6 'Tunnel settings' 'Timeouts / health checks / status'
+        gtm_option 0 Back
+        gtm_read 'Choose: ' choice || return
+        case $choice in
+            1) gtm_new_forward "$engine";; 2) gtm_show_records; gtm_pause;;
+            3) gtm_edit_forward;; 4) gtm_mutate_selected delete;; 5) gtm_toggle_menu;;
+            6) [[ $engine != haproxy ]] || gtm_haproxy_settings;;
+            0) return;; *) gtm_error 'Choose one of the shown options.';;
+        esac
+    done
+}
+
+gtm_gre_create() {
+    local role=$1 result
+    gtm_prepare && gtm_lock || return
+    if install_deps; then detect_local_ips; setup_tunnel "$role"; result=$?; else result=1; fi
+    gtm_unlock
+    return "$result"
+}
+
+gtm_links_menu() {
+    local choice
+    while true; do
+        gtm_header 'GRE Tunnel'
+        gtm_option 1 'Kharej Server' 'Create GRE tunnel'
+        gtm_option 2 'Iran Server' 'Create GRE tunnel'
+        gtm_option 3 'Show GRE tunnels'
+        gtm_option 4 'Delete GRE tunnel'
+        gtm_option 5 'Edit GRE config'
+        gtm_option 6 'Simple GRE' 'GRE + port forwarding'
+        gtm_option 7 'Delete Simple GRE'
+        gtm_option 0 Back
+        gtm_read 'Choose: ' choice || return
+        case $choice in
+            1) gtm_gre_create kharej;; 2) gtm_gre_create iran;;
+            3) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'gre-out-10 / GRE / 10.0.10.2 / sample\n'; else ip -d link show type gre; ip -d link show type ip6gre; fi; gtm_pause;;
+            4|5|6|7)
+                gtm_prepare && gtm_lock || return
+                case $choice in 4) remove_tunnel;; 5) edit_tunnel;; 6) if install_deps; then setup_simple_gre; fi;; 7) remove_simple_gre;; esac
+                gtm_unlock;;
+            0) return;; *) gtm_error 'Choose one of the shown options.';;
+        esac
+    done
 }
 
 gtm_diagnostics() {
@@ -339,43 +383,60 @@ gtm_legacy_delete_group() {
 }
 
 gtm_home() {
-    gtm_header 'Server connections & traffic'
-    gtm_help welcome
-    gtm_option 1 'Quick setup' 'Choose what you want to connect'
-    gtm_option 2 'Server links' 'GRE / IPv4 / IPv6'
-    gtm_option 3 'Traffic connections' 'Kernel forwards, Realm, HAProxy'
-    gtm_option 4 'Reverse connections' 'FRP / rathole / encrypted transports'
-    gtm_option 5 'Load balancing' 'Multiple destinations and failover'
-    gtm_option 6 Diagnostics 'Tools, routing and service status'
-    gtm_option 7 'Appearance & help' 'Themes / English / Finglish / Farsi'
-    gtm_option 8 'Advanced / legacy' 'Original options 1-14'
-    gtm_option 9 'Choosing a method' 'Capabilities and practical tradeoffs'
+    gtm_header 'Main Menu'
+    [[ ${GTM_LANGUAGE:-en} != fa && ${GTM_LANGUAGE:-en} != finglish ]] || gtm_help welcome
+    printf '\n'
+    gtm_option 1 'GRE Tunnel' 'Create / show / delete'
+    gtm_option 2 'Port Forwarding' 'iptables / nftables'
+    gtm_option 3 'HAProxy Tunnel' 'TCP tunnel'
+    gtm_option 4 'Realm Tunnel' 'TCP / UDP tunnel'
+    gtm_option 5 'Reverse Tunnel' 'FRP / rathole'
+    gtm_option 6 'Load Balancing' 'Use more than one server'
+    gtm_option 7 'Settings & Tools' 'Theme / backup / help'
     gtm_option 0 Exit
+    gtm_panel_end
 }
 
-gtm_quick() {
+gtm_tools_menu() {
     local choice
-    gtm_header 'Quick setup / choose your task'
-    gtm_option 1 'Connect two servers' 'Create a network link'
-    gtm_option 2 'Move a service port' 'Direct IP or an existing link'
-    gtm_option 3 'Reach a private server' 'Reverse connection'
-    gtm_option 4 'Use several destinations' 'Load balance new connections'
-    gtm_option 0 Back
-    gtm_read 'Choose: ' choice || return
-    case $choice in 1) gtm_links_menu;; 2) gtm_forward_menu;; 3) gtm_reverse_menu;; 4) gtm_load_menu;; esac
+    while true; do
+        gtm_header 'Settings & Tools'
+        gtm_option 1 'Appearance & language'
+        gtm_option 2 'Server status'
+        gtm_option 3 'Backup / restore' 'All managed forwards and relays'
+        gtm_option 4 'Install / update igre'
+        gtm_option 5 Performance
+        gtm_option 6 Cleanup 'Old rules / Simple GRE'
+        gtm_option 7 Help 'Which tunnel should I use?'
+        gtm_option 8 'Old menu' 'Original options 1-14'
+        gtm_option 9 'Show configuration'
+        gtm_option 0 Back
+        gtm_read 'Choose: ' choice || return
+        case $choice in
+            1) gtm_settings;; 2) gtm_diagnostics;; 3) gtm_restore_menu;;
+            4|5|6)
+                gtm_prepare && gtm_lock || return
+                case $choice in 4) gtm_update_shortcut;; 5) gtm_tuning_menu;; 6) gtm_legacy_cleanup_menu;; esac
+                gtm_unlock;;
+            7) gtm_catalog; gtm_pause;; 8) gtm_legacy_menu;; 0) return;;
+            9) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
+            *) gtm_error 'Choose one of the shown options.';;
+        esac
+    done
 }
 
 gtm_load_menu() {
     local choice
-    gtm_header 'Load balancing / one entrance, several destinations'
+    gtm_header 'Load Balancing'
     gtm_help load
-    gtm_option 1 'Kernel distribution' 'Weighted random; TCP/UDP; no health checks'
-    gtm_option 2 'HAProxy TCP' 'Round robin / least connections / source / failover'
-    gtm_option 3 'Realm TCP / UDP' 'Round robin / source hashing'
-    gtm_option 4 'Reverse TCP group' 'FRP with destination health checks'
+    gtm_option 1 iptables 'TCP / UDP; no health checks'
+    gtm_option 2 nftables 'TCP / UDP; no health checks'
+    gtm_option 3 HAProxy 'TCP; health checks and failover'
+    gtm_option 4 Realm 'TCP / UDP'
+    gtm_option 5 FRP 'Reverse TCP tunnel'
     gtm_option 0 Back
     gtm_read 'Choose: ' choice || return
-    case $choice in 1) gtm_new_forward nftables;; 2) gtm_new_forward haproxy;; 3) gtm_new_forward realm;; 4) gtm_frp_menu;; esac
+    case $choice in 1) gtm_new_forward iptables;; 2) gtm_new_forward nftables;; 3) gtm_new_forward haproxy;; 4) gtm_new_forward realm;; 5) gtm_frp_menu;; esac
 }
 
 gtm_modern_menu() {
@@ -384,9 +445,9 @@ gtm_modern_menu() {
         gtm_home
         gtm_read 'Choose: ' choice || return 0
         case $choice in
-            1) gtm_quick;; 2) gtm_links_menu;; 3) gtm_forward_menu;; 4) gtm_reverse_menu;; 5) gtm_load_menu;;
-            6) gtm_diagnostics;; 7) gtm_settings;; 8) gtm_legacy_menu;; 0) printf '%b' "$GTM_RESET"; return;;
-            9) gtm_catalog; gtm_pause;;
+            1) gtm_links_menu;; 2) gtm_forward_menu;; 3) gtm_engine_menu haproxy HAProxy;;
+            4) gtm_engine_menu realm Realm;; 5) gtm_reverse_menu;; 6) gtm_load_menu;;
+            7) gtm_tools_menu;; 0) printf '%b' "$GTM_RESET"; return;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -426,12 +487,12 @@ gtm_update_shortcut() {
 }
 
 gtm_main() {
-    local legacy=0 preview='' theme='' language='' action='' state_file='' status_id=''
+    local legacy=0 preview='' theme='' language='' layout='' action='' state_file='' status_id=''
     GTM_DEMO=0
     gtm_paths; gtm_preferences
     while (( $# )); do
         case $1 in
-            --help|-h) printf 'Traffic Manager %s\nUsage: bash gre.sh [--legacy] [--demo] [--preview home|forwards]\n  [--theme dark|light|plain] [--language en|finglish|fa]\nRead only (no root required when files are readable):\n  --validate | --plan [--state-file PATH]\n  --doctor | --catalog | --haproxy-status F000001\n' "$GTM_VERSION"; return;;
+            --help|-h) printf 'Traffic Manager %s\nUsage: bash gre.sh [--legacy] [--demo] [--preview home|forwards]\n  [--theme dark|light|plain] [--language en|finglish|fa]\n  [--layout guided|compact]\nRead only (no root required when files are readable):\n  --validate | --plan [--state-file PATH]\n  --doctor | --catalog | --haproxy-status F000001\n' "$GTM_VERSION"; return;;
             --version) printf 'v%s\n' "$GTM_VERSION"; return;;
             --legacy) legacy=1;; --demo) GTM_DEMO=1;;
             --validate|--plan|--doctor|--catalog) [[ -z $action ]] || { gtm_error 'Choose one inspection action.'; return 2; }; action=${1#--};;
@@ -439,12 +500,14 @@ gtm_main() {
             --state-file) (( $#>=2 )) && [[ -n $2 ]] || return 2; state_file=$2; shift;;
             --preview) (( $#>=2 )) || return 2; preview=$2; shift;;
             --theme) (( $#>=2 )) || return 2; case $2 in dark|light|plain) theme=$2;; *) return 2;; esac; shift;;
+            --layout) (( $#>=2 )) || return 2; case $2 in guided|compact) layout=$2;; *) return 2;; esac; shift;;
             --language) (( $#>=2 )) || return 2; case $2 in en|finglish|fa) language=$2;; *) return 2;; esac; shift;;
             *) gtm_error "Unknown argument: $1"; return 2;;
         esac
         shift
     done
     [[ -z $theme ]] || GTM_THEME=$theme
+    [[ -z $layout ]] || GTM_LAYOUT=$layout
     [[ -z $language ]] || GTM_LANGUAGE=$language
     gtm_palette
     if [[ -n $state_file && $action != validate && $action != plan ]]; then gtm_error '--state-file requires --validate or --plan.'; return 2; fi
@@ -461,7 +524,7 @@ gtm_main() {
     fi
     if [[ -n $preview ]]; then
         GTM_DEMO=1
-        case $preview in home) gtm_home;; forwards) gtm_header 'Traffic connections'; gtm_show_records;; *) return 2;; esac
+        case $preview in home) gtm_home;; forwards) gtm_header 'Tunnels & Forwards'; gtm_show_records;; *) return 2;; esac
         return
     fi
     if [[ $GTM_DEMO == 0 ]]; then

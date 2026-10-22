@@ -8,7 +8,7 @@ Cross-agent instructions are in `AGENTS.md`. Keep both references consistent; `d
 
 Edit `src/*.sh`. Run `python3 tools/build.py` to regenerate standalone `gre.sh`. Never hand-edit generated output. `gre-stable.sh` is frozen v13.6: never edit/delete/upgrade it silently. Python is a build/test dependency only; runtime is Bash.
 
-Read docs/ARCHITECTURE.md, docs/ARTIFACTS.md, docs/DEVELOPMENT.md and docs/PERFORMANCE.md before changing their contracts. README is Persian; developer docs are English.
+Read docs/ARCHITECTURE.md, docs/ARTIFACTS.md, docs/DEVELOPMENT.md and docs/PERFORMANCE.md before changing their contracts. README, docs/USER-GUIDE.md and docs/TERMINAL-UI.md are Persian; developer references are English. The HTML UX prototype is a design reference; the shipped interface runs inside SSH with numbered choices. Keep screenshots/previews faithful to the Bash release.
 
 ## Rules
 

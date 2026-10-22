@@ -1,11 +1,11 @@
-# Architecture — v1.2.0
+# Architecture — v1.2.1
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
 | Module | Responsibility |
 | --- | --- |
 | core | Bounded validators, endpoints, paths, privileges, flock |
-| ui | Palettes, preferences, English/Finglish/Farsi help |
+| ui | Responsive terminal panels, palettes, Guided/Compact preferences, English/Finglish/Farsi help |
 | haproxy | Validated TCP options, rendering, local stats, worker readiness and settings UI |
 | state | TSV records, conflicts, snapshots, apply/recovery |
 | firewall | Owned iptables chains and native nftables table |
@@ -18,6 +18,12 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
 | menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
 | legacy | Compatible GRE, Simple GRE, performance and old utilities |
+
+## Navigation
+
+The main menu has seven named sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing and Settings & Tools. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. Legacy numbers 1–14 remain in Settings & Tools → Old menu and `--legacy`.
+
+Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Guided shows short option descriptions; Compact hides them. Preferences remain data, including the optional layout key; older preference files still load.
 
 ## State
 

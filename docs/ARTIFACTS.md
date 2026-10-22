@@ -5,7 +5,7 @@
 | Path | Owner / lifecycle |
 | --- | --- |
 | `/etc/gre-manager/connections.tsv` | Validated v1/v2 connection records; atomic replacement |
-| `/etc/gre-manager/preferences.tsv` | Theme, accent and guide language; data-only parser |
+| `/etc/gre-manager/preferences.tsv` | Theme, accent, guide language and Guided/Compact layout; data-only parser |
 | `/etc/gre-manager/manager.lock` | Exclusive mutation lock |
 | `/etc/gre-manager/id-counter` | Monotonic connection ID allocation, retained across deletion/restore |
 | `/etc/gre-manager/backups/*.tsv` | Forwarding restore points; sensitive topology data |

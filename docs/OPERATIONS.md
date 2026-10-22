@@ -34,7 +34,7 @@ The complete operation is not atomic across kernel tables and systemd. Optional 
 
 ## Restore or investigate a failure
 
-Use **Traffic connections → Restore point**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
+Use **Settings & Tools → Backup / restore**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
 
 ```bash
 sudo journalctl -u gre-manager-forwarding.service -n 100 --no-pager
@@ -50,7 +50,7 @@ For nftables, inspect the host's other base chains: an ACCEPT in the manager tab
 
 ## Rathole reverse connections
 
-Choose **Reverse connections → rathole**. On the public entrance choose **Set up entrance**; on the private/destination host choose **Set up destination**. Match the instance name, service protocol, control TCP port and token. The generated service names append `_tcp`/`_udp`, so select the same protocol set on both peers. Copy the entrance's displayed Noise public key over a trusted channel. The private key stays in its mode-600 server config. Do not copy private keys, tokens or entire configs into public logs.
+Choose **Reverse Tunnel → rathole**. On the public entrance choose **Set up entrance**; on the private/destination host choose **Set up destination**. Match the instance name, service protocol, control TCP port and token. The generated service names append `_tcp`/`_udp`, so select the same protocol set on both peers. Copy the entrance's displayed Noise public key over a trusted channel. The private key stays in its mode-600 server config. Do not copy private keys, tokens or entire configs into public logs.
 
 The entrance binds a control TCP listener and public TCP/UDP service port(s) to the selected local IP. Allow them explicitly in host/provider firewalls. UDP service traffic also travels through Noise over TCP; this preset has no QUIC or UDP underlay. One destination per instance; use FRP destination groups or HAProxy for the relevant load-balancing scenario.
 
