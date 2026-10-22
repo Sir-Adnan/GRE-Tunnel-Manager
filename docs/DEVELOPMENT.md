@@ -1,65 +1,45 @@
-# Development Guide
+# Development
 
-## Golden rules
+Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.sh`. The build is deterministic and uses Python stdlib. Runtime is Bash, without Python/jq dependencies.
 
-1. `gre-stable.sh` is FROZEN (v13.6, unkeyed tunnels). Never edit it. Its REPO_URL deliberately points to gre-stable.sh so its users never get silently upgraded into incompatibility.
-2. **Zero-footprint rule**: no new daemons/timers/background processes, ever. Kernel-side tuning (sysctl, iptables, /sys) and read-on-demand screens only. Features that need a resident process go in as clearly-labeled opt-ins after explicit owner approval — default OFF.
-3. **Compatibility contract** (both peers may run different script releases):
-   - keyed tunnels (`key $TID`), inner `10.0.TID.0/30` + `fd00:TID::/64`, TID 1-250;
-   - MTU default 1430 (prompt may allow higher, Enter must yield 1430);
-   - unit names `gre-tun-$TID` / `gre-keepalive-$TID`, interfaces `gre$TID` / `gre-out-$TID`.
-   Changing any of these breaks live deployments mid-upgrade.
-4. Menu numbers are stable; append only (next free: 15).
+## Contracts
 
-## Bash conventions
+- Keep `gre-stable.sh` unchanged; preserve legacy numbers and GRE wire defaults.
+- No resident manager. Optional relay services are explicit user choices.
+- Use data records, arrays, printf, read -r, bounded numeric conversion and explicit error handling. Never source user config or eval rule strings.
+- Operate only on owned chains/table/services, not host firewall state.
+- Cross-module results: R_* validated record, EP_* endpoint, P_* FRP config.
+- Keep LF endings. Source modules are bundled, not downloaded at runtime.
+- Farsi help is separate from ASCII technical values. Never reverse strings or assume terminal shaping support.
 
-- `read -r` always; pause prompts included.
-- Numeric menu index? Validate `[[ "$idx" =~ ^[0-9]+$ ]]` BEFORE `${arr[$idx]}` — bash arithmetic-evaluates subscripts, so garbage input becomes index 0 (historically deleted the first tunnel).
-- No `eval` on user/file content. Stored iptables lines are executed by plain word-splitting: `$cmd 2>/dev/null` (metachars stay literal args).
-- Validators: `validate_ipv4` (octet-checked), `validate_ipv6` (route-based), `validate_port`. Use them; don't inline regexes.
-- awk must run on mawk (Debian default): no `{n,m}` intervals — write `[1-9][0-9]?[0-9]?`.
-- `%` literals: fine in `echo`, must be `%%` only inside `printf` format strings.
-- Heredocs: `<<'EOF'` (quoted) for static generated scripts; unquoted `<<EOF` only when variable expansion is intended. Every generated script should end `exit 0` if intermediate commands may legitimately fail.
-- Colors/UI: reuse the palette constants and `print_guide_box`; submenus follow the realm/perf pattern (clear + ascii title + numbered options + `read -r`).
-
-## Testing
-
-No CI yet (candidate: GitHub Action running shellcheck + bash -n).
-
-Local (any OS with bash):
+## Checks
 
 ```bash
-tr -d '\r' < gre.sh > /tmp/t.sh && bash -n /tmp/t.sh           # main syntax
-# extract each generated-script heredoc and bash -n it too, e.g.:
-sed -n "/cat <<'EOF' > \"\$GRE_FW_SCRIPT\"/,/^EOF$/p" /tmp/t.sh | sed '1d;$d' | bash -n
+python3 tools/build.py --check
+python3 -m unittest discover -s tests -v
+shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,tuning,cleanup,menus}.sh
+bash gre.sh --preview home --language finglish --theme plain
+sudo bash tests/linux_namespace.sh
 ```
 
-Real-server checklist (pair of Debian/Ubuntu VPSes):
+SC2034 is excluded in per-module lint because shared public variables appear unused in isolation. Existing legacy lint debt is outside this new-module gate.
 
-1. Create tunnel both sides (same TID) → `ping 10.0.TID.<peer>` works.
-2. `systemctl stop gre-tun-$TID` → watchdog must NOT resurrect it; `start` restores.
-3. Reboot one side → tunnel, forwarding, firewall rules all return.
-4. On a ufw-enabled Iran box: menu 9 forward → client connect through it works.
-5. Menu 14 profile: `cat /proc/sys/net/netfilter/nf_conntrack_max` shows tier value; `cat /sys/class/net/gre*/queues/rx-0/rps_cpus` non-zero on multi-core.
-6. Delete flows (3, 8, 11, 12) leave no dangling units: `systemctl list-units 'gre-*'`.
+Linux namespace tests need network namespace capabilities, ip, nft, nsenter and Python 3. Optional installed engines are exercised; tests never install/download them. WSS testing needs openssl and HAProxy. CI installs nftables, iptables, HAProxy, socat and ShellCheck.
 
-## Release checklist
+Tests create a private parent network namespace and two child namespaces with veth pairs and an echo backend. They check IPv4/IPv6 nft syntax, repeat apply, deletion, actual TCP/UDP NAT request/reply, preflight rejection preserving live rules/traffic, a real keyed GRE path (MTU 1430, 128 KiB TCP and 1200-byte UDP), and available relay engines. GRE kernel support is required. Host networking is untouched; temporary processes are stopped on exit.
 
-1. Bump version in BOTH: header comment + `draw_logo()`.
-2. `bash -n` (via `tr -d '\r'`) + heredoc extraction checks.
-3. Update `docs/CHANGELOG.md`; update README (Persian) if user-visible.
-4. Commit; keep gre-stable.sh untouched in the diff.
+GRE tests capture real outgoing SYN options with an AF_PACKET socket, checking the 1390 route MSS and preservation of a peer's smaller 1200 MSS. An installed rathole 0.5.0 enables Noise TCP/UDP packet tests plus wrong-server-key rejection. Tests do not download it; CI can skip optional absent engines. Before changing a component pin, inspect tagged upstream config/CLI contracts and verify the actual release archive. Do not use a short `--version` assumption: official rathole 0.5.0 prints a multiline build report.
 
-## Known pitfalls (learned the hard way)
+HAProxy tests query real restricted sockets, reload a master while keeping a TCP session open and verify both old-session traffic and new connections. A real destination decodes PROXY v1/v2 and verifies the client's source metadata. The namespace suite also removes duplicate legacy rules and a peer-matched Simple GRE interface while checking unrelated rules survive. Service operations in cleanup tests are stubbed; actual systemd boot/reload ordering still needs target-host rollout tests. Unit tests mock sysctl files, test partial apply recovery, drift preservation, unknown legacy refusal and failed deletion retaining persistence; they never change host sysctls.
 
-| Pitfall | Detail |
-| --- | --- |
-| Array subscript injection | unvalidated `read idx` + `${arr[$idx]}` → index 0 selected; worst case arbitrary arithmetic evaluation |
-| CRLF | Windows worktree shows CRLF; repo is LF. `bash -n` directly on worktree can false-fail; committed content must stay LF |
-| `list-units` for existence | misses unloaded units — check the unit FILE path instead |
-| `type gre` link filter | ip6gre is a different netlink type; kernel fallback `gre0` also exists — match interfaces by name |
-| ufw/docker FORWARD DROP | DNAT silently dies without explicit FORWARD accepts + ESTABLISHED rule |
-| conntrack sysctls at boot | `net.netfilter.*` keys fail unless nf_conntrack is loaded first → modules-load.d file |
-| apt package names | tool `ip` ⇒ package `iproute2`; `awk` ⇒ `gawk` |
-| Replaying `-A` rule files | re-running an append-only rules file duplicates rules — delete old live rules first (see edit_advanced_rules) |
-| MASQUERADE ceiling | ~64k concurrent per (dest IP, dest port); document multi-port workaround, don't "fix" silently |
+## Rollout requirements
+
+Still test two-server reboot persistence, systemd sandbox permissions, UFW/Docker policies, provider GRE/UDP filtering, IPv6 RA/routing, asymmetric return paths, MTU/large packets, certificates, multiple destinations and failure/recovery with sessions. Benchmark throughput, packets/s, connections/s, latency/jitter and RAM/CPU on real workloads before capacity claims.
+
+## Release
+
+Update Persian README, affected docs and changelog. Bump `GTM_VERSION` in `src/core.sh`; the build header and legacy logo derive from it. Rebuild and check. Confirm `git diff -- gre-stable.sh` is empty. Do not advertise unimplemented WireGuard link provisioning, GRE-over-UDP, hostname targets or HTTP CONNECT tcpmux.
+
+## Version policy
+
+The modular manager starts at v1.0.1. Use MAJOR.MINOR.PATCH: patch for compatible fixes, minor for compatible features, major for breaking changes. Historical v13.x releases keep their original numbers. State schema version is independent of manager version.

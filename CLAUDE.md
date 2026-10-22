@@ -1,50 +1,32 @@
-# CLAUDE.md
+# Project conventions
 
-## Project
+GRE / Traffic Manager v1 is a modular Bash TUI for server links, kernel forwarding, optional relays and reverse connections. Technical labels stay ASCII; guides support English, Finglish and native Farsi with a terminal readability test.
 
-`gre.sh` — interactive Bash TUI (root, Debian/Ubuntu + systemd) that builds GRE/ip6gre tunnels between Iran and foreign VPSes, manages iptables port forwarding, a Realm (Rust) relay, and an opt-in kernel-side High-Load profile for 10k-100k+ concurrent users. UI strings are English; README.md is Persian (user-facing/marketing). Detailed dev docs live in `docs/` — read them on demand instead of re-deriving from source:
+Cross-agent instructions are in `AGENTS.md`. Keep both references consistent; `docs/HAPROXY.md` and `docs/TUNING-CLEANUP.md` describe the extended adapter/legacy contracts.
 
-- `docs/ARCHITECTURE.md` — section map, function inventory, addressing/naming scheme
-- `docs/ARTIFACTS.md` — every file/service/iptables rule created on target servers
-- `docs/DEVELOPMENT.md` — workflow, testing, release checklist, known pitfalls
-- `docs/PERFORMANCE.md` — High-Load design, sizing math, non-goals
-- `docs/CHANGELOG.md` — version history
+## Source of truth
 
-## Files
+Edit `src/*.sh`. Run `python3 tools/build.py` to regenerate standalone `gre.sh`. Never hand-edit generated output. `gre-stable.sh` is frozen v13.6: never edit/delete/upgrade it silently. Python is a build/test dependency only; runtime is Bash.
 
-| File | Status |
-| --- | --- |
-| `gre.sh` | The ONLY actively developed file (current: v13.9) |
-| `gre-stable.sh` | FROZEN legacy v13.6. Never edit, never "fix", never delete |
-| `README.md` | Persian, customer-facing. Update when features change |
-| `CLAUDE.md`, `docs/` | English, dev-facing |
+Read docs/ARCHITECTURE.md, docs/ARTIFACTS.md, docs/DEVELOPMENT.md and docs/PERFORMANCE.md before changing their contracts. README is Persian; developer docs are English.
 
-## Hard rules
+## Rules
 
-1. **Zero-footprint**: the manager must add NO daemons, timers, cron jobs, or background processes. All tuning is kernel-side (sysctl, iptables, /sys). Only allowed persistent processes: the per-tunnel watchdog bash loops (~2 MB each). New features that would need a resident process must be rejected or made read-on-demand.
-2. **Wire compatibility**: tunnels use `key $TID`; inner addressing is `10.0.TID.0/30` + `fd00:TID::/64`; MTU default 1430; TID range 1-250. Never change these defaults — they must match peers built by older v13.7+ installs. New knobs must default to the old behavior (see the MTU prompt: Enter = 1430).
-3. `gre-stable.sh` stays untouched (its REPO_URL intentionally points to gre-stable.sh).
-4. Menu numbers 1-14 are a UX contract — never renumber, only append.
-5. **Bash safety**:
-   - every `read` uses `-r`;
-   - validate menu indexes with `^[0-9]+$` BEFORE any array lookup (unvalidated subscripts arithmetic-evaluate to 0 → selects/deletes first item);
-   - never `eval` user or file content — stored iptables rules are executed via plain word-splitting (`$cmd 2>/dev/null`);
-   - awk must be mawk-safe: no `{n,m}` regex intervals (use `[0-9]?[0-9]?`);
-   - `%` only in printf, never `%%` in echo;
-   - heredocs: quote the delimiter (`<<'EOF'`) for static generated scripts, unquoted only when expansion is intended.
-6. **Line endings**: repo stores LF; Windows worktree may show CRLF. Never introduce CRLF into committed content. Test with `tr -d '\r' < gre.sh | bash -n` (plain `bash -n` on the worktree file can false-fail).
+1. No resident manager, timer, cron or metrics process. Kernel forwarding uses a oneshot boot runner. The user explicitly selects optional Realm/HAProxy/FRP/rathole services; WSS uses an additional HAProxy TLS gateway. Per-GRE watchdogs remain allowed.
+2. Preserve v13.7+ GRE key, addressing, IDs 1–250, MTU 1430, interface names and unit names. Side A/B correspond to old kharej/iran roles irrespective of country.
+3. Keep numbers 1–14 in the legacy menu. Modern navigation is separate; legacy 15 returns to it.
+4. Configuration is data, never sourced/evaluated. Validate all fields before rendering. Use arrays for commands, read -r, printf, bounded decimal math and explicit result checks. Never use eval.
+5. Change only owned firewall chains/table/services. Never flush the host ruleset or conntrack. Unknown/manual legacy lines stay. Repeated apply must not duplicate rules.
+6. Use flock for mutations, reload state under lock, snapshot before apply and report recovery failure. Do not describe a multi-resource apply as globally atomic.
+7. Native Persian is opt-in help only, in separate paragraphs from addresses/commands. Do not reverse strings or promise universal terminal shaping.
+8. Preserve LF via .gitattributes. Build deterministically and update docs/changelog for behavior changes.
+9. No universal user-count, CPU/RAM, speed or latency promises. Kernel distribution does not imply health checking. HAProxy adapter is TCP only. TCP Mux is FRP stream mux, not HTTP CONNECT tcpmux.
 
-## Versioning
+## Checks
 
-Bump the version in BOTH spots: header comment block AND `draw_logo()`. Add a `docs/CHANGELOG.md` entry and update README's version table.
+- python3 tools/build.py --check
+- python3 -m unittest discover -s tests -v
+- shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,tuning,cleanup,menus}.sh
+- sudo bash tests/linux_namespace.sh
 
-## Testing (no CI yet)
-
-- Syntax: `tr -d '\r' < gre.sh > /tmp/t.sh && bash -n /tmp/t.sh`
-- Also `bash -n` every embedded generated script (extract heredoc bodies).
-- Pure-bash logic (validators, regex, math) is testable locally in bash.
-- systemd/iptables/GRE behavior needs a real Debian VPS pair — checklist in `docs/DEVELOPMENT.md`.
-
-## Layout of gre.sh (top to bottom)
-
-CONSTANTS → root check → UTILITIES (install_deps, setup_shortcut, get_bind_ip, fix_firewall, validators, detect_local_ips, get_active_tunnels) → UI (draw_logo, draw_dashboard, print_guide_box) → CORE GRE (apply_sysctl, setup_tunnel, remove_tunnel, edit_tunnel) → SIMPLE GRE (menu 7/8) → ADVANCED FORWARDING (menu 9-11, FW_SCRIPT) → WIPE (menu 12) → PERFORMANCE module (menu 14, perf_*) → REALM module (menu 13, realm_*) → MAIN LOOP (menu + case).
+Rollout additionally needs two-server reboot/systemd/UFW/Docker/MTU/certificate/real-load checks. Keep old and new listener tuples distinct until explicit migration. Bump GTM_VERSION in src/core.sh; the build header and legacy logo derive from it.

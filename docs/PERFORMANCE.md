@@ -1,50 +1,39 @@
-# Performance & High-Load Design
+# Performance and capacity
 
-Target: 10k-100k+ concurrent users through one Iran relay box, while the manager itself stays at ~0% CPU/RAM. Everything here is kernel-side and opt-in via menu 14.
+The Bash manager configures the control plane; packets run in the kernel or selected relay. Switching manager language does not accelerate packets. No continuous menu probing is used. Optional services have real, nonzero CPU/RAM costs.
 
-## Baseline costs (no profile)
-
-| Component | CPU | RAM |
+| Engine | Scope | Tradeoff |
 | --- | --- | --- |
-| gre.sh menu process | 0 when closed | ~4 MB while open |
-| Watchdog (per tunnel) | ~0% (1 ping fork / 10 s) | ~2 MB |
-| GRE data plane | kernel softirq; no crypto; ~ a few % per 100 Mbit/core | KB-scale |
-| Realm (optional) | epoll-based, efficient | 5-15 MB idle |
+| Routing | L3 forwarding | Requires return-path control |
+| iptables/nftables | Kernel TCP/UDP NAT | conntrack/tuple limits; these presets have no health checks |
+| Realm | TCP/UDP relay | Outgoing sockets, UDP association lifetime, service resources |
+| HAProxy | TCP relay | Checked load balancing; no generic UDP in this adapter |
+| FRP | Reverse connections | Processes on both sides; transport/mux overhead |
+| rathole | Noise reverse TCP/UDP services | Processes on both sides; this preset carries UDP over TCP |
+| WSS | TLS gateway + FRP | Extra HAProxy service and certificate lifecycle |
 
-Intrinsic GRE overhead: 28 B/packet (v4+key) ⇒ ~4-5% throughput at MTU 1430; latency impact ≈ 0.
+iptables and nftables share connection-tracking/NAT infrastructure. Neither is universally fastest. Rule shape, packet size, flow churn, NIC offload, CPU topology and kernel matter. Transactional configuration improves manageability; speed requires measurement.
 
-## The three bottlenecks at scale (and what menu 14 does)
+## NAT capacity
 
-1. **Single-core softirq.** NIC RSS hashes only the OUTER GRE header (fixed src/dst, no ports) ⇒ the whole tunnel lands on one core (~1-3 Gbps ceiling). Fix: **RPS/RFS** — `gre_perf.sh` writes an all-cores mask (capped at 32) to every `gre*` rx queue + `rps_sock_flow_entries=32768`, `rps_flow_cnt=4096`. Inner flows spread across cores. Applied at boot (gre-perf.service) and after each new tunnel creation.
-2. **conntrack table.** Default max (~65k; base install raises to 262144 via FW_SCRIPT) is too small: users × connections easily exceeds it, and full table = dropped new connections. Profile tiers:
-   - HIGH: max 524288, buckets 131072 — worst-case ~180 MB RAM, needs 1 GB+
-   - EXTREME: max 1048576, buckets 262144 — worst-case ~400 MB RAM, needs 2 GB+
-   Entries cost ~320 B and exist ONLY per live connection (RAM grows with real load, not upfront; buckets are ~1-2 MB fixed). `tcp_timeout_established` cut from 5 days to 2 h, `time_wait`/`fin_wait` to 30 s — dead flows leave fast. `hashsize` also written via module param for kernels with read-only buckets sysctl. `modules-load.d` entry guarantees the sysctls apply at boot.
-3. **Per-packet conntrack cost of the carrier.** Outer proto-47 packets don't need tracking (inner traffic still fully tracked for NAT). `raw PREROUTING/OUTPUT -p gre -j NOTRACK` (v4+v6) removes one lookup per packet. Safe because our GRE INPUT accept is stateless.
+SNAT capacity depends on translated tuples for a protocol/source address/final destination. Several entrance ports mapped to the SAME final IP/port do not create independent pools. Actual destination ports/IPs, extra source addresses or routed topology may change capacity. Widening `ip_local_port_range` alone does not expand kernel NAT allocation.
 
-Plus in the profile sysctls: full ephemeral port range (1024-65535), `somaxconn=65535`, `netdev_max_backlog=16384`, `tcp_max_syn_backlog=8192`, `tcp_slow_start_after_idle=0`, `tcp_mtu_probing=1`.
+Connections are not users. Conntrack entry RAM varies with kernel/extensions/accounting. Old fixed estimates and 100k-user statements were not backed by reproducible benchmarks.
 
-## The ~64k NAT ceiling (cannot be sysctl'd away)
+## Explicit global tuning
 
-MASQUERADE/SNAT gives ~64k concurrent connections per (protocol, source IP, dest IP, dest port). One forwarded port to one kharej service caps around 64k concurrent flows. Operational fix, documented in the in-script Scaling Guide: forward 2-4 different ports (menu 9) to the same service and split users between them in the panel — each (dest port) is an independent 64k pool. A code-level fix (multi-IP SNAT pools) would require widening the inner /30 subnet and breaks the compatibility contract — rejected.
+Performance menu 14 now exposes opt-in capacity and local-TCP profiles with a durable before/applied journal. Restore writes the captured baseline only while the current setting still matches what the manager applied; later administrator changes are preserved. No automatic GRE TCP/conntrack/IPv6 tuning, new RPS/NOTRACK helper or guessed default rollback is performed. Historical installs have no trustworthy before-values: retire recognized persistence, retain unknown runtime values and review separately. See [TUNING-CLEANUP.md](TUNING-CLEANUP.md).
 
-## MTU / MSS
+RPS can add inter-processor overhead; all-core masks are not universally optimal. New capacity presets deliberately avoid changing conntrack hash size or shortening existing idle timeouts. Raising a limit is not a RAM allocation forecast or a user-capacity guarantee.
 
-- Default 1430 everywhere (compat). Optional per-tunnel: up to 1472 (gre+key/v4) or 1452 (ip6gre+key).
-- MSS clamp-to-pmtu on FORWARD (base, since v13.8) makes TCP safe even with filtered ICMP or a too-high MTU choice; `tcp_mtu_probing=1` (profile) covers locally-originated flows.
+Host TCP congestion control affects locally terminated connections such as relays, not the remote endpoints' congestion control of forwarded TCP. MSS clamping uses known route MTU, not omniscient discovery of a blackholed underlay PMTU.
 
-## Non-goals (deliberate)
+The native nftables adapter now clamps owned TCP SYN MSS using `rt mtu`, which exposes route MSS to this expression. A packet test verifies MTU 1430 yields MSS 1390 and preserves a smaller peer MSS. Only original-direction owned DNAT flows are matched. UDP has no MSS; large UDP payloads still need a suitable path MTU. See the kernel's [MSS setter](https://github.com/torvalds/linux/blob/master/net/netfilter/nft_exthdr.c) for the no-increase behavior.
 
-- **No metrics/monitoring daemon** — would violate zero-footprint. Status is read on demand from /proc (perf_show_status).
-- **No encrypted backend by default** — per-packet crypto is real CPU at 100k users; GRE stays plain kernel encap. If ever added (e.g. WireGuard), it must be a separate opt-in path, never the default.
-- **No systemd-timer watchdogs** — the sleeping bash loop is cheaper than periodic unit activation.
+Rathole's [upstream benchmark](https://github.com/rathole-org/rathole/blob/main/docs/benchmark.md) is not a capacity promise for an Internet path. Its Noise transport runs over TCP here; UDP datagrams inherit TCP ordering/retransmission delays under loss. Compare against native UDP/GRE and FRP QUIC on the actual route before choosing a transport.
 
-## Verification commands (on server)
+## Measurements
 
-```bash
-cat /proc/sys/net/netfilter/nf_conntrack_count   # live connections
-cat /proc/sys/net/netfilter/nf_conntrack_max     # tier value if profile active
-cat /sys/class/net/gre*/queues/rx-0/rps_cpus     # non-zero mask = RPS on
-iptables -t raw -S | grep NOTRACK                # NOTRACK present
-sysctl net.ipv4.tcp_congestion_control           # bbr
-```
+Record hardware/kernel/backend versions, topology, MTU, RTT/loss, packet sizes, flow count/churn, offload state, p50/p95/p99 latency/jitter, throughput, packets/s, softirq, drops, conntrack, memory and service CPU. Test updates under traffic and target failure/recovery. Avoid zero-cost or universal performance claims.
+
+HAProxy per-connection settings avoid requiring global tuning for every relay. Maxconn/per-target caps, queue waits, health frequency, logs and idle timeout each have resource/behavior tradeoffs. Errors-only logging can reduce journal volume; longer idle timeouts retain idle sessions longer. Worker reloads allow old sessions to drain but can temporarily keep old workers/RAM alive. See [HAPROXY.md](HAPROXY.md) for limits and restart cases.
