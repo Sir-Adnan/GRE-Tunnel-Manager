@@ -1,5 +1,7 @@
 # Server Artifacts
 
+Header server information is cached only in process memory. It creates no files or background tasks. Interactive sessions may make one bounded HTTPS public-IP/provider lookup; Tools → Refresh Server Info explicitly refreshes it. Preview/demo and noninteractive output do not make this request. See [TERMINAL-UI.md](TERMINAL-UI.md).
+
 ## v1 managed resources
 
 | Path | Owner / lifecycle |

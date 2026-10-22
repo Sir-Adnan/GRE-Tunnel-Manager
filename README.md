@@ -6,7 +6,7 @@
 
 GRE · iptables · nftables · HAProxy · Realm · FRP · rathole
 
-[![Release](https://img.shields.io/badge/release-v1.2.2-0891b2?style=flat-square)](docs/CHANGELOG.md)
+[![Release](https://img.shields.io/badge/release-v1.2.3-0891b2?style=flat-square)](docs/CHANGELOG.md)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
 ![Bash](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
 
@@ -45,6 +45,8 @@ Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y cu
 | **7 · Tools** | Server status, backups, cleanup and help |
 
 Each engine has its own menu. Add, show, edit and delete are together; type an option number and press Enter. GRE is optional for direct forwarding.
+
+The header keeps your server's IP addresses, host/OS and network provider in view. Public and local addresses are labeled separately; provider information is approximate and falls back gracefully when offline. Refresh it in **Tools → Refresh Server Info**. See the [header guide](docs/TERMINAL-UI.md#اطلاعات-سرور-در-هدر) to disable the optional online lookup.
 
 ## Your first HAProxy tunnel
 

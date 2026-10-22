@@ -231,7 +231,11 @@ gtm_engine_service() {
 gtm_gre_create() {
     local role=$1 result
     gtm_prepare && gtm_lock || return
-    if install_deps; then detect_local_ips; setup_tunnel "$role"; result=$?; else result=1; fi
+    if install_deps; then
+        detect_local_ips
+        gtm_header "GRE Tunnel / ${role^} server"
+        setup_tunnel "$role"; result=$?
+    else result=1; fi
     gtm_unlock
     return "$result"
 }
@@ -254,7 +258,7 @@ gtm_links_menu() {
             3) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'gre-out-10 / GRE / 10.0.10.2 / sample\n'; else ip -d link show type gre; ip -d link show type ip6gre; fi; gtm_pause;;
             4|5|6|7)
                 gtm_prepare && gtm_lock || return
-                case $choice in 4) remove_tunnel;; 5) edit_tunnel;; 6) if install_deps; then setup_simple_gre; fi;; 7) remove_simple_gre;; esac
+                case $choice in 4) remove_tunnel;; 5) edit_tunnel;; 6) if install_deps; then gtm_header 'GRE Tunnel / Simple GRE'; setup_simple_gre; fi;; 7) remove_simple_gre;; esac
                 gtm_unlock;;
             0) return;; *) gtm_error 'Choose one of the shown options.';;
         esac
@@ -371,6 +375,7 @@ gtm_tools_menu() {
         gtm_option 6 Help
         gtm_option 7 'Old Menu' 'Original options 1-14'
         gtm_option 8 'Show Configuration'
+        gtm_option 9 'Refresh Server Info'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -381,6 +386,7 @@ gtm_tools_menu() {
                 gtm_unlock;;
             6) gtm_catalog; gtm_pause;; 7) gtm_legacy_menu;; 0) return;;
             8) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
+            9) GTM_SERVER_INFO_READY=0;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done

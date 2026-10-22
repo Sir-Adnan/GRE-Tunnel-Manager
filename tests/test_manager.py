@@ -138,7 +138,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.2.2')
+        self.assertEqual(result.stdout.strip(),'v1.2.3')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)

@@ -1,10 +1,11 @@
-# Architecture — v1.2.2
+# Architecture — v1.2.3
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
 | Module | Responsibility |
 | --- | --- |
 | core | Bounded validators, endpoints, paths, privileges, flock |
+| server_info | Session-cached host/address metadata and bounded optional public-IP/provider lookup |
 | ui | Fixed ANSI styling, dedicated headers, numbered selectors and input rendering |
 | haproxy | Validated TCP options, rendering, local stats, worker readiness and settings UI |
 | state | TSV records, conflicts, snapshots, apply/recovery |
@@ -25,6 +26,8 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 The main menu has seven sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing and Tools. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. Legacy numbers 1–14 remain in Tools → Old Menu and `--legacy`.
 
 Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Styling is fixed, English-only and foreground-only, respecting NO_COLOR/non-TTY/dumb output. Old preferences are ignored and no preference file is created. Theme/language/layout switches are removed.
+
+Headers show the host/OS, full public/local addresses and network provider/ASN/country. A large ASCII GRE banner is used only at widths of at least 68 columns and heights of at least 34 rows; other windows keep a compact title. Interactive setup steps redraw the header so addresses remain available. Local identity is read without sourcing OS files or sending route probes. One optional HTTPS request to ipwho.is, with a two-second deadline and 8 KiB response limit, supplies the outgoing public address and approximate network attribution. Only validated addresses and sanitized ASCII scalar fields are displayed; metadata never sets a bind or target. It is cached in process memory, including lookup failure, until Tools → Refresh Server Info. `GTM_SERVER_LOOKUP=0` disables the external request. Sourcing, previews, demo, inspection commands and noninteractive output never perform that lookup. No cache file, timer or daemon is created.
 
 Setup collects local ports, remote address and remote port, then shows review. Protocols, transport, balancing and PROXY/log options are numbered. Names are generated; optional details are off the main path. Relays default to an IPv4 wildcard listener; kernel rules require a concrete local address, suggested by a route lookup without transmitting packets. Wildcard relay preflight rejects a target matching a local address on its own listening port.
 

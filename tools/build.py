@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('legacy', 'core', 'ui', 'haproxy', 'state', 'firewall', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'forms', 'tuning', 'cleanup', 'menus')
+MODULES = ('legacy', 'core', 'server_info', 'ui', 'haproxy', 'state', 'firewall', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'forms', 'tuning', 'cleanup', 'menus')
 
 
 def build():

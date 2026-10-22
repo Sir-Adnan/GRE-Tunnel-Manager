@@ -62,13 +62,23 @@ gtm_panel_end() { :; }
 
 gtm_header() {
     local title=$1 brand='GRE TUNNEL MANAGER'
+    GTM_PAGE_TITLE=$title
     gtm_terminal_size
     if [[ -t 0 && -t 1 && -n $GTM_RESET ]]; then printf '\033[H\033[2J'; fi
     case $title in HAProxy*|HAPROXY*) brand='H A P R O X Y';; Realm*|REALM*) brand='R E A L M';; FRP*) brand='F R P';; rathole*) brand='R A T H O L E';; esac
     printf '\n'
     gtm_panel_rule
-    gtm_panel_text "$brand" "$HI_CYAN$BOLD"
-    gtm_panel_text "Tunnel Manager v$GTM_VERSION" "$HI_PINK"
+    if ((GTM_UI_WIDTH>=64 && GTM_UI_ROWS>=34)); then
+        gtm_panel_text '  ___  ___  ___' "$HI_CYAN$BOLD"
+        gtm_panel_text ' / __|| _ \| __|   T U N N E L   M A N A G E R' "$HI_CYAN$BOLD"
+        gtm_panel_text '| (_ ||   /| _|' "$HI_CYAN$BOLD"
+        gtm_panel_text " \___||_|_\\|___|   v$GTM_VERSION" "$HI_CYAN$BOLD"
+        [[ $brand == 'GRE TUNNEL MANAGER' ]] || gtm_panel_text "$brand" "$HI_PINK$BOLD"
+    else
+        gtm_panel_text "$brand" "$HI_CYAN$BOLD"
+        gtm_panel_text "Tunnel Manager v$GTM_VERSION" "$HI_PINK"
+    fi
+    gtm_server_header
     gtm_panel_rule
     gtm_panel_text "$title" "$BOLD$GTM_INK"
     [[ ${GTM_DEMO:-0} != 1 ]] || printf '  DEMO / no server changes\n'
@@ -120,6 +130,9 @@ gtm_choose() {
 }
 
 gtm_step() {
+    # Redisplay the identity and IPs above each interactive setup step. Plain
+    # transcripts keep their original flow, without repeated banners.
+    if [[ -t 0 && -t 1 && $1 != 3 && -n ${GTM_PAGE_TITLE:-} ]]; then gtm_header "$GTM_PAGE_TITLE"; fi
     printf '\n  %bSTEP %s/%s  %s%b\n' "$HI_PINK$BOLD" "$1" "$2" "$3" "$GTM_RESET"
     gtm_panel_rule
 }

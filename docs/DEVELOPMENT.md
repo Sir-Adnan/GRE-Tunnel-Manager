@@ -19,7 +19,7 @@ Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.s
 ```bash
 python3 tools/build.py --check
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,menus}.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,menus}.sh
 bash gre.sh --preview haproxy
 sudo bash tests/linux_namespace.sh
 ```
@@ -35,6 +35,8 @@ GRE tests capture real outgoing SYN options with an AF_PACKET socket, checking t
 HAProxy tests query real restricted sockets, reload a master while keeping a TCP session open and verify both old-session traffic and new connections. A real destination decodes PROXY v1/v2 and verifies the client's source metadata. The namespace suite also removes duplicate legacy rules and a peer-matched Simple GRE interface while checking unrelated rules survive. Service operations in cleanup tests are stubbed; actual systemd boot/reload ordering still needs target-host rollout tests. Unit tests mock sysctl files, test partial apply recovery, drift preservation, unknown legacy refusal and failed deletion retaining persistence; they never change host sysctls.
 
 Form regressions exercise numbered choices, cancellation before any mutation, automatic names, split/combined targets, IPv6, port batches, ID allocation, preserving unrelated engines and edit options, duplicate targets and wildcard self-loop rejection. Namespace tests exercise the new wildcard HAProxy/Realm listeners on loopback and an actual namespace interface; PTY tests exercise real terminal dimensions and color output.
+
+Header regressions cover public/local separation behind NAT, untruncated IPv6, small/large terminal layouts, default-interface selection, invalid or timed-out metadata responses, sanitized external text and memory-only caching. Mock external requests; tests must not geolocate the developer's machine. A real PTY checks the interactive lookup gate, explicit refresh and disabling lookup; previews use documentation-only example addresses.
 
 ## Rollout requirements
 
