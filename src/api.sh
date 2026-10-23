@@ -76,6 +76,7 @@ gtm_api() {
     local operation=${1:-} component
     shift || return 2
     case $operation in
+        pair-check-gre|pair-apply-gre|pair-check-frp|pair-apply-frp|pair-verify|pair-delete) gtm_pair_api "$operation" "$@";;
         state) (($#==0)) && gtm_load_records && { ((${#GTM_RECORDS[@]}==0)) || printf '%s\n' "${GTM_RECORDS[@]}"; };;
         create) (($#==0)) && gtm_api_rows;;
         update|enable|disable|delete) (($#==0)) && gtm_api_change "$operation";;

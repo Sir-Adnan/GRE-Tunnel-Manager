@@ -148,10 +148,11 @@ func agentTLS(id identity) (*tls.Config, error) {
 }
 
 type Agent struct {
-	Path    string
-	Version string
-	Client  control.Client
-	Notify  func(string)
+	Path       string
+	Version    string
+	Client     control.Client
+	Notify     func(string)
+	Operations bool
 }
 
 func CheckIdentity(path string) error {
@@ -185,6 +186,8 @@ func (a Agent) Run(ctx context.Context) error {
 	delay := time.Duration(0)
 	failures := 0
 	lastCode := ""
+	var pending *control.NodeResult
+	nextReport := time.Time{}
 	for {
 		if delay > 0 {
 			timer := time.NewTimer(delay)
@@ -240,10 +243,39 @@ func (a Agent) Run(ctx context.Context) error {
 				continue
 			}
 		}
+		if a.Operations && time.Now().Before(nextReport) {
+			e = a.pollWork(ctx, c, id.URL, &pending)
+			if e != nil {
+				if fatal(e) {
+					return e
+				}
+				code := "work_unavailable"
+				if p, ok := e.(*Problem); ok {
+					code = p.Code
+				}
+				if code != lastCode && a.Notify != nil {
+					a.Notify(code)
+				}
+				lastCode = code
+				delay = backoff(failures)
+				failures++
+			} else {
+				if lastCode != "" && a.Notify != nil {
+					a.Notify("connected")
+				}
+				lastCode = ""
+				delay = 5*time.Second + jitter(time.Second)
+				failures = 0
+			}
+			continue
+		}
 		readCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		raw, readErr := a.Client.Do(readCtx, control.Request{Action: "inventory"})
 		cancel()
 		r := Report{Protocol: Protocol, Version: a.Version, Capabilities: capabilities}
+		if a.Operations {
+			r.Capabilities = []string{"inventory.read", control.NodeOperationCapability}
+		}
 		if readErr != nil || len(raw) > MaxInventory {
 			r.Failure = &Problem{"inventory_unavailable", "Local inventory could not be read"}
 		} else {
@@ -255,7 +287,11 @@ func (a Agent) Run(ctx context.Context) error {
 			Interval     int      `json:"interval_seconds"`
 		}
 		e = post(ctx, c, id.URL+"/v1/report", r, &ack)
-		if e == nil && (ack.Protocol != Protocol || len(ack.Capabilities) != 1 || ack.Capabilities[0] != "inventory.read") {
+		matched := len(ack.Capabilities) == 1 && ack.Capabilities[0] == "inventory.read"
+		if a.Operations {
+			matched = hasOperations(ack.Capabilities)
+		}
+		if e == nil && (ack.Protocol != Protocol || !matched) {
 			e = problem("incompatible_protocol", "Controller protocol is incompatible")
 		}
 		if e != nil {
@@ -280,6 +316,10 @@ func (a Agent) Run(ctx context.Context) error {
 		lastCode = ""
 		failures = 0
 		delay = 60*time.Second + jitter(10*time.Second)
+		if a.Operations {
+			nextReport = time.Now().Add(delay)
+			delay = 0
+		}
 	}
 }
 func fatal(e error) bool {

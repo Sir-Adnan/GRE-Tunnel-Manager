@@ -1,8 +1,10 @@
 # Nodes and Agents
 
-Phase 3 adds **optional, read-only inventory** across servers. It does not create, edit or delete tunnels remotely. Existing tunnel pages still operate on the panel host. Coordinated GRE/reverse operations belong to Phase 4.
+Agents provide **optional read-only inventory** by default. Phase 4 adds a separately enabled, leased GRE/FRP paired-create workflow in **Nodes → Connect two servers**. Existing tunnel pages still operate on the panel host. See [Paired connections](PAIRED-CONNECTIONS.md) before enabling writes.
 
 ## Choose a topology
+
+Agents initiate outbound **HTTPS requests carrying JSON** to the dedicated Controller listener, a REST-style control API rather than gRPC or WebSocket. The normal browser HTTP/HTTPS choice is independent. Enrollment uses a hidden one-time code, then each request uses mutual TLS. Installation is one command followed by pasting that code; it is intentionally not embedded in process arguments or shell history. Once enrolled, reconnection and leaf-certificate renewal are automatic. Engines and data-plane ports still need initial local preparation; Agent enrollment alone does not install or fully administer every engine remotely.
 
 | Deployment | What to install |
 | --- | --- |
@@ -11,7 +13,7 @@ Phase 3 adds **optional, read-only inventory** across servers. It does not creat
 | Separate management server | Panel/Controller there; Agents on entrances and destinations. |
 | Several entrances and exits | One Controller and one Agent per other managed server. Each has an independent identity. |
 
-No third server is required. Agent availability is separate from tunnel availability. Stopping the panel, Agent or read-only broker does not stop existing tunnels.
+No third server is required. Agent availability is separate from tunnel availability. Stopping the panel or Agent does not stop confirmed tunnels. Unconfirmed paired creates expire independently in the root broker; keep that recovery service running.
 
 ## Release availability
 
@@ -64,7 +66,7 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
    ```
 
 4. Paste the code at the **hidden terminal prompt**. Do not put it in a URL, environment variable, command argument, issue or log. The Agent pins the Controller CA from this invitation before sending the secret. It generates its private key locally, submits a signed P-256 CSR and stores its issued identity privately.
-5. Refresh Nodes after the first report. Reports normally arrive every 60–70 seconds. The browser does not poll this page in the background.
+5. Refresh Nodes after the first report. Reports normally arrive every 60–70 seconds. Inventory is refreshed manually. Only active paired jobs use temporary browser polling.
 
 The normal published-package command above is the intended release flow; it currently rejects the old v1.3.0 archive with an explicit message. It does not silently install an unsupported Agent.
 
@@ -106,22 +108,23 @@ journalctl -u gre-manager-agent -n 30 --no-pager
 systemctl status gre-manager-panel
 ```
 
-Check the dedicated control port, DNS, system clock and the read-only broker socket. No commands or secrets are accepted from the Controller. Local inventory can fail when managed state is invalid; repair it locally rather than treating it as an empty inventory.
+Check the dedicated control port, DNS, system clock and the read-only broker socket. Read-only installations reject every task. Explicitly enabled operations accept only typed GRE/FRP tasks and private generated FRP tokens, never shell commands or arbitrary files. Local inventory can fail when managed state is invalid; repair it locally rather than treating it as an empty inventory.
 
 Back up `controller.json` and each `identity.json` privately. Controller state contains its signing key; losing it requires re-enrollment, while restoring an old backup can restore older authorization state. Use one running Controller per state directory; a process-held file lock rejects concurrent use. Agent identities also have a process-held lock. Do not share state over network filesystems or run replicas. State writes use private temporary files, sync and rename; this is not a distributed transaction or a guarantee against every storage failure.
 
 ## Wire contract
 
-Application SemVer and Node protocol are independent. Version 1 negotiates exactly `inventory.read`; unknown protocol/capability combinations fail with a structured `{code, message}` problem. There is no remote write message type. Future additions must explicitly extend/version the contract, not tunnel commands through inventory fields.
+Application SemVer and Node protocol are independent. Protocol 1 retains `inventory.read` and optionally adds `connections.pair.v1` after explicit Agent installation with `--operations`. Unknown combinations fail with a structured `{code, message}` problem. Older read-only Agents remain compatible; older Controllers reject the new capability. `gtm-panel nodes operations-version` prints `1` for matching paired-operation binaries. Do not tunnel commands through inventory fields.
 
 | Endpoint on dedicated TLS listener | Authentication | Purpose |
 | --- | --- | --- |
 | `POST /v1/enroll` | Short-lived one-time secret, server CA pin | Validate CSR, allocate stable random node ID and certificate |
 | `POST /v1/report` | mTLS plus active node ID/certificate serial | Validate bounded report; retain canonical known-schema inventory |
 | `POST /v1/rotate` | Same active identity | Issue replacement certificate with bounded overlap |
+| `POST /v1/work` | Active mTLS identity advertising `connections.pair.v1` | Acknowledge a bounded result and pull one typed task |
 
 Enrollment CSRs cannot choose their identity, SANs, usage or lifetime. The Controller assigns them. Redirects are refused. All Agent requests have a 20-second deadline; local inventory has a 15-second deadline. `protocol`, application `version`, closed `capabilities`, and either `inventory` or a fixed sanitized read failure form the report. Controller receipt/observation times are authoritative; Agent-supplied clocks are not used for freshness. Inventory revision is a SHA-256 digest; enrollment metadata uses a separate optimistic revision for revocation.
 
 Browser APIs (`GET /api/nodes`, `POST /api/nodes/invitations`, `POST /api/nodes/revoke`) require normal administrator sessions; writes also require same-origin and CSRF checks. No invitation is returned by list calls. With browser HTTP, codes traverse that unencrypted browser connection; use a trusted private path or HTTPS when handling them. Neither the current write broker nor its socket is exposed on the control listener.
 
-Phase 4 must introduce separately authorized typed jobs with expiry, idempotency, revision checks and partial recovery before enabling any remote mutation. Do not bypass this boundary with a generic SSH, shell, file editor or executable configuration endpoint.
+Phase 4 implements separately authorized typed jobs, expiry, bounded idempotency retention, revision checks and partial recovery. See [Paired connections](PAIRED-CONNECTIONS.md) for the precise scope. Generic SSH, shell, file editors and executable configuration endpoints remain prohibited.

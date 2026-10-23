@@ -20,6 +20,7 @@ import (
 type Broker struct {
 	Manager  *Manager
 	ReadOnly bool
+	Nodes    *NodeExecutor
 	mu       sync.Mutex
 }
 type Reply struct {
@@ -45,7 +46,7 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "one request required", 400)
 		return
 	}
-	if b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" {
+	if (request.Action == "node-task" && (b.Nodes == nil || request.NodeTask == nil)) || (b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" && request.Action != "node-task") {
 		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}
@@ -59,8 +60,18 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		operationContext, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 	}
-	result, e := b.Manager.Execute(operationContext, request)
-	if auditError := audit(request, e); auditError != nil {
+	var result any
+	var e error
+	if request.Action == "node-task" {
+		result, e = b.Nodes.Execute(operationContext, *request.NodeTask)
+	} else {
+		result, e = b.Manager.Execute(operationContext, request)
+	}
+	auditedError := e
+	if r, ok := result.(NodeResult); ok && oneOf(r.State, "failed", "unknown") {
+		auditedError = errors.New("node task incomplete")
+	}
+	if auditError := audit(request, auditedError); auditError != nil {
 		log.Printf("panel audit write failed: %v", auditError)
 	}
 	reply := Reply{}
@@ -73,6 +84,19 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(reply)
 }
 func (b *Broker) Listen(ctx context.Context, socket string) error {
+	if b.Nodes != nil {
+		if e := os.MkdirAll(b.Nodes.Directory, 0700); e != nil {
+			return e
+		}
+		lease, e := nodeLease(filepath.Join(b.Nodes.Directory, "broker.lock"))
+		if e != nil {
+			return e
+		}
+		defer lease.Close()
+		if e = b.Nodes.Recover(ctx); e != nil {
+			return e
+		}
+	}
 	if e := os.MkdirAll(filepath.Dir(socket), 0750); e != nil {
 		return e
 	}
@@ -115,12 +139,38 @@ func (b *Broker) Listen(ctx context.Context, socket string) error {
 	if b.Manager.Metrics != nil {
 		go b.monitor(ctx, done)
 	}
+	if b.Nodes != nil {
+		go b.monitorNodes(ctx, done)
+	}
 	e = server.Serve(listener)
 	if errors.Is(e, http.ErrServerClosed) {
 		<-shutdownDone
 		return nil
 	}
 	return e
+}
+func (b *Broker) monitorNodes(ctx context.Context, done <-chan struct{}) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	failed := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case <-t.C:
+			b.mu.Lock()
+			c, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			e := b.Nodes.Recover(c)
+			cancel()
+			b.mu.Unlock()
+			if e != nil && !failed {
+				log.Print("node lease recovery failed; inspect the private broker journal")
+			}
+			failed = e != nil
+		}
+	}
 }
 func (b *Broker) monitor(ctx context.Context, done <-chan struct{}) {
 	// No inventory scans, subprocesses or metrics writes while disabled.

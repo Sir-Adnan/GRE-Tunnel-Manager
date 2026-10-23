@@ -34,6 +34,17 @@ func TestNodesLocalOptionalAndProtectedEnrollment(t *testing.T) {
 	}
 	defer h.Close()
 	s.Nodes = h
+	for _, path := range []string{"/api/nodes/pairs", "/api/nodes/pairs/decision"} {
+		if w = request(s, path, `{}`, "http://panel.local", "", cookie); w.Code != 403 {
+			t.Fatal("pair write without CSRF accepted")
+		}
+		if w = request(s, path, `{}`, "http://evil.local", login.Session.CSRF, cookie); w.Code != 403 {
+			t.Fatal("foreign pair write accepted")
+		}
+	}
+	if w = request(s, "/api/nodes/pairs", "", "", "", cookie); w.Code != 200 || w.Body.String() != "[]\n" {
+		t.Fatal("unexpected initial pair list", w.Body.String())
+	}
 	if w = request(s, "/api/nodes/invitations", `{"name":"Test"}`, "http://panel.local", "", cookie); w.Code != 403 {
 		t.Fatal("missing CSRF accepted")
 	}

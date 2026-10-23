@@ -34,6 +34,7 @@ import { ActionButton, HelpTip } from "@/components/help";
 
 import type { Node, Listing, Invitation } from "./types";
 import { NodeCard } from "./NodeCard";
+import { PairedConnections } from "./PairedConnections";
 
 export function Nodes() {
   const t = useT();
@@ -171,6 +172,7 @@ export function Nodes() {
           />
         ))}
       </div>
+      {list?.enabled && <PairedConnections nodes={list.nodes} />}
       <Dialog
         open={adding}
         onOpenChange={(open) => !open && !busy && closeAdd()}
@@ -362,6 +364,7 @@ export function Nodes() {
               ["localNode", "localGuide"],
               ["controllerRole", "controllerGuide"],
               ["remoteNode", "agentGuide"],
+              ["nodeTransportTitle", "nodeTransportGuide"],
               ["connectionRecovery", "nodeRecoveryGuide"],
             ].map(([title, body]) => (
               <section key={title} className="flex flex-col gap-1">

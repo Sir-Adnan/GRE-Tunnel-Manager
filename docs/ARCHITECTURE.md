@@ -19,7 +19,7 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | forms | Read-only staged setup, port lists, remote endpoints, optional details and batch save |
 | tuning | Explicit global sysctl profiles, before/applied journal, drift-aware restore |
 | cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
-| links / reverse_api / api | Noninteractive owned-resource operations shared with the Go panel |
+| links / reverse_api / pair_api / api | Noninteractive owned-resource operations shared with the Go panel |
 | panel | Optional panel lifecycle and engine preinstallation menus |
 | menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
 | legacy | Compatible GRE, Simple GRE, performance and old utilities |
@@ -79,6 +79,8 @@ Legacy 10 is now read-only script inspection, 12 is scoped cleanup, and 14 is ex
 
 Panel installation is independent of runtime control. `panel/internal/setup` owns the quick/custom terminal flow and one-time bounded IP discovery; `panel/internal/config` validates addresses, protocols and passwords and persists config/certificates. Missing protocol fields preserve older HTTPS installations. The public server selects both its listener and cookie policy from that validated protocol. Origin checks use the actual direct HTTP/TLS connection, never an untrusted forwarded header. No browser transport setting changes tunnel-engine behavior or exposes the broker socket remotely.
 
-## Optional Nodes (Phase 3)
+## Optional Nodes and paired operations
 
-`panel/internal/nodes` owns protocol contracts, private PKI, bounded registry storage, the dedicated TLS-only Controller listener and outbound read-only Agent. `httpapi/nodes.go` exposes authenticated administrator enrollment/revocation and a local/remote inventory list. The normal broker remains local; Agent installations use a distinct inventory/capabilities-only broker with no metrics or write actions. No Node field is added to current operation requests. The frontend lazily loads `features/nodes` and preserves the shared visual/localization system. See [NODES.md](NODES.md) for authentication, limits, artifact ownership and migration boundaries.
+`panel/internal/nodes` owns protocol contracts, private PKI, bounded registry storage, the dedicated TLS-only Controller listener and outbound Agent. `httpapi/nodes.go` exposes authenticated administrator enrollment/revocation and a local/remote inventory list. The normal broker remains local; Agent installations default to an inventory/capabilities-only broker. Explicit `--operations` additionally allows only typed leased-create tasks; it does not expose the general local operation vocabulary. No Node field is added to current operation requests. `nodes/pairs.go` persists Controller plans and advances their two-node state machine. `control/node_task.go` owns root receipts, idempotency and lease recovery; `src/pair_api.sh` compares revisions and resource fingerprints under the shared Bash lock. The frontend lazily loads `features/nodes` and preserves the shared visual/localization system. See [NODES.md](NODES.md) for authentication, limits, artifact ownership and migration boundaries.
+
+Paired operations preflight both Nodes, apply entrance before destination, then require time-limited confirmation. Individual outcomes persist through Controller restarts; missing acknowledgments are redelivered to the broker receipt. Uncertain create outcomes and changed resources require inspection. There is no distributed atomic transaction. See [PAIRED-CONNECTIONS.md](PAIRED-CONNECTIONS.md).

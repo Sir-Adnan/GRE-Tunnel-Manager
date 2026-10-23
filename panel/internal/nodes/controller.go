@@ -74,6 +74,10 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.enroll(w, r)
 		return
 	}
+	if r.URL.Path == "/v1/work" {
+		h.serveWork(w, r)
+		return
+	}
 	if r.URL.Path != "/v1/report" && r.URL.Path != "/v1/rotate" {
 		nodeError(w, 404, problem("not_found", "Unknown node endpoint"))
 		return
@@ -153,7 +157,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		o.observed = &observed
 	}
 	h.cache[id] = o
-	nodeReply(w, 200, map[string]any{"protocol": Protocol, "capabilities": capabilities, "interval_seconds": 60})
+	nodeReply(w, 200, map[string]any{"protocol": Protocol, "capabilities": report.Capabilities, "interval_seconds": 60})
 }
 
 // TLS verifies certificates at handshake time. Recheck their lifetime for every

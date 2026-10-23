@@ -54,6 +54,7 @@ type Hub struct {
 	now    func() time.Time
 	lock   *os.File
 	closed bool
+	pairs  []pair
 }
 type Invitation struct {
 	Code    string    `json:"code"`
@@ -240,6 +241,9 @@ func Open(dir string) (*Hub, error) {
 		return nil, e
 	}
 	if _, e := h.TLSConfig(); e != nil {
+		return nil, e
+	}
+	if e := h.loadPairs(); e != nil {
 		return nil, e
 	}
 	valid = true

@@ -17,6 +17,7 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 			out = s.Nodes.Views()
 		}
 		local := nodes.View{ID: "local", Name: "Controller", Local: true, Status: "degraded", Protocol: nodes.Protocol, Capabilities: []string{"inventory.read"}, Failure: &nodes.Problem{Code: "inventory_unavailable", Message: "Local inventory could not be read"}}
+		if s.Nodes!=nil { local.Capabilities=append(local.Capabilities,control.NodeOperationCapability) }
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 		raw, e := s.Client.Do(ctx, control.Request{Action: "inventory"})
@@ -39,6 +40,42 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Nodes == nil {
 		failure(w, 409, "Remote nodes are optional; configure the Controller to enroll agents")
+		return
+	}
+	if r.URL.Path == "/api/nodes/pairs" {
+		if r.Method == "GET" {
+			reply(w, 200, s.Nodes.Pairs())
+			return
+		}
+		if r.Method == "POST" {
+			var in nodes.PairRequest
+			if !decode(w, r, &in) {
+				return
+			}
+			out, e := s.Nodes.CreatePair(in)
+			if e != nil {
+				failure(w, 409, e.Error())
+				return
+			}
+			reply(w, 202, out)
+			return
+		}
+	}
+	if r.URL.Path == "/api/nodes/pairs/decision" && r.Method == "POST" {
+		var in struct {
+			ID       string `json:"id"`
+			Revision string `json:"revision"`
+			Decision string `json:"decision"`
+		}
+		if !decode(w, r, &in) {
+			return
+		}
+		out, e := s.Nodes.PairDecision(in.ID, in.Revision, in.Decision)
+		if e != nil {
+			failure(w, 409, e.Error())
+			return
+		}
+		reply(w, 200, out)
 		return
 	}
 	if r.URL.Path == "/api/nodes/invitations" && r.Method == "POST" {

@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# Optional Controller or outbound read-only Agent installation. No tunnel writes.
+# Optional Controller or outbound Agent. Writes require explicit --operations.
 set -euo pipefail
 NODE_VERSION=1.3.0
 NODE_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 node_install_main() {
-    local role='' address='' listen='0.0.0.0:9443' package_dir='' arch tmp member item uid shell members
+    local role='' address='' listen='0.0.0.0:9443' package_dir='' arch tmp member item uid shell members operations=0
     while (($#)); do
         case $1 in
+            --operations) operations=1; shift;;
             --controller|--agent) [[ -z $role ]] || { printf 'Choose one role.\n' >&2; return 1; }; role=${1#--}; shift;;
             --url|--listen|--package-dir)
                 (($# >= 2)) && [[ -n $2 && $2 != --* ]] || { printf 'Missing option value.\n' >&2; return 1; }
                 case $1 in --url) address=$2;; --listen) listen=$2;; --package-dir) package_dir=$(cd -- "$2" && pwd -P);; esac
                 shift 2;;
             --help|-h)
-                printf 'Usage:\n  sudo bash node-install.sh --controller --url https://IP_OR_DOMAIN:9443 [--listen 0.0.0.0:9443]\n  sudo bash node-install.sh --agent [--package-dir DIR]\n\nController requires an updated installed panel. Agent prompts for a hidden one-time code.\nNo password, invitation or private key is accepted as a command argument.\n'
+                printf 'Usage:\n  sudo bash node-install.sh --controller --url https://IP_OR_DOMAIN:9443 [--listen 0.0.0.0:9443]\n  sudo bash node-install.sh --agent [--operations] [--package-dir DIR]\n\nAgent is read-only by default. --operations explicitly enables leased paired GRE/FRP creation.\nController requires an updated installed panel. Agent prompts for a hidden one-time code.\nNo password, invitation or private key is accepted as a command argument.\n'
                 return 0;;
             *) printf 'Unknown option. Run --help.\n' >&2; return 1;;
         esac
@@ -24,6 +25,7 @@ node_install_main() {
     exec 9>/run/gre-manager-panel-install.lock
     flock -n 9 || { printf 'Another panel/agent installation is running.\n' >&2; return 1; }
     if [[ $role == controller ]]; then
+        ((operations==0)) || { printf '--operations is an Agent option.\n' >&2; return 1; }
         [[ -z $package_dir && -f /etc/gre-manager-panel/config.json && -n $address ]] || { printf 'Install the updated panel first; provide --url for the dedicated Agent HTTPS listener.\n' >&2; return 1; }
         [[ $(/usr/local/bin/gtm-panel nodes protocol 2>/dev/null) == 1 ]] || { printf 'Installed panel lacks Node protocol 1. Use a current source package.\n' >&2; return 1; }
         # Validate the reserved service account before assigning signing-key access.
@@ -65,6 +67,12 @@ node_install_main() {
     tar -xzf "$tmp/$member" -C "$tmp" gtm-panel gre.sh
     [[ $("$tmp/gtm-panel" version) == "v$NODE_VERSION" && $("$tmp/gtm-panel" nodes protocol 2>/dev/null) == 1 ]] || { printf 'Package lacks Node protocol 1. Published v1.3.0 predates Agents; use --package-dir with a current source build.\n' >&2; return 1; }
     bash -n "$tmp/gre.sh"
+    # Preserve an existing explicit opt-in across upgrades. Do not silently
+    # remove the root recovery worker while it may own an unconfirmed lease.
+    if [[ -f /etc/systemd/system/gre-manager-agent.service ]] && grep -Fxq 'ExecStart=/usr/local/bin/gtm-panel nodes agent --operations' /etc/systemd/system/gre-manager-agent.service; then operations=1; fi
+    if ((operations)); then
+        [[ $("$tmp/gtm-panel" nodes operations-version 2>/dev/null) == 1 ]] || { printf 'Package lacks paired operation support. Use a current source build.\n' >&2; return 1; }
+    fi
     getent group greagent >/dev/null || groupadd --system greagent
     members=$(getent group greagent | cut -d: -f4)
     [[ -z $members || $members == greagent ]] || { printf 'The greagent group has unrelated members.\n' >&2; return 1; }
@@ -131,9 +139,18 @@ CapabilityBoundingSet=
 [Install]
 WantedBy=multi-user.target
 EOF
+    if ((operations)); then
+        sed -i 's/^StopWhenUnneeded=yes$/StopWhenUnneeded=no/; s/broker --read-only --socket/broker --read-only --node-operations --socket/' /etc/systemd/system/gre-manager-agent-broker.service
+        printf 'TimeoutStopSec=12min\n' >> /etc/systemd/system/gre-manager-agent-broker.service
+        printf '\n[Install]\nWantedBy=multi-user.target\n' >> /etc/systemd/system/gre-manager-agent-broker.service
+        sed -i 's|^ExecStart=/usr/local/bin/gtm-panel nodes agent$|ExecStart=/usr/local/bin/gtm-panel nodes agent --operations|' /etc/systemd/system/gre-manager-agent.service
+    fi
     systemctl daemon-reload
+    if ((operations)); then systemctl enable --now gre-manager-agent-broker.service; fi
     systemctl enable --now gre-manager-agent.service
     systemctl is-active --quiet gre-manager-agent.service
-    printf 'Read-only Agent installed. No public listener, engine installation or tunnel changes. Check status: systemctl status gre-manager-agent\n'
+    if ((operations)); then printf 'Agent installed with paired GRE/FRP operations. Root lease recovery stays enabled independently of the Agent.\n'
+    else printf 'Read-only Agent installed. No public listener, engine installation or tunnel changes.\n'; fi
+    printf 'Check status: systemctl status gre-manager-agent\n'
 }
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then node_install_main "$@"; fi

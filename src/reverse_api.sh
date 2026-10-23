@@ -34,6 +34,22 @@ gtm_api_reverse() {
     return "$result"
 }
 
+# Paired FRP accepts the same closed TSV layout; the caller already holds flock.
+# Rathole key exchange and operator certificate paths are intentionally excluded.
+gtm_pair_frp_parse() {
+    local line extra fields engine name role host control public local_ip local_port proto transport mux token group key cert internal
+    IFS= read -r line || return 1
+    [[ $line != *$'\r'* && ${#line} -le 4096 ]] || return 1
+    IFS= read -r extra && return 1
+    fields=${line//[^$'\t']/}; ((${#fields}==15)) || return 1
+    IFS=$'\t' read -r engine name role host control public local_ip local_port proto transport mux token group key cert internal <<< "$line"
+    [[ $engine == frp && $name =~ ^[a-zA-Z0-9_-]{1,32}$ && $transport =~ ^(tcp|websocket|quic)$ && $key == - && $cert == - && $internal == 0 ]] || return 1
+    P_NAME=$name; P_ROLE=$role; P_HOST=$host; P_CONTROL=$control; P_PUBLIC=$public
+    P_LOCAL_IP=$local_ip; P_LOCAL_PORT=$local_port; P_PROTO=$proto; P_TRANSPORT=$transport
+    P_MUX=$mux; P_TOKEN=$token; P_GROUP=$group
+    gtm_frp_validate
+}
+
 # Caller holds the manager lock; used by both web and terminal flows.
 gtm_frp_create() {
     local id="gtm-frp-$P_ROLE-$P_NAME" file unit bin gateway gateway_config result=0

@@ -83,6 +83,7 @@ type Inventory struct {
 	Demo         bool               `json:"demo"`
 }
 type Request struct {
+	NodeTask   *NodeTask        `json:"node_task,omitempty"`
 	Action     string           `json:"action"`
 	Connection model.Connection `json:"connection"`
 	Selected   []Selection      `json:"selected"`

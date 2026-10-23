@@ -32,7 +32,7 @@ Acceptance: fresh installation and upgrade, both browser protocols, login/logout
 
 ## Phase 3: Versioned Node/Agent contract and secure read-only inventory
 
-Status: implemented in source. See [Node guide](NODES.md) and [Phase 3 review](PHASE-3-REVIEW.md). No replacement release was published; wait for the user before Phase 4.
+Status: implemented in source. See [Node guide](NODES.md) and [Phase 3 review](PHASE-3-REVIEW.md). No replacement release was published; Phase 4 follows below.
 
 - Support local-only installation, Controller with its own local Node, and Controller with multiple remote Nodes. A third server and remote Agent enrollment are optional.
 - Define stable node IDs, protocol versions independent of application versions, capability negotiation, revisions and structured failures.
@@ -45,7 +45,7 @@ Acceptance: multiple remote Nodes plus a local Node, enrollment/revocation, inco
 
 ## Phase 4: Bounded operations and coordinated two-node connections
 
-Status: awaiting start instruction.
+Status: implemented in source for leased GRE and FRP pairing. See [Paired connections](PAIRED-CONNECTIONS.md) and [Phase 4 review](PHASE-4-REVIEW.md). Wait for the user before Phase 5.
 
 - Allowlisted operations with authorization, unique job IDs, expiry, idempotency and revision checks; no arbitrary shell endpoint.
 - Persist Controller jobs and results, and reject expired jobs after reconnection.

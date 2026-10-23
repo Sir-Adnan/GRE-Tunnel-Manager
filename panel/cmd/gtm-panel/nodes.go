@@ -27,6 +27,9 @@ func nodeCommand(ctx context.Context, args []string) error {
 	case "protocol":
 		fmt.Println(nodes.Protocol)
 		return nil
+	case "operations-version":
+		fmt.Println("1")
+		return nil
 	case "check":
 		path := fs.String("identity", nodes.DefaultAgentPath, "private identity file")
 		if e := fs.Parse(args[1:]); e != nil {
@@ -77,6 +80,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 		fmt.Println("Agent enrolled. Identity saved privately; no remote writes are enabled.")
 		return nil
 	case "agent":
+		operations := fs.Bool("operations", false, "explicitly enable leased paired-create tasks")
 		path := fs.String("identity", nodes.DefaultAgentPath, "private identity file")
 		socket := fs.String("socket", "/run/gre-manager-agent/broker.sock", "local read-only broker socket")
 		if e := fs.Parse(args[1:]); e != nil {
@@ -88,7 +92,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the network Agent as the greagent service user, not root")
 		}
-		return (nodes.Agent{Path: *path, Version: Version, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
+		return (nodes.Agent{Path: *path, Version: Version, Operations: *operations, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
 	default:
 		return errors.New("unknown nodes command")
 	}

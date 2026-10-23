@@ -2,6 +2,157 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  pairCode_preflight_changed: [
+    "The server changed or is no longer ready. Creation was refused before network changes.",
+    "وضعیت سرور تغییر کرده یا آماده نیست. ساخت پیش از تغییر شبکه متوقف شد.",
+  ],
+  pairCode_committed_resource: [
+    "This confirmed resource is outside its compensation window. Inspect and manage it locally.",
+    "مهلت بازگشت هماهنگ این منبع تأییدشده تمام شده است. آن را روی سرور بررسی و مدیریت کنید.",
+  ],
+  nodeTransportTitle: ["How servers connect", "روش ارتباط سرورها"],
+  nodeTransportGuide: [
+    "Agents initiate HTTPS requests with JSON messages, not gRPC or WebSocket. Enrollment uses a hidden one-time code; later requests use mutual TLS certificates. No inbound management port is opened on the Agent. Read-only is the default; paired operations need --operations. Tunnel engines and their traffic ports still need initial local setup.",
+    "ایجنت با درخواست HTTPS و پیام JSON به پنل وصل می‌شود؛ از gRPC یا WebSocket استفاده نمی‌شود. ثبت اولیه با کد مخفی یک‌بارمصرف است و ارتباط بعدی با گواهی دوطرفه انجام می‌شود. پورت ورودی مدیریت روی ایجنت باز نمی‌شود. حالت پیش‌فرض فقط مشاهده است؛ عملیات هماهنگ به گزینهٔ ‎--operations نیاز دارد. موتور تونل و پورت‌های ترافیک آن همچنان به آماده‌سازی اولیه نیاز دارند.",
+  ],
+  type: ["Connection type", "نوع اتصال"],
+  tunnelId: ["GRE ID", "شناسهٔ GRE"],
+  pairCode_receipt_capacity: [
+    "The root operation journal is full; inspect retained receipts.",
+    "ظرفیت سابقهٔ عملیات بروکر پر شده است؛ رسیدهای نگهداری‌شده را بررسی کنید.",
+  ],
+  pairCode_invalid_task: [
+    "This task is unsupported or invalid.",
+    "درخواست نامعتبر است یا پشتیبانی نمی‌شود.",
+  ],
+  pairCode_idempotency_conflict: [
+    "This request ID belongs to different settings.",
+    "شناسهٔ درخواست قبلاً برای تنظیمات دیگری استفاده شده است.",
+  ],
+  pairedConnections: ["Connect two servers", "اتصال دو سرور"],
+  pairedConnectionsHelp: [
+    "Create GRE or FRP on both servers from a single guided setup.",
+    "تونل GRE یا FRP را با یک راهنمای ساده روی هر دو سرور بسازید.",
+  ],
+  noPairJobs: [
+    "Your coordinated connections will appear here.",
+    "اتصال‌های ساخته‌شده بین دو سرور اینجا نمایش داده می‌شوند.",
+  ],
+  pairCreate: ["New connection", "اتصال جدید"],
+  pairEntrance: ["Entrance server", "سرور ورودی"],
+  pairDestination: ["Destination server", "سرور مقصد"],
+  pairEntranceIP: ["Entrance IP", "آی‌پی ورودی"],
+  pairDestinationIP: ["Destination IP", "آی‌پی مقصد"],
+  pairAddressHelp: [
+    "Use a concrete IP assigned to the server and reachable from its peer. Automatic NAT mapping is not supported.",
+    "آی‌پی باید روی سرور تنظیم شده و از سمت مقابل در دسترس باشد. نگاشت خودکار NAT پشتیبانی نمی‌شود.",
+  ],
+  pairNameHelp: [
+    "Optional display name. Leave blank for an automatic name.",
+    "نام نمایشی اختیاری است؛ خالی بگذارید تا خودکار انتخاب شود.",
+  ],
+  pairPublicPort: ["Public port", "پورت ورودی کاربران"],
+  pairControlPort: ["Tunnel control port", "پورت ارتباط دو سرور"],
+  pairServiceIP: ["Service IP on destination", "آی‌پی سرویس روی مقصد"],
+  pairServicePort: ["Service port on destination", "پورت سرویس روی مقصد"],
+  pairReview: ["Review connection", "بررسی اتصال"],
+  pairReviewHelp: [
+    "Review both servers before starting. Existing resources are never overwritten.",
+    "پیش از شروع، اطلاعات هر دو سرور را بررسی کنید. منابع موجود بازنویسی نمی‌شوند.",
+  ],
+  pairFormHelp: [
+    "Choose the method and two different servers. Required engines must already be installed.",
+    "روش اتصال و دو سرور متفاوت را انتخاب کنید. موتورهای لازم باید از قبل نصب شده باشند.",
+  ],
+  pairAutoName: ["Automatic name", "نام خودکار"],
+  pairStart: ["Check and create", "بررسی و ساخت"],
+  pairConfirm: ["Connection works — keep it", "اتصال درست است؛ نگه‌دار"],
+  pairRollback: ["Cancel and remove new resources", "لغو و حذف منابع جدید"],
+  pairRetryRecovery: ["Retry safe recovery", "تلاش دوباره برای بازیابی امن"],
+  pairLeaseUntil: ["Confirm before", "مهلت تأیید تا"],
+  pairEnableHelp: [
+    "Requires two online servers with paired operations enabled. Install the remote Agent with --operations.",
+    "دو سرور آنلاین با قابلیت اجرای عملیات لازم است. ایجنت سرور مقابل را با گزینهٔ ‎--operations نصب کنید.",
+  ],
+  pairSafetyHelp: [
+    "Check connectivity yourself, then confirm within five minutes of the first apply. Without confirmation, each broker attempts to remove its unchanged new resource. Interrupted or changed resources need inspection; this is not an atomic two-server transaction.",
+    "ارتباط را خودتان بررسی و حداکثر تا پنج دقیقه پس از اولین اجرا تأیید کنید. بدون تأیید، بروکر هر سمت برای حذف منبع جدید و تغییرنکردهٔ خود اقدام می‌کند. توقف ناگهانی یا تغییر دستی نیاز به بررسی دارد؛ عملیات دو سرور اتمیک نیست.",
+  ],
+  pairGREHelp: [
+    "Allow GRE protocol 47 between both servers. Entrance uses the existing Iran role; destination uses Kharej. No default routes or firewall policies are changed.",
+    "پروتکل GRE با شمارهٔ ۴۷ باید بین دو سرور مجاز باشد. ورودی از نقش فعلی ایران و مقصد از نقش خارج استفاده می‌کند. مسیر پیش‌فرض و سیاست فایروال تغییر نمی‌کند.",
+  ],
+  pairFRPHelp: [
+    "Allow the control and public service ports. A private shared token is generated automatically. This FRP preset uses TLS and token authentication; custom CA verification and WSS are not included.",
+    "پورت ارتباط دو سرور و پورت کاربران باید مجاز باشند. توکن مشترک خودکار ساخته می‌شود. این حالت FRP از TLS و احراز هویت توکن استفاده می‌کند؛ تأیید CA سفارشی و WSS در این مسیر موجود نیست.",
+  ],
+  pair_preparing: ["Checking servers", "بررسی سرورها"],
+  pair_prepare: ["Waiting for checks", "در انتظار بررسی"],
+  pair_prepared: ["Checks passed", "بررسی موفق"],
+  pair_applying: ["Creating connection", "در حال ساخت اتصال"],
+  pair_apply: ["Waiting for creation", "در انتظار ساخت"],
+  pair_applied: ["Created — awaiting confirmation", "ساخته شد؛ منتظر تأیید"],
+  pair_awaiting_confirmation: ["Test and confirm", "بررسی ارتباط و تأیید"],
+  pair_confirming: ["Saving confirmation", "ثبت تأیید"],
+  pair_confirm: ["Waiting for confirmation", "در انتظار ثبت تأیید"],
+  pair_committed: ["Confirmed", "تأییدشده"],
+  pair_succeeded: ["Confirmed on both servers", "تأیید روی هر دو سرور"],
+  pair_rolling_back: ["Recovering", "در حال بازیابی"],
+  pair_rollback: ["Waiting for recovery", "در انتظار بازیابی"],
+  pair_rolled_back: [
+    "Removed / no new resource retained",
+    "حذف شد یا منبع جدیدی باقی نماند",
+  ],
+  pair_needs_attention: ["Inspection required", "نیاز به بررسی"],
+  pair_unknown: [
+    "Outcome uncertain — inspect server",
+    "نتیجه نامشخص؛ سرور را بررسی کنید",
+  ],
+  pair_failed: ["Check or operation failed", "بررسی یا عملیات ناموفق"],
+  pairCode_preflight_failed: [
+    "Check engine installation, assigned IPs, free ports and existing tunnel IDs on this server.",
+    "نصب موتور، آی‌پی سرور، آزاد بودن پورت‌ها و شناسهٔ تونل‌های موجود را بررسی کنید.",
+  ],
+  pairCode_expired: [
+    "This request expired before execution.",
+    "مهلت درخواست پیش از اجرا تمام شد.",
+  ],
+  pairCode_revision_conflict: [
+    "Server configuration changed after checks.",
+    "تنظیمات سرور پس از بررسی تغییر کرد.",
+  ],
+  pairCode_resource_changed: [
+    "The resource changed; automatic removal is blocked.",
+    "منبع تغییر کرده است؛ حذف خودکار متوقف شد.",
+  ],
+  pairCode_apply_needs_inspection: [
+    "Creation did not return a verified receipt. Inspect this server before retrying.",
+    "ساخت بدون رسید معتبر پایان یافت. پیش از تلاش دوباره، سرور را بررسی کنید.",
+  ],
+  pairCode_rollback_needs_inspection: [
+    "Safe removal failed or the resource changed. Inspect this server.",
+    "حذف امن ناموفق بود یا منبع تغییر کرد. سرور را بررسی کنید.",
+  ],
+  pairCode_interrupted: [
+    "The broker stopped during creation. No automatic replay is allowed.",
+    "بروکر هنگام ساخت متوقف شد. اجرای دوبارهٔ خودکار مجاز نیست.",
+  ],
+  pairCode_confirmation_expired: [
+    "The confirmation window closed.",
+    "مهلت تأیید تمام شد.",
+  ],
+  pairCode_receipt_missing: [
+    "The server has no receipt for this operation; inspect its state.",
+    "سرور رسید این عملیات را ندارد؛ وضعیت آن را بررسی کنید.",
+  ],
+  pairCode_identity_revoked: [
+    "Node authorization changed. Inspect any previously applied resource.",
+    "مجوز سرور تغییر کرد. منابعی را که قبلاً ساخته شدند بررسی کنید.",
+  ],
+  pairCode_recovery_timeout: [
+    "Recovery was not acknowledged in time. The local lease may still remove unconfirmed resources; inspect the server.",
+    "پاسخ بازیابی به‌موقع نرسید. مهلت محلی ممکن است منابع تأییدنشده را حذف کند؛ سرور را بررسی کنید.",
+  ],
   os: ["Operating system", "سیستم‌عامل"],
   capabilities: ["Capabilities", "قابلیت‌ها"],
   localInventoryError: [
@@ -14,8 +165,8 @@ const words = {
     "سرور پنل و سرورهای متصل را یک‌جا ببینید.",
   ],
   nodesReadOnly: [
-    "Read-only access. Remote changes are disabled in this phase; existing tunnel menus manage this panel host only.",
-    "دسترسی فقط‌خواندنی است. تغییر از راه دور در این فاز فعال نیست؛ منوهای فعلی تونل فقط سرور پنل را مدیریت می‌کنند.",
+    "Remote Agents are read-only by default. Use Connect two servers for explicitly enabled paired operations. Existing tunnel menus still manage this panel host only.",
+    "ایجنت‌های راه دور پیش‌فرض فقط‌خواندنی‌اند. برای عملیات مجاز از بخش اتصال دو سرور استفاده کنید. منوهای قبلی تونل همچنان فقط سرور پنل را مدیریت می‌کنند.",
   ],
   addNode: ["Add server", "افزودن سرور"],
   localReady: [
@@ -114,16 +265,16 @@ const words = {
     "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
   ],
   nodeReleaseHelp: [
-    "This feature is in current source, not the existing v1.3.0 release. Installation, package building and recovery steps are in docs/NODES.md. Remote tunnel creation comes in the next phase.",
-    "این قابلیت در سورس فعلی است و در انتشار قبلی نسخهٔ ۱٫۳٫۰ نیست. مراحل نصب، ساخت بسته و بازیابی در راهنمای NODES آمده است. ساخت تونل از راه دور مربوط به فاز بعد است.",
+    "These features are in current source, not the existing v1.3.0 release. See docs/NODES.md for source packages. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
+    "این قابلیت‌ها در سورس فعلی هستند و در انتشار قبلی نسخهٔ ۱٫۳٫۰ نیستند. راهنمای NODES روش ساخت بسته را توضیح می‌دهد. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",
     "برای دیدن آخرین اطلاعات دریافتی، تازه‌سازی کنید.",
   ],
   nodeBoundsHelp: [
-    "Up to 64 identities; 256 KiB per report. Reports replace one memory snapshot per node; no history or background browser polling. Agent retries keep only the latest report.",
-    "حداکثر ۶۴ هویت و ۲۵۶ کیلوبایت برای هر گزارش. تنها آخرین تصویر هر سرور در حافظه نگهداری می‌شود؛ تاریخچه یا درخواست خودکار مرورگر ندارد. ایجنت گزارش قدیمی را صف نمی‌کند.",
+    "Up to 64 identities and 256 KiB per report. Inventory remains a manually refreshed snapshot. Only active pair jobs poll every two seconds in this page. Opted-in Agents pull work every five to six seconds; inventory still reports about once a minute.",
+    "حداکثر ۶۴ هویت و ۲۵۶ کیلوبایت برای هر گزارش. اطلاعات سرورها دستی تازه‌سازی می‌شود. فقط عملیات فعال این صفحه هر دو ثانیه بررسی می‌شود. ایجنت مجاز هر پنج تا شش ثانیه کار جدید می‌گیرد؛ اطلاعات سرور همچنان حدود هر دقیقه گزارش می‌شود.",
   ],
   help: ["Help", "راهنما"],
   toggleSidebar: ["Toggle navigation", "باز و بسته‌کردن منو"],

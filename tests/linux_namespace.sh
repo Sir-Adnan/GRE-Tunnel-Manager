@@ -325,4 +325,91 @@ EOF
         printf 'PASS: real legacy duplicate cleanup and Simple GRE removal preserve unrelated rules.\n'
     )
 fi
+# Exercise paired FRP native validation, startup and guarded removal. Both
+# processes live in private namespaces; the unit runner never contacts systemd.
+if command -v frps >/dev/null && command -v frpc >/dev/null; then
+    (
+        GTM_CONFIG_DIR="$test_dir/pair-frp"; GTM_SERVICE_DIR=$GTM_CONFIG_DIR; mkdir -p "$GTM_CONFIG_DIR"
+        gtm_paths
+        trap 'for file in "$GTM_CONFIG_DIR"/*.pid; do [[ ! -f $file ]] || { read -r child < "$file"; kill "$child" 2>/dev/null || true; }; done' EXIT
+        systemctl() {
+            local verb=$1 unit=${*: -1} line child
+            local -a args=()
+            case $verb in
+                daemon-reload) return 0;;
+                enable)
+                    while IFS= read -r line; do
+                        [[ $line == ExecStart=* ]] || continue
+                        read -r -a args <<< "${line#ExecStart=}"
+                        [[ ${args[0]} == "$(command -v frps)" || ${args[0]} == "$(command -v frpc)" ]] || return 1
+                        if [[ $unit == gtm-frp-destination-* ]]; then
+                            nsenter -t "$backend_ns" -n "${args[@]}" > "$GTM_CONFIG_DIR/$unit.log" 2>&1 &
+                        else "${args[@]}" > "$GTM_CONFIG_DIR/$unit.log" 2>&1 & fi
+                        printf '%s\n' "$!" > "$GTM_CONFIG_DIR/$unit.pid"
+                    done < "$GTM_SERVICE_DIR/$unit.service";;
+                is-active) read -r child < "$GTM_CONFIG_DIR/$unit.pid"; kill -0 "$child";;
+                disable) read -r child < "$GTM_CONFIG_DIR/$unit.pid"; kill "$child" && rm -f "$GTM_CONFIG_DIR/$unit.pid";;
+                *) return 1;;
+            esac
+        }
+        entrance=$'frp\tpair-namespace\tentrance\t203.0.113.1\t28660\t28661\t127.0.0.1\t28001\ttcp\ttcp\ttrue\tabcdefghijklmnopqrstuvwxyz123456\tpair-namespace\t-\t-\t0'
+        destination=${entrance/$'\tentrance\t'/$'\tdestination\t'}
+        revision=$(gtm_pair_api pair-check-frp <<< "$entrance")
+        peer_revision=$(gtm_pair_api pair-check-frp <<< "$destination")
+        fingerprint=$(gtm_pair_api pair-apply-frp "$revision" <<< "$entrance")
+        peer_fingerprint=$(gtm_pair_api pair-apply-frp "$peer_revision" <<< "$destination")
+        python3 tests/packet_probe.py client 203.0.113.1 28661 tcp
+        gtm_pair_api pair-delete gtm-frp-destination-pair-namespace "$peer_fingerprint"
+        gtm_pair_api pair-delete gtm-frp-entrance-pair-namespace "$fingerprint"
+        printf 'PASS: paired FRP validates, carries TCP, and removes only its fingerprint-matching resources.\n'
+    )
+fi
+# Exercise the paired GRE compare/apply/delete boundary with real interfaces in
+# two existing private namespaces. Only systemd is replaced by a unit runner.
+(
+    GTM_CONFIG_DIR="$test_dir/pair-a"; GTM_SERVICE_DIR=$GTM_CONFIG_DIR; mkdir -p "$GTM_CONFIG_DIR"
+    gtm_paths
+    systemctl() {
+        local verb=$1 unit=${*: -1} line
+        local -a args=()
+        case $verb in
+            daemon-reload) return 0;;
+            enable)
+                while IFS= read -r line; do
+                    [[ $line == ExecStart=* ]] || continue
+                    read -r -a args <<< "${line#ExecStart=}"
+                    [[ ${args[0]} == /sbin/ip ]] || return 1
+                    ip "${args[@]:1}" || return 1
+                done < "$GTM_SERVICE_DIR/$unit.service";;
+            disable) ip link del dev gre-out-240;;
+            *) return 1;;
+        esac
+    }
+    revision=$(gtm_pair_api pair-check-gre 240 iran 203.0.113.20 203.0.113.1 1430)
+    fingerprint=$(gtm_pair_api pair-apply-gre "$revision" 240 iran 203.0.113.20 203.0.113.1 1430)
+    nsenter -t "$backend_ns" -n bash -c '
+        source ./gre.sh; gtm_paths
+        GTM_CONFIG_DIR=$1; GTM_SERVICE_DIR=$1; GTM_RUN_DIR=$1; mkdir -p "$1"
+        systemctl() { return 0; }
+        gtm_link_create 240 kharej 203.0.113.1 203.0.113.20 1430
+    ' _ "$test_dir/pair-b" >/dev/null
+    # The destination unit above is rendered but this isolated namespace has no
+    # systemd. Execute only its validated ip ExecStart arrays in that namespace.
+    while IFS= read -r line; do
+        [[ $line == ExecStart=* ]] || continue
+        read -r -a args <<< "${line#ExecStart=}"
+        [[ ${args[0]} == /sbin/ip ]]
+        nsenter -t "$backend_ns" -n ip "${args[@]:1}"
+    done < "$test_dir/pair-b/gre-tun-240.service"
+    python3 tests/packet_probe.py client 10.0.240.1 28001
+    gtm_pair_api pair-verify gre-tun-240 "$fingerprint"
+    printf '# edited by operator\n' >> "$GTM_SERVICE_DIR/gre-tun-240.service"
+    ! gtm_pair_api pair-delete gre-tun-240 "$fingerprint"
+    ip link show gre-out-240 >/dev/null
+    sed -i '$d' "$GTM_SERVICE_DIR/gre-tun-240.service"
+    gtm_pair_api pair-delete gre-tun-240 "$fingerprint"
+    ! ip link show gre-out-240 >/dev/null 2>&1
+    nsenter -t "$backend_ns" -n ip link del dev gre240
+    printf 'PASS: paired GRE carries TCP/UDP and fingerprint recovery preserves operator changes.\n'
+)
 printf 'PASS: isolated nftables IPv4/IPv6, idempotence, deletion and available engine checks.\n'

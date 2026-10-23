@@ -24,3 +24,6 @@ The current phase-gated development plan is tracked in [ROADMAP.md](ROADMAP.md).
 
 - [Nodes and Agents](NODES.md): optional secure read-only inventory, installation and recovery.
 - [Phase 3 review](PHASE-3-REVIEW.md): delivered scope and verification evidence.
+
+- [Paired connections](PAIRED-CONNECTIONS.md): explicit remote-operation opt-in, coordinated GRE/FRP, leases and recovery.
+- [Phase 4 review](PHASE-4-REVIEW.md): delivered operation scope, verification and rollout limits.

@@ -103,19 +103,24 @@ func run() error {
 		manager := control.NewManager()
 		fs := flag.NewFlagSet("broker", flag.ContinueOnError)
 		readOnly := fs.Bool("read-only", false, "inventory-only broker for agents")
+		nodeOperations := fs.Bool("node-operations", false, "allow leased paired-create tasks on an otherwise read-only Agent broker")
 		socket := fs.String("socket", config.Socket, "private Unix socket")
 		if e := fs.Parse(os.Args[2:]); e != nil {
 			return e
 		}
+		var nodeExecutor *control.NodeExecutor
+		if !*readOnly || *nodeOperations {
+			nodeExecutor = &control.NodeExecutor{Manager: manager, Directory: "/var/lib/gre-manager-node-operations"}
+		}
 		if *readOnly {
-			return (&control.Broker{Manager: manager, ReadOnly: true}).Listen(ctx, *socket)
+			return (&control.Broker{Manager: manager, ReadOnly: true, Nodes: nodeExecutor}).Listen(ctx, *socket)
 		}
 		metrics, e := control.NewMetrics(manager.Runner, "/var/lib/gre-manager-panel/metrics.json")
 		if e != nil {
 			return e
 		}
 		manager.Metrics = metrics
-		return (&control.Broker{Manager: manager}).Listen(ctx, *socket)
+		return (&control.Broker{Manager: manager, Nodes: nodeExecutor}).Listen(ctx, *socket)
 	case "serve":
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the public panel as the grepanel user, not root")
@@ -138,6 +143,9 @@ func run() error {
 		}
 		server := httpapi.New(serviceCtx, auth.New(c.Username, c.PasswordHash, c.Scheme() == "https"), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
 		server.Nodes = h
+		if h != nil {
+			go h.RunOperations(serviceCtx, server.Client)
+		}
 		nodeStopped := make(chan error, 1)
 		if nodeErrors != nil {
 			go func() {

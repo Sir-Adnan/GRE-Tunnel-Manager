@@ -1,5 +1,5 @@
-// Package nodes implements the optional, read-only control plane. It has no
-// remote operation type, command field, or path to the privileged write API.
+// Package nodes implements the optional versioned control plane. Write access
+// is a separately negotiated, allowlisted leased-create capability.
 package nodes
 
 import (
@@ -93,7 +93,7 @@ func validateReport(r Report) error {
 	if len(r.Version) > 40 || !versionPattern.MatchString(r.Version) {
 		return problem("invalid_report", "Invalid application version")
 	}
-	if len(r.Capabilities) != 1 || r.Capabilities[0] != "inventory.read" {
+	if len(r.Capabilities) < 1 || len(r.Capabilities) > 2 || r.Capabilities[0] != "inventory.read" || (len(r.Capabilities) == 2 && r.Capabilities[1] != control.NodeOperationCapability) {
 		return problem("incompatible_capabilities", "Read-only inventory capability is required")
 	}
 	if r.Failure != nil {
@@ -111,6 +111,9 @@ func validateReport(r Report) error {
 	}
 	// Canonicalize to the known inventory schema before retaining or presenting it.
 	return nil
+}
+func hasOperations(c []string) bool {
+	return len(c) == 2 && c[0] == "inventory.read" && c[1] == control.NodeOperationCapability
 }
 func canonicalInventory(raw json.RawMessage) (json.RawMessage, error) {
 	var inv control.Inventory

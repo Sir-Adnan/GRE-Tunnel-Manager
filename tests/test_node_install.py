@@ -58,6 +58,7 @@ case "$1" in
 version) printf 'v1.3.0\\n';;
 nodes) case "$2" in
 protocol) printf '%s\\n' "$TEST_NODE_PROTOCOL";;
+operations-version) printf '1\\n';;
 enroll) printf 'enroll\\n' >> "$TEST_LOG"; [[ ! -f "$TEST_ROOT/fail-enroll" ]] || exit 2; umask 077; printf '{"private":"identity"}' > "$TEST_ROOT/var/lib/gre-manager-agent/identity.json";;
 check) [[ ! -f "$TEST_ROOT/fail-check" ]];;
 check-controller) [[ ! -f "$TEST_ROOT/fail-check" ]];;
@@ -109,6 +110,20 @@ init) printf 'init\\n' >> "$TEST_LOG"; mkdir -p "$TEST_ROOT/var/lib/gre-manager-
         (self.packages / 'SHA256SUMS').write_text('0'*64+'  '+next(self.packages.glob('*.tar.gz')).name+'\n')
         self.assertNotEqual(self.run_installer('--agent', '--package-dir', str(self.packages)).returncode, 0)
         self.assertNotIn('systemctl stop', self.calls())
+
+    def test_operations_opt_in_and_upgrade_keep_recovery_worker(self):
+        result = self.run_installer('--agent', '--operations', '--package-dir', str(self.packages))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        service = (self.root / 'etc/systemd/system/gre-manager-agent.service').read_text()
+        broker = (self.root / 'etc/systemd/system/gre-manager-agent-broker.service').read_text()
+        self.assertIn('nodes agent --operations', service)
+        self.assertIn('--read-only --node-operations --socket', broker)
+        self.assertIn('StopWhenUnneeded=no', broker)
+        self.assertIn('WantedBy=multi-user.target', broker)
+        (self.root / 'agent-service').touch()
+        result = self.run_installer('--agent', '--package-dir', str(self.packages))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nodes agent --operations', (self.root / 'etc/systemd/system/gre-manager-agent.service').read_text())
 
     def test_failed_enrollment_and_corrupt_identity_do_not_stop_services(self):
         (self.root / 'fail-enroll').touch()

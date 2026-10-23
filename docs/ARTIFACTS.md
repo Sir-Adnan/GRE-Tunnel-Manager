@@ -112,8 +112,18 @@ Stopping the panel does not delete tunnels, credentials, certificates or totals.
 | `/var/lib/gre-manager-agent/identity.json` | greagent-owned mode 600 in mode-700 directory; per-node private key, certificate and pinned authority |
 | `/var/lib/gre-manager-agent/agent.lock` | Process-held exclusive Agent identity lock |
 | `gre-manager-agent.service` | Explicit optional unprivileged outbound inventory service; opens no inbound listener |
-| `gre-manager-agent-broker.service` | Root process, greagent group; only inventory/capability actions on local Unix socket |
+| `gre-manager-agent-broker.service` | Root process, greagent group; read-only by default. Explicit operations mode adds leased pair tasks and enables independent boot-time recovery |
 | `/run/gre-manager-agent/broker.sock` | Group-protected mode-660 socket inside mode-750 runtime directory |
 | `greagent` user/group | Restricted system service identity, no login shell |
 
 The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths. Its installer refuses a host already running the panel, whose local Node needs no Agent. No engine, tunnel, traffic collector, firewall rule or counter is created by Node installation. Controller inventory/contact times are memory-only and clear on restart. Stopping/removing control services does not delete network configuration. Removing private identities is a separate explicit recovery step; see [NODES.md](NODES.md).
+
+## Paired operations
+
+| Path/resource | Ownership and lifecycle |
+| --- | --- |
+| `/var/lib/gre-manager-nodes/pairs.json` | grepanel mode 600; up to 32 retained Controller jobs, per-node outcomes and private FRP request tokens; back up privately |
+| `/var/lib/gre-manager-node-operations/{ID}.json` | root mode 600 in a mode-700 directory; up to 256 broker receipts with typed settings, preparation revisions, fingerprints, outcomes and leases |
+| `/var/lib/gre-manager-node-operations/broker.lock` | Exclusive process-held Linux flock; one privileged operation broker per journal |
+
+Paired GRE/FRP uses the existing unit, interface and config paths listed above. It creates no new host firewall or default-route policy. Unconfirmed resources have five-minute root-owned leases. Broker recovery runs independently of the Agent in opted-in installations, including after reboot. Recovery deletes only an unchanged, fingerprint-matching resource through the shared manager lock and normal dependency guards. Existing/new sibling GRE keepalive and FRP gateway files block paired creation or compensation because this preset does not own them. Interrupted creates or cleanup failures remain for manual inspection. Confirmed resources stay until explicit local removal, except bounded compensation of a partially confirmed job within its original authorization window. Deleting a Controller job is not a resource-delete operation. Terminal receipts are eligible for pruning 48 hours after their original authorization expires; unresolved receipts remain. Operations-mode Agents also use the existing root-only bounded `/var/lib/gre-manager-panel/audit.jsonl{,.1}` for action metadata; no request tokens or command output are written there. See [Paired connections](PAIRED-CONNECTIONS.md).

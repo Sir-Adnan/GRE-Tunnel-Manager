@@ -25,4 +25,4 @@ Runtime modules: `config`, `auth`, `model`, `control`, `httpapi`, and embedded `
 
 Current source includes unreleased installation changes. `gtm-panel setup-version` reports setup contract `2`; published v1.3.0 does not provide that contract. Use `panel-install.sh --package-dir panel/bin` for explicit local-package validation. Published packages are never silently replaced by a source checkout.
 
-Optional read-only multi-server inventory is implemented in current source under `internal/nodes`, using a separate TLS-only Controller endpoint and outbound Agents. It is independent of browser HTTP/HTTPS. See [Node guide](../docs/NODES.md); published v1.3.0 lacks this feature.
+Optional multi-server inventory and explicitly enabled leased GRE/FRP pairing is implemented in current source under `internal/nodes`, using a separate TLS-only Controller endpoint and outbound Agents. It is independent of browser HTTP/HTTPS. See [Node guide](../docs/NODES.md); published v1.3.0 lacks this feature.

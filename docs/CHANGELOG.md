@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Phase 4 leased two-node connections
+
+- Add explicit `--operations` Agent opt-in while keeping the general local write API inaccessible remotely. Negotiate `connections.pair.v1` alongside protocol-1 inventory.
+- Persist bounded Controller jobs and root receipts with preparation revisions, idempotent delivery, expiry, restart recovery, timed confirmation and fingerprint-guarded compensation. Expose individual and uncertain outcomes without claiming atomic multi-server changes.
+- Coordinate GRE and FRP TCP/UDP creation on two selected Nodes, including the panel host or two remote servers. Keep engine installation, remote forwarding CRUD, Rathole key exchange and WSS outside this workflow.
+- Add responsive bilingual setup/review, per-server progress and recovery controls. Preserve Nettinx and Vazirmatn. Poll active browser jobs only; retain the existing inventory cadence.
+- Extend installer preservation, TLS/broker/Bash tests and real isolated GRE TCP/UDP checks. Document current-source packages; published v1.3.0 remains unchanged.
+
 ## Unreleased — Phase 3 read-only Nodes and Agents
 
 - Add optional Controller enrollment and outbound inventory Agents without requiring a third server or an Agent on the panel host. Keep existing tunnel operations local.
