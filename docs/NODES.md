@@ -82,7 +82,7 @@ The Agent installer targets Debian/Ubuntu with systemd, x86_64/arm64, and requir
 
 Inventory includes the managed connection list, GRE/reverse resources, component capabilities and host summary. It does not send raw files, rathole/FRP credentials or private keys. The detail dialog is read-only and does not redirect existing tunnel operations to a remote host. Refresh retrieves the latest received snapshot; it does not force an immediate Agent scan.
 
-Inventory and contact times are intentionally memory-only. Controller restart preserves enrollment/revocation but clears snapshots until the next Agent report. There is no database, traffic history or report backlog in this phase. Limits: 64 enrolled identities including revoked records, 16 unexpired invitations, 256 KiB per inventory, eight concurrent control requests, one retained snapshot per Node. Retry delays use exponential backoff capped below 65 seconds with jitter; successful reports use a 60–70 second cadence. Failed reports are replaced by a fresh scan, not queued.
+Inventory and contact times are intentionally memory-only. Controller restart preserves enrollment/revocation but clears snapshots until the next Agent report. There is no database or report backlog. Optional read-only traffic summaries use a separate in-memory cache; see [Remote traffic summaries](REMOTE-TRAFFIC.md). Limits: 64 enrolled identities including revoked records, 16 unexpired invitations, 256 KiB per inventory, eight concurrent control requests, one retained snapshot per Node. Retry delays use exponential backoff capped below 65 seconds with jitter; successful reports use a 60–70 second cadence. Failed reports are replaced by a fresh scan, not queued.
 
 ## Identity lifecycle and recovery
 
@@ -120,6 +120,7 @@ Application SemVer and Node protocol are independent. Protocol 1 retains `invent
 | --- | --- | --- |
 | `POST /v1/enroll` | Short-lived one-time secret, server CA pin | Validate CSR, allocate stable random node ID and certificate |
 | `POST /v1/report` | mTLS plus active node ID/certificate serial | Validate bounded report; retain canonical known-schema inventory |
+| `POST /v1/traffic` | Same active mTLS identity | Optional closed traffic-protocol-1 summary; 64 KiB / 128 counters |
 | `POST /v1/rotate` | Same active identity | Issue replacement certificate with bounded overlap |
 | `POST /v1/work` | Active mTLS identity advertising `connections.pair.v1` | Acknowledge a bounded result and pull one typed task |
 

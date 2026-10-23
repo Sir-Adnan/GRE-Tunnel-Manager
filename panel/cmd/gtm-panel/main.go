@@ -109,6 +109,7 @@ func run() error {
 		fs := flag.NewFlagSet("broker", flag.ContinueOnError)
 		readOnly := fs.Bool("read-only", false, "inventory-only broker for agents")
 		nodeOperations := fs.Bool("node-operations", false, "allow leased paired-create tasks on an otherwise read-only Agent broker")
+		agentTraffic := fs.Bool("agent-traffic", false, "enable local Agent traffic collection and summary access")
 		socket := fs.String("socket", config.Socket, "private Unix socket")
 		if e := fs.Parse(os.Args[2:]); e != nil {
 			return e
@@ -117,15 +118,22 @@ func run() error {
 		if !*readOnly || *nodeOperations {
 			nodeExecutor = &control.NodeExecutor{Manager: manager, Directory: "/var/lib/gre-manager-node-operations"}
 		}
-		if *readOnly {
+		if *agentTraffic && !*readOnly {
+			return errors.New("--agent-traffic requires --read-only")
+		}
+		if *readOnly && !*agentTraffic {
 			return (&control.Broker{Manager: manager, ReadOnly: true, Nodes: nodeExecutor}).Listen(ctx, *socket)
 		}
-		metrics, e := control.NewMetrics(manager.Runner, "/var/lib/gre-manager-panel/metrics.json")
+		metricsPath := "/var/lib/gre-manager-panel/metrics.json"
+		if *agentTraffic {
+			metricsPath = "/var/lib/gre-manager-agent-traffic/metrics.json"
+		}
+		metrics, e := control.NewMetrics(manager.Runner, metricsPath)
 		if e != nil {
 			return e
 		}
 		manager.Metrics = metrics
-		return (&control.Broker{Manager: manager, Nodes: nodeExecutor}).Listen(ctx, *socket)
+		return (&control.Broker{Manager: manager, ReadOnly: *readOnly, AgentTraffic: *agentTraffic, Nodes: nodeExecutor}).Listen(ctx, *socket)
 	case "serve":
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the public panel as the grepanel user, not root")

@@ -6,7 +6,7 @@ Header server information is cached only in process memory. It creates no files 
 
 | Path | Owner / lifecycle |
 | --- | --- |
-| `/etc/gre-manager/connections.tsv` | Validated v1/v2/v3 connection records; atomic replacement |
+| `/etc/gre-manager/connections.tsv` | Validated v1/v2/v3/v4 connection records; atomic replacement |
 | `/etc/gre-manager/preferences.tsv` | Historical appearance preferences; ignored by v1.2.2+, retained if already present |
 | `/etc/gre-manager/manager.lock` | Exclusive mutation lock |
 | `/etc/gre-manager/id-counter` | Monotonic connection ID allocation, retained across deletion/restore |
@@ -118,7 +118,7 @@ Stopping the panel does not delete tunnels, credentials, certificates or totals.
 | `/run/gre-manager-agent/broker.sock` | Group-protected mode-660 socket inside mode-750 runtime directory |
 | `greagent` user/group | Restricted system service identity, no login shell |
 
-The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths. Its installer refuses a host already running the panel, whose local Node needs no Agent. No engine, tunnel, traffic collector, firewall rule or counter is created by Node installation. Controller inventory/contact times are memory-only and clear on restart. Stopping/removing control services does not delete network configuration. Removing private identities is a separate explicit recovery step; see [NODES.md](NODES.md).
+The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths. Its installer refuses a host already running the panel, whose local Node needs no Agent. Default Node installation creates no engine, tunnel, traffic collector, firewall rule or counter. The optional `--traffic` mode loads an accounting ledger but leaves sampling off until separately enabled. Controller inventory/contact times are memory-only and clear on restart. Stopping/removing control services does not delete network configuration. Removing private identities is a separate explicit recovery step; see [NODES.md](NODES.md).
 
 ## Paired operations
 
@@ -141,3 +141,7 @@ Paired GRE/FRP uses the existing unit, interface and config paths listed above. 
 | `/var/lib/gre-manager-panel/metrics.json` | Existing ledger extended with cycle baselines, customer policies, bounded optional histories and completed cycle summaries; removed with the panel |
 
 Routing remains inside the existing generated per-connection HAProxy config/unit. The v4 TSV record is included in the existing snapshots and recovery. Extended Realm options remain inside existing v3 records/configs. No additional service, database, firewall table, agent protocol or public privileged listener is created for these features. Panel-only removal preserves connection records, display metadata, their backups and operator routing certificates.
+
+## Optional Agent traffic accounting
+
+Explicit `node-install.sh --agent --traffic` adds `--agent-traffic` to the private broker and `--traffic` to the outbound Agent, preserving those flags across upgrades. It creates `/var/lib/gre-manager-agent-traffic` as root, mode 700; the ledger `metrics.json` is mode 600 and is written only when local accounting settings/samples change. Collection is initially off and requires the local root `gtm-panel nodes traffic --enable` command. It reuses only `inet gtm_panel_metrics`; disable with `nodes traffic --disable` before retiring the Agent to remove those counters and retain the ledger. No new service, remote port or database is added. Controller traffic snapshots are memory-only and cleared on restart/revocation. Panel-only removal does not delete this Agent ledger.

@@ -1,10 +1,12 @@
 # Optional Go web panel
 
-Production installation and supported features: [Web panel guide](../docs/WEB-PANEL.md).
+Manage local tunnels in a browser, or add optional outbound Agents for multi-server inventory, coordinated GRE/FRP creation and read-only traffic snapshots. The panel embeds its built interface and runs independently of tunnel traffic.
 
-See [engine/version profiles](../docs/ENGINE-CAPABILITIES.md), [HAProxy readiness](../docs/HAPROXY.md) and [panel-only removal](../docs/PANEL-REMOVAL.md) for current unreleased source changes.
+Start with the [installation guide](../docs/WEB-PANEL.md). The project quick start is available in [English](../README.md) and [Persian](../README.fa.md).
 
-Build locally (Node 24 and Go 1.27.3):
+## Build and preview
+
+Development requires Node 24 and Go 1.27.3. Managed servers use prebuilt packages and need neither compiler nor Node.js.
 
 ```bash
 cd panel/web
@@ -17,16 +19,22 @@ go build -trimpath -ldflags='-s -w' -o bin/gtm-panel ./cmd/gtm-panel
 ./bin/gtm-panel demo
 ```
 
-The loopback-only demo uses `demo` / `demo-panel-12345`, clearly labels simulated data, and never runs system commands. On Windows, build `bin/gtm-panel.exe`. Production defaults to HTTPS and supports explicitly selected HTTP in the updated source; credentials are user-created or securely generated during setup; the demo login cannot authenticate to a production installation.
+On Windows, name the executable `bin/gtm-panel.exe`; use a Linux development environment for race tests when a local C toolchain is unavailable. The loopback demo uses **demo / demo-panel-12345**, labels simulated data and never runs system commands. Demo credentials do not authenticate to production installations.
 
-`python3 tools/package_panel.py` from the repository root creates Linux amd64/arm64 archives and SHA256SUMS after the frontend build. No compiled assets or binaries are checked into Git.
+From the repository root, `python3 tools/package_panel.py` creates Linux amd64/arm64 archives and `SHA256SUMS` after the frontend build. Compiled assets and binaries are not committed.
 
-Frontend feature modules use the semantic design tokens and allowlisted experience registry. The default Nettinx source is recorded in `web/src/experience/sources/nettinx.json`. Its original fills/source tokens are preserved. A later user-approved dark foreground override applies only to orange buttons; other known contrast failures remain documented in the panel guide. A neutral alternative is installed. Do not silently recolor the source. Locale controls direction; themes never control capabilities or permissions.
+## Source and published packages
 
-Runtime modules: `config`, `auth`, `model`, `control`, `httpapi`, and embedded `ui`. The privileged broker's request schema is closed; never add a shell-command or arbitrary-file endpoint. Mutations of forwarding state go through the Bash API, its shared lock, full-state reload, native checks and recovery path.
+Published **v1.3.0** contains the original panel. Current source adds quick HTTP/HTTPS setup, Nodes/Agents, advanced engine profiles and accounting cycles. It has not replaced those release assets. Use matching source-built packages with `panel-install.sh --package-dir panel/bin`; a new installer cannot add features to an older executable.
 
-Current source includes unreleased installation changes. `gtm-panel setup-version` reports setup contract `2`; published v1.3.0 does not provide that contract. Use `panel-install.sh --package-dir panel/bin` for explicit local-package validation. Published packages are never silently replaced by a source checkout.
+The setup contract is `2`; Node inventory, paired operations and optional traffic each have separate protocol/contract checks. See [Nodes](../docs/NODES.md), [paired connections](../docs/PAIRED-CONNECTIONS.md), [remote traffic](../docs/REMOTE-TRAFFIC.md) and [release checklist](RELEASE.md).
 
-Optional multi-server inventory and explicitly enabled leased GRE/FRP pairing is implemented in current source under `internal/nodes`, using a separate TLS-only Controller endpoint and outbound Agents. It is independent of browser HTTP/HTTPS. See [Node guide](../docs/NODES.md); published v1.3.0 lacks this feature.
+## Development boundaries
 
-Current source adds [routing](../docs/HAPROXY-ROUTING.md), [Realm profiles](../docs/REALM-PROFILES.md) and [traffic cycles/quotas/history](../docs/TRAFFIC-ACCOUNTING.md). Display numbers use Latin digits in both languages. These features are not in the old published v1.3.0 package; release approval is still required.
+- Public HTTP/HTTPS runs unprivileged. Closed operations go through a protected local Unix broker and the Bash API; never add shell-command, arbitrary-file or raw-config endpoints.
+- Forwarding writes reload complete state under its existing lock, compare revisions, validate natively where supported and retain recovery paths. Presentation filters are not saved state.
+- Feature modules share semantic tokens and the allowlisted experience registry. Keep the selected Nettinx fills/source tokens intact. Its approved dark foreground applies only to orange buttons; other known contrast findings remain documented. Locale controls direction and Latin numerals independently of theme.
+- The overview has a dedicated bounded summary component; the management table owns selection/actions. Keep transport and system operations out of presentation components.
+- Optional Agent traffic reporting requires `--traffic` installation and separate local collection enablement. It adds no public listener or new collector service. General remote reset/configuration is outside this profile.
+
+For module ownership and recovery details, read [Architecture](../docs/ARCHITECTURE.md), [server artifacts](../docs/ARTIFACTS.md), [routing](../docs/HAPROXY-ROUTING.md) and [traffic accounting](../docs/TRAFFIC-ACCOUNTING.md).

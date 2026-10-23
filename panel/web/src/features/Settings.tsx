@@ -51,7 +51,7 @@ export function Settings({
   return (
     <div className="page-stack">
       <PageTitle title={t("settings")} description={t("appearanceDesc")} />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid items-start gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>{t("appearance")}</CardTitle>

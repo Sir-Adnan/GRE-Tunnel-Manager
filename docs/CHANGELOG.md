@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Phase 6 remote traffic summaries and compact dashboard
+
+- Add opt-in read-only traffic-protocol-1 reports over the existing active mTLS identity without changing inventory/pair negotiation. Keep one bounded memory-only Controller snapshot per Node and preserve known totals on read failure.
+- Add explicit Agent reporting installation, separate local accounting enable/pause, a private root-owned ledger and upgrade flag preservation. No collection starts by default; no new service or listener is added.
+- Split Node details into inventory/traffic tabs with responsive cycle/lifetime cards, search, receipt/sample timestamps, stale/error states and visible-tab polling. Preserve the selected palette, bilingual layout and Latin display digits.
+- Replace oversized overview connection cards with a separate container-responsive summary list. Keep port/destination labels beside their values, tighten mobile manager cards, remove the redundant dashboard promotion block and prevent settings cards stretching to a taller neighbor. Preserve all actions and selected theme colors.
+- Rewrite English and Persian quick-start READMEs, clarify published-package/source differences and correct outdated adapter capability text. Technical guides remain English; the Persian README is restored at the user’s explicit request.
+
+
 
 ## Unreleased — Phase 5B–5D advanced management
 

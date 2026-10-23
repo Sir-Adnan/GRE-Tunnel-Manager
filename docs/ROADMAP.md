@@ -78,4 +78,20 @@ Acceptance: each advertised capability has a supported version, generated config
 
 ### Explicit follow-up scope
 
-Remote traffic summaries/history, remote quota/reset operations, automatic hard volume cutoffs, scheduled billing cycles and customer accounts require separate contracts and tests. They are not implied by local advisory quotas. Realm native TLS/WSS certificate handling, arbitrary HAProxy ACLs and unrestricted firewall editing remain outside the delivered profiles. Release v1.3.1 requires explicit user approval after reviewing the final implementation and verification evidence.
+Read-only remote traffic summaries are delivered in Phase 6 below. Remote retained history, quota/reset operations, automatic hard volume cutoffs, scheduled billing cycles and customer accounts require separate contracts and tests. They are not implied by local advisory quotas. Realm native TLS/WSS certificate handling, arbitrary HAProxy ACLs and unrestricted firewall editing remain outside the delivered profiles. Release v1.3.1 requires explicit user approval after reviewing the final implementation and verification evidence.
+
+## Phase 6: Multi-server traffic visibility
+
+Status: read-only summary milestone and compact dashboard implemented and validated in source. See [Phase 6 review](PHASE-6-REVIEW.md). No release is implied.
+
+- Add optional traffic protocol 1 independently of inventory/pair negotiation, with existing per-identity mTLS and revocation.
+- Keep ordinary Agents inventory-only; require explicit `--traffic` installation and separate local collection enablement. Preserve identity and opt-ins on upgrade.
+- Reuse the collector with a root-owned Agent ledger, disabled by default, no chart retention and bounded resource count.
+- Present per-connection cycle/lifetime snapshots in responsive, bilingual Node detail tabs; show Controller receipt and Agent sample times separately. Poll only an open visible traffic tab.
+- Preserve known values on summary failure, reject malformed/oversized reports, clear revoked snapshots and tolerate older Controllers without breaking inventory.
+- Replace oversized dashboard connection cards with a dedicated compact responsive summary; tighten related mobile cards and remove stretching/duplicate promotion content.
+- Rewrite English and Persian quick-start READMEs and reconcile outdated capability descriptions. The Persian README is an explicit user-requested exception to English technical documentation.
+
+Acceptance: identity isolation, old inventory compatibility, revoked/expired identities, failure/staleness, payload bounds, privacy projection, restart behavior, installer opt-in preservation and responsive UI are verified. Public server/systemd rollout remains an operator check.
+
+Next milestones remain separately reviewable: remote history/on-demand reads, revision-checked remote reset/configuration, scheduled local cycles, and broader engine profiles. Hard cutoffs need an explicit connection-lifecycle policy; they are not inferred from advisory quotas.

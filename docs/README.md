@@ -1,10 +1,12 @@
 # Documentation
 
-Start with the [README](../README.md), then the guides below. Maintained documentation is written in English; the web interface supports Persian and English. Technical references cover the modular v1 Bash manager. [AGENTS.md](../AGENTS.md) is the canonical agent instruction source; CLAUDE.md only points to it.
+Start with the [README](../README.md), then the guides below. Technical guides are written in English, with an additional [Persian quick-start README](../README.fa.md); the web interface supports Persian and English. Technical references cover the modular v1 Bash manager. [AGENTS.md](../AGENTS.md) is the canonical agent instruction source; CLAUDE.md only points to it.
 
 | Doc | Read it when you need... |
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
+| [PHASE-6-REVIEW.md](PHASE-6-REVIEW.md) | Remote summaries, compact dashboard, verification and remaining scope |
+| [REMOTE-TRAFFIC.md](REMOTE-TRAFFIC.md) | Optional Agent snapshots, local enable/pause, compatibility and privacy |
 | [TRAFFIC-ACCOUNTING.md](TRAFFIC-ACCOUNTING.md) | Customer/port usage, cycle reset, advisory quotas, retention, CSV and limits |
 | [HAPROXY-ROUTING.md](HAPROXY-ROUTING.md) | Closed SNI/HTTP routing, HTTPS PEM ownership and v4 compatibility |
 | [REALM-PROFILES.md](REALM-PROFILES.md) | Pinned WS/MPTCP/IPv6-only profiles and kernel/feature checks |

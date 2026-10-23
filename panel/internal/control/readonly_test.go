@@ -18,3 +18,14 @@ func TestReadOnlyBrokerRejectsEveryWriteBeforeExecution(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentTrafficDoesNotGrantOtherOperations(t *testing.T) {
+	b := &Broker{ReadOnly: true, AgentTraffic: true}
+	for _, action := range []string{"create", "service", "logs", "install", "metrics-history", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "node-task", "shell"} {
+		w := httptest.NewRecorder()
+		b.ServeHTTP(w, httptest.NewRequest("POST", "/control", strings.NewReader(`{"action":"`+action+`"}`)))
+		if w.Code != 403 {
+			t.Fatalf("traffic opt-in granted %s: %d", action, w.Code)
+		}
+	}
+}

@@ -1,6 +1,6 @@
 # Traffic accounting
 
-Traffic accounting is optional and local to the panel server. Open **Traffic usage** for the **Usage & cycles** and **Traffic collection** tabs. Collection and retained chart history are off by default. Tunnel engines continue to work independently of the panel.
+The full traffic accounting workspace is optional and local to the panel server. Other Nodes can separately opt into [read-only traffic summaries](REMOTE-TRAFFIC.md). Open **Traffic usage** for the **Usage & cycles** and **Traffic collection** tabs. Collection and retained chart history are off by default. Tunnel engines continue to work independently of the panel.
 
 ## Track a port or customer
 
@@ -42,7 +42,7 @@ The browser fetches a compact summary and only the selected resource's history. 
 - Port counters count network bytes and can include headers and retransmissions. GRE interface counters and forwarded ports may overlap; the UI never sums them into a misleading global total.
 - Reverse accounting covers supported public entrance listeners. Shared control/multiplexed destination traffic is not guessed per customer.
 - Reloads, reboots, external counter deletion, process crashes, and unobserved interface replacement can leave gaps. Raw-counter decreases are handled, but two kernel/filesystem states cannot be committed atomically. This is operational accounting, not guaranteed billing-grade metering or an exact volume limiter.
-- Remote Agents do not yet report retained accounting or accept remote quota/reset operations. Inventory selection does not imply remote traffic support. Do not sum identical traffic measured on two Nodes.
+- Optional remote Agents can report bounded read-only lifetime/cycle summaries through the Nodes page. Retained histories and remote quota/reset operations remain unavailable. Inventory selection does not enable remote collection. Do not sum identical traffic measured on two Nodes.
 - All system-generated display numbers use Latin digits in both languages; Persian labels and RTL layout remain available.
 
 The root-owned ledger is `/var/lib/gre-manager-panel/metrics.json`. Keep backups private: customer references and accounting history can be sensitive. Panel removal deletes this ledger and only the separate `inet gtm_panel_metrics` table, while preserving tunnel/forwarding configuration.

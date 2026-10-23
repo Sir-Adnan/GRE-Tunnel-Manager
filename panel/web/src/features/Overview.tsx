@@ -1,13 +1,11 @@
 import { useContext } from "react";
 import {
   Activity,
-  ArrowDownLeft,
   ArrowUpRight,
   Clock3,
   Layers3,
   MemoryStick,
   Plus,
-  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Address, PageTitle, SectionLink } from "@/components/shared";
-import { ConnectionTable } from "@/features/connections/ConnectionTable";
+import { ConnectionSummary } from "@/features/connections/ConnectionSummary";
 import { number, trafficBytes, uptime } from "@/lib/format";
 import { LocaleContext } from "@/lib/i18n";
 import type { Connection, Inventory } from "@/lib/api";
@@ -31,13 +29,11 @@ export function Overview({
   add,
   edit,
   navigate,
-  run,
 }: {
   inventory: Inventory;
   add: () => void;
   edit: (value: Connection) => void;
   navigate: (page: string) => void;
-  run: (request: unknown) => Promise<void>;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -106,11 +102,13 @@ export function Overview({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="stat-value">{value}</div>
+              <div className="stat-value">
+                <bdi>{value}</bdi>
+              </div>
             </CardContent>
             <CardFooter>
               <span className="truncate text-xs text-muted-foreground">
-                {extra}
+                <bdi>{extra}</bdi>
               </span>
             </CardFooter>
           </Card>
@@ -121,9 +119,6 @@ export function Overview({
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
               <CardTitle>{t("recent")}</CardTitle>
-              <CardDescription>
-                GRE · nftables · iptables · HAProxy · Realm
-              </CardDescription>
             </div>
             <SectionLink onClick={() => navigate("connections")}>
               {t("seeAll")}
@@ -131,74 +126,42 @@ export function Overview({
           </div>
         </CardHeader>
         <CardContent>
-          <ConnectionTable
+          <ConnectionSummary
             connections={inventory.connections}
             onAdd={add}
             onEdit={edit}
-            run={run}
-            compact
           />
         </CardContent>
-        <CardFooter>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <ArrowDownLeft className="size-3.5" />
-              {t("listener")}
-            </span>
-            <ArrowUpRight className="size-3.5" />
-            <span>{t("destination")}</span>
-          </div>
-        </CardFooter>
       </Card>
-      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        <Card className="quiet-card">
-          <CardHeader>
-            <ShieldCheck className="size-6 text-primary" />
-            <CardTitle>{t("quiet")}</CardTitle>
-            <CardDescription>{t("quietDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Bash + Go</Badge>
-              <Badge variant="outline">
-                {t("traffic")} · {t("optional")}
-              </Badge>
-              <Badge variant="outline">
-                {location.protocol === "https:" ? "HTTPS" : "HTTP"}
-              </Badge>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={() => navigate("traffic")}>
+      <Card size="sm">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>{t("components")}</CardTitle>
+            <SectionLink onClick={() => navigate("components")}>
+              {t("seeAll")}
+            </SectionLink>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            {inventory.components
+              .filter((c) => c.installed)
+              .map((c) => (
+                <Badge key={c.id} variant="outline">
+                  {c.id}
+                </Badge>
+              ))}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate("traffic")}
+            >
               {t("traffic")}
               <ArrowUpRight data-icon="inline-end" />
             </Button>
-          </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("components")}</CardTitle>
-            <CardDescription>{t("componentsDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {inventory.components
-                .filter((c) => c.installed)
-                .map((c) => (
-                  <Badge key={c.id} variant="secondary">
-                    {c.id}
-                  </Badge>
-                ))}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="ghost" onClick={() => navigate("components")}>
-              {t("seeAll")}
-              <ArrowUpRight data-icon="inline-end" />
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

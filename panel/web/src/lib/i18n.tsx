@@ -2,6 +2,35 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  nodeTraffic: ["Traffic", "مصرف ترافیک"],
+  nodeTrafficObserved: ["Report received", "زمان دریافت گزارش"],
+  nodeTrafficNoSamples: ["No samples yet", "هنوز نمونه‌ای ثبت نشده"],
+  nodeTrafficUnknown: [
+    "Resource absent from inventory",
+    "اتصال در موجودی فعلی نیست",
+  ],
+  nodeTrafficCurrent: ["Current cycle", "دورهٔ فعلی"],
+  readOnly: ["Read only", "فقط مشاهده"],
+  nodeTrafficHelp: [
+    "Optional snapshots from this server, refreshed every 60 seconds while this tab is open. Refresh reads the latest report; it does not trigger a new sample. Received/sent follow the server interface or entrance direction. Overlapping GRE and forwarding bytes are never summed. Configure collection locally; remote reset, quotas and history are not available here.",
+    "گزارش اختیاری همین سرور است و تا وقتی این تب باز باشد، هر 60 ثانیه به‌روز می‌شود. دکمهٔ به‌روزرسانی آخرین گزارش دریافتی را می‌خواند و نمونهٔ جدید نمی‌گیرد. جهت دریافت و ارسال نسبت به رابط یا ورودی سرور است. مصرف GRE و فوروارد ممکن است هم‌پوشانی داشته باشد و جمع نمی‌شود. تنظیم ثبت مصرف روی خود نود انجام می‌شود؛ ریست، سقف و تاریخچهٔ راه دور هنوز در این بخش نیست.",
+  ],
+  nodeTrafficWaiting: ["No traffic report yet", "هنوز گزارش مصرفی نرسیده"],
+  nodeTrafficSetup: [
+    "Install or update this Agent with --traffic, then enable collection locally. Existing identities are preserved. Older Agents can keep reporting inventory without traffic.",
+    "برای این نود، نصب‌کننده را با گزینهٔ --traffic اجرا کنید و سپس ثبت مصرف را روی خود نود روشن کنید. هویت فعلی حفظ می‌شود. ایجنت قدیمی هم می‌تواند بدون گزارش مصرف، موجودی را ارسال کند.",
+  ],
+  nodeTrafficStale: [
+    "These are the last reported values. The report is old or collection encountered a problem; check the Agent and its last sample time.",
+    "این اعداد آخرین مقادیر گزارش‌شده‌اند. گزارش قدیمی است یا ثبت مصرف با مشکل روبه‌رو شده؛ وضعیت ایجنت و زمان آخرین نمونه را بررسی کنید.",
+  ],
+  nodeTrafficEmpty: [
+    "Collection may be paused, or no supported resource has been sampled yet. Enable it on the Node with sudo gtm-panel nodes traffic --enable.",
+    "ممکن است ثبت مصرف خاموش باشد یا هنوز نمونه‌ای از اتصال‌های قابل شمارش ثبت نشده باشد. برای روشن‌کردن آن، روی خود نود دستور sudo gtm-panel nodes traffic --enable را اجرا کنید.",
+  ],
+  nodeTrafficSample: ["Last sample", "آخرین نمونه"],
+  nodeTrafficCycle: ["Cycle started", "شروع دوره"],
+
   confirm: ["Confirm", "تأیید"],
   invalid: ["Invalid destination", "مقصد نامعتبر"],
   quotaDialogHelp: [
@@ -509,7 +538,7 @@ const words = {
     "Agent connected, but its local inventory could not be read. Previous inventory, when present, stays visible with its original time.",
     "ایجنت وصل شده، اما اطلاعات محلی خوانده نشده است. اطلاعات قبلی با زمان اصلی خودش نمایش داده می‌شود.",
   ],
-  nodeDetails: ["View inventory", "مشاهدهٔ اطلاعات"],
+  nodeDetails: ["View details", "جزئیات سرور"],
   revokeNode: ["Revoke access", "لغو دسترسی"],
   revokeNodeHelp: [
     "This immediately blocks this Agent's reports and certificate renewal. It does not stop or delete any tunnel. Reconnecting requires a new invitation and identity.",
@@ -539,8 +568,8 @@ const words = {
     "نصب‌کننده را روی سرور دیگر اجرا کنید و کد را در ورودی مخفی بچسبانید. اگر کپی خودکار کار نکرد، متن کد را انتخاب و دستی کپی کنید.",
   ],
   nodeDetailHelp: [
-    "Inventory snapshot only. Service status belongs to the collection time, not the Agent's current connectivity.",
-    "این اطلاعات یک تصویر از زمان دریافت است. وضعیت سرویس به همان زمان مربوط است و با وضعیت اتصال ایجنت فرق دارد.",
+    "Latest inventory and optional traffic snapshots. Service status belongs to the reported time.",
+    "آخرین گزارش اتصال‌ها و مصرف اختیاری؛ وضعیت سرویس به زمان ثبت گزارش مربوط است.",
   ],
   nodeIdentity: ["Stable node ID", "شناسهٔ ثابت سرور"],
   nodeGuide: ["Servers and Agents", "راهنمای سرورها و ایجنت‌ها"],

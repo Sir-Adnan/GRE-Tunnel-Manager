@@ -27,6 +27,7 @@ type fixture struct {
 	s           *httptest.Server
 	dir         string
 	failReports atomic.Int32
+	noTraffic   atomic.Bool
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -41,6 +42,10 @@ func newFixture(t *testing.T) *fixture {
 	}
 	f := &fixture{h: h, dir: dir}
 	s := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/traffic" && f.noTraffic.Load() {
+			nodeError(w, 404, problem("not_found", "Unknown node endpoint"))
+			return
+		}
 		if r.URL.Path == "/v1/report" && f.failReports.CompareAndSwap(1, 0) {
 			conn, _, e := w.(http.Hijacker).Hijack()
 			if e == nil {

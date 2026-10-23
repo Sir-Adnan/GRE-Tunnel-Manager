@@ -13,6 +13,9 @@ func TestNodesLocalOptionalAndProtectedEnrollment(t *testing.T) {
 	if w := request(s, "/api/nodes", "", "", "", nil); w.Code != 401 {
 		t.Fatal("anonymous nodes")
 	}
+	if w := request(s, "/api/nodes/traffic?id=other", "", "", "", nil); w.Code != 401 {
+		t.Fatal("anonymous remote accounting")
+	}
 	w := request(s, "/api/login", `{"username":"admin","password":"test-panel-password"}`, "http://panel.local", "", nil)
 	cookie := w.Result().Cookies()[0]
 	var login struct {
@@ -34,6 +37,9 @@ func TestNodesLocalOptionalAndProtectedEnrollment(t *testing.T) {
 	}
 	defer h.Close()
 	s.Nodes = h
+	if w = request(s, "/api/nodes/traffic?id=../../file", "", "", "", cookie); w.Code != 404 {
+		t.Fatal("unknown traffic identity", w.Code)
+	}
 	for _, path := range []string{"/api/nodes/pairs", "/api/nodes/pairs/decision"} {
 		if w = request(s, path, `{}`, "http://panel.local", "", cookie); w.Code != 403 {
 			t.Fatal("pair write without CSRF accepted")

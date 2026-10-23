@@ -17,7 +17,9 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 			out = s.Nodes.Views()
 		}
 		local := nodes.View{ID: "local", Name: "Controller", Local: true, Status: "degraded", Protocol: nodes.Protocol, Capabilities: []string{"inventory.read"}, Failure: &nodes.Problem{Code: "inventory_unavailable", Message: "Local inventory could not be read"}}
-		if s.Nodes!=nil { local.Capabilities=append(local.Capabilities,control.NodeOperationCapability) }
+		if s.Nodes != nil {
+			local.Capabilities = append(local.Capabilities, control.NodeOperationCapability)
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 		raw, e := s.Client.Do(ctx, control.Request{Action: "inventory"})
@@ -40,6 +42,15 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Nodes == nil {
 		failure(w, 409, "Remote nodes are optional; configure the Controller to enroll agents")
+		return
+	}
+	if r.URL.Path == "/api/nodes/traffic" && r.Method == "GET" {
+		out, e := s.Nodes.Traffic(r.URL.Query().Get("id"))
+		if e != nil {
+			failure(w, 404, "Node not found")
+			return
+		}
+		reply(w, 200, out)
 		return
 	}
 	if r.URL.Path == "/api/nodes/pairs" {

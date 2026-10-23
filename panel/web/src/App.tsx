@@ -389,7 +389,6 @@ export default function App() {
                           add={() => add()}
                           edit={edit}
                           navigate={navigate}
-                          run={run}
                         />
                       ) : [
                           "connections",

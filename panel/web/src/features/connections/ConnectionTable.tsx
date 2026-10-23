@@ -41,13 +41,11 @@ export function ConnectionTable({
   onAdd,
   onEdit,
   run,
-  compact = false,
 }: {
   connections: Connection[];
   onAdd: () => void;
   onEdit: (value: Connection) => void;
   run: (request: unknown) => Promise<void>;
-  compact?: boolean;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -63,15 +61,12 @@ export function ConnectionTable({
   );
   const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
     currentPage = Math.min(pageIndex, pageCount - 1);
-  const visible = shown.slice(
-    compact ? 0 : currentPage * 20,
-    compact ? 5 : (currentPage + 1) * 20,
-  );
+  const visible = shown.slice(currentPage * 20, (currentPage + 1) * 20);
   const actions = (row: Connection) => (
     <ConnectionActions
       row={row}
       busy={busy}
-      compact={compact}
+      compact={false}
       onEdit={onEdit}
       onDelete={() => {
         setSelected([row.id]);
@@ -104,83 +99,77 @@ export function ConnectionTable({
   }
   return (
     <div className="flex flex-col gap-4">
-      {!compact && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative w-full sm:w-80">
-            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label={t("search")}
-              placeholder={t("search")}
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPageIndex(0);
-              }}
-              className="ps-9"
-            />
-          </div>
-          {picked.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {number(picked.length, locale)}
-              </span>
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => void action("enable").catch(() => {})}
-              >
-                <Play data-icon="inline-start" />
-                {t("enable")}
-              </Button>
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => void action("disable").catch(() => {})}
-              >
-                <Square data-icon="inline-start" />
-                {t("disable")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={() => setDeleting(true)}
-              >
-                <Trash2 data-icon="inline-start" />
-                {t("delete")}
-              </Button>
-            </div>
-          )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full sm:w-80">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            aria-label={t("search")}
+            placeholder={t("search")}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPageIndex(0);
+            }}
+            className="ps-9"
+          />
         </div>
-      )}
+        {picked.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {number(picked.length, locale)}
+            </span>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => void action("enable").catch(() => {})}
+            >
+              <Play data-icon="inline-start" />
+              {t("enable")}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => void action("disable").catch(() => {})}
+            >
+              <Square data-icon="inline-start" />
+              {t("disable")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => setDeleting(true)}
+            >
+              <Trash2 data-icon="inline-start" />
+              {t("delete")}
+            </Button>
+          </div>
+        )}
+      </div>
+
       {shown.length === 0 ? (
         <Blank onAdd={onAdd} filtered={query !== ""} />
       ) : (
         <>
-          <div
-            className={
-              compact ? "grid gap-3" : "grid gap-3 md:grid-cols-2 xl:hidden"
-            }
-          >
+          <div className={"grid gap-3 md:grid-cols-2 xl:hidden"}>
             {visible.map((row) => (
               <article
                 key={row.id}
-                className="flex min-w-0 flex-col gap-4 rounded-xl border p-4"
+                className="flex min-w-0 flex-col gap-3 rounded-xl border p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
-                    {!compact && (
-                      <Checkbox
-                        aria-label={`${t("selectAll")} ${row.name}`}
-                        checked={selected.includes(row.id)}
-                        onCheckedChange={(v) =>
-                          setSelected(
-                            v
-                              ? [...new Set([...selected, row.id])]
-                              : selected.filter((id) => id !== row.id),
-                          )
-                        }
-                      />
-                    )}
+                    <Checkbox
+                      aria-label={`${t("selectAll")} ${row.name}`}
+                      checked={selected.includes(row.id)}
+                      onCheckedChange={(v) =>
+                        setSelected(
+                          v
+                            ? [...new Set([...selected, row.id])]
+                            : selected.filter((id) => id !== row.id),
+                        )
+                      }
+                    />
+
                     <div className="min-w-0">
                       <p className="break-words font-medium">{row.name}</p>
                       <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -195,12 +184,12 @@ export function ConnectionTable({
                     }
                   />
                 </div>
-                <dl className="grid min-w-0 gap-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                <dl className="grid min-w-0 grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)] gap-3 text-sm">
+                  <div className="flex min-w-0 flex-col gap-1">
                     <dt className="text-xs text-muted-foreground">
                       {t("listener")}
                     </dt>
-                    <dd className="flex items-center gap-2">
+                    <dd className="flex flex-wrap items-baseline gap-2">
                       <bdi dir="ltr" className="font-mono">
                         {row.ports}
                       </bdi>
@@ -222,39 +211,38 @@ export function ConnectionTable({
               </article>
             ))}
           </div>
-          <div className={compact ? "hidden" : "table-frame hidden xl:block"}>
+          <div className="table-frame hidden xl:block">
             <Table>
               <TableHeader>
                 <TableRow>
-                  {!compact && (
-                    <TableHead className="w-10">
-                      <Checkbox
-                        aria-label={t("selectAll")}
-                        checked={
-                          shown.length > 0 &&
-                          shown.every((row) => selected.includes(row.id))
-                            ? true
-                            : shown.some((row) => selected.includes(row.id))
-                              ? "indeterminate"
-                              : false
-                        }
-                        onCheckedChange={(checked) =>
-                          setSelected(
-                            checked
-                              ? [
-                                  ...new Set([
-                                    ...selected,
-                                    ...shown.map((row) => row.id),
-                                  ]),
-                                ]
-                              : selected.filter(
-                                  (id) => !shown.some((row) => row.id === id),
-                                ),
-                          )
-                        }
-                      />
-                    </TableHead>
-                  )}
+                  <TableHead className="w-10">
+                    <Checkbox
+                      aria-label={t("selectAll")}
+                      checked={
+                        shown.length > 0 &&
+                        shown.every((row) => selected.includes(row.id))
+                          ? true
+                          : shown.some((row) => selected.includes(row.id))
+                            ? "indeterminate"
+                            : false
+                      }
+                      onCheckedChange={(checked) =>
+                        setSelected(
+                          checked
+                            ? [
+                                ...new Set([
+                                  ...selected,
+                                  ...shown.map((row) => row.id),
+                                ]),
+                              ]
+                            : selected.filter(
+                                (id) => !shown.some((row) => row.id === id),
+                              ),
+                        )
+                      }
+                    />
+                  </TableHead>
+
                   <TableHead>{t("name")}</TableHead>
                   <TableHead>{t("listener")}</TableHead>
                   <TableHead>{t("destination")}</TableHead>
@@ -265,21 +253,20 @@ export function ConnectionTable({
               <TableBody>
                 {visible.map((row) => (
                   <TableRow key={row.id}>
-                    {!compact && (
-                      <TableCell>
-                        <Checkbox
-                          checked={selected.includes(row.id)}
-                          aria-label={`${t("selectAll")} ${row.name}`}
-                          onCheckedChange={(checked) =>
-                            setSelected(
-                              checked
-                                ? [...selected, row.id]
-                                : selected.filter((id) => id !== row.id),
-                            )
-                          }
-                        />
-                      </TableCell>
-                    )}
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.includes(row.id)}
+                        aria-label={`${t("selectAll")} ${row.name}`}
+                        onCheckedChange={(checked) =>
+                          setSelected(
+                            checked
+                              ? [...selected, row.id]
+                              : selected.filter((id) => id !== row.id),
+                          )
+                        }
+                      />
+                    </TableCell>
+
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <span className="engine-icon" aria-hidden>
@@ -328,7 +315,7 @@ export function ConnectionTable({
           </div>
         </>
       )}
-      {!compact && pageCount > 1 && (
+      {pageCount > 1 && (
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground">
             <bdi>

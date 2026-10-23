@@ -92,12 +92,14 @@ export function Resources({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((resource) => (
             <Card key={resource.id}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle>{resource.name}</CardTitle>
+                  <CardTitle className="min-w-0 break-words">
+                    {resource.name}
+                  </CardTitle>
                   <Status value={resource.status} />
                 </div>
                 <CardDescription>
@@ -107,7 +109,10 @@ export function Resources({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <code className="text-xs text-muted-foreground" dir="ltr">
+                <code
+                  className="break-all text-xs text-muted-foreground"
+                  dir="ltr"
+                >
                   {resource.id}
                 </code>
                 {resource.interface && (

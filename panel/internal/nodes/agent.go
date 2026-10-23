@@ -153,6 +153,7 @@ type Agent struct {
 	Client     control.Client
 	Notify     func(string)
 	Operations bool
+	Traffic    bool
 }
 
 func CheckIdentity(path string) error {
@@ -186,6 +187,7 @@ func (a Agent) Run(ctx context.Context) error {
 	delay := time.Duration(0)
 	failures := 0
 	lastCode := ""
+	trafficCode := ""
 	var pending *control.NodeResult
 	nextReport := time.Time{}
 	for {
@@ -315,6 +317,33 @@ func (a Agent) Run(ctx context.Context) error {
 		}
 		lastCode = ""
 		failures = 0
+		// Optional sideband reports never change inventory/pair capability
+		// negotiation. Older Controllers can reject this endpoint independently.
+		if a.Traffic {
+			trafficCtx, stop := context.WithTimeout(ctx, 15*time.Second)
+			summary := readTraffic(trafficCtx, a.Client)
+			stop()
+			var ack struct {
+				Protocol int `json:"protocol"`
+			}
+			trafficErr := post(ctx, c, id.URL+"/v1/traffic", summary, &ack)
+			p, _ := trafficErr.(*Problem)
+			if p != nil && (p.Code == "identity_revoked" || p.Code == "identity_expired" || p.Code == "identity_required") {
+				return trafficErr
+			}
+			nextCode := ""
+			if trafficErr != nil || ack.Protocol != TrafficProtocol {
+				nextCode = "traffic_report_unavailable"
+			}
+			if a.Notify != nil && nextCode != trafficCode {
+				if nextCode == "" {
+					a.Notify("traffic_report_connected")
+				} else {
+					a.Notify(nextCode)
+				}
+			}
+			trafficCode = nextCode
+		}
 		delay = 60*time.Second + jitter(10*time.Second)
 		if a.Operations {
 			nextReport = time.Now().Add(delay)

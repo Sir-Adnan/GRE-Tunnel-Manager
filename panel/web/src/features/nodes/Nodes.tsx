@@ -7,7 +7,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { api, endpoint } from "@/lib/api";
+import { api } from "@/lib/api";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
 import { PageTitle, TextField } from "@/components/shared";
@@ -34,6 +34,7 @@ import { ActionButton, HelpTip } from "@/components/help";
 
 import type { Node, Listing, Invitation } from "./types";
 import { NodeCard } from "./NodeCard";
+import { NodeDetails } from "./NodeDetails";
 import { PairedConnections } from "./PairedConnections";
 
 export function Nodes() {
@@ -298,63 +299,13 @@ export function Nodes() {
           </Button>
         </DialogContent>
       </Dialog>
-      <Dialog
-        open={!!details}
-        onOpenChange={(open) => !open && setDetails(undefined)}
-      >
-        <DialogContent closeLabel={t("close")} className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{details?.name}</DialogTitle>
-            <DialogDescription>{t("nodeDetailHelp")}</DialogDescription>
-          </DialogHeader>
-          <div className="flex max-h-[65dvh] min-w-0 flex-col gap-4 overflow-auto">
-            <dl className="flex flex-col gap-2 text-sm">
-              <dt>{t("nodeIdentity")}</dt>
-              <dd className="break-all font-mono text-xs" dir="ltr">
-                {details?.id}
-              </dd>
-              <dt>{t("os")}</dt>
-              <dd>
-                <bdi>{details?.inventory?.host.os || t("notReported")}</bdi>
-              </dd>
-              <dt>{t("capabilities")}</dt>
-              <dd>
-                <bdi>
-                  {details?.capabilities.join(" · ") || t("notReported")}
-                </bdi>
-              </dd>
-            </dl>
-            {details?.inventory?.connections?.map((c) => (
-              <div
-                key={c.id}
-                className="flex flex-wrap items-center justify-between gap-2 border-b py-3"
-              >
-                <span className="min-w-0 break-words">{c.name}</span>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">{c.engine}</Badge>
-                  <Badge variant="outline">
-                    <bdi>{endpoint(c.bind, c.ports)}</bdi>
-                  </Badge>
-                  <Badge variant="outline">
-                    {t(c.status || (c.enabled ? "configured" : "disabled"))}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-            {details?.inventory?.resources?.map((r) => (
-              <div
-                key={r.id}
-                className="flex flex-wrap justify-between gap-2 border-b py-3"
-              >
-                <bdi className="break-all">{r.name}</bdi>
-                <Badge variant="outline">
-                  {r.engine} · {t(r.status)}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {details && (
+        <NodeDetails
+          key={details.id}
+          node={details}
+          onClose={() => setDetails(undefined)}
+        />
+      )}
       <Dialog open={help} onOpenChange={setHelp}>
         <DialogContent closeLabel={t("close")} className="sm:max-w-2xl">
           <DialogHeader>
@@ -368,6 +319,7 @@ export function Nodes() {
               ["remoteNode", "agentGuide"],
               ["nodeTransportTitle", "nodeTransportGuide"],
               ["connectionRecovery", "nodeRecoveryGuide"],
+              ["nodeTraffic", "nodeTrafficHelp"],
             ].map(([title, body]) => (
               <section key={title} className="flex flex-col gap-1">
                 <h3 className="font-semibold">{t(title)}</h3>

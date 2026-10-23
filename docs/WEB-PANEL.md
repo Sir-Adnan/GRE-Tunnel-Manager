@@ -2,7 +2,7 @@
 
 The optional Go panel manages connections on its own host. The interface supports Persian RTL and English LTR, desktop/mobile layouts, the original Nettinx palette and the Neutral alternative. Tunnel traffic does not pass through the panel. Stopping the panel does not stop independently managed tunnels.
 
-The [development roadmap](ROADMAP.md) distinguishes current local-host capabilities from planned Node/Agent management. Repository source includes the Phase 1 interface corrections and Phase 2 installation flow. The published v1.3.0 package still contains the earlier interface and HTTPS-only setup; pulling a newer installer does not rebuild that binary. See the release boundary below.
+The [development roadmap](ROADMAP.md) tracks local management, optional Nodes, leased paired operations and read-only remote traffic. Current source includes these completed milestones and the updated installation flow. The published v1.3.0 package still contains the earlier interface and HTTPS-only setup; pulling a newer installer does not rebuild that binary. See the release boundary below.
 
 ## Installation and login
 
@@ -56,7 +56,7 @@ sudo bash panel-install.sh --quick --protocol http --address 203.0.113.10 --port
 sudo bash panel-install.sh --quick --address panel.example.com --port 8443
 ```
 
-HTTP works directly on the server IP without a certificate. Its login and management traffic are unencrypted; the login page and connection help identify this. Sessions still require authentication, HttpOnly/SameSite cookies, Origin and CSRF checks. HTTPS additionally sets the Secure cookie flag. Separate HTTP/HTTPS cookie names prevent an old Secure cookie from blocking a later HTTP login on the same host. Do not enable `Secure` on a plain HTTP listener: browsers would not send its cookie. This browser setting does not weaken the planned Agent control channel, which remains authenticated and encrypted.
+HTTP works directly on the server IP without a certificate. Its login and management traffic are unencrypted; the login page and connection help identify this. Sessions still require authentication, HttpOnly/SameSite cookies, Origin and CSRF checks. HTTPS additionally sets the Secure cookie flag. Separate HTTP/HTTPS cookie names prevent an old Secure cookie from blocking a later HTTP login on the same host. Do not enable `Secure` on a plain HTTP listener: browsers would not send its cookie. This browser setting does not weaken the Agent control channel, which remains authenticated and encrypted.
 
 User-chosen passwords require at least **eight Unicode characters**, at most **72 UTF-8 bytes**, with no control characters. Hidden password entry permits up to three attempts for invalid or mismatched input. Eight non-ASCII characters can occupy more than eight bytes. Quick setup generates 24 cryptographically random bytes encoded as 32 URL-safe characters. Passwords are not accepted in command arguments, URLs or environment variables. The generated password is printed only by the foreground setup command, never by the services or `address` command. Treat that one-time output as a secret; avoid capturing it in shared terminal logs.
 
@@ -98,17 +98,17 @@ Setup refuses an existing config or TLS files rather than overwriting them. If a
 | rathole | Entrance/destination, TCP/UDP/both, Noise NK, entrance key creation and public-key pinning at destination |
 | Engine installation | Install optional engines selectively or together without creating tunnels |
 
-This is a bounded adapter set, not a complete editor for every native engine feature. Arbitrary config/file editing, HAProxy HTTP/ACL/TLS routing, native encrypted Realm transports, MPTCP, hostname destinations and multi-server orchestration are not currently exposed. Capabilities advertised by the API and forms define supported behavior. FRP and rathole provide the currently exposed encrypted transports.
+Current source additionally supports bounded [HAProxy TLS/SNI/HTTP routing](HAPROXY-ROUTING.md), source-IP memory affinity, pinned [Realm WS/MPTCP/IPv6-only profiles](REALM-PROFILES.md), and nftables incremental/source hashing. This remains a closed adapter set: arbitrary native config/ACL editing, Realm native TLS/WSS and hostname destinations are not exposed. Capabilities advertised by the API/forms define the supported profile. Optional [paired GRE/FRP orchestration](PAIRED-CONNECTIONS.md) is separate from the general local editors.
 
 Presets initialize settings; they do not guarantee throughput or resource usage on every route. PROXY metadata requires a compatible receiver. Preserved source IP requires correct return routing. A kernel forward marked configured does not prove peer reachability; an active relay process does not prove end-to-end tunnel health.
 
-Configure GRE/reverse peers independently on each host today. The GRE web form does not add watchdogs or global firewall/sysctl changes. Protocol 47 must be allowed by the network. GRE IDs/roles preserve the existing keyed wire contract. GRE/reverse configuration is outside forwarding restore points.
+Configure GRE/reverse peers independently, or use the explicitly enabled paired GRE/FRP workflow to coordinate two eligible Nodes. The GRE web form does not add watchdogs or global firewall/sysctl changes. Protocol 47 must be allowed by the network. GRE IDs/roles preserve the existing keyed wire contract. GRE/reverse configuration is outside forwarding restore points.
 
 ## Interface corrections in Phase 1
 
-The interface remains on Radix/shadcn; Base UI examples are references, not a second installed primitive system. Switches/checkboxes use Radix `data-state` styling, with visible checked states, partial selection, keyboard controls and labels. Dedicated HAProxy/Realm creation pages retain their engine. Optional forward/relay names are available in the normal form; empty names use the existing automatic default. Names still follow backend ASCII/length validation. Independent GRE/reverse display names require the later metadata work in Phase 5.
+The interface remains on Radix/shadcn; Base UI examples are references, not a second installed primitive system. Switches/checkboxes use Radix `data-state` styling, with visible checked states, partial selection, keyboard controls and labels. Dedicated HAProxy/Realm creation pages retain their engine. Optional forward/relay names are available in the normal form; empty names use the existing automatic default. Names still follow backend ASCII/length validation. Current source also supports fingerprint-bound GRE/reverse display names independent of technical service IDs.
 
-The header exposes light/dark/system controls. The official shadcn sidebar composition handles desktop collapse and mobile navigation. Application typography uses locally served Vazirmatn; display numbers follow locale, while IPs, ports and code retain readable LTR isolation. Forms use mobile input sizing and reachable action footers. Action tooltips support hover/focus; question-mark help also opens on click/tap.
+The header exposes light/dark/system controls. The official shadcn sidebar composition handles desktop collapse and mobile navigation. Application typography uses locally served Vazirmatn; all system-generated numbers use Latin digits in both languages, while IPs, ports and code retain readable LTR isolation. Forms use mobile input sizing and reachable action footers. Action tooltips support hover/focus; question-mark help also opens on click/tap.
 
 Traffic settings, usage and charts occupy separate full-width sections. Changes remain drafts until **Save & apply** completes. The collection badge reflects saved state rather than the draft switch. Failed reads/applies remain visible. Selecting a subset requires at least one resource when enabling, because an empty API selection means all resources.
 
@@ -127,7 +127,7 @@ These are network-layer bytes, not application payload or provider billing. NOTR
 
 Counters/totals are checkpointed and decreasing raw counters are treated as resets. Abrupt termination or deleting counters before the next sample can lose increments. This is not billing-grade accounting. Stopping the panel with accounting enabled leaves kernel counters installed; disable collection first to remove that overhead.
 
-The Traffic page now separates usage/cycles from collection settings with tabs. Optional retained history keeps up to 288 actual samples per resource and 12 completed cycle summaries. History is fetched only for the selected resource; summary polling does not transfer all archives. Per-port customer labels, advisory quotas, confirmed cycle resets, CSV export and scoped removal of deleted-resource accounting are supported. Read [Traffic accounting](TRAFFIC-ACCOUNTING.md) for limits, counter semantics, retention and the absence of automatic cutoffs/remote accounting.
+The Traffic page now separates usage/cycles from collection settings with tabs. Optional retained history keeps up to 288 actual samples per resource and 12 completed cycle summaries. History is fetched only for the selected resource; summary polling does not transfer all archives. Per-port customer labels, advisory quotas, confirmed cycle resets, CSV export and scoped removal of deleted-resource accounting are supported. Read [Traffic accounting](TRAFFIC-ACCOUNTING.md) for limits, counter semantics, retention and the absence of automatic cutoffs/remote mutations. Optional Agent snapshots are described in [Remote traffic summaries](REMOTE-TRAFFIC.md).
 
 ## Architecture and security
 

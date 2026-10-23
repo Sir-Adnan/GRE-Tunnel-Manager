@@ -30,6 +30,27 @@ func nodeCommand(ctx context.Context, args []string) error {
 	case "operations-version":
 		fmt.Println("1")
 		return nil
+	case "traffic-version":
+		fmt.Println(nodes.TrafficProtocol)
+		return nil
+	case "traffic":
+		enable := fs.Bool("enable", false, "enable local collection")
+		disable := fs.Bool("disable", false, "disable local collection and remove owned counters")
+		interval := fs.Int("interval", 60, "sample interval in seconds, 15–3600")
+		if e := fs.Parse(args[1:]); e != nil {
+			return e
+		}
+		if runtime.GOOS != "linux" || os.Geteuid() != 0 {
+			return errors.New("Agent traffic settings require Linux root")
+		}
+		if fs.NArg() != 0 || *enable == *disable || *interval < 15 || *interval > 3600 {
+			return errors.New("choose --enable or --disable, with --interval 15–3600")
+		}
+		_, e := control.NewUnixClient("/run/gre-manager-agent/broker.sock").Do(ctx, control.Request{Action: "metrics-configure", Metrics: control.MetricsSettings{Enabled: *enable, Interval: *interval, IDs: []string{}}})
+		if e == nil {
+			fmt.Println("Agent traffic settings saved. Totals are retained; summaries arrive with the next report.")
+		}
+		return e
 	case "check":
 		path := fs.String("identity", nodes.DefaultAgentPath, "private identity file")
 		if e := fs.Parse(args[1:]); e != nil {
@@ -81,6 +102,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 		return nil
 	case "agent":
 		operations := fs.Bool("operations", false, "explicitly enable leased paired-create tasks")
+		traffic := fs.Bool("traffic", false, "send optional read-only traffic summaries")
 		path := fs.String("identity", nodes.DefaultAgentPath, "private identity file")
 		socket := fs.String("socket", "/run/gre-manager-agent/broker.sock", "local read-only broker socket")
 		if e := fs.Parse(args[1:]); e != nil {
@@ -92,7 +114,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the network Agent as the greagent service user, not root")
 		}
-		return (nodes.Agent{Path: *path, Version: Version, Operations: *operations, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
+		return (nodes.Agent{Path: *path, Version: Version, Operations: *operations, Traffic: *traffic, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
 	default:
 		return errors.New("unknown nodes command")
 	}

@@ -2,98 +2,78 @@
 
 # GRE Tunnel Manager
 
-### Server tunnels and port forwarding, made simple.
+**Connect servers. Forward ports. Manage it your way.**
 
 GRE · iptables · nftables · HAProxy · Realm · FRP · rathole
 
-[![Release](https://img.shields.io/badge/release-v1.3.0-0891b2?style=flat-square)](docs/CHANGELOG.md)
+[![Release](https://img.shields.io/github/v/release/Sir-Adnan/GRE-Tunnel-Manager?style=flat-square)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/releases)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
-![Bash](https://img.shields.io/badge/runtime-Bash-334155?style=flat-square)
 
-Documentation in English · Web interface in Persian and English
+English · [فارسی](README.fa.md)
 
-[Quick start](#quick-start) · [User guide](docs/USER-GUIDE.md) · [HAProxy](docs/HAPROXY.md) · [Changelog](docs/CHANGELOG.md) · [Roadmap](docs/ROADMAP.md)
+[Get started](#get-started) · [Web panel](#web-panel) · [Guides](docs/README.md) · [Changelog](docs/CHANGELOG.md)
 
 </div>
 
----
+Manage tunnels and TCP/UDP forwarding from a straightforward Bash menu or an optional web panel. Use a direct forward, connect servers with GRE first, or choose a reverse tunnel. Each engine has its own setup and management menu.
 
-## Quick start
+## Get started
 
-**You need:** a Debian/Ubuntu server with systemd, SSH access, `curl`, and root or sudo access.
-
-Paste this **single command** into your server's terminal:
+On a **Debian/Ubuntu server with systemd**, run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh && sudo bash gre.sh
+curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh && sudo bash gre.sh
 ```
 
-Already logged in as **root**? Leave out `sudo`. The script is saved as `gre.sh` in your current folder. To run it again, use `sudo bash gre.sh` from that folder. Downloading again replaces that local copy.
+Logged in as root? Omit `sudo`. Run `sudo bash gre.sh` again from the same folder whenever you need the menu. If curl is missing, install it with `sudo apt-get update && sudo apt-get install -y curl` first. Remove `--ipv4` on an IPv6-only server.
 
-Missing curl? Install it with `sudo apt-get update && sudo apt-get install -y curl` first. Optional engines can be installed ahead of time in Tools or when applying a setup that needs them.
+Choose **GRE Tunnel**, **Port Forwarding**, **HAProxy**, **Realm** or **Reverse Tunnel**. For a forward, enter the local port, destination IP and destination port, then review before applying. Names are optional. Several ports, such as `443,8443` or `8000-8003`, can be set up together.
+
+## Pick a connection method
+
+| Method | A good fit for |
+| --- | --- |
+| **iptables / nftables** | TCP/UDP port forwarding in the Linux kernel; no resident manager process |
+| **GRE / ip6gre** | A network link between two servers, with separate forwarding if needed |
+| **HAProxy** | TCP relays, health checks, load balancing and failover |
+| **Realm** | TCP/UDP relays and weighted destinations |
+| **FRP / rathole** | Reverse connections; FRP transports and rathole Noise encryption |
+
+GRE is optional. For WireGuard or AmneziaWG traffic, choose a UDP-capable method; the HAProxy adapter handles TCP. GRE itself does not encrypt traffic and requires IP protocol 47 to pass through the network.
 
 ## Web panel
 
-Prefer a browser? Install the optional **Go web panel** directly:
+Install the optional panel directly, or choose **8 · Web Panel** in the terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh
+curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh
 ```
 
-Choose a port (blank selects a random free port), create an administrator username/password, and open the printed **HTTPS** address. Verify the initial self-signed certificate fingerprint over SSH and allow the chosen TCP port. Includes Persian/English, desktop/mobile, tunnel management, presets and optional traffic counters. No Go, Node or database is needed on the server. Also available from **8 · Web Panel** in the terminal. [Setup, features and scope](docs/WEB-PANEL.md).
+The installer prints the access address. Allow its TCP port in the server/provider firewall, then open it in your browser. For the initial self-signed HTTPS certificate, verify the fingerprint over SSH before trusting it.
 
-**Current source:** quick setup, explicit HTTP/HTTPS, automatic IP discovery and eight-character user passwords are implemented for the next panel package. The published v1.3.0 binary still uses its earlier HTTPS setup. See the [installation guide](docs/WEB-PANEL.md#published-package-versus-current-source) for the supported path and local-package testing.
+The panel supports Persian and English, desktop and mobile, light/dark modes, connection management and optional traffic accounting. It runs as a prebuilt Go executable with the interface embedded; **Node.js, Python, Go compilers and a database server are not required on managed servers**. Tunnel traffic flows through the selected engine, independently of the panel.
 
-Current source also adds [traffic cycles, quotas and history](docs/TRAFFIC-ACCOUNTING.md), [HAProxy routing](docs/HAPROXY-ROUTING.md), optional [IP affinity](docs/HAPROXY.md#remember-client-ip-optional) and [Realm profiles](docs/REALM-PROFILES.md). These are included only in updated source packages until the next approved release.
+**Release availability:** published **v1.3.0** has the original HTTPS setup. The current source also contains quick HTTP/HTTPS installation, Nodes/Agents, coordinated GRE/FRP setup, advanced routing and traffic cycles. These additions need a matching source-built package until the next release is approved. A newer installer does not upgrade the contents of an older binary. [Setup and package details →](docs/WEB-PANEL.md#published-package-versus-current-source)
 
-With an updated source package, remove only the panel using `sudo bash panel-install.sh --uninstall`; tunnels remain running. [Removal and recovery](docs/PANEL-REMOVAL.md) · [Engine capabilities](docs/ENGINE-CAPABILITIES.md).
+With a matching source package, quick setup detects the IP and generates credentials:
 
-Optional **Nodes and Agents** bring inventory from other servers into one panel, with optional [coordinated GRE/FRP setup](docs/PAIRED-CONNECTIONS.md). The panel host is included automatically; a third server is optional. This is a current-source feature, not part of the published v1.3.0 archive. See the concise setup and local-package instructions in [Nodes and Agents](docs/NODES.md).
+```bash
+sudo bash panel-install.sh --package-dir /path/to/packages --quick
+```
 
-## Choose what you need
+## One panel, several servers
 
-| Menu | Use it for |
-| --- | --- |
-| **1 · GRE Tunnel** | Create, show or delete GRE and Simple GRE tunnels |
-| **2 · Port Forwarding** | Forward TCP/UDP ports with iptables or nftables |
-| **3 · HAProxy Tunnel** | Manage HAProxy TCP tunnels, balancing, services and logs |
-| **4 · Realm Tunnel** | Manage Realm TCP/UDP tunnels and services |
-| **5 · Reverse Tunnel** | Set up FRP or rathole on both servers |
-| **6 · Load Balancing** | Send traffic to more than one server |
-| **7 · Tools** | Server status, backups, cleanup and help |
-| **8 · Web Panel** | Install, start, stop and manage browser access |
+Keep everything local, run the panel on an entrance or destination, or use a separate Controller. Other servers can join as optional outbound Agents; the panel host already appears as a local Node. A third server is not required.
 
-Each engine has its own menu. Add, show, edit and delete are together; type an option number and press Enter. GRE is optional for direct forwarding.
+Current source supports secure inventory, paired GRE/FRP creation and opt-in read-only traffic summaries. General tunnel editors still operate on the panel host. [Nodes and installation →](docs/NODES.md)
 
-The header keeps your server's IP addresses, host/OS and network provider in view. Public and local addresses are labeled separately; provider information is approximate and falls back gracefully when offline. Refresh it in **Tools → Refresh Server Info**. See the [header guide](docs/TERMINAL-UI.md#server-information-in-the-header) to disable the optional online lookup.
+## Useful guides
 
-## Your first HAProxy tunnel
+- [First setup and daily use](docs/USER-GUIDE.md)
+- [HAProxy settings](docs/HAPROXY.md) and [TLS / SNI routing](docs/HAPROXY-ROUTING.md)
+- [Traffic cycles, resets, labels and quotas](docs/TRAFFIC-ACCOUNTING.md)
+- [Remote traffic reports](docs/REMOTE-TRAFFIC.md)
+- [Backups and recovery](docs/OPERATIONS.md) · [Panel removal](docs/PANEL-REMOVAL.md)
+- [Development](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Roadmap](docs/ROADMAP.md)
 
-1. Open **HAProxy Tunnel → Add Tunnel** and enter the **local port**, such as `443`.
-2. Enter the **remote IP**, then the **remote port**. A combined `IP:port` also works.
-3. Review the mapping and choose **Save & apply**.
-
-The tunnel gets a name automatically. Renaming and a specific listen IP are optional. HAProxy and Realm listen on all local IPv4 addresses by default; kernel forwarding selects a local address from the server's routing information. Review shows the chosen address before applying.
-
-Need several ports? Enter `443,8443` or a short range such as `8000-8003`. Choose whether they all use the entered remote port or keep their original port numbers. Every mapping is shown before saving, with a separate managed entry per local port; up to 32 ports per setup. Existing entries are edited individually.
-
-## What is included?
-
-- **GRE / ip6gre** with the existing peer configuration and MTU controls.
-- **Kernel forwarding** for TCP/UDP, without a resident manager process.
-- **HAProxy TCP** with health checks, failover, timeouts and restricted local status.
-- **Realm TCP/UDP**, plus **FRP** TCP/WS/WSS/QUIC and **rathole** Noise reverse tunnels.
-- **Managed changes:** validation, grouped deletion and automatic forwarding restore points.
-- **A fixed English terminal UI:** dedicated headers, numbered choices and short setup steps. No theme or language setup is required.
-
-## Before using your main service
-
-Allow the required ports and protocols in your server/provider firewall. GRE needs protocol 47 and does not encrypt traffic. Use UDP forwarding for WireGuard/AmneziaWG; this HAProxy adapter is TCP-only. Test a separate port before moving a live service.
-
-## Documentation
-
-[Terminal & setup guide](docs/TERMINAL-UI.md) · [Detailed user guide](docs/USER-GUIDE.md) · [Operations & recovery](docs/OPERATIONS.md) · [HAProxy settings](docs/HAPROXY.md) · [Legacy cleanup](docs/TUNING-CLEANUP.md)
-
-For contributors: [Architecture & docs](docs/README.md) · [Development](docs/DEVELOPMENT.md) · [AGENTS.md](AGENTS.md)
-
-The historical v13.9 code and its documentation are kept in [legacy](legacy/README.md).
+Allow the required ports and protocols before applying a setup, and test a spare port before moving an active service. Forwarding restore points do not include GRE/reverse peer configurations. The original scripts remain in [legacy](legacy/README.md).

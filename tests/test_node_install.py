@@ -59,6 +59,7 @@ version) printf 'v1.3.0\\n';;
 nodes) case "$2" in
 protocol) printf '%s\\n' "$TEST_NODE_PROTOCOL";;
 operations-version) printf '1\\n';;
+traffic-version) printf '%s\\n' "${TEST_TRAFFIC_PROTOCOL:-1}";;
 enroll) printf 'enroll\\n' >> "$TEST_LOG"; [[ ! -f "$TEST_ROOT/fail-enroll" ]] || exit 2; umask 077; printf '{"private":"identity"}' > "$TEST_ROOT/var/lib/gre-manager-agent/identity.json";;
 check) [[ ! -f "$TEST_ROOT/fail-check" ]];;
 check-controller) [[ ! -f "$TEST_ROOT/fail-check" ]];;
@@ -124,6 +125,26 @@ init) printf 'init\\n' >> "$TEST_LOG"; mkdir -p "$TEST_ROOT/var/lib/gre-manager-
         result = self.run_installer('--agent', '--package-dir', str(self.packages))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('nodes agent --operations', (self.root / 'etc/systemd/system/gre-manager-agent.service').read_text())
+
+    def test_traffic_opt_in_preserves_flags_and_stays_off_by_default(self):
+        result = self.run_installer('--agent', '--operations', '--traffic', '--package-dir', str(self.packages))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        service = self.root / 'etc/systemd/system/gre-manager-agent.service'
+        broker = self.root / 'etc/systemd/system/gre-manager-agent-broker.service'
+        self.assertIn('nodes agent --operations --traffic', service.read_text())
+        self.assertIn('--read-only --node-operations --agent-traffic --socket', broker.read_text())
+        self.assertNotIn('traffic --enable', self.calls())
+        self.assertEqual((self.root / 'var/lib/gre-manager-agent-traffic').stat().st_mode & 0o777, 0o700)
+        result = self.run_installer('--agent', '--package-dir', str(self.packages))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nodes agent --operations --traffic', service.read_text())
+
+    def test_traffic_old_binary_fails_before_service_stop(self):
+        self.env['TEST_TRAFFIC_PROTOCOL'] = '0'
+        result = self.run_installer('--agent', '--traffic', '--package-dir', str(self.packages))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn('enroll', self.calls())
+        self.assertNotIn('systemctl stop', self.calls())
 
     def test_failed_enrollment_and_corrupt_identity_do_not_stop_services(self):
         (self.root / 'fail-enroll').touch()

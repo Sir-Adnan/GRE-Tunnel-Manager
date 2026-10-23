@@ -22,11 +22,14 @@ export function Destinations({ connection }: { connection: Connection }) {
     [open, setOpen] = useState(false);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const first = connection.targets[0];
+  if (!first) return <span>—</span>;
   if (connection.targets.length === 1)
     return (
-      <bdi dir="ltr" className="block break-all font-mono text-xs">
-        {endpoint(first.ip, first.port)}
-      </bdi>
+      <span className="inline-flex max-w-full">
+        <bdi dir="ltr" className="break-all font-mono text-xs">
+          {endpoint(first.ip, first.port)}
+        </bdi>
+      </span>
     );
   const list = (limit: number) => (
     <ul

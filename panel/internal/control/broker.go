@@ -18,10 +18,11 @@ import (
 )
 
 type Broker struct {
-	Manager  *Manager
-	ReadOnly bool
-	Nodes    *NodeExecutor
-	mu       sync.Mutex
+	Manager      *Manager
+	ReadOnly     bool
+	AgentTraffic bool
+	Nodes        *NodeExecutor
+	mu           sync.Mutex
 }
 type Reply struct {
 	Data  json.RawMessage `json:"data,omitempty"`
@@ -46,7 +47,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "one request required", 400)
 		return
 	}
-	if (request.Action == "node-task" && (b.Nodes == nil || request.NodeTask == nil)) || (b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" && request.Action != "node-task") {
+	trafficAllowed := b.AgentTraffic && (request.Action == "metrics" || request.Action == "metrics-configure")
+	if (request.Action == "node-task" && (b.Nodes == nil || request.NodeTask == nil)) || (b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" && request.Action != "node-task" && !trafficAllowed) {
 		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}

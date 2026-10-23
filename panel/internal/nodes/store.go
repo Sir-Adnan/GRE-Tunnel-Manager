@@ -46,15 +46,16 @@ type observation struct {
 	revision  string
 }
 type Hub struct {
-	mu     sync.Mutex
-	path   string
-	state  state
-	cache  map[string]observation
-	gate   chan struct{}
-	now    func() time.Time
-	lock   *os.File
-	closed bool
-	pairs  []pair
+	mu      sync.Mutex
+	path    string
+	state   state
+	cache   map[string]observation
+	traffic map[string]trafficObservation
+	gate    chan struct{}
+	now     func() time.Time
+	lock    *os.File
+	closed  bool
+	pairs   []pair
 }
 type Invitation struct {
 	Code    string    `json:"code"`
@@ -218,7 +219,7 @@ func Init(dir, address, listen string) error {
 	return writeJSON(filepath.Join(dir, "controller.json"), state{Schema: 1, URL: address, Listen: listen, CA: ca, Key: key, Certificate: crt, ServerKey: serverKey, Nodes: []Node{}, Tickets: []ticket{}}, true)
 }
 func Open(dir string) (*Hub, error) {
-	h := &Hub{path: filepath.Join(dir, "controller.json"), cache: map[string]observation{}, gate: make(chan struct{}, 8), now: time.Now}
+	h := &Hub{path: filepath.Join(dir, "controller.json"), cache: map[string]observation{}, traffic: map[string]trafficObservation{}, gate: make(chan struct{}, 8), now: time.Now}
 	f, e := os.OpenFile(filepath.Join(dir, "controller.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if e != nil {
 		return nil, e
@@ -403,6 +404,7 @@ func (h *Hub) Revoke(id, revision string) error {
 				return e
 			}
 			h.state = next
+			delete(h.traffic, id)
 			return nil
 		}
 	}

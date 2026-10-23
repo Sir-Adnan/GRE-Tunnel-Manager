@@ -22,3 +22,28 @@ export type Listing = {
   nodes: Node[];
 };
 export type Invitation = { code: string; expires: string };
+
+export type NodeTrafficView = {
+  node_id: string;
+  status: string;
+  observed?: string;
+  summary?: {
+    protocol: number;
+    enabled: boolean;
+    interval: number;
+    since: string;
+    failure?: string;
+    counters: Record<
+      string,
+      {
+        received: number;
+        sent: number;
+        cycle_received: number;
+        cycle_sent: number;
+        cycle_start: string;
+        updated: string;
+        source: string;
+      }
+    >;
+  };
+};
