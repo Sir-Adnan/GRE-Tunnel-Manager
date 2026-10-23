@@ -1,5 +1,12 @@
 import { Login } from "@/features/Login";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   Sun,
   Moon,
@@ -45,6 +52,11 @@ import { ConnectionTable } from "@/features/connections/ConnectionTable";
 import { Overview } from "@/features/Overview";
 import { Resources } from "@/features/Resources";
 import { Traffic } from "@/features/Traffic";
+const Nodes = lazy(() =>
+  import("@/features/nodes/Nodes").then((module) => ({
+    default: module.Nodes,
+  })),
+);
 import { Components, Settings } from "@/features/Settings";
 import type { Preferences } from "@/features/Settings";
 import { api, operate } from "@/lib/api";
@@ -303,7 +315,9 @@ export default function App() {
                   label={t("refresh")}
                   disabled={job?.state === "running"}
                   onClick={() =>
-                    refresh().catch((error) => setToast(String(error)))
+                    page === "nodes"
+                      ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
+                      : void refresh().catch((error) => setToast(String(error)))
                   }
                 >
                   <RefreshCw />
@@ -342,7 +356,11 @@ export default function App() {
                   <span className="text-xs opacity-70">{job.action}</span>
                 </div>
               )}
-              {!inventory ? (
+              {page === "nodes" ? (
+                <Suspense fallback={<Skeleton className="h-60 w-full" />}>
+                  <Nodes />
+                </Suspense>
+              ) : !inventory ? (
                 <div className="flex flex-col gap-6">
                   <Skeleton className="h-12 w-72" />
                   <div className="stats-grid">

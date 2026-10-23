@@ -101,3 +101,19 @@ Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journ
 | `grepanel` system user/group | Restricted panel service account, no login shell |
 
 Stopping the panel does not delete tunnels, credentials, certificates or totals. Accounting counters remain if collection was enabled; disable it first to remove counting overhead. Package installation suppresses autostart of newly installed distribution HAProxy; existing operator service policy is preserved. Browser appearance/language choices are stored locally and never used for authorization. See [WEB-PANEL.md](WEB-PANEL.md).
+
+## Optional Node control plane
+
+| Path/resource | Ownership and lifecycle |
+| --- | --- |
+| `/var/lib/gre-manager-nodes/controller.json` | grepanel-owned mode 600 in mode-700 directory; optional private authority/key, endpoint, registry/revocations and hashed expiring invitations |
+| `/var/lib/gre-manager-nodes/controller.lock` | Process-held exclusive state lock; retained empty file, not a stale PID lease |
+| `/etc/systemd/system/gre-manager-panel.service.d/nodes.conf` | Root-owned optional write-path exception for Controller state |
+| `/var/lib/gre-manager-agent/identity.json` | greagent-owned mode 600 in mode-700 directory; per-node private key, certificate and pinned authority |
+| `/var/lib/gre-manager-agent/agent.lock` | Process-held exclusive Agent identity lock |
+| `gre-manager-agent.service` | Explicit optional unprivileged outbound inventory service; opens no inbound listener |
+| `gre-manager-agent-broker.service` | Root process, greagent group; only inventory/capability actions on local Unix socket |
+| `/run/gre-manager-agent/broker.sock` | Group-protected mode-660 socket inside mode-750 runtime directory |
+| `greagent` user/group | Restricted system service identity, no login shell |
+
+The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths. Its installer refuses a host already running the panel, whose local Node needs no Agent. No engine, tunnel, traffic collector, firewall rule or counter is created by Node installation. Controller inventory/contact times are memory-only and clear on restart. Stopping/removing control services does not delete network configuration. Removing private identities is a separate explicit recovery step; see [NODES.md](NODES.md).

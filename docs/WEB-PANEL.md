@@ -151,3 +151,7 @@ Existing TSV v1/v2 remain supported; advanced Realm options use v3. Older releas
 The original Nettinx colors are preserved by explicit user choice. White primary-button text has approximately 2.5:1 contrast in light mode and 2.62:1 in dark mode; some sidebar combinations also fail AA. These are recorded limitations, not a passed contrast gate. Neutral remains an alternative. The later explicit Vazirmatn font choice changes application typography without altering original palette source values.
 
 Fonts are served locally, Persian letter-spacing is zero and technical values retain LTR isolation. Node, Vite and TypeScript are build-time tools; the browser executes the built React JavaScript. Two Go processes run in production, plus whichever tunnel engines are enabled. `GOMEMLIMIT=64MiB` per Go process is a soft runtime memory setting, not a hard RSS cap or measurement of actual use.
+
+## Optional servers and Agents
+
+The **Nodes** page always includes the panel host. To see other servers, explicitly enable the separate TLS Controller listener and install outbound read-only Agents with hidden, expiring enrollment codes. The panel may run on an entrance, destination or third server; local-only operation needs no Agent. Existing tunnel pages still control only the panel host. See [NODES.md](NODES.md) for setup, protocol/PKI, status interpretation and recovery. This is an unreleased source feature; the existing v1.3.0 archive does not implement it.

@@ -7,3 +7,5 @@ The public HTTP/HTTPS process runs as a restricted user and talks to a local pri
 Supported settings are listed in docs/WEB-PANEL.md. This is not an arbitrary native HAProxy/Realm/firewall configuration editor. The user-selected Nettinx palette is preserved, including its documented contrast limitations. Public two-server, reboot and sustained-load validation remain deployment checks.
 
 Quick/custom setup supports automatic IP discovery, selected/random ports, explicit HTTP/HTTPS and generated administrator credentials. HTTPS remains the default. Existing settings and certificates are preserved; user passwords require eight characters within the bcrypt byte limit. The login page and connection help identify unencrypted HTTP.
+
+Node support has a separate `gtm-panel nodes protocol` contract (currently 1). Until a new release is published, `node-install.sh --agent` requires a matching current source archive through `--package-dir`. Do not overwrite old v1.3.0 assets to make that command succeed. Test Controller/Agent upgrades and preserve private identities before publishing a new version.

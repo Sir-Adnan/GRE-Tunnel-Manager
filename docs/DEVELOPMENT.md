@@ -19,7 +19,7 @@ Edit `src/*.sh`, run `python3 tools/build.py`; do not hand-edit generated `gre.s
 ```bash
 python3 tools/build.py --check
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy,realm_options,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,api,panel,menus}.sh panel-install.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy,realm_options,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,api,panel,menus}.sh panel-install.sh node-install.sh
 bash gre.sh --preview haproxy
 sudo bash tests/linux_namespace.sh
 ```
@@ -67,4 +67,6 @@ Frontend traffic tests use Node 24 type stripping with the built-in test runner.
 
 Installation changes are tested in `panel/internal/setup` and `panel/internal/config`, with actual HTTP/TLS sessions in `panel/internal/httpapi`. The Python installer harness uses redirected temporary system paths and fake accounts/services; it does not prove live systemd deployment. On Linux it also covers upgrade preservation, installation locking, setup/config failure, version mismatch and checksum rejection. No host-wide installer test should run outside a disposable VM/container.
 
-For an unreleased build, `sudo bash panel-install.sh --package-dir panel/bin --quick --address SERVER_IP` explicitly installs locally built packages and checks their matching SHA256SUMS. Do not upload development archives over existing v1.3.0 assets. Synchronize manager/Go/frontend/installer versions before a release, rebuild the helper/frontend/packages, and create a new matching version tag. The release workflow requires that tag and creates a new release without overwriting existing assets; manual dispatch against main is refused.
+For an unreleased build, `sudo bash panel-install.sh --package-dir panel/bin --quick --address SERVER_IP` explicitly installs locally built packages and checks their matching SHA256SUMS. Do not upload development archives over existing v1.3.0 assets. Synchronize manager/Go/frontend/panel-installer/Node-installer versions before a release, rebuild the helper/frontend/packages, and create a new matching version tag. The release workflow requires that tag and creates a new release without overwriting existing assets; manual dispatch against main is refused.
+
+Node control tests run real local TLS sockets for pinned enrollment, multiple identities, protocol rejection, revocation, certificate renewal, reconnect and bounded report retention. `tests/test_node_install.py` redirects system paths and fakes accounts/services; it never deploys an Agent on the development host. Include `node-install.sh` in ShellCheck. The read-only broker test verifies rejected operations never reach a manager. Nodes UI browser checks must cover local-only and enabled-Controller states, mobile dialogs, both directions, invitation handling and revocation. See [Phase 3 review](PHASE-3-REVIEW.md) for executed checks and deployment limits.

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Phase 3 read-only Nodes and Agents
+
+- Add optional Controller enrollment and outbound inventory Agents without requiring a third server or an Agent on the panel host. Keep existing tunnel operations local.
+- Define independent protocol 1, stable node IDs, closed capability negotiation, structured failures and separate metadata/inventory revisions. No remote operation endpoint is added.
+- Pin the Controller authority before one-time enrollment, issue per-node mTLS identities, renew leaf certificates, preserve identities across updates and enforce revocation on every report/renewal. Protect single-process state with file locks and atomic private writes.
+- Add checksum/protocol-verified optional Controller/Agent installation, hidden invitation entry and a separately allowlisted read-only root broker. Browser HTTP never permits plaintext Agent transport.
+- Add a lazy-loaded bilingual Nodes page, snapshot details, distinct connectivity/service status, collection timestamps, revocation confirmation and topology/recovery help. Preserve Nettinx colors and Vazirmatn.
+- Bound enrollment, reports and retries; keep inventory memory-only with no history or queue. Document local-package installation because published v1.3.0 does not contain this source feature.
+
 ## Unreleased — Phase 2 installation and access
 
 - Add modular quick/custom setup with automatic public-IP discovery, IP/domain addresses, IPv6 URL formatting, selected/random ports and generated credentials printed once.
@@ -17,7 +26,7 @@
 - Redesign traffic usage into full-width settings, per-connection counters and a lazily loaded Area chart based on bounded samples fetched during the page visit. Separate actual engine names from accounting methods; never aggregate overlapping GRE/forward totals.
 - Expose optional forward/relay names in the main form and keep creation from dedicated HAProxy/Realm pages on that engine. Improve mobile form sizing and selection feedback.
 - Move maintained documentation to English and add the phase-gated Node/Agent/installation/capability roadmap.
-- This is an unreleased source change. HTTP installation was subsequently implemented in Phase 2 above; remote Node/Agent management remains planned.
+- This is an unreleased source change. HTTP installation was subsequently implemented in Phase 2 above; read-only Node/Agent inventory was subsequently implemented in Phase 3 above; remote mutations remain planned.
 
 ## v1.3.0 — Optional Go web panel
 

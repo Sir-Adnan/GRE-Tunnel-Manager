@@ -21,3 +21,6 @@ Start with the [README](../README.md), then the guides below. Maintained documen
 | [TUNING-CLEANUP.md](TUNING-CLEANUP.md) | closed legacy cleanup, global tuning journal, drift-aware restore and historical migration |
 
 The current phase-gated development plan is tracked in [ROADMAP.md](ROADMAP.md).
+
+- [Nodes and Agents](NODES.md): optional secure read-only inventory, installation and recovery.
+- [Phase 3 review](PHASE-3-REVIEW.md): delivered scope and verification evidence.

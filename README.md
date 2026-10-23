@@ -44,6 +44,8 @@ Choose a port (blank selects a random free port), create an administrator userna
 
 **Current source:** quick setup, explicit HTTP/HTTPS, automatic IP discovery and eight-character user passwords are implemented for the next panel package. The published v1.3.0 binary still uses its earlier HTTPS setup. See the [installation guide](docs/WEB-PANEL.md#published-package-versus-current-source) for the supported path and local-package testing.
 
+Optional **Nodes and Agents** bring read-only inventory from other servers into one panel. The panel host is included automatically; a third server is optional. This is a current-source feature, not part of the published v1.3.0 archive. See the concise setup and local-package instructions in [Nodes and Agents](docs/NODES.md).
+
 ## Choose what you need
 
 | Menu | Use it for |

@@ -78,3 +78,7 @@ Legacy 10 is now read-only script inspection, 12 is scoped cleanup, and 14 is ex
 
 
 Panel installation is independent of runtime control. `panel/internal/setup` owns the quick/custom terminal flow and one-time bounded IP discovery; `panel/internal/config` validates addresses, protocols and passwords and persists config/certificates. Missing protocol fields preserve older HTTPS installations. The public server selects both its listener and cookie policy from that validated protocol. Origin checks use the actual direct HTTP/TLS connection, never an untrusted forwarded header. No browser transport setting changes tunnel-engine behavior or exposes the broker socket remotely.
+
+## Optional Nodes (Phase 3)
+
+`panel/internal/nodes` owns protocol contracts, private PKI, bounded registry storage, the dedicated TLS-only Controller listener and outbound read-only Agent. `httpapi/nodes.go` exposes authenticated administrator enrollment/revocation and a local/remote inventory list. The normal broker remains local; Agent installations use a distinct inventory/capabilities-only broker with no metrics or write actions. No Node field is added to current operation requests. The frontend lazily loads `features/nodes` and preserves the shared visual/localization system. See [NODES.md](NODES.md) for authentication, limits, artifact ownership and migration boundaries.

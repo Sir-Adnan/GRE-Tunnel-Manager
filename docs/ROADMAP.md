@@ -21,7 +21,7 @@ Acceptance: switches visibly toggle and persist after saving; row selection and 
 
 ## Phase 2: Simple installation and access
 
-Status: implemented and validated in source; awaiting the user's instruction before Phase 3. No replacement release was published. See [Phase 2 review](PHASE-2-REVIEW.md) and [installation guide](WEB-PANEL.md#installation-and-login).
+Status: implemented and validated in source; Phase 3 follows below. No replacement release was published. See [Phase 2 review](PHASE-2-REVIEW.md) and [installation guide](WEB-PANEL.md#installation-and-login).
 
 - Explicit HTTP or HTTPS on IP, plus domain addresses. HTTPS remains the recommended choice; HTTP clearly identifies its unencrypted transport. Cookie and Origin checks must follow the configured protocol.
 - Quick installation with automatic IP detection when omitted, optional/random port and generated administrator credentials, printed once. The installer cannot provision an arbitrary public domain without DNS access.
@@ -32,12 +32,12 @@ Acceptance: fresh installation and upgrade, both browser protocols, login/logout
 
 ## Phase 3: Versioned Node/Agent contract and secure read-only inventory
 
-Status: awaiting start instruction.
+Status: implemented in source. See [Node guide](NODES.md) and [Phase 3 review](PHASE-3-REVIEW.md). No replacement release was published; wait for the user before Phase 4.
 
 - Support local-only installation, Controller with its own local Node, and Controller with multiple remote Nodes. A third server and remote Agent enrollment are optional.
 - Define stable node IDs, protocol versions independent of application versions, capability negotiation, revisions and structured failures.
-- Use short-lived one-time enrollment, separate per-node identities, mTLS, revocation and certificate rotation. Provide a one-command installer without exposing secrets in process arguments.
-- Agents initiate outbound control connections with reconnect/backoff/jitter and bounded queues. Never expose the current privileged Unix broker directly to the Internet.
+- Use short-lived one-time enrollment, separate per-node identities, mTLS, revocation and automatic leaf-certificate renewal. CA rotation remains an explicit operator migration. Provide a one-command installer without exposing secrets in process arguments.
+- Agents initiate outbound HTTPS reports with reconnect/backoff/jitter and no report backlog (only the latest snapshot is retained). Never expose the current privileged Unix broker directly to the Internet.
 - Initially provide read-only inventory, last-seen timestamps, stale-state indicators and a distinction between an offline Agent and a stopped tunnel. Include the Controller's local Node in the same list.
 - Add in-panel help for roles, installation, topology choices and troubleshooting.
 

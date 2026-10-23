@@ -43,6 +43,7 @@ const groups = [
   {
     title: "infrastructure",
     items: [
+      { id: "nodes", icon: Server },
       { id: "gre", icon: Network },
       { id: "forwarding", icon: ArrowRight },
       { id: "haproxy", icon: Workflow, label: "HAProxy" },

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/auth"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/control"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/nodes"
 )
 
 type Server struct {
@@ -17,6 +18,7 @@ type Server struct {
 	Jobs   *Jobs
 	Assets http.Handler
 	Demo   bool
+	Nodes  *nodes.Hub
 	gate   chan struct{}
 }
 
@@ -111,6 +113,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/api/nodes" || strings.HasPrefix(r.URL.Path, "/api/nodes/"):
+		s.nodeRoutes(w, r)
 	case r.URL.Path == "/api/logout" && r.Method == "POST":
 		s.Auth.Logout(w, r)
 		reply(w, 200, map[string]bool{"ok": true})

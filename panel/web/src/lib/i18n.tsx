@@ -2,6 +2,129 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  os: ["Operating system", "سیستم‌عامل"],
+  capabilities: ["Capabilities", "قابلیت‌ها"],
+  localInventoryError: [
+    "Local inventory could not be read. Check the panel broker and saved manager state.",
+    "اطلاعات محلی خوانده نشد. بروکر پنل و تنظیمات ذخیره‌شدهٔ پروژه را بررسی کنید.",
+  ],
+  nodes: ["Nodes", "سرورها"],
+  nodesSubtitle: [
+    "Your panel host and connected servers, in one place.",
+    "سرور پنل و سرورهای متصل را یک‌جا ببینید.",
+  ],
+  nodesReadOnly: [
+    "Read-only access. Remote changes are disabled in this phase; existing tunnel menus manage this panel host only.",
+    "دسترسی فقط‌خواندنی است. تغییر از راه دور در این فاز فعال نیست؛ منوهای فعلی تونل فقط سرور پنل را مدیریت می‌کنند.",
+  ],
+  addNode: ["Add server", "افزودن سرور"],
+  localReady: [
+    "Your local server is already available",
+    "سرور فعلی از قبل در دسترس است",
+  ],
+  controllerOptional: [
+    "Agents are optional. Enable the Controller only when you need other servers in this panel.",
+    "نصب ایجنت اختیاری است. برای دیدن سرورهای دیگر، بخش کنترل‌کننده را فعال کنید.",
+  ],
+  setupGuide: ["Setup guide", "راهنمای راه‌اندازی"],
+  controllerEndpoint: ["Agent connection address", "آدرس اتصال ایجنت"],
+  node_online: ["Connected", "متصل"],
+  node_offline: ["Connection lost", "ارتباط قطع است"],
+  node_waiting: ["Waiting for Agent", "در انتظار ایجنت"],
+  node_revoked: ["Access revoked", "دسترسی لغو شده"],
+  node_degraded: ["Inventory unavailable", "اطلاعات در دسترس نیست"],
+  localNode: [
+    "Local server · no Agent needed",
+    "سرور محلی · بدون نیاز به ایجنت",
+  ],
+  remoteNode: [
+    "Remote server · outbound Agent",
+    "سرور دیگر · اتصال از طریق ایجنت",
+  ],
+  lastSeen: ["Last contact", "آخرین ارتباط"],
+  inventoryObserved: ["Inventory collected", "زمان دریافت اطلاعات"],
+  notReported: ["Not reported yet", "هنوز دریافت نشده"],
+  nodeWaitingHelp: [
+    "Waiting for a valid inventory report. Install or start the Agent on this server.",
+    "هنوز اطلاعاتی دریافت نشده است. ایجنت را روی این سرور نصب یا اجرا کنید.",
+  ],
+  nodeOfflineHelp: [
+    "No contact for over three minutes. The inventory below is an older snapshot; tunnels may still be running.",
+    "بیش از سه دقیقه ارتباطی نبوده است. اطلاعات نمایش‌داده‌شده قدیمی است؛ تونل‌ها ممکن است همچنان فعال باشند.",
+  ],
+  nodeInventoryError: [
+    "Agent connected, but its local inventory could not be read. Previous inventory, when present, stays visible with its original time.",
+    "ایجنت وصل شده، اما اطلاعات محلی خوانده نشده است. اطلاعات قبلی با زمان اصلی خودش نمایش داده می‌شود.",
+  ],
+  nodeDetails: ["View inventory", "مشاهدهٔ اطلاعات"],
+  revokeNode: ["Revoke access", "لغو دسترسی"],
+  revokeNodeHelp: [
+    "This immediately blocks this Agent's reports and certificate renewal. It does not stop or delete any tunnel. Reconnecting requires a new invitation and identity.",
+    "دریافت اطلاعات و تمدید گواهی این ایجنت فوراً مسدود می‌شود. هیچ تونلی متوقف یا حذف نمی‌شود. اتصال مجدد به کد و هویت جدید نیاز دارد.",
+  ],
+  nodeNameHelp: [
+    "Choose a recognizable name, such as Tehran entrance or Frankfurt exit.",
+    "نامی مشخص انتخاب کنید؛ مثلاً ورودی تهران یا خروجی فرانکفورت.",
+  ],
+  createInvitation: ["Create enrollment code", "ساخت کد اتصال"],
+  inviteSecretHelp: [
+    "Valid for ten minutes and one enrollment. Keep this code private; closing this dialog clears it.",
+    "کد ده دقیقه اعتبار دارد و فقط یک‌بار قابل استفاده است. محرمانه نگه دارید؛ با بستن پنجره پاک می‌شود.",
+  ],
+  enrollmentCode: ["One-time enrollment code", "کد اتصال یک‌بارمصرف"],
+  expires: ["Expires", "پایان اعتبار"],
+  invitationHttpHelp: [
+    "This browser connection is HTTP. Use a trusted private path or HTTPS when handling enrollment codes; Agent transport itself always uses TLS.",
+    "ارتباط مرورگر HTTP است. کد اتصال را از مسیر خصوصی مطمئن یا HTTPS دریافت کنید؛ ارتباط خود ایجنت همیشه رمزگذاری شده است.",
+  ],
+  agentPackageNotice: [
+    "The published v1.3.0 package predates Agents. Until a new release, use a current source package with --package-dir; see the guide.",
+    "بستهٔ منتشرشدهٔ نسخهٔ ۱٫۳٫۰ ایجنت ندارد. تا انتشار نسخهٔ جدید از بستهٔ سورس فعلی با گزینهٔ ‎--package-dir استفاده کنید؛ راهنما را ببینید.",
+  ],
+  manualCopyHelp: [
+    "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
+    "نصب‌کننده را روی سرور دیگر اجرا کنید و کد را در ورودی مخفی بچسبانید. اگر کپی خودکار کار نکرد، متن کد را انتخاب و دستی کپی کنید.",
+  ],
+  nodeDetailHelp: [
+    "Inventory snapshot only. Service status belongs to the collection time, not the Agent's current connectivity.",
+    "این اطلاعات یک تصویر از زمان دریافت است. وضعیت سرویس به همان زمان مربوط است و با وضعیت اتصال ایجنت فرق دارد.",
+  ],
+  nodeIdentity: ["Stable node ID", "شناسهٔ ثابت سرور"],
+  nodeGuide: ["Servers and Agents", "راهنمای سرورها و ایجنت‌ها"],
+  nodeGuideIntro: [
+    "Start locally. Add other servers only when needed.",
+    "ابتدا از سرور فعلی استفاده کنید؛ سرورهای دیگر را در صورت نیاز اضافه کنید.",
+  ],
+  localGuide: [
+    "The panel host is automatically listed. It may be your entrance, exit or a separate management server. Local tunnels work without enrollment or a third server.",
+    "سرور پنل خودکار در فهرست است. می‌تواند ورودی، خروجی یا سرور جداگانهٔ مدیریت باشد. کار محلی به ثبت ایجنت یا سرور سوم نیاز ندارد.",
+  ],
+  controllerRole: ["Controller setup", "راه‌اندازی کنترل‌کننده"],
+  controllerGuide: [
+    "After installing the updated panel, run node-install.sh --controller with its reachable HTTPS URL. It opens a separate TLS-only control listener (default 9443). Permit that TCP port; browser HTTP remains independent.",
+    "پس از نصب پنل به‌روز، نصب‌کنندهٔ نود را در حالت کنترل‌کننده با آدرس HTTPS قابل دسترس اجرا کنید. پورت جداگانهٔ رمزگذاری‌شده، پیش‌فرض ۹۴۴۳ است. این پورت TCP را باز کنید؛ حالت HTTP مرورگر مستقل است.",
+  ],
+  agentGuide: [
+    "Create a code here, run the one-command Agent installer on each other server, and paste the code at its hidden prompt. The Agent connects outward; no inbound Agent port is opened. Only managed inventory is sent, never tunnel keys or raw configuration files.",
+    "اینجا کد بسازید، نصب‌کنندهٔ تک‌دستوری ایجنت را روی هر سرور دیگر اجرا کنید و کد را در ورودی مخفی وارد کنید. اتصال از سمت ایجنت برقرار می‌شود و پورت ورودی جدیدی روی آن باز نمی‌شود. فقط اطلاعات مدیریت‌شده ارسال می‌شود؛ کلید تونل و فایل خام تنظیمات ارسال نمی‌شود.",
+  ],
+  connectionRecovery: ["Recovery and connection loss", "بازیابی و قطع ارتباط"],
+  nodeRecoveryGuide: [
+    "Reports arrive about once a minute. Connection loss uses bounded retry delays; tunnels remain independent. Check the Agent and its read-only broker services, DNS, clock and control-port access. Certificates renew automatically while connected; after a 30-day expiry or revocation, use a fresh identity and invitation. Controller restarts clear cached inventory until the next report.",
+    "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
+  ],
+  nodeReleaseHelp: [
+    "This feature is in current source, not the existing v1.3.0 release. Installation, package building and recovery steps are in docs/NODES.md. Remote tunnel creation comes in the next phase.",
+    "این قابلیت در سورس فعلی است و در انتشار قبلی نسخهٔ ۱٫۳٫۰ نیست. مراحل نصب، ساخت بسته و بازیابی در راهنمای NODES آمده است. ساخت تونل از راه دور مربوط به فاز بعد است.",
+  ],
+  nodeRefreshHelp: [
+    "Refresh to fetch the latest received inventory.",
+    "برای دیدن آخرین اطلاعات دریافتی، تازه‌سازی کنید.",
+  ],
+  nodeBoundsHelp: [
+    "Up to 64 identities; 256 KiB per report. Reports replace one memory snapshot per node; no history or background browser polling. Agent retries keep only the latest report.",
+    "حداکثر ۶۴ هویت و ۲۵۶ کیلوبایت برای هر گزارش. تنها آخرین تصویر هر سرور در حافظه نگهداری می‌شود؛ تاریخچه یا درخواست خودکار مرورگر ندارد. ایجنت گزارش قدیمی را صف نمی‌کند.",
+  ],
   help: ["Help", "راهنما"],
   toggleSidebar: ["Toggle navigation", "باز و بسته‌کردن منو"],
   connectionEngine: ["Tunnel engine", "موتور اتصال"],

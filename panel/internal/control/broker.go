@@ -18,8 +18,9 @@ import (
 )
 
 type Broker struct {
-	Manager *Manager
-	mu      sync.Mutex
+	Manager  *Manager
+	ReadOnly bool
+	mu       sync.Mutex
 }
 type Reply struct {
 	Data  json.RawMessage `json:"data,omitempty"`
@@ -42,6 +43,10 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
 		http.Error(w, "one request required", 400)
+		return
+	}
+	if b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" {
+		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}
 	b.mu.Lock()

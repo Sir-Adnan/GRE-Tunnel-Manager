@@ -20,6 +20,7 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/control"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/httpapi"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/model"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/nodes"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/setup"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/ui"
 	"golang.org/x/crypto/bcrypt"
@@ -41,6 +42,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	switch os.Args[1] {
+	case "nodes":
+		return nodeCommand(ctx, os.Args[2:])
 	case "version":
 		fmt.Println("v" + Version)
 		return nil
@@ -98,18 +101,28 @@ func run() error {
 			return errors.New("broker requires Linux root")
 		}
 		manager := control.NewManager()
+		fs := flag.NewFlagSet("broker", flag.ContinueOnError)
+		readOnly := fs.Bool("read-only", false, "inventory-only broker for agents")
+		socket := fs.String("socket", config.Socket, "private Unix socket")
+		if e := fs.Parse(os.Args[2:]); e != nil {
+			return e
+		}
+		if *readOnly {
+			return (&control.Broker{Manager: manager, ReadOnly: true}).Listen(ctx, *socket)
+		}
 		metrics, e := control.NewMetrics(manager.Runner, "/var/lib/gre-manager-panel/metrics.json")
 		if e != nil {
 			return e
 		}
 		manager.Metrics = metrics
-		return (&control.Broker{Manager: manager}).Listen(ctx, config.Socket)
+		return (&control.Broker{Manager: manager}).Listen(ctx, *socket)
 	case "serve":
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the public panel as the grepanel user, not root")
 		}
 		fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 		path := fs.String("config", config.DefaultPath, "configuration path")
+		nodesDir := fs.String("nodes-dir", nodes.DefaultControllerDir, "optional private Controller directory")
 		if e := fs.Parse(os.Args[2:]); e != nil {
 			return e
 		}
@@ -117,11 +130,36 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		server := httpapi.New(ctx, auth.New(c.Username, c.PasswordHash, c.Scheme() == "https"), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
-		if c.Scheme() == "http" {
-			return serve(ctx, c.Listen, server, "", "")
+		serviceCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		h, nodeErrors, e := startNodes(serviceCtx, *nodesDir)
+		if e != nil {
+			return e
 		}
-		return serve(ctx, c.Listen, server, c.Certificate, c.PrivateKey)
+		server := httpapi.New(serviceCtx, auth.New(c.Username, c.PasswordHash, c.Scheme() == "https"), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
+		server.Nodes = h
+		nodeStopped := make(chan error, 1)
+		if nodeErrors != nil {
+			go func() {
+				e := <-nodeErrors
+				nodeStopped <- e
+				cancel()
+			}()
+		}
+		var result error
+		if c.Scheme() == "http" {
+			result = serve(serviceCtx, c.Listen, server, "", "")
+		} else {
+			result = serve(serviceCtx, c.Listen, server, c.Certificate, c.PrivateKey)
+		}
+		select {
+		case e := <-nodeStopped:
+			if e != nil {
+				return e
+			}
+		default:
+		}
+		return result
 	case "demo":
 		fs := flag.NewFlagSet("demo", flag.ContinueOnError)
 		address := fs.String("listen", "127.0.0.1:8790", "loopback address")
