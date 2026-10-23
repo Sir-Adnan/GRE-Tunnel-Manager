@@ -4,6 +4,100 @@ set -euo pipefail
 PANEL_VERSION=1.3.0
 PANEL_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
+# Closed uninstall manifest. Unknown files and links require operator inspection;
+# there is intentionally no recursive deletion and no tunnel removal.
+panel_uninstall_manifest() {
+    local dir file name allowed
+    for dir in /etc/gre-manager-panel /var/lib/gre-manager-panel /var/lib/gre-manager-nodes /var/lib/gre-manager-node-operations /etc/systemd/system/gre-manager-panel.service.d; do
+        [[ ! -L $dir && ( ! -e $dir || -d $dir ) ]] || { printf 'Unsafe panel directory: %s\n' "$dir" >&2; return 1; }
+        [[ -d $dir ]] || continue
+        while IFS= read -r -d '' file; do
+            name=${file##*/}; allowed=false
+            case $dir:$name in
+                /etc/gre-manager-panel:config.json|/etc/gre-manager-panel:server.crt|/etc/gre-manager-panel:server.key|/var/lib/gre-manager-panel:metrics.json|/var/lib/gre-manager-panel:audit.jsonl|/var/lib/gre-manager-panel:audit.jsonl.1|/var/lib/gre-manager-nodes:controller.json|/var/lib/gre-manager-nodes:controller.lock|/var/lib/gre-manager-nodes:pairs.json|/var/lib/gre-manager-node-operations:broker.lock|/etc/systemd/system/gre-manager-panel.service.d:nodes.conf) allowed=true;;
+                /var/lib/gre-manager-node-operations:*) [[ $name =~ ^[a-f0-9]{32}\.json$ ]] && allowed=true;;
+            esac
+            [[ $allowed == true && -f $file && ! -L $file ]] || { printf 'Unrecognized panel file; inspect before removal: %q\n' "$file" >&2; return 1; }
+        done < <(find "$dir" -mindepth 1 -maxdepth 1 -print0)
+    done
+    for file in /usr/local/bin/gtm-panel /usr/local/lib/gre-manager/manager.sh /etc/systemd/system/gre-manager-panel.service /etc/systemd/system/gre-manager-panel-broker.service; do
+        [[ ! -L $file && ( ! -e $file || -f $file ) ]] || { printf 'Unsafe panel file: %s\n' "$file" >&2; return 1; }
+    done
+    for name in gre-manager-panel gre-manager-panel-broker; do
+        file=/etc/systemd/system/$name.service
+        if [[ -f $file ]]; then
+            allowed='ExecStart=/usr/local/bin/gtm-panel serve'
+            [[ $name != gre-manager-panel-broker ]] || allowed='ExecStart=/usr/local/bin/gtm-panel broker'
+            grep -Fxq "$allowed" "$file" || { printf 'Customized service retained: %s\n' "$name" >&2; return 1; }
+        elif systemctl cat "$name.service" >/dev/null 2>&1; then
+            printf 'Service is outside the installer ownership path: %s\n' "$name" >&2; return 1
+        fi
+    done
+}
+
+panel_uninstall_restore() {
+    local failed=0
+    if [[ $2 == true ]]; then systemctl start gre-manager-panel-broker.service || failed=1; fi
+    if [[ $1 == true ]]; then systemctl start gre-manager-panel.service || failed=1; fi
+    [[ $failed == 0 ]] || { printf 'Service recovery failed; inspect systemctl status locally.\n' >&2; return 1; }
+}
+
+panel_uninstall() {
+    [[ $(uname -s) == Linux && $EUID == 0 ]] || { printf 'Run on Linux with sudo or root.\n' >&2; return 1; }
+    local item answer was_active=false broker_active=false
+    local -a units=()
+    for item in systemctl flock find grep; do command -v "$item" >/dev/null || return 1; done
+    exec 9>/run/gre-manager-panel-install.lock
+    flock -n 9 || { printf 'Another panel/agent installation is running.\n' >&2; return 1; }
+    # The executable/helper and receipts can be shared with an Agent.
+    if [[ -e /var/lib/gre-manager-agent || -L /var/lib/gre-manager-agent || -e /etc/systemd/system/gre-manager-agent.service || -e /etc/systemd/system/gre-manager-agent-broker.service ]] || systemctl cat gre-manager-agent.service >/dev/null 2>&1; then
+        printf 'An Agent uses shared resources. Remove or migrate it before removing the panel.\n' >&2; return 1
+    fi
+    panel_uninstall_manifest || return 1
+    if [[ ! -e /usr/local/bin/gtm-panel && ! -e /etc/gre-manager-panel && ! -e /var/lib/gre-manager-panel && ! -e /var/lib/gre-manager-nodes && ! -e /var/lib/gre-manager-node-operations && ! -e /etc/systemd/system/gre-manager-panel.service && ! -e /etc/systemd/system/gre-manager-panel-broker.service ]]; then
+        printf 'Web Panel is not installed.\n'; return 0
+    fi
+    [[ -x /usr/local/bin/gtm-panel && $(/usr/local/bin/gtm-panel uninstall-version 2>/dev/null) == 1 ]] || {
+        printf 'Upgrade the installed panel to a package supporting safe removal first. Nothing was stopped.\n' >&2; return 1;
+    }
+    printf '\nRemove Web Panel completely\n\n  Removes panel services, login, certificates, Controller identities, jobs, audit and traffic totals.\n  Enrolled Agents will lose their Controller connection and need enrollment again after reinstall.\n  Tunnels, forwarding rules, engine binaries and server firewall policies stay in place.\n  The disabled grepanel system account and system journal entries are retained.\n\n'
+    read -r -p 'Type REMOVE to continue [Enter cancels]: ' answer || return 1
+    [[ $answer == REMOVE ]] || { printf 'Cancelled.\n'; return 0; }
+    systemctl is-active --quiet gre-manager-panel.service && was_active=true
+    systemctl is-active --quiet gre-manager-panel-broker.service && broker_active=true
+    for item in gre-manager-panel gre-manager-panel-broker; do
+        [[ ! -f /etc/systemd/system/$item.service ]] || units+=("$item.service")
+    done
+    if ((${#units[@]})) && ! systemctl stop "${units[@]}"; then
+        printf 'Service stop failed; retaining files and restoring previously active services.\n' >&2
+        panel_uninstall_restore "$was_active" "$broker_active" || true
+        return 1
+    fi
+    if ! /usr/local/bin/gtm-panel uninstall-prepare; then
+        printf 'Removal refused; files are preserved. Restoring previously active services.\n' >&2
+        panel_uninstall_restore "$was_active" "$broker_active" || true
+        return 1
+    fi
+    # Recheck after services stop; do not delete files introduced during shutdown.
+    if ! panel_uninstall_manifest; then
+        panel_uninstall_restore "$was_active" "$broker_active" || true
+        return 1
+    fi
+    for item in gre-manager-panel gre-manager-panel-broker; do
+        if [[ -f /etc/systemd/system/$item.service ]]; then systemctl disable "$item.service" || return 1; fi
+    done
+    for item in /etc/systemd/system/gre-manager-panel.service /etc/systemd/system/gre-manager-panel-broker.service /etc/systemd/system/gre-manager-panel.service.d/nodes.conf /etc/gre-manager-panel/config.json /etc/gre-manager-panel/server.crt /etc/gre-manager-panel/server.key /var/lib/gre-manager-panel/metrics.json /var/lib/gre-manager-panel/audit.jsonl /var/lib/gre-manager-panel/audit.jsonl.1 /var/lib/gre-manager-nodes/controller.json /var/lib/gre-manager-nodes/controller.lock /var/lib/gre-manager-nodes/pairs.json /var/lib/gre-manager-node-operations/broker.lock; do
+        rm -f -- "$item" || return 1
+    done
+    for item in /var/lib/gre-manager-node-operations/*.json; do [[ ! -f $item ]] || rm -f -- "$item" || return 1; done
+    for item in /etc/gre-manager-panel /var/lib/gre-manager-panel /var/lib/gre-manager-nodes /var/lib/gre-manager-node-operations /etc/systemd/system/gre-manager-panel.service.d; do
+        [[ ! -d $item ]] || rmdir -- "$item" || return 1
+    done
+    systemctl daemon-reload || return 1
+    rm -f -- /usr/local/lib/gre-manager/manager.sh /usr/local/bin/gtm-panel || return 1
+    printf '\nWeb Panel removed. Existing tunnels and forwarding continue independently.\n'
+}
+
 panel_install_options() {
     PANEL_SETUP_ARGS=()
     PANEL_PACKAGE_DIR=''
@@ -19,7 +113,7 @@ panel_install_options() {
                 PANEL_PACKAGE_DIR=$(cd -- "$2" && pwd -P); shift 2;;
             --install-engines) PANEL_INSTALL_ENGINES=true; shift;;
             --help|-h)
-                printf 'Usage: sudo bash panel-install.sh [--quick] [--protocol https|http] [--address IP_OR_DOMAIN]\n  [--port PORT] [--username USER] [--listen LOCAL_IP] [--install-engines]\n  [--package-dir DIR]  Use locally built packages with SHA256SUMS.\n\nEmpty address detects the public IP. Port 0 selects an available random port.\nExisting installations keep their address, protocol, credentials and certificates.\n'
+                printf 'Usage: sudo bash panel-install.sh [--quick] [--protocol https|http] [--address IP_OR_DOMAIN]\n  [--port PORT] [--username USER] [--listen LOCAL_IP] [--install-engines]\n  [--package-dir DIR]  Use locally built packages with SHA256SUMS.\n  --uninstall        Remove the panel after confirmation; preserve tunnels.\n\nEmpty address detects the public IP. Port 0 selects an available random port.\nExisting installations keep their address, protocol, credentials and certificates.\n'
                 return 2;;
             *) printf 'Unknown installer option. Run --help for supported options.\n' >&2; return 1;;
         esac
@@ -27,11 +121,21 @@ panel_install_options() {
 }
 
 panel_install_main() {
+    if [[ ${1:-} == --uninstall ]]; then
+        (($# == 1)) || { printf 'Use --uninstall by itself.\n' >&2; return 1; }
+        panel_uninstall; return $?
+    fi
     local options_result=0
     panel_install_options "$@" || options_result=$?
     [[ $options_result != 2 ]] || return 0
     [[ $options_result == 0 ]] || return "$options_result"
     [[ $(uname -s) == Linux && $EUID == 0 ]] || { printf 'Run on Linux with sudo or root.\n' >&2; return 1; }
+    if (($# == 0)) && [[ -t 0 && -e /etc/gre-manager-panel/config.json ]]; then
+        local install_choice
+        printf '\nWeb Panel\n\n  [1] Update / repair\n  [2] Remove Web Panel\n  [0] Cancel\n\n'
+        read -r -p 'Choose [1]: ' install_choice || return 1
+        case ${install_choice:-1} in 1) ;; 2) panel_uninstall; return $?;; 0) return 0;; *) printf 'Choose 0, 1 or 2.\n' >&2; return 1;; esac
+    fi
     command -v systemctl >/dev/null && command -v apt-get >/dev/null || { printf 'Debian/Ubuntu with systemd is required.\n' >&2; return 1; }
     local arch tmp component public_ip='' member account_uid account_shell group_members setup_version
     case $(uname -m) in x86_64) arch=amd64;; aarch64) arch=arm64;; *) printf 'Supported architectures: x86_64 and aarch64.\n' >&2; return 1;; esac

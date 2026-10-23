@@ -1,4 +1,4 @@
-# HAProxy TCP adapter — v1.2.0
+# HAProxy TCP adapter
 
 The manager controls HAProxy Community as an optional local TCP relay. It does not implement a tunnel wire protocol, generic UDP forwarding, HTTP routing or TLS termination in this adapter. Existing Reality/TLS application bytes pass through unchanged unless the operator explicitly enables a supported PROXY header at both ends.
 
@@ -8,7 +8,7 @@ The manager controls HAProxy Community as an optional local TCP relay. It does n
 | --- | --- |
 | Targets | 1–32 validated literal IPv4/IPv6 endpoints, independent target ports, weights 1–256 |
 | Balancing | Single, weighted round robin, leastconn, consistent source hash, primary plus ordered backup targets |
-| Health | TCP connect checks, adjustable interval/timeout, fall/rise and optional alternate port |
+| Health | TCP connect or plain HTTP readiness on a separate port; interval/timeout, fall/rise, bounded path/Host/exact status |
 | Timeouts | Separate connect, client/server inactivity and queue waits |
 | Limits | Global/frontend maxconn, optional per-server maxconn; unit FD budget derived from maxconn |
 | Recovery | Optional slow start; connect retries/redispatch; no automatic replay of established application sessions |
@@ -17,7 +17,7 @@ The manager controls HAProxy Community as an optional local TCP relay. It does n
 | Status | Root-restricted Unix stats socket, read-only role; target state/sessions/queue/check result on demand |
 | Configuration changes | Native `haproxy -c`, managed snapshot/rollback, master-worker reload where unit compatibility allows; readiness requires a different worker PID |
 
-TCP checks prove port reachability only. A separate check port can represent an application's dedicated readiness endpoint, but this preset still performs a TCP connect, not an HTTP request or a VPN handshake. Failover selects destinations for new connections and failed connect attempts; it cannot move an already established TCP session to a different server. Slow start is most useful with dynamic scheduling such as round robin/leastconn; hash scheduling has different distribution behavior.
+TCP checks prove port reachability only. Optional HTTP checks send a GET to a separate plain HTTP readiness port and require the selected exact status; the traffic path stays TCP passthrough. This does not test a VPN handshake. Failover selects destinations for new connections and failed connect attempts; it cannot move an already established TCP session to a different server. Slow start is most useful with dynamic scheduling such as round robin/leastconn; hash scheduling has different distribution behavior.
 
 The source strategy hashes the source IP observed by HAProxy. If traffic reaches it through another NAT, this can concentrate clients behind that NAT onto one target. We do not accept a user-supplied source header from public clients.
 
@@ -43,6 +43,12 @@ Version-1 records retain their 12 fields and load the baseline defaults. An adva
 | slowstart | 0 | 0–3600 seconds; 0 disables it |
 | proxy | off | off / v1 / v2 |
 | log | connections | connections / errors / off |
+| check_mode | tcp | tcp / http; HTTP requires a nonzero check_port different from every destination traffic port |
+| check_path | /health | Leading `/`, then up to 127 ASCII letters/digits or `/_.~-`; no query, whitespace or config interpolation |
+| check_host | localhost | 1–253 ASCII letters/digits/dots/dashes; begins and ends with a letter/digit; no arbitrary headers |
+| check_status | 200 | Exact HTTP status 200–599 |
+
+For application readiness choose **Advanced → Health probe → HTTP readiness**, then the separate readiness port, GET path, Host and expected status. Defaults do not enable HTTP probes. The terminal's numbered Health checks flow exposes the same values. Health ports do not get a manager-created listener/firewall rule; the application must provide and permit the endpoint. HAProxy uses `option httpchk`, `http-check send` and `http-check expect` in the TCP backend. Native `haproxy -c` must accept the generated configuration before apply. See the [version matrix](ENGINE-CAPABILITIES.md). Baseline TCP option serialization stays stable; non-default HTTP fields use closed optional v2 keys. An older manager rejects these new keys, so downgrade requires a compatible prior snapshot.
 
 Edits, enable/disable and snapshots preserve the option field. Older manager releases reject v2 records; use a suitable v1 snapshot for a deliberate downgrade. Component versions are independent of record/manager versions. Rendering is checked with the installed HAProxy, so unsupported directives fail preflight rather than being silently ignored.
 
@@ -61,7 +67,7 @@ Native validation happens before replacing managed state. The broader transactio
 
 ## Still missing and recommended next
 
-1. **Application health profiles:** HTTP readiness URL/status or explicitly defined safe TCP send/expect, separate from data TLS passthrough. Requires strict path/header validation and tests against a reachable-but-unhealthy backend.
+1. **Additional health profiles:** verified HTTPS readiness or explicitly defined safe TCP send/expect; the bounded plain HTTP GET/status profile is now implemented. Add certificate/CA ownership and tests before exposing TLS probes.
 2. **Per-target roles/maintenance:** durable target identity, individual primary/backup/drain states and weight changes. First model them in versioned state; do not expose arbitrary admin socket commands that disappear on restart.
 3. **TLS transport profiles:** optional verified TLS to the destination and optional TLS termination for services designed for it. Certificate/CA/SNI lifecycle must be explicit. Terminating Reality traffic as ordinary HTTPS is not a compatible default.
 4. **SNI passthrough routing:** multiple normal TLS services on one listener, with explicit default/unknown-name behavior. Requires a routing schema and ClientHello inspection timeout; do not equate hostname routing with universal VPN protocol detection.
@@ -79,4 +85,4 @@ HTTP/WebSocket reverse proxying, caches and compression belong to a separate HTT
 
 ## Optional web controls
 
-The Go panel exposes the same managed TCP adapter, all 13 bounded options and balanced/VPN/low-resource presets. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated HTTPS endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).
+The Go panel exposes the same managed TCP adapter, 17 bounded options and balanced/VPN/low-resource presets, with HTTP readiness fields shown only when selected. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated browser endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).

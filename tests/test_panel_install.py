@@ -50,7 +50,8 @@ esac""")
 while (($#)); do case $1 in -o|-g) shift 2;; *) args+=("$1"); shift;; esac; done
 /usr/bin/install "${args[@]}" """)
         self.command('systemctl', """printf 'systemctl %s\\n' "$*" >> "$TEST_LOG"
-case "$1" in cat) [[ -f "$TEST_ROOT/existing-service" ]];; *) exit 0;; esac""")
+case "$1" in cat) [[ "$2" == gre-manager-panel* && -f "$TEST_ROOT/existing-service" ]];;
+stop) [[ ! -f "$TEST_ROOT/fail-stop" ]];; *) exit 0;; esac""")
         self.command('useradd', 'exit 99')
         self.command('curl', 'echo "unexpected download" >&2; exit 99')
         self.command('sleep', ':')
@@ -67,6 +68,11 @@ set -euo pipefail
 case "$1" in
 version) printf '%s\\n' "${TEST_BINARY_VERSION:-v1.3.0}";;
 setup-version) printf '%s\\n' "$TEST_SETUP_VERSION";;
+uninstall-version) printf '%s\\n' "${TEST_UNINSTALL_VERSION:-1}";;
+uninstall-prepare)
+    printf 'uninstall-prepare\\n' >> "$TEST_LOG"
+    [[ ! -f "$TEST_ROOT/refuse-uninstall" ]] || exit 84
+    ;;
 setup)
     printf 'setup %s\\n' "$*" >> "$TEST_LOG"
     [[ ! -e "$TEST_CONFIG" ]] || exit 81
@@ -97,6 +103,81 @@ esac
 
     def calls(self):
         return self.log.read_text() if self.log.exists() else ''
+
+    def uninstall(self, answer='REMOVE\n', *args):
+        return subprocess.run(['bash',str(self.installer),'--uninstall',*args],input=answer,
+                              env=self.env,text=True,capture_output=True,timeout=15)
+
+    def test_uninstall_confirmation_and_preserved_network_resources(self):
+        result=self.run_installer('--quick')
+        self.assertEqual(result.returncode,0,result.stderr)
+        tunnel=self.root/'etc/gre-manager/connections.tsv'
+        tunnel.parent.mkdir(); tunnel.write_text('keep tunnels')
+        self.log.write_text('')
+        result=self.uninstall('\n')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertTrue(self.config.exists())
+        self.assertNotIn('systemctl stop',self.calls())
+        result=self.uninstall()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(self.config.parent.exists())
+        self.assertFalse((self.root/'usr/local/bin/gtm-panel').exists())
+        self.assertFalse((self.root/'usr/local/lib/gre-manager/manager.sh').exists())
+        self.assertEqual(tunnel.read_text(),'keep tunnels')
+        self.assertIn('uninstall-prepare',self.calls())
+        self.assertNotIn('gtm-F',self.calls())
+        result=self.uninstall()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('not installed',result.stdout)
+
+    def test_uninstall_refuses_unknown_files_symlinks_agents_and_old_binary(self):
+        result=self.run_installer('--quick'); self.assertEqual(result.returncode,0,result.stderr)
+        unknown=self.config.parent/'operator-note'; unknown.write_text('retain')
+        self.log.write_text('')
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertEqual(unknown.read_text(),'retain'); unknown.unlink()
+        external=self.root/'external'; external.write_text('private')
+        link=self.config.parent/'server.key'; link.symlink_to(external)
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertEqual(external.read_text(),'private'); link.unlink()
+        agent=self.root/'var/lib/gre-manager-agent'; agent.mkdir()
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0); agent.rmdir()
+        self.env['TEST_UNINSTALL_VERSION']='0'
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('systemctl stop',self.calls())
+        self.assertTrue(self.config.exists())
+
+    def test_uninstall_recovery_refusal_preserves_files_and_restarts_services(self):
+        result=self.run_installer('--quick'); self.assertEqual(result.returncode,0,result.stderr)
+        (self.root/'refuse-uninstall').touch(); self.log.write_text('')
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertTrue(self.config.exists())
+        self.assertTrue((self.root/'usr/local/bin/gtm-panel').exists())
+        self.assertIn('systemctl start gre-manager-panel.service',self.calls())
+        self.assertNotIn('systemctl disable',self.calls())
+
+    def test_uninstall_failed_stop_and_custom_units_keep_files(self):
+        result=self.run_installer('--quick'); self.assertEqual(result.returncode,0,result.stderr)
+        unit=self.root/'etc/systemd/system/gre-manager-panel.service'
+        original=unit.read_text(); unit.write_text(original.replace('gtm-panel serve','other-panel serve'))
+        self.log.write_text('')
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('systemctl stop',self.calls())
+        unit.write_text(original); (self.root/'fail-stop').touch()
+        result=self.uninstall(); self.assertNotEqual(result.returncode,0)
+        self.assertTrue(self.config.exists())
+        self.assertIn('systemctl start gre-manager-panel.service',self.calls())
+        self.assertNotIn('uninstall-prepare',self.calls())
+        self.assertNotIn('systemctl disable',self.calls())
+
+    def test_uninstall_handles_missing_units_after_partial_installation(self):
+        result=self.run_installer('--quick'); self.assertEqual(result.returncode,0,result.stderr)
+        for name in ['gre-manager-panel','gre-manager-panel-broker']:
+            (self.root/'etc/systemd/system'/f'{name}.service').unlink()
+        self.log.write_text('')
+        result=self.uninstall(); self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(self.config.exists())
+        self.assertNotIn('systemctl stop',self.calls())
 
     def test_fresh_install_and_upgrade_preserve_credentials_and_certificates(self):
         result = self.run_installer('--quick', '--protocol', 'http', '--address', '203.0.113.10')

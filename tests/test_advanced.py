@@ -55,6 +55,21 @@ iptables() {
 
 
 class AdvancedTests(unittest.TestCase):
+    def test_haproxy_http_health_has_closed_fields_and_preserves_passthrough(self):
+        opts='check_mode=http;check_port=8080;check_path=/ready/live;check_host=health.example.com;check_status=204'
+        row=record(engine='haproxy',version='2')+'\t'+opts
+        result=bash('IFS= read -r row; gtm_record_validate "$row" && gtm_haproxy_render',row+'\n')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('mode tcp',result.stdout)
+        self.assertIn('http-check send meth GET uri /ready/live ver HTTP/1.1 hdr Host health.example.com',result.stdout)
+        self.assertIn('http-check expect status 204',result.stdout)
+        self.assertNotIn(' ssl',result.stdout)
+        for bad in ['check_mode=http', 'check_mode=https', 'check_mode=http;check_port=443',
+                    'check_path=/x?token=y', 'check_path=/x;log=off;log=errors', 'check_host=${HOST}',
+                    'check_host=x y', 'check_host=$(id)', 'check_status=2xx', 'check_path=/x#comment']:
+            result=bash('gtm_record_validate '+shlex.quote(record(engine='haproxy',version='2')+'\t'+bad))
+            self.assertNotEqual(result.returncode,0,bad)
+
     def test_gre_setup_no_longer_applies_implicit_global_tuning(self):
         result=bash('sysctl() { exit 92; }; SYSCTL_FILE=/missing-legacy-file; apply_sysctl')
         self.assertEqual(result.returncode,0,result.stderr)

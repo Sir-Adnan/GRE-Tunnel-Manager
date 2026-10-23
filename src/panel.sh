@@ -20,7 +20,7 @@ gtm_panel_install() {
     gtm_root && gtm_need curl || return 1
     tmp=$(mktemp) || return 1
     if ! curl --proto '=https' --tlsv1.2 -fsSL --connect-timeout 15 --max-time 120 'https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh' -o "$tmp"; then rm -f "$tmp"; return 1; fi
-    bash -n "$tmp" && bash "$tmp"; result=$?
+    bash -n "$tmp" && bash "$tmp" "$@"; result=$?
     rm -f "$tmp"
     return "$result"
 }
@@ -36,6 +36,7 @@ gtm_panel_menu() {
         gtm_option 4 'Panel status / address'
         gtm_option 5 'Reset admin password'
         gtm_option 6 'Install tunnel engines'
+        gtm_option 7 'Remove Web Panel'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -44,7 +45,8 @@ gtm_panel_menu() {
             3) systemctl stop gre-manager-panel.service gre-manager-panel-broker.service; gtm_pause;;
             4) systemctl status gre-manager-panel.service --no-pager; if command -v gtm-panel >/dev/null 2>&1; then gtm-panel address; fi; gtm_pause;;
             5) gtm-panel reset-password && systemctl restart gre-manager-panel.service; gtm_pause;;
-            6) gtm_dependencies_menu;; 0) return;;
+            6) gtm_dependencies_menu;;
+            7) gtm_panel_install --uninstall; gtm_pause;; 0) return;;
         esac
     done
 }

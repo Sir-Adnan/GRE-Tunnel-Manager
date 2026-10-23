@@ -1456,6 +1456,7 @@ gtm_haproxy_defaults() {
     H_CONNECT=5; H_IDLE=3600; H_QUEUE=30; H_MAXCONN=16384; H_SERVER_MAXCONN=0
     H_CHECK_INTERVAL=3; H_CHECK_TIMEOUT=5; H_CHECK_FALL=3; H_CHECK_RISE=2; H_CHECK_PORT=0
     H_SLOWSTART=0; H_PROXY=off; H_LOG=connections
+    H_CHECK_MODE=tcp; H_CHECK_PATH=/health; H_CHECK_HOST=localhost; H_CHECK_STATUS=200
 }
 
 gtm_haproxy_values_validate() {
@@ -1464,7 +1465,11 @@ gtm_haproxy_values_validate() {
         gtm_uint "$H_CHECK_INTERVAL" 1 300 && gtm_uint "$H_CHECK_TIMEOUT" 1 300 &&
         gtm_uint "$H_CHECK_FALL" 1 20 && gtm_uint "$H_CHECK_RISE" 1 20 &&
         gtm_uint "$H_CHECK_PORT" 0 65535 && gtm_uint "$H_SLOWSTART" 0 3600 &&
-        [[ $H_PROXY =~ ^(off|v1|v2)$ && $H_LOG =~ ^(connections|errors|off)$ ]]
+        [[ $H_PROXY =~ ^(off|v1|v2)$ && $H_LOG =~ ^(connections|errors|off)$ ]] &&
+        [[ $H_CHECK_MODE =~ ^(tcp|http)$ && $H_CHECK_PATH =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ &&
+            $H_CHECK_HOST =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] &&
+        gtm_uint "$H_CHECK_STATUS" 200 599 &&
+        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); }
 }
 
 gtm_haproxy_options_validate() {
@@ -1474,7 +1479,7 @@ gtm_haproxy_options_validate() {
     [[ -n $options && $options != ';'* && $options != *';' && $options != *';;'* ]] || return 1
     gtm_haproxy_defaults
     IFS=';' read -r -a pairs <<< "$options"
-    ((${#pairs[@]} <= 13)) || return 1
+    ((${#pairs[@]} <= 17)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
@@ -1485,7 +1490,9 @@ gtm_haproxy_options_validate() {
             maxconn) H_MAXCONN=$value;; server_maxconn) H_SERVER_MAXCONN=$value;;
             check_interval) H_CHECK_INTERVAL=$value;; check_timeout) H_CHECK_TIMEOUT=$value;;
             check_fall) H_CHECK_FALL=$value;; check_rise) H_CHECK_RISE=$value;; check_port) H_CHECK_PORT=$value;;
-            slowstart) H_SLOWSTART=$value;; proxy) H_PROXY=$value;; log) H_LOG=$value;; *) return 1;;
+            slowstart) H_SLOWSTART=$value;; proxy) H_PROXY=$value;; log) H_LOG=$value;;
+            check_mode) H_CHECK_MODE=$value;; check_path) H_CHECK_PATH=$value;;
+            check_host) H_CHECK_HOST=$value;; check_status) H_CHECK_STATUS=$value;; *) return 1;;
         esac
     done
     gtm_haproxy_values_validate
@@ -1497,6 +1504,10 @@ gtm_haproxy_options() {
         "$((10#$H_CONNECT))" "$((10#$H_IDLE))" "$((10#$H_QUEUE))" "$((10#$H_MAXCONN))" "$((10#$H_SERVER_MAXCONN))" \
         "$((10#$H_CHECK_INTERVAL))" "$((10#$H_CHECK_TIMEOUT))" "$((10#$H_CHECK_FALL))" "$((10#$H_CHECK_RISE))" \
         "$((10#$H_CHECK_PORT))" "$((10#$H_SLOWSTART))" "$H_PROXY" "$H_LOG"
+    # Omit the extension for baseline TCP records to keep their serialization stable.
+    if [[ $H_CHECK_MODE != tcp || $H_CHECK_PATH != /health || $H_CHECK_HOST != localhost || $H_CHECK_STATUS != 200 ]]; then
+        printf ';check_mode=%s;check_path=%s;check_host=%s;check_status=%d' "$H_CHECK_MODE" "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
+    fi
 }
 
 gtm_haproxy_socket() { gtm_id "$1" && printf '%s/haproxy/%s.sock' "$GTM_RUN_DIR" "$1"; }
@@ -1517,6 +1528,9 @@ gtm_haproxy_render() {
     printf '    timeout connect %ds\n    timeout client %ds\n    timeout server %ds\n    timeout queue %ds\n    timeout check %ds\n' "$((10#$H_CONNECT))" "$((10#$H_IDLE))" "$((10#$H_IDLE))" "$((10#$H_QUEUE))" "$((10#$H_CHECK_TIMEOUT))"
     printf 'frontend entrance\n    bind %s\n    maxconn %d\n    default_backend destinations\nbackend destinations\n    balance %s\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")" "$((10#$H_MAXCONN))" "$algorithm"
     [[ $algorithm != source ]] || printf '    hash-type consistent\n'
+    if [[ $H_CHECK_MODE == http ]]; then
+        printf '    option httpchk\n    http-check send meth GET uri %s ver HTTP/1.1 hdr Host %s\n    http-check expect status %d\n' "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
+    fi
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; ((index+=1))
@@ -1596,11 +1610,11 @@ gtm_haproxy_status() {
     [[ $output == '# pxname,svname,'* ]] || { gtm_error 'Unexpected HAProxy stats response.'; return 1; }
     awk -F, 'NR == 1 {sub(/^# */, "", $1); for (i=1; i<=NF; i++) col[$i]=i; next}
         $1 == "destinations" && $2 != "BACKEND" {printf "  %-12s %-10s sessions=%s queued=%s total=%s check=%s\n", $2, $(col["status"]), $(col["scur"]), $(col["qcur"]), $(col["stot"]), $(col["check_status"])}' <<< "$output"
-    printf 'Health checks establish TCP reachability, not application correctness. Counters are worker-local and reset on reload.\n'
+    printf 'Check results describe the configured TCP/HTTP readiness probe, not a VPN handshake. Counters reset on reload.\n'
 }
 
 gtm_haproxy_settings() {
-    local choice line original id options replacement result
+    local choice line original id options replacement result health_port_default
     local -a rows=()
     gtm_records || return 1
     for line in "${GTM_RECORDS[@]}"; do
@@ -1630,7 +1644,21 @@ gtm_haproxy_settings() {
             1) gtm_haproxy_defaults;;
             2) H_IDLE=86400; H_LOG=errors;;
             3) gtm_default 'Connect timeout [1-300s]' H_CONNECT "$H_CONNECT" && gtm_default 'Idle timeout [10-604800s]' H_IDLE "$H_IDLE" && gtm_default 'Queue timeout [1-3600s]' H_QUEUE "$H_QUEUE" || return;;
-            4) gtm_default 'Check interval [1-300s]' H_CHECK_INTERVAL "$H_CHECK_INTERVAL" && gtm_default 'Check timeout [1-300s]' H_CHECK_TIMEOUT "$H_CHECK_TIMEOUT" && gtm_default 'Failed checks before down [1-20]' H_CHECK_FALL "$H_CHECK_FALL" && gtm_default 'Successful checks before up [1-20]' H_CHECK_RISE "$H_CHECK_RISE" && gtm_default 'Check port [0 = service port]' H_CHECK_PORT "$H_CHECK_PORT" || return;;
+            4)
+                gtm_choose 'Health probe' "$H_CHECK_MODE" 'TCP connect' tcp 'HTTP readiness (separate port)' http || continue
+                H_CHECK_MODE=$GTM_REPLY
+                if [[ $H_CHECK_MODE == http ]]; then
+                    printf '  Use a separate plain HTTP readiness port. Data traffic stays TCP passthrough.\n'
+                    health_port_default=$H_CHECK_PORT
+                    ((10#$health_port_default > 0)) || health_port_default=8080
+                    gtm_default 'Readiness port [1-65535]' H_CHECK_PORT "$health_port_default" &&
+                        gtm_default 'Readiness path' H_CHECK_PATH "$H_CHECK_PATH" &&
+                        gtm_default 'Host header' H_CHECK_HOST "$H_CHECK_HOST" &&
+                        gtm_default 'Expected status [200-599]' H_CHECK_STATUS "$H_CHECK_STATUS" || return
+                else
+                    gtm_default 'Check port [0 = service port]' H_CHECK_PORT "$H_CHECK_PORT" || return
+                fi
+                gtm_default 'Check interval [1-300s]' H_CHECK_INTERVAL "$H_CHECK_INTERVAL" && gtm_default 'Check timeout [1-300s]' H_CHECK_TIMEOUT "$H_CHECK_TIMEOUT" && gtm_default 'Failed checks before down [1-20]' H_CHECK_FALL "$H_CHECK_FALL" && gtm_default 'Successful checks before up [1-20]' H_CHECK_RISE "$H_CHECK_RISE" || return;;
             5) gtm_default 'Connection cap [1-100000; measure RAM/FD usage]' H_MAXCONN "$H_MAXCONN" && gtm_default 'Per-target cap [0 = unlimited]' H_SERVER_MAXCONN "$H_SERVER_MAXCONN" && gtm_default 'Slow start [0-3600s]' H_SLOWSTART "$H_SLOWSTART" || return;;
             6)
                 printf '  PROXY adds a header. Enable it on the destination first; otherwise traffic breaks.\n  It passes client metadata; it does not preserve the network source address.\n'
@@ -1714,6 +1742,9 @@ gtm_record_validate() {
     (( ${#targets[@]} >= 1 && ${#targets[@]} <= 32 )) || return 1
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1
+        if [[ $R_ENGINE == haproxy && $H_CHECK_MODE == http ]] && ((10#$EP_PORT == 10#$H_CHECK_PORT)); then
+            gtm_error 'HTTP readiness needs a port different from every traffic destination port.'; return 1
+        fi
         key="$(gtm_ip_key "$EP_IP"):$EP_PORT"
         [[ ! ${seen_targets[$key]+set} ]] || return 1
         seen_targets[$key]=1
@@ -4020,7 +4051,7 @@ gtm_panel_install() {
     gtm_root && gtm_need curl || return 1
     tmp=$(mktemp) || return 1
     if ! curl --proto '=https' --tlsv1.2 -fsSL --connect-timeout 15 --max-time 120 'https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh' -o "$tmp"; then rm -f "$tmp"; return 1; fi
-    bash -n "$tmp" && bash "$tmp"; result=$?
+    bash -n "$tmp" && bash "$tmp" "$@"; result=$?
     rm -f "$tmp"
     return "$result"
 }
@@ -4036,6 +4067,7 @@ gtm_panel_menu() {
         gtm_option 4 'Panel status / address'
         gtm_option 5 'Reset admin password'
         gtm_option 6 'Install tunnel engines'
+        gtm_option 7 'Remove Web Panel'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -4044,7 +4076,8 @@ gtm_panel_menu() {
             3) systemctl stop gre-manager-panel.service gre-manager-panel-broker.service; gtm_pause;;
             4) systemctl status gre-manager-panel.service --no-pager; if command -v gtm-panel >/dev/null 2>&1; then gtm-panel address; fi; gtm_pause;;
             5) gtm-panel reset-password && systemctl restart gre-manager-panel.service; gtm_pause;;
-            6) gtm_dependencies_menu;; 0) return;;
+            6) gtm_dependencies_menu;;
+            7) gtm_panel_install --uninstall; gtm_pause;; 0) return;;
         esac
     done
 }

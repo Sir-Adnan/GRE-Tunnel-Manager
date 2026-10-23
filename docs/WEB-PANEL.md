@@ -6,6 +6,8 @@ The [development roadmap](ROADMAP.md) distinguishes current local-host capabilit
 
 ## Installation and login
 
+Source now includes [engine/version details](ENGINE-CAPABILITIES.md), bounded HAProxy HTTP readiness and [guarded panel removal](PANEL-REMOVAL.md). These require a matching current source package until a new release is approved and published. General engine edits still act locally; remote writes are limited to the documented paired GRE/FRP workflow.
+
 On Debian/Ubuntu with systemd:
 
 ```bash

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Phase 5A
+
+- Add an engine/version capability matrix and cached fixed-command version probes; show adapter scope, native/schema validation and FRP client/server mismatches in the bilingual panel.
+- Add bounded HAProxy plain HTTP GET readiness checks on a separate port, preserving TCP passthrough/defaults, with terminal/web controls and reachable-but-unhealthy namespace coverage.
+- Fix the Go model dropping Realm version-3 option fields during record serialization; preserve them through round-trip create/edit.
+- Add confirmed `panel-install.sh --uninstall` and a terminal removal action. Protect unresolved paired operations and Agent-shared resources; remove only panel files/counters and retain tunnels/forwarding.
+- Keep application/package version 1.3.0 pending explicit approval of a future release. Do not overwrite published assets. Phase 5B–5D remain gated.
+
 ## Unreleased — Phase 4 leased two-node connections
 
 - Add explicit `--operations` Agent opt-in while keeping the general local write API inaccessible remotely. Negotiate `connections.pair.v1` alongside protocol-1 inventory.

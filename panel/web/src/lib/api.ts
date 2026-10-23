@@ -34,6 +34,21 @@ export type Option = {
   max?: number;
   default: string;
   choices?: string[];
+  format?: string;
+};
+export type Component = {
+  id: string;
+  installed: boolean;
+  version?: string;
+  peer_version?: string;
+  compatibility?: string;
+};
+export type EngineProfile = {
+  id: string;
+  version_policy: string;
+  validation: string;
+  features: string[];
+  limitations: string[];
 };
 export type Capability = {
   id: string;
@@ -45,7 +60,8 @@ export type Capability = {
 export type Inventory = {
   connections: Connection[];
   resources: Resource[];
-  components: { id: string; installed: boolean }[];
+  components: Component[];
+  engine_profiles?: EngineProfile[];
   capabilities: Capability[];
   host: {
     hostname: string;

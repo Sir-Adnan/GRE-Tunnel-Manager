@@ -2,6 +2,8 @@
 
 Production installation and supported features: [Web panel guide](../docs/WEB-PANEL.md).
 
+See [engine/version profiles](../docs/ENGINE-CAPABILITIES.md), [HAProxy readiness](../docs/HAPROXY.md) and [panel-only removal](../docs/PANEL-REMOVAL.md) for current unreleased source changes.
+
 Build locally (Node 24 and Go 1.27.3):
 
 ```bash

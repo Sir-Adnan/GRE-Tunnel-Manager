@@ -42,6 +42,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	switch os.Args[1] {
+	case "uninstall-version":
+		fmt.Println("1")
+		return nil
+	case "uninstall-prepare":
+		return retirePanel(ctx)
 	case "nodes":
 		return nodeCommand(ctx, os.Args[2:])
 	case "version":

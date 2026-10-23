@@ -85,6 +85,8 @@ Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journ
 
 ## Optional web panel
 
+Panel-only removal uses a closed file manifest and stopped-state journal checks. It preserves all tunnel/forwarding artifacts, removes only the optional panel counter table, and retains the restricted system account and OS journal records. Unresolved paired work or an Agent sharing the executable/helper blocks removal. See [PANEL-REMOVAL.md](PANEL-REMOVAL.md).
+
 | Path/resource | Ownership and lifecycle |
 | --- | --- |
 | `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend |

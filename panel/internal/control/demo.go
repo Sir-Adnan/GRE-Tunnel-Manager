@@ -20,6 +20,12 @@ type Demo struct {
 
 func NewDemo() *Demo {
 	d := &Demo{counter: 4, inventory: Inventory{Version: "1.3.0", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
+	d.inventory.EngineProfiles = model.EngineProfiles()
+	for index := range d.inventory.Components {
+		c := &d.inventory.Components[index]
+		c.Version = map[string]string{"haproxy": "2.8.5", "nftables": "1.0.9", "iptables": "1.8.10", "realm": "2.9.6"}[c.ID]
+		c.Compatibility = compatibility(c.ID, c.Version)
+	}
 	for index, engine := range []string{"haproxy", "nftables", "realm"} {
 		c := model.Connection{ID: fmt.Sprintf("F%06d", index+1), Name: []string{"Reality · Frankfurt", "WireGuard · Stockholm", "Private relay"}[index], Engine: engine, Protocol: []string{"tcp", "udp", "both"}[index], Bind: "203.0.113.10", Ports: []string{"443", "51820", "8443"}[index], Strategy: "single", Enabled: true, SNAT: "masquerade", Interface: "any", Targets: []model.Target{{IP: []string{"198.51.100.20", "198.51.100.30", "198.51.100.40"}[index], Port: []int{443, 51820, 8443}[index], Weight: 1}}, Options: map[string]string{}, Status: "active"}
 		c.Name = []string{"Reality Frankfurt", "WireGuard Stockholm", "Private relay"}[index]

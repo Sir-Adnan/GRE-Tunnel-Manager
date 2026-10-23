@@ -2,6 +2,127 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  healthProbe: ["Health probe", "بررسی سلامت"],
+  healthProbeHelp: [
+    "TCP checks reachability. HTTP checks a separate plain HTTP readiness port; VPN traffic remains unchanged. This is not a VPN handshake check.",
+    "حالت TCP باز بودن پورت را بررسی می‌کند. حالت HTTP یک پورت مجزای سلامت را با HTTP ساده بررسی می‌کند؛ ترافیک VPN تغییر نمی‌کند. این بررسی، اتصال واقعی VPN را آزمایش نمی‌کند.",
+  ],
+  check_mode: ["Probe type", "نوع بررسی"],
+  tcpConnect: ["TCP connect", "اتصال TCP"],
+  httpReadiness: ["HTTP readiness", "سلامت سرویس با HTTP"],
+  readinessPort: ["Readiness port", "پورت سرویس سلامت"],
+  check_path: ["Readiness path", "مسیر بررسی سلامت"],
+  check_host: ["Host header", "نام میزبان در هدر Host"],
+  check_status: ["Expected HTTP status", "کد پاسخ HTTP مورد انتظار"],
+  engineVersion: ["Detected version", "نسخهٔ شناسایی‌شده"],
+  compatibility: ["Adapter compatibility", "سازگاری با مدیر تونل"],
+  adapterDetails: ["Features and limits", "قابلیت‌ها و محدودیت‌ها"],
+  configValidation: ["Configuration validation", "اعتبارسنجی تنظیمات"],
+  compat_pinned: ["Pinned version", "نسخهٔ انتخاب‌شدهٔ پروژه"],
+  compat_native_required: ["Native check required", "نیازمند بررسی موتور"],
+  compat_unverified: ["Version not verified", "نسخه بررسی نشده"],
+  compat_unsupported: [
+    "Outside supported versions",
+    "خارج از نسخه‌های پشتیبانی‌شده",
+  ],
+  compat_mismatch: ["Client/server mismatch", "نسخهٔ کلاینت و سرور متفاوت است"],
+  compat_unknown: ["Version unknown", "نسخه نامشخص"],
+  validation_native: [
+    "Native check before apply",
+    "بررسی با موتور پیش از اعمال",
+  ],
+  validation_schema: [
+    "Schema only; no native dry run",
+    "بررسی ساختار؛ بدون آزمایش مستقل موتور",
+  ],
+  validation_schema_startup: [
+    "Schema and guarded startup",
+    "بررسی ساختار و راه‌اندازی کنترل‌شده",
+  ],
+  versionPolicy_haproxy: [
+    "HAProxy 2.4+ and 3.x. Every configuration must pass the installed engine's native check.",
+    "نسخه‌های HAProxy از ۲٫۴ به بالا و شاخهٔ ۳. هر تنظیم باید بررسی خود موتور نصب‌شده را بگذراند.",
+  ],
+  versionPolicy_realm: [
+    "Pinned to Realm 2.9.6. Other 2.x versions are unverified; encrypted transports are not exposed.",
+    "نسخهٔ انتخاب‌شده Realm 2.9.6 است. نسخه‌های دیگر شاخهٔ ۲ بررسی نشده‌اند و ترنسپورت‌های رمزنگاری‌شده در این مدیر ارائه نمی‌شوند.",
+  ],
+  versionPolicy_nftables: [
+    "Distribution package. Kernel support and native validation are required.",
+    "نسخهٔ مخزن سیستم‌عامل؛ پشتیبانی کرنل و اعتبارسنجی موتور لازم است.",
+  ],
+  versionPolicy_iptables: [
+    "Distribution package. Kernel support and native validation are required.",
+    "نسخهٔ مخزن سیستم‌عامل؛ پشتیبانی کرنل و اعتبارسنجی موتور لازم است.",
+  ],
+  versionPolicy_frp: [
+    "Pinned to FRP 0.71.1. Client and server must match; both must pass native validation.",
+    "نسخهٔ انتخاب‌شده FRP 0.71.1 است. کلاینت و سرور باید هم‌نسخه باشند و بررسی موتور را بگذرانند.",
+  ],
+  versionPolicy_rathole: [
+    "Pinned to rathole 0.5.0 with Noise NK over TCP.",
+    "نسخهٔ انتخاب‌شده rathole 0.5.0 با Noise NK روی TCP است.",
+  ],
+  feature_tcp_passthrough: ["TCP passthrough", "عبور مستقیم TCP"],
+  feature_tcp_udp: ["TCP / UDP", "پروتکل TCP و UDP"],
+  feature_weighted_balancing: ["Weighted balancing", "توزیع وزن‌دار"],
+  feature_tcp_health: ["TCP health", "بررسی سلامت TCP"],
+  feature_http_health: ["HTTP readiness", "بررسی سلامت HTTP"],
+  feature_checked_failover: ["Checked failover", "جایگزین با بررسی سلامت"],
+  feature_proxy_send: ["Send PROXY v1/v2", "ارسال هدر PROXY"],
+  feature_proxy_both: ["Send/accept PROXY", "ارسال و دریافت PROXY"],
+  feature_graceful_reload: [
+    "Verified worker reload",
+    "بارگذاری با تأیید پردازش جدید",
+  ],
+  feature_network_timeouts: [
+    "Timeouts / keepalive",
+    "مهلت اتصال و نگهداری ارتباط",
+  ],
+  feature_kernel_dnat: ["Kernel DNAT", "فوروارد کرنل"],
+  feature_weighted_random: ["Weighted random", "توزیع تصادفی وزن‌دار"],
+  feature_source_policy: ["Source address policy", "سیاست آدرس مبدأ"],
+  feature_mss_clamp: ["TCP MSS clamp", "تنظیم MSS"],
+  feature_reverse: ["Reverse connections", "اتصال معکوس"],
+  feature_ws_quic: ["TCP / WS / QUIC", "ترنسپورت TCP و WS و QUIC"],
+  feature_wss_gateway: ["WSS gateway", "درگاه WSS"],
+  feature_leased_pair: [
+    "Leased two-node setup",
+    "راه‌اندازی دو نود با مهلت تأیید",
+  ],
+  feature_noise_nk: ["Noise NK", "رمزنگاری Noise NK"],
+  limit_no_udp: [
+    "This adapter does not forward UDP.",
+    "این بخش فوروارد UDP ندارد.",
+  ],
+  limit_no_tls_editor: [
+    "TLS termination, SNI routing and arbitrary HTTP/ACL directives are not exposed.",
+    "تنظیم TLS، مسیریابی SNI و دستورهای دلخواه HTTP و ACL هنوز ارائه نشده‌اند.",
+  ],
+  limit_local_management: [
+    "This engine's general create/edit actions currently manage the panel server only.",
+    "عملیات عمومی ساخت و ویرایش این موتور فعلاً روی سرور خود پنل انجام می‌شوند.",
+  ],
+  limit_no_active_checks: [
+    "No active destination health checks.",
+    "بررسی فعال سلامت مقصد ندارد.",
+  ],
+  limit_no_native_transports: [
+    "Native encrypted transports and MPTCP are not exposed.",
+    "ترنسپورت‌های رمزنگاری‌شدهٔ بومی و MPTCP هنوز ارائه نشده‌اند.",
+  ],
+  limit_owned_rules_only: [
+    "Only manager-owned rules; not a host firewall editor.",
+    "فقط قوانین متعلق به مدیر تونل؛ بدون ویرایش کل فایروال سرور.",
+  ],
+  limit_pair_subset: [
+    "Two-node setup supports TCP, WS and QUIC; WSS stays a local setup.",
+    "راه‌اندازی دو نود از TCP و WS و QUIC پشتیبانی می‌کند؛ WSS فعلاً محلی تنظیم می‌شود.",
+  ],
+  limit_no_other_transports: [
+    "Only the managed Noise NK/TCP preset is supported.",
+    "فقط تنظیم آمادهٔ Noise NK روی TCP پشتیبانی می‌شود.",
+  ],
   pairCode_preflight_changed: [
     "The server changed or is no longer ready. Creation was refused before network changes.",
     "وضعیت سرور تغییر کرده یا آماده نیست. ساخت پیش از تغییر شبکه متوقف شد.",

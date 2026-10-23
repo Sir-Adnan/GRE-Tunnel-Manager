@@ -5,6 +5,9 @@ Start with the [README](../README.md), then the guides below. Maintained documen
 | Doc | Read it when you need... |
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
+| [ENGINE-CAPABILITIES.md](ENGINE-CAPABILITIES.md) | Adapter/version matrix, installed-version discovery and compatibility labels |
+| [PANEL-REMOVAL.md](PANEL-REMOVAL.md) | Confirmed panel-only removal, retained tunnels, identity loss and recovery guards |
+| [PHASE-5A-REVIEW.md](PHASE-5A-REVIEW.md) | Engine foundation, HTTP readiness, Realm correction and removal verification |
 | [PHASE-1-REVIEW.md](PHASE-1-REVIEW.md) | Completed interface corrections, validation evidence and remaining boundaries |
 | [PHASE-2-REVIEW.md](PHASE-2-REVIEW.md) | Quick/custom installation, HTTP/HTTPS, credential preservation and validation boundaries |
 | [USER-GUIDE.md](USER-GUIDE.md) | Usage reference, engine selection, GRE, reverse setup and operational limits |

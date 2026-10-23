@@ -25,6 +25,7 @@ import { registry } from "@/experience/registry.generated";
 import { useT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
+import { EngineDetails } from "./EngineDetails";
 
 export type Preferences = {
   locale: Locale;
@@ -222,6 +223,14 @@ export function Components({
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <EngineDetails
+                component={component}
+                profile={inventory.engine_profiles?.find(
+                  (profile) => profile.id === component.id,
+                )}
+              />
+            </CardContent>
+            <CardFooter>
               <Field orientation="horizontal">
                 <Checkbox
                   id={`install-${component.id}`}
@@ -239,7 +248,7 @@ export function Components({
                   {t(component.installed ? "installed" : "installSelected")}
                 </FieldLabel>
               </Field>
-            </CardContent>
+            </CardFooter>
           </Card>
         ))}
       </div>

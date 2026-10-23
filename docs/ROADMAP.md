@@ -57,7 +57,14 @@ Acceptance: successful pairing, one-sided failure, repeated delivery, Controller
 
 ## Phase 5: Engine capabilities and advanced management
 
-Status: awaiting start instruction.
+Status: milestone 5A implemented in source: engine/version profiles, cached installed-version detection, bounded HAProxy HTTP readiness, a Realm serialization correction and scoped panel removal. See [Phase 5A review](PHASE-5A-REVIEW.md). No replacement release was published. The remaining milestones below require a subsequent start instruction.
+
+This phase is split into reviewable milestones because TLS/routing state, display metadata and retained accounting have different compatibility and recovery requirements:
+
+1. **5A — capability foundation and application readiness:** delivered. Preserve TCP defaults, expose actual adapter limits, validate HTTP checks natively, and add guarded panel removal.
+2. **5B — TLS/SNI and bounded HTTP routing:** pending. Design certificate ownership and a separate routing schema before exposing fields; retain Reality/TLS passthrough as the default.
+3. **5C — Realm and owned firewall expansion:** pending. Verify the pinned engine's options/transports before implementing supported profiles. Do not add arbitrary native directives.
+4. **5D — display metadata and optional traffic retention:** pending. Migrate names independently of technical identities and implement bounded history with reset/overlap handling.
 
 - Build an engine/version capability matrix before exposing more HAProxy, Realm or firewall settings. Keep simple/advanced modes, presets and native configuration validation.
 - HAProxy priorities: richer health checks/failover, then TLS/SNI and bounded HTTP/ACL features with separate tests.

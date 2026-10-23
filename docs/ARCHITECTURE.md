@@ -38,6 +38,8 @@ One setup accepts up to 32 unique local ports, including bounded ranges. Each po
 
 ## State
 
+Engine adapter/version profiles live in `panel/internal/model/engines.go`, independently of Node transport capabilities. `control/components.go` runs fixed bounded version probes on demand, caches results and detects binary replacement. Profiles describe implemented scope without expanding the privileged operation vocabulary. HAProxy's optional HTTP readiness fields use the existing closed v2 option record; the separate probe port cannot equal a traffic destination port. Realm's v3 record serializer retains its option field.
+
 Version-1 records have 12 nonempty tab-separated fields:
 
 `id, name, engine, protocol, bind, port, strategy, enabled, snat, interface, targets, schema_version`

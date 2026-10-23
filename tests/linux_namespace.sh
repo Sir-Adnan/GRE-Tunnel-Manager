@@ -11,7 +11,7 @@ test_dir=$(mktemp -d)
 cleanup() {
     local status=$?
     if ((status)); then for log in "$test_dir"/*.log; do [[ ! -f $log ]] || tail -20 "$log" >&2; done; fi
-    for child in "${held_pid:-}" "${proxy_server_pid:-}" "${capture_pid:-}" "${rathole_client_pid:-}" "${rathole_server_pid:-}" "${gateway_pid:-}" "${relay_pid:-}" "${frpc_pid:-}" "${frps_pid:-}" "${server_pid:-}" "${client_ns:-}" "${backend_ns:-}"; do [[ -z $child ]] || kill "$child" 2>/dev/null || true; done
+    for child in "${health_pid:-}" "${held_pid:-}" "${proxy_server_pid:-}" "${capture_pid:-}" "${rathole_client_pid:-}" "${rathole_server_pid:-}" "${gateway_pid:-}" "${relay_pid:-}" "${frpc_pid:-}" "${frps_pid:-}" "${server_pid:-}" "${client_ns:-}" "${backend_ns:-}"; do [[ -z $child ]] || kill "$child" 2>/dev/null || true; done
     # mktemp above creates this absolute private root; never follow symlinks out.
     [[ $test_dir == /tmp/tmp.* && -d $test_dir ]] || return 1
     find "$test_dir" -mindepth 1 -depth -delete; rmdir "$test_dir"
@@ -173,6 +173,29 @@ if command -v haproxy >/dev/null; then
         python3 tests/packet_probe.py client 127.0.0.1 28443 tcp
     fi
     kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    # The data port is reachable, but the separate application probe is 503.
+    # Changing its readiness must affect new connections without changing data bytes.
+    nsenter -t "$backend_ns" -n python3 tests/http_health_probe.py "$test_dir/http-ready" > "$test_dir/http-health.log" 2>&1 & health_pid=$!
+    line=$'F000001\tHTTP readiness\thaproxy\ttcp\t0.0.0.0\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28001@1\t2\tcheck_mode=http;check_port=28004;check_path=/ready/live;check_host=health.example.com;check_status=204;check_interval=1;check_fall=1;check_rise=1;check_timeout=1'
+    gtm_record_validate "$line"
+    gtm_haproxy_render > "$test_dir/haproxy.conf"
+    haproxy -c -f "$test_dir/haproxy.conf"
+    haproxy -W -db -f "$test_dir/haproxy.conf" > "$test_dir/haproxy.log" 2>&1 & relay_pid=$!
+    sleep 1.5
+    if python3 tests/packet_probe.py client 127.0.0.1 28443 tcp > "$test_dir/http-unready.log" 2>&1; then
+        printf 'HTTP readiness incorrectly accepted an unhealthy application.\n' >&2; exit 1
+    fi
+    touch "$test_dir/http-ready"
+    for attempt in {1..30}; do
+        if python3 tests/packet_probe.py client 127.0.0.1 28443 tcp > "$test_dir/http-ready.log" 2>&1; then break; fi
+        sleep 0.1
+    done
+    python3 tests/packet_probe.py client 127.0.0.1 28443 tcp
+    rm "$test_dir/http-ready"
+    sleep 1.5
+    if python3 tests/packet_probe.py client 127.0.0.1 28443 tcp > "$test_dir/http-unready.log" 2>&1; then exit 1; fi
+    kill "$relay_pid" "$health_pid"; wait "$relay_pid" || true; wait "$health_pid" || true; relay_pid=''; health_pid=''
+    printf 'PASS: HTTP readiness rejects reachable-but-unhealthy targets and recovers without changing TCP data.\n'
     nsenter -t "$backend_ns" -n python3 tests/haproxy_probe.py server 192.0.2.2 > "$test_dir/proxy-server.log" 2>&1 & proxy_server_pid=$!
     sleep 0.2
     for proxy_version in v1 v2; do

@@ -48,6 +48,7 @@ type Option struct {
 	Max     int      `json:"max,omitempty"`
 	Default string   `json:"default"`
 	Choices []string `json:"choices,omitempty"`
+	Format  string   `json:"format,omitempty"`
 }
 
 var RealmOptions = []Option{
@@ -65,6 +66,10 @@ var HAOptions = []Option{
 	{Key: "check_rise", Min: 1, Max: 20, Default: "2"}, {Key: "check_port", Min: 0, Max: 65535, Default: "0"},
 	{Key: "slowstart", Min: 0, Max: 3600, Default: "0"}, {Key: "proxy", Default: "off", Choices: []string{"off", "v1", "v2"}},
 	{Key: "log", Default: "connections", Choices: []string{"connections", "errors", "off"}},
+	{Key: "check_mode", Default: "tcp", Choices: []string{"tcp", "http"}},
+	{Key: "check_path", Default: "/health", Format: "http_path"},
+	{Key: "check_host", Default: "localhost", Format: "http_host"},
+	{Key: "check_status", Min: 200, Max: 599, Default: "200"},
 }
 
 func Capabilities() []Capability {
@@ -80,6 +85,8 @@ var safeName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_. -]{0,39}$`)
 var safeInterface = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,14}$`)
 var IDPattern = regexp.MustCompile(`^F[0-9]{6}$`)
 var number = regexp.MustCompile(`^[0-9]{1,6}$`)
+var healthPath = regexp.MustCompile(`^/[a-zA-Z0-9/_.~-]{0,127}$`)
+var healthHost = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$`)
 
 func contains(items []string, item string) bool {
 	for _, value := range items {
@@ -228,6 +235,10 @@ func (c Connection) Rows(id string) ([]string, error) {
 				if !contains(o.Choices, value) {
 					return nil, errors.New("invalid option choice")
 				}
+			} else if o.Format != "" {
+				if (o.Format == "http_path" && !healthPath.MatchString(value)) || (o.Format == "http_host" && !healthHost.MatchString(value)) {
+					return nil, fmt.Errorf("invalid %s", o.Key)
+				}
 			} else {
 				n, e := strconv.Atoi(value)
 				if !number.MatchString(value) || e != nil || n < o.Min || n > o.Max {
@@ -240,6 +251,17 @@ func (c Connection) Rows(id string) ([]string, error) {
 		version = "2"
 		if c.Engine == "realm" {
 			version = "3"
+		}
+	}
+	if c.Engine == "haproxy" && c.Options["check_mode"] == "http" {
+		port, _ := strconv.Atoi(c.Options["check_port"])
+		if port < 1 || port > 65535 {
+			return nil, errors.New("HTTP readiness requires a separate check port")
+		}
+		for _, target := range c.Targets {
+			if target.Port == port {
+				return nil, errors.New("HTTP readiness port must differ from traffic destination ports")
+			}
 		}
 	}
 	enabled := "0"
@@ -261,7 +283,7 @@ func (c Connection) Rows(id string) ([]string, error) {
 			return nil, errors.New("name must be 1–40 ASCII letters, digits, spaces, dots, dashes or underscores")
 		}
 		row := strings.Join([]string{id, name, c.Engine, c.Protocol, c.Bind, strconv.Itoa(port), c.Strategy, enabled, c.SNAT, c.Interface, strings.Join(targets, ","), version}, "\t")
-		if version == "2" {
+		if version == "2" || version == "3" {
 			row += "\t" + strings.Join(options, ";")
 		}
 		rows = append(rows, row)

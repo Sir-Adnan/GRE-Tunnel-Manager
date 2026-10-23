@@ -60,8 +60,11 @@ type Resource struct {
 	Protocol    string `json:"protocol,omitempty"`
 }
 type Component struct {
-	ID        string `json:"id"`
-	Installed bool   `json:"installed"`
+	ID            string `json:"id"`
+	Installed     bool   `json:"installed"`
+	Version       string `json:"version,omitempty"`
+	PeerVersion   string `json:"peer_version,omitempty"`
+	Compatibility string `json:"compatibility,omitempty"`
 }
 type Host struct {
 	Hostname        string   `json:"hostname"`
@@ -74,13 +77,14 @@ type Host struct {
 	PublicIP        string   `json:"public_ip,omitempty"`
 }
 type Inventory struct {
-	Connections  []model.Connection `json:"connections"`
-	Resources    []Resource         `json:"resources"`
-	Components   []Component        `json:"components"`
-	Capabilities []model.Capability `json:"capabilities"`
-	Host         Host               `json:"host"`
-	Version      string             `json:"version"`
-	Demo         bool               `json:"demo"`
+	Connections    []model.Connection    `json:"connections"`
+	Resources      []Resource            `json:"resources"`
+	Components     []Component           `json:"components"`
+	Capabilities   []model.Capability    `json:"capabilities"`
+	EngineProfiles []model.EngineProfile `json:"engine_profiles,omitempty"`
+	Host           Host                  `json:"host"`
+	Version        string                `json:"version"`
+	Demo           bool                  `json:"demo"`
 }
 type Request struct {
 	NodeTask   *NodeTask        `json:"node_task,omitempty"`
@@ -95,6 +99,7 @@ type Request struct {
 	Metrics    MetricsSettings  `json:"metrics"`
 }
 type Manager struct {
+	probes    componentProbe
 	Runner    Runner
 	ConfigDir string
 	UnitDir   string
@@ -226,21 +231,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	components := []Component{}
-	for _, pair := range [][2]string{{"iptables", "iptables"}, {"nftables", "nft"}, {"haproxy", "haproxy"}, {"realm", "realm"}, {"frp", "frpc"}, {"rathole", "rathole"}} {
-		_, e := lookupBinary(pair[1])
-		installed := e == nil
-		if pair[0] == "frp" {
-			_, e = lookupBinary("frps")
-			installed = installed && e == nil
-		}
-		if pair[0] == "haproxy" {
-			_, e = lookupBinary("socat")
-			installed = installed && e == nil
-		}
-		components = append(components, Component{ID: pair[0], Installed: installed})
-	}
-	return Inventory{Connections: connections, Resources: resources, Components: components, Capabilities: model.Capabilities(), Host: hostInfo(), Version: "1.3.0"}, nil
+	return Inventory{Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.0"}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {

@@ -24,6 +24,9 @@ gtm_record_validate() {
     (( ${#targets[@]} >= 1 && ${#targets[@]} <= 32 )) || return 1
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1
+        if [[ $R_ENGINE == haproxy && $H_CHECK_MODE == http ]] && ((10#$EP_PORT == 10#$H_CHECK_PORT)); then
+            gtm_error 'HTTP readiness needs a port different from every traffic destination port.'; return 1
+        fi
         key="$(gtm_ip_key "$EP_IP"):$EP_PORT"
         [[ ! ${seen_targets[$key]+set} ]] || return 1
         seen_targets[$key]=1

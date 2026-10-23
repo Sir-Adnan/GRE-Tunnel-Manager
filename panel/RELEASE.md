@@ -1,5 +1,7 @@
 Optional Go web panel with Persian/English, RTL/LTR, responsive shadcn/ui, and the original Nettinx theme.
 
+Current source also includes engine/version profiles, separate-port HAProxy HTTP readiness and guarded `panel-install.sh --uninstall`. The installed package must report `gtm-panel uninstall-version` as `1` for automatic removal. Complete Phase 5 milestones and obtain explicit release approval before changing the application/package version or publishing v1.3.1; do not overwrite v1.3.0 assets.
+
 Manage GRE, iptables/nftables forwarding, HAProxy TCP, Realm TCP/UDP, and FRP/rathole reverse connections. Includes staged forms, multiport creation, grouped operations, engine preinstallation, and optional per-port/interface network counters.
 
 The public HTTP/HTTPS process runs as a restricted user and talks to a local privileged broker. Passwords use bcrypt; authenticated writes require a session and CSRF token. Tunnel engines run independently of the panel. Prebuilt Linux amd64/arm64 packages include the matching Bash manager and embedded frontend; no Go, Node, Docker or database is required on servers.
