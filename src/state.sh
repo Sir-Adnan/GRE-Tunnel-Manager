@@ -5,12 +5,14 @@ gtm_record_validate() {
     local -A seen_targets=()
     [[ $line != *$'\r'* && $line != *$'\n'* ]] || return 1
     fields=${line//[^$'\t']/}
-    (( ${#fields} == 11 || ${#fields} == 12 )) || return 1
-    IFS=$'\t' read -r R_ID R_NAME R_ENGINE R_PROTO R_BIND R_PORT R_STRATEGY R_ENABLED R_SNAT R_IFACE R_TARGETS R_VERSION R_OPTIONS <<< "$line"
-    gtm_haproxy_defaults; gtm_realm_defaults
+    (( ${#fields} == 11 || ${#fields} == 12 || ${#fields} == 13 )) || return 1
+    IFS=$'\t' read -r R_ID R_NAME R_ENGINE R_PROTO R_BIND R_PORT R_STRATEGY R_ENABLED R_SNAT R_IFACE R_TARGETS R_VERSION R_OPTIONS R_ROUTING <<< "$line"
+    gtm_haproxy_defaults; gtm_realm_defaults; gtm_routing_defaults
     if (( ${#fields} == 11 )); then [[ $R_VERSION == 1 ]] || return 1
-    elif [[ $R_VERSION == 2 && $R_ENGINE == haproxy ]]; then gtm_haproxy_options_validate "$R_OPTIONS" || return 1
-    elif [[ $R_VERSION == 3 && $R_ENGINE == realm ]]; then gtm_realm_options_validate "$R_OPTIONS" || return 1
+    elif (( ${#fields} == 13 )) && [[ $R_VERSION == 4 && $R_ENGINE == haproxy ]]; then
+        gtm_haproxy_options_validate "$R_OPTIONS" && gtm_routing_validate "$R_ROUTING" || return 1
+    elif (( ${#fields} == 12 )) && [[ $R_VERSION == 2 && $R_ENGINE == haproxy ]]; then gtm_haproxy_options_validate "$R_OPTIONS" || return 1
+    elif (( ${#fields} == 12 )) && [[ $R_VERSION == 3 && $R_ENGINE == realm ]]; then gtm_realm_options_validate "$R_OPTIONS" || return 1
     else return 1; fi
     gtm_id "$R_ID" && gtm_name "$R_NAME" && gtm_ip "$R_BIND" && gtm_port "$R_PORT" && gtm_iface "$R_IFACE" || return 1
     [[ $R_ENABLED =~ ^[01]$ && $R_SNAT =~ ^(masquerade|preserve)$ ]] || return 1
@@ -40,8 +42,9 @@ gtm_record_validate() {
     done
     [[ $R_STRATEGY != single || $count == 1 ]] || return 1
     case $R_ENGINE in
-        iptables|nftables) [[ $R_STRATEGY == single || $R_STRATEGY == random ]] || return 1 ;;
-        realm) [[ $R_STRATEGY == single || $R_STRATEGY == roundrobin || $R_STRATEGY == source ]] || return 1 ;;
+        iptables) [[ $R_STRATEGY == single || $R_STRATEGY == random ]] || return 1 ;;
+        nftables) [[ $R_STRATEGY =~ ^(single|random|roundrobin|source)$ ]] || return 1 ;;
+        realm) [[ $R_STRATEGY == single || $R_STRATEGY == roundrobin || $R_STRATEGY == source ]] && gtm_realm_profile_validate || return 1 ;;
         haproxy) [[ $R_PROTO == tcp && $R_STRATEGY =~ ^(single|roundrobin|leastconn|source|failover)$ ]] || return 1 ;;
     esac
 }
@@ -98,12 +101,13 @@ gtm_new_id() {
 
 gtm_write_records() {
     local dest=$1
-    { printf '# Traffic Manager records v1/v2/v3\n'; printf '%s\n' "${GTM_RECORDS[@]}"; } > "$dest"
+    { printf '# Traffic Manager records v1/v2/v3/v4\n'; printf '%s\n' "${GTM_RECORDS[@]}"; } > "$dest"
 }
 
 gtm_record_emit() {
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$R_ID" "$R_NAME" "$R_ENGINE" "$R_PROTO" "$R_BIND" "$R_PORT" "$R_STRATEGY" "$R_ENABLED" "$R_SNAT" "$R_IFACE" "$R_TARGETS" "$R_VERSION"
     [[ $R_VERSION == 1 ]] || printf '\t%s' "$R_OPTIONS"
+    [[ $R_VERSION != 4 ]] || printf '\t%s' "$R_ROUTING"
     return 0
 }
 

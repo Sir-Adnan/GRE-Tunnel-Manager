@@ -1,10 +1,11 @@
 {
   "id": "nettinx",
   "name": "Nettinx",
-  "styleVersion": "1.0.0",
+  "styleVersion": "1.0.1",
   "surfaces": ["admin"],
   "modes": ["light", "dark"],
   "tokens": "./tokens.css",
+  "adjustments": "./approved-overrides.css",
   "fonts": [
     {
       "family": "Poppins",
@@ -26,6 +27,7 @@
     "importedAt": "2026-10-22"
   },
   "fidelity": {
-    "mode": "exact"
+    "mode": "exact",
+    "accept": ["button-primary-foreground"]
   }
 }

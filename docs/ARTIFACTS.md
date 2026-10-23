@@ -129,3 +129,15 @@ The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths
 | `/var/lib/gre-manager-node-operations/broker.lock` | Exclusive process-held Linux flock; one privileged operation broker per journal |
 
 Paired GRE/FRP uses the existing unit, interface and config paths listed above. It creates no new host firewall or default-route policy. Unconfirmed resources have five-minute root-owned leases. Broker recovery runs independently of the Agent in opted-in installations, including after reboot. Recovery deletes only an unchanged, fingerprint-matching resource through the shared manager lock and normal dependency guards. Existing/new sibling GRE keepalive and FRP gateway files block paired creation or compensation because this preset does not own them. Interrupted creates or cleanup failures remain for manual inspection. Confirmed resources stay until explicit local removal, except bounded compensation of a partially confirmed job within its original authorization window. Deleting a Controller job is not a resource-delete operation. Terminal receipts are eligible for pruning 48 hours after their original authorization expires; unresolved receipts remain. Operations-mode Agents also use the existing root-only bounded `/var/lib/gre-manager-panel/audit.jsonl{,.1}` for action metadata; no request tokens or command output are written there. See [Paired connections](PAIRED-CONNECTIONS.md).
+
+
+## Advanced management additions
+
+| Resource | Ownership and lifecycle |
+| --- | --- |
+| `/etc/gre-manager/resource-names.tsv` | Optional root-managed display names; fingerprint-bound to GRE/reverse units; locked atomic updates preserve all rows |
+| `/etc/gre-manager/resource-names.tsv.bak` | Previous display metadata; retained for manual recovery |
+| `/etc/gre-manager/certificates/ID.pem` | Operator-provisioned chain/private key; root:root, file 600 and directory 700; never uploaded/read back/deleted by panel operations |
+| `/var/lib/gre-manager-panel/metrics.json` | Existing ledger extended with cycle baselines, customer policies, bounded optional histories and completed cycle summaries; removed with the panel |
+
+Routing remains inside the existing generated per-connection HAProxy config/unit. The v4 TSV record is included in the existing snapshots and recovery. Extended Realm options remain inside existing v3 records/configs. No additional service, database, firewall table, agent protocol or public privileged listener is created for these features. Panel-only removal preserves connection records, display metadata, their backups and operator routing certificates.

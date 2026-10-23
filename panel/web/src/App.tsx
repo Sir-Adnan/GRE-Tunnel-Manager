@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -42,6 +41,7 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { MobileNavigation } from "@/components/MobileNavigation";
 import { PanelSidebar } from "@/components/PanelSidebar";
 import { AccessStatus } from "@/components/AccessStatus";
 import { ActionButton } from "@/components/help";
@@ -51,7 +51,9 @@ import { ConnectionForm } from "@/features/connections/ConnectionForm";
 import { ConnectionTable } from "@/features/connections/ConnectionTable";
 import { Overview } from "@/features/Overview";
 import { Resources } from "@/features/Resources";
-import { Traffic } from "@/features/Traffic";
+const Traffic = lazy(() =>
+  import("@/features/Traffic").then((module) => ({ default: module.Traffic })),
+);
 const Nodes = lazy(() =>
   import("@/features/nodes/Nodes").then((module) => ({
     default: module.Nodes,
@@ -415,17 +417,6 @@ export default function App() {
                           <Card>
                             <CardHeader>
                               <CardTitle>{t("connections")}</CardTitle>
-                              <CardDescription>
-                                {page === "haproxy"
-                                  ? inventory.capabilities.find(
-                                      (c) => c.id === "haproxy",
-                                    )?.scope
-                                  : page === "realm"
-                                    ? inventory.capabilities.find(
-                                        (c) => c.id === "realm",
-                                      )?.scope
-                                    : t("emptyDesc")}
-                              </CardDescription>
                             </CardHeader>
                             <CardContent>
                               <ConnectionTable
@@ -491,6 +482,7 @@ export default function App() {
               </span>
             </footer>
           </SidebarInset>
+          <MobileNavigation page={page} navigate={navigate} />
         </SidebarProvider>
         {form && inventory && (
           <ConnectionForm

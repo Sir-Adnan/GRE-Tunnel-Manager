@@ -57,14 +57,14 @@ Acceptance: successful pairing, one-sided failure, repeated delivery, Controller
 
 ## Phase 5: Engine capabilities and advanced management
 
-Status: milestone 5A implemented in source: engine/version profiles, cached installed-version detection, bounded HAProxy HTTP readiness, a Realm serialization correction and scoped panel removal. See [Phase 5A review](PHASE-5A-REVIEW.md). No replacement release was published. The remaining milestones below require a subsequent start instruction.
+Status: milestones 5A–5D implemented in source within the closed profiles below. The user explicitly authorized the remaining milestones together, then approved dark text/icons on orange buttons and Latin digits throughout the panel. See [Phase 5B–5D review](PHASE-5BCD-REVIEW.md). No replacement release was published. Public two-server/systemd/reboot verification remains a deployment check.
 
 This phase is split into reviewable milestones because TLS/routing state, display metadata and retained accounting have different compatibility and recovery requirements:
 
 1. **5A — capability foundation and application readiness:** delivered. Preserve TCP defaults, expose actual adapter limits, validate HTTP checks natively, and add guarded panel removal.
-2. **5B — TLS/SNI and bounded HTTP routing:** pending. Design certificate ownership and a separate routing schema before exposing fields; retain Reality/TLS passthrough as the default.
-3. **5C — Realm and owned firewall expansion:** pending. Verify the pinned engine's options/transports before implementing supported profiles. Do not add arbitrary native directives.
-4. **5D — display metadata and optional traffic retention:** pending. Migrate names independently of technical identities and implement bounded history with reset/overlap handling.
+2. **5B — TLS/SNI and bounded HTTP routing:** delivered with separate v4/routing-v1 schema, exact-host rules, operator-owned PEM references and unchanged TCP defaults.
+3. **5C — Realm and owned firewall expansion:** delivered for pinned WS, MPTCP and IPv6-only profiles plus nftables incremental/source-IP hash selectors; no raw native directives or Realm TLS/WSS editor.
+4. **5D — display metadata and optional traffic retention:** delivered for local display names and accounting cycles, customer labels, advisory quotas, bounded histories, CSV and confirmed manual controls. Remote accounting/Node history aggregation remains a separately scoped future feature.
 
 - Build an engine/version capability matrix before exposing more HAProxy, Realm or firewall settings. Keep simple/advanced modes, presets and native configuration validation.
 - HAProxy priorities: richer health checks/failover, then TLS/SNI and bounded HTTP/ACL features with separate tests.
@@ -74,3 +74,8 @@ This phase is split into reviewable milestones because TLS/routing state, displa
 - Add optional bounded traffic history/retention, Node/tunnel/port filters and Area charts. Cover resets, lost connectivity and overlapping measurement paths.
 
 Acceptance: each advertised capability has a supported version, generated configuration validation, compatibility/recovery tests and documentation. Do not label a partial adapter as supporting every native engine feature.
+
+
+### Explicit follow-up scope
+
+Remote traffic summaries/history, remote quota/reset operations, automatic hard volume cutoffs, scheduled billing cycles and customer accounts require separate contracts and tests. They are not implied by local advisory quotas. Realm native TLS/WSS certificate handling, arbitrary HAProxy ACLs and unrestricted firewall editing remain outside the delivered profiles. Release v1.3.1 requires explicit user approval after reviewing the final implementation and verification evidence.

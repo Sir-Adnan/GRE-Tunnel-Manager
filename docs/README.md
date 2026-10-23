@@ -5,6 +5,10 @@ Start with the [README](../README.md), then the guides below. Maintained documen
 | Doc | Read it when you need... |
 | --- | --- |
 | [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
+| [TRAFFIC-ACCOUNTING.md](TRAFFIC-ACCOUNTING.md) | Customer/port usage, cycle reset, advisory quotas, retention, CSV and limits |
+| [HAPROXY-ROUTING.md](HAPROXY-ROUTING.md) | Closed SNI/HTTP routing, HTTPS PEM ownership and v4 compatibility |
+| [REALM-PROFILES.md](REALM-PROFILES.md) | Pinned WS/MPTCP/IPv6-only profiles and kernel/feature checks |
+| [PHASE-5BCD-REVIEW.md](PHASE-5BCD-REVIEW.md) | Delivered advanced management, verification and release boundaries |
 | [ENGINE-CAPABILITIES.md](ENGINE-CAPABILITIES.md) | Adapter/version matrix, installed-version discovery and compatibility labels |
 | [PANEL-REMOVAL.md](PANEL-REMOVAL.md) | Confirmed panel-only removal, retained tunnels, identity loss and recovery guards |
 | [PHASE-5A-REVIEW.md](PHASE-5A-REVIEW.md) | Engine foundation, HTTP readiness, Realm correction and removal verification |

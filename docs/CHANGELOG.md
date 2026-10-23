@@ -1,5 +1,18 @@
 # Changelog
 
+
+## Unreleased — Phase 5B–5D advanced management
+
+- Add bounded optional HAProxy client-IP memory affinity with size/expiry controls, distinct from source hashing. Add responsive destination disclosure, paginated mobile cards, visual Node selection, full-menu mobile navigation and reduced-motion-aware CSS transitions.
+- Add a separate HAProxy v4/routing-v1 contract for exact-host SNI passthrough, bounded HTTP Host/path routes and operator-provisioned HTTPS termination. Keep opaque TCP passthrough as the default and preserve routing through terminal edits.
+- Verify Realm 2.9.6 source contracts; add feature-gated WS, kernel-gated incoming/outgoing MPTCP and IPv6-only profiles. Correct official `Realm` version output detection.
+- Add manager-owned nftables incremental and fixed-seed source-IP hash balancing for new flows; retain existing iptables behavior.
+- Add fingerprint-bound GRE/reverse display metadata, locked revision checks, atomic sidecar updates and previous-file backups without renaming network identities.
+- Add independent traffic cycles/resets, customer labels, direction-specific advisory quotas, CSV export, manual disable and scoped forgetting of deleted-resource accounting. Keep lifetime totals and preserve raw counters; no automatic cutoff or conntrack flush.
+- Add optional bounded persisted histories and completed-cycle summaries; fetch archives only for the selected resource and keep asynchronous job receipts small. Lazy-load the Traffic workspace.
+- Separate traffic usage from collection settings with responsive tabs, use Latin display digits in both UI languages, bound dialogs to the viewport and apply the user-approved dark label/icon override only to Nettinx orange buttons. Preserve imported fills and source tokens.
+- Add routing/WS packet tests, metadata CAS regressions, ledger reset/restart/failure tests and browser checks. No version bump, public release or live-server deployment is included.
+
 ## Unreleased — Phase 5A
 
 - Add an engine/version capability matrix and cached fixed-command version probes; show adapter scope, native/schema validation and FRP client/server mismatches in the bilingual panel.

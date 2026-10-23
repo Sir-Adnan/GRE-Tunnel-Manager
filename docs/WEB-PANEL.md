@@ -91,7 +91,7 @@ Setup refuses an existing config or TLS files rather than overwriting them. If a
 | --- | --- |
 | Forward/relay management | Multi-port creation, individual edits, bulk selection, enable/disable/delete and review before application |
 | iptables/nftables | IPv4/IPv6, TCP/UDP/both, DNAT, destination-port mapping, masquerade/preserve source, interface selection and weighted distribution |
-| HAProxy | TCP, weighted targets, round robin/leastconn/source/failover, 13 bounded timeout/queue/maxconn/check/slow-start/PROXY/log options and balanced/VPN/lean presets |
+| HAProxy | TCP, weighted targets, round robin/leastconn/source/failover, 20 bounded timeout/queue/maxconn/check/slow-start/PROXY/log options and balanced/VPN/lean presets |
 | Realm | TCP/UDP/both, weighted targets, round robin/iphash, timeouts, keepalive/probes, incoming/outgoing PROXY metadata and log level |
 | GRE | GRE/ip6gre creation with ID, role, local/peer IP and MTU; service state/actions/logs and dependency-aware deletion |
 | FRP | Entrance/destination, TCP/UDP services, TCP/WS/WSS/QUIC transports, stream multiplexing and TCP balancing groups |
@@ -127,7 +127,7 @@ These are network-layer bytes, not application payload or provider billing. NOTR
 
 Counters/totals are checkpointed and decreasing raw counters are treated as resets. Abrupt termination or deleting counters before the next sample can lose increments. This is not billing-grade accounting. Stopping the panel with accounting enabled leaves kernel counters installed; disable collection first to remove that overhead.
 
-Phase 1 adds a lazily loaded shadcn/Recharts Area chart for each resource, using at most 60 distinct samples fetched during the current page visit. Refresh after a later sample to add a point; duplicate timestamps do not invent new points. Two actual samples are needed. Leaving the page clears this chart history; no browser persistence, cross-resource sum or persistent historical series is implied. Persistent optional history and retention are Phase 5 work. A chart is not an automatic background poller.
+The Traffic page now separates usage/cycles from collection settings with tabs. Optional retained history keeps up to 288 actual samples per resource and 12 completed cycle summaries. History is fetched only for the selected resource; summary polling does not transfer all archives. Per-port customer labels, advisory quotas, confirmed cycle resets, CSV export and scoped removal of deleted-resource accounting are supported. Read [Traffic accounting](TRAFFIC-ACCOUNTING.md) for limits, counter semantics, retention and the absence of automatic cutoffs/remote accounting.
 
 ## Architecture and security
 
@@ -146,14 +146,32 @@ Sessions live in memory for four hours with HttpOnly/SameSite cookies and the Se
 | `panel/web/src/experience` | Appearance contract, selection, themes and direction |
 | `src/api.sh`, `src/links.sh`, `src/reverse_api.sh` | Validated noninteractive local operations |
 
-Existing TSV v1/v2 remain supported; advanced Realm options use v3. Older releases cannot load v3: downgrade requires a suitable older snapshot. The terminal keeps its fixed English interface.
+Existing TSV v1/v2 remain supported; advanced Realm options use v3. Advanced HAProxy routing uses v4 with a separate field. Older releases cannot load v3/v4: downgrade requires a suitable older snapshot. The terminal keeps its fixed English interface.
 
 ## Appearance fidelity and limits
 
-The original Nettinx colors are preserved by explicit user choice. White primary-button text has approximately 2.5:1 contrast in light mode and 2.62:1 in dark mode; some sidebar combinations also fail AA. These are recorded limitations, not a passed contrast gate. Neutral remains an alternative. The later explicit Vazirmatn font choice changes application typography without altering original palette source values.
+The imported Nettinx palette is preserved. A later user-approved dark foreground override now applies only to orange primary buttons; their earlier white labels had approximately 2.5:1 and 2.62:1 contrast. Sidebar navigation maps hover/active content to existing readable foreground/muted tokens. Remaining raw-token contrast warnings are recorded limitations, not a passed theme-wide gate. Neutral remains an alternative. The later explicit Vazirmatn font choice changes application typography without altering original palette source values.
 
 Fonts are served locally, Persian letter-spacing is zero and technical values retain LTR isolation. Node, Vite and TypeScript are build-time tools; the browser executes the built React JavaScript. Two Go processes run in production, plus whichever tunnel engines are enabled. `GOMEMLIMIT=64MiB` per Go process is a soft runtime memory setting, not a hard RSS cap or measurement of actual use.
 
 ## Optional servers and Agents
 
 The **Nodes** page always includes the panel host. To see other servers, explicitly enable the separate TLS Controller listener and install outbound Agents (read-only by default; optional leased GRE/FRP pairing is described in [Paired connections](PAIRED-CONNECTIONS.md)) with hidden, expiring enrollment codes. The panel may run on an entrance, destination or third server; local-only operation needs no Agent. Existing tunnel pages still control only the panel host. See [NODES.md](NODES.md) for setup, protocol/PKI, status interpretation and recovery. This is an unreleased source feature; the existing v1.3.0 archive does not implement it.
+
+
+## Current advanced profiles and display preferences
+
+See [HAProxy routing](HAPROXY-ROUTING.md) for exact-host SNI/HTTP routes and HTTPS termination with operator-provisioned PEMs, and [Realm profiles](REALM-PROFILES.md) for pinned WS, MPTCP and IPv6-only options. nftables additionally supports incremental and fixed-seed source-IP hash distribution for new flows; iptables retains its existing weighted random profile. All changes remain scoped to manager-owned resources.
+
+GRE/reverse cards have a display-name action. Names use 1–40 ASCII characters; an empty edit restores the technical name. Display metadata is separate from unit IDs, peer tokens and addresses, is fingerprint-bound, and is updated under the existing manager lock with revision checks. It does not rename the network resource. Deleting a managed resource retires its matching display entry.
+
+All system-generated numbers, dates and chart values use Latin digits in Persian and English; language still controls labels and RTL/LTR. Nettinx's original fills remain unchanged. The user approved a dark dark label/icon override on orange primary buttons only, recorded in `approved-overrides.css` and `fidelity.accept`. Other pre-existing contrast limits remain; this is not a claim that the entire palette passes WCAG. The old generic primary-foreground and sidebar pairs still fail the theme-wide contrast audit and are documented, not silently recolored.
+
+
+## Minimal responsive workflows
+
+Multi-destination connections expose a compact destination preview on hover/focus and a persistent, scrollable list on click/tap. The list includes every endpoint and its relative weight. Weight describes selection share, not a speed/volume cap. Technical endpoints use isolated LTR rendering, and entrance ports do not include a leading colon. Below the desktop breakpoint, connections use touch-friendly cards instead of a horizontally scrolling table; filtered lists paginate 20 records at a time.
+
+Page descriptions and long form explanations move to focus/hover/tap help. Routing and optional IP-affinity controls stay under Advanced settings. The paired GRE/FRP wizard shows entrance and destination as separate server cards, a directional connector and a swap action; on small screens it stacks them vertically. This changes presentation only: existing eligibility, preflight, leasing and rollback contracts still apply.
+
+Mobile navigation provides Overview, Connections, Traffic and Nodes shortcuts plus the full menu. Sidebar hover/active items use existing readable foreground/muted tokens with a stable active indicator. Tooltips use the existing popover surface with a short delay and suppress duplicate hover content while persistent help is open. Brief CSS entry/color transitions respect `prefers-reduced-motion`; no new animation or graph runtime dependency is introduced.

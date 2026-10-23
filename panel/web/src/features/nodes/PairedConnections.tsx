@@ -136,7 +136,7 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
                     <span className="text-xs text-muted-foreground">
                       {t("pairLeaseUntil")} ·{" "}
                       {new Date(s.deadline).toLocaleTimeString(
-                        locale === "fa" ? "fa-IR" : "en-US",
+                        locale === "fa" ? "fa-IR-u-nu-latn" : "en-US",
                       )}
                     </span>
                   )}

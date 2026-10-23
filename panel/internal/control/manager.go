@@ -58,6 +58,7 @@ type Resource struct {
 	Bind        string `json:"bind,omitempty"`
 	Port        int    `json:"port,omitempty"`
 	Protocol    string `json:"protocol,omitempty"`
+	Revision    string `json:"revision,omitempty"`
 }
 type Component struct {
 	ID            string `json:"id"`
@@ -87,16 +88,19 @@ type Inventory struct {
 	Demo           bool                  `json:"demo"`
 }
 type Request struct {
-	NodeTask   *NodeTask        `json:"node_task,omitempty"`
-	Action     string           `json:"action"`
-	Connection model.Connection `json:"connection"`
-	Selected   []Selection      `json:"selected"`
-	GRE        GRE              `json:"gre"`
-	Reverse    Reverse          `json:"reverse"`
-	Service    string           `json:"service"`
-	Verb       string           `json:"verb"`
-	Components []string         `json:"components"`
-	Metrics    MetricsSettings  `json:"metrics"`
+	NodeTask        *NodeTask        `json:"node_task,omitempty"`
+	Action          string           `json:"action"`
+	Connection      model.Connection `json:"connection"`
+	Selected        []Selection      `json:"selected"`
+	GRE             GRE              `json:"gre"`
+	Reverse         Reverse          `json:"reverse"`
+	Service         string           `json:"service"`
+	Verb            string           `json:"verb"`
+	Components      []string         `json:"components"`
+	Metrics         MetricsSettings  `json:"metrics"`
+	MetricsRevision *uint64          `json:"metrics_revision,omitempty"`
+	Traffic         TrafficChange    `json:"traffic"`
+	ResourceName    ResourceName     `json:"resource_name"`
 }
 type Manager struct {
 	probes    componentProbe
@@ -140,6 +144,10 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 		return Inventory{}, e
 	}
 	resources := []Resource{}
+	names, e := m.resourceNames()
+	if e != nil {
+		return Inventory{}, e
+	}
 	units := []string{}
 	for _, c := range connections {
 		if c.Engine == "haproxy" || c.Engine == "realm" {
@@ -190,6 +198,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 				resource.Description = strings.TrimPrefix(line, "Description=")
 			}
 		}
+		applyResourceName(&resource, data, names[id])
 		resources = append(resources, resource)
 		units = append(units, id)
 	}
@@ -239,6 +248,20 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return m.Inventory(ctx)
 	case "capabilities":
 		return model.Capabilities(), nil
+	case "resource-rename":
+		v := r.ResourceName
+		parts := strings.Split(v.Revision, ":")
+		if len(parts) != 2 || !digestValid(parts[0]) || (parts[1] != "-" && !digestValid(parts[1])) {
+			return nil, errors.New("invalid display-name revision; refresh inventory")
+		}
+		if !ServiceOK(v.ID) || (!greID.MatchString(v.ID) && !reverseID.MatchString(v.ID)) || (v.Name != "" && !resourceNameValid(v.Name)) {
+			return nil, errors.New("name must be up to 40 ASCII letters, digits, spaces, dots, dashes or underscores")
+		}
+		name := v.Name
+		if name == "" {
+			name = "-"
+		}
+		return m.call(ctx, "resource-rename", name+"\n", v.ID, v.Revision)
 	case "create":
 		rows, e := r.Connection.Rows("F000000")
 		if e != nil {
@@ -334,7 +357,12 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		if m.Metrics == nil {
 			return nil, errors.New("metrics unavailable")
 		}
-		return m.Metrics.View(), nil
+		return m.Metrics.Summary(), nil
+	case "metrics-history":
+		if m.Metrics == nil {
+			return nil, errors.New("metrics unavailable")
+		}
+		return m.Metrics.Archive(r.Traffic.ID)
 	case "metrics-configure":
 		if m.Metrics == nil {
 			return nil, errors.New("metrics unavailable")
@@ -343,7 +371,19 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		if e != nil {
 			return nil, e
 		}
-		return m.Metrics.Configure(ctx, r.Metrics, inventory)
+		if r.MetricsRevision != nil {
+			return trafficReceipt(m.Metrics.Configure(ctx, r.Metrics, inventory, *r.MetricsRevision))
+		}
+		return trafficReceipt(m.Metrics.Configure(ctx, r.Metrics, inventory))
+	case "metrics-reset", "metrics-policy", "metrics-forget":
+		if m.Metrics == nil {
+			return nil, errors.New("metrics unavailable")
+		}
+		inventory, e := m.Inventory(ctx)
+		if e != nil {
+			return nil, e
+		}
+		return trafficReceipt(m.Metrics.Change(ctx, r.Action, r.Traffic, inventory))
 	default:
 		return nil, errors.New("unsupported operation")
 	}

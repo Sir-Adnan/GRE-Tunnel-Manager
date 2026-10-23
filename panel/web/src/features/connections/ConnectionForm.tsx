@@ -19,6 +19,8 @@ import { useT } from "@/lib/i18n";
 import { endpoint } from "@/lib/api";
 import type { Connection, Inventory } from "@/lib/api";
 import { HealthCheckFields } from "./HealthCheckFields";
+import { AffinityFields } from "./AffinityFields";
+import { RoutingFields } from "./RoutingFields";
 
 const healthOptionKeys = [
   "check_mode",
@@ -67,7 +69,10 @@ export function ConnectionForm({
         },
   );
   const [advanced, setAdvanced] = useState(
-    Boolean(original?.options && Object.keys(original.options).length),
+    Boolean(
+      original?.routing ||
+      (original?.options && Object.keys(original.options).length),
+    ),
   );
   const [preset, setPreset] = useState("balanced");
   const [review, setReview] = useState(false);
@@ -192,6 +197,38 @@ export function ConnectionForm({
                 <pre className="code-block" dir="ltr">
                   {JSON.stringify(value.options, null, 2)}
                 </pre>
+              )}
+              {value.routing && (
+                <div className="mt-4 flex flex-col gap-3 rounded-xl border p-4">
+                  <p className="font-medium">
+                    {t(`routeMode_${value.routing.mode}`)}
+                  </p>
+                  {value.routing.certificate && (
+                    <p>
+                      {t("certificateID")}:{" "}
+                      <bdi>{value.routing.certificate}</bdi>
+                    </p>
+                  )}
+                  {value.routing.rules.map((rule, i) => {
+                    const destination = value.targets[rule.target - 1];
+                    return (
+                      <p key={i} className="break-words text-sm" dir="ltr">
+                        {rule.host}
+                        {rule.prefix || ""} →{" "}
+                        {destination
+                          ? endpoint(destination.ip, destination.port)
+                          : t("invalid")}
+                      </p>
+                    );
+                  })}
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      value.routing.mode === "sni"
+                        ? "sniHelp"
+                        : "httpRoutingHelp",
+                    )}
+                  </p>
+                </div>
               )}
             </div>
           ) : (
@@ -327,6 +364,7 @@ export function ConnectionForm({
                         <TextField
                           id={`weight-${index}`}
                           label={t("weight")}
+                          help={t("weightHelp")}
                           type="number"
                           min={1}
                           max={256}
@@ -422,6 +460,20 @@ export function ConnectionForm({
                 </Button>
                 {advanced && (
                   <FieldGroup>
+                    {value.engine === "haproxy" && (
+                      <RoutingFields
+                        value={value}
+                        onChange={(next) => patch("routing", next)}
+                      />
+                    )}
+
+                    {value.engine === "haproxy" && (
+                      <AffinityFields
+                        options={value.options}
+                        onChange={(next) => patch("options", next)}
+                      />
+                    )}
+
                     <TextField
                       id="bind"
                       label={t("bind")}
@@ -466,7 +518,10 @@ export function ConnectionForm({
                       .filter(
                         (option) =>
                           value.engine !== "haproxy" ||
-                          !healthOptionKeys.includes(option.key),
+                          (!healthOptionKeys.includes(option.key) &&
+                            !["stick", "stick_size", "stick_expire"].includes(
+                              option.key,
+                            )),
                       )
                       .map((option) =>
                         option.choices ? (

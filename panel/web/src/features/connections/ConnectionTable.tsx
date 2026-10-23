@@ -1,5 +1,13 @@
 import { useContext, useState } from "react";
-import { Pencil, Play, Search, Square, Trash2, FileText } from "lucide-react";
+import {
+  Play,
+  Search,
+  Square,
+  Trash2,
+  Workflow,
+  Network,
+  Route,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -19,11 +27,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ActionButton, HelpTip } from "@/components/help";
+import { HelpTip } from "@/components/help";
 import { engineName, number } from "@/lib/format";
 import { LocaleContext } from "@/lib/i18n";
 import { Blank, Status } from "@/components/shared";
-import { endpoint } from "@/lib/api";
+import { Destinations } from "./Destinations";
+import { ConnectionActions } from "./ConnectionActions";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -46,11 +55,39 @@ export function ConnectionTable({
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
   const shown = connections.filter((row) =>
     `${row.name} ${row.id} ${row.engine} ${row.ports} ${row.targets.map((target) => target.ip).join(" ")}`
       .toLowerCase()
       .includes(query.toLowerCase()),
   );
+  const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
+    currentPage = Math.min(pageIndex, pageCount - 1);
+  const visible = shown.slice(
+    compact ? 0 : currentPage * 20,
+    compact ? 5 : (currentPage + 1) * 20,
+  );
+  const actions = (row: Connection) => (
+    <ConnectionActions
+      row={row}
+      busy={busy}
+      compact={compact}
+      onEdit={onEdit}
+      onDelete={() => {
+        setSelected([row.id]);
+        setDeleting(true);
+      }}
+      onToggle={() =>
+        void action(row.enabled ? "disable" : "enable", [row]).catch(() => {})
+      }
+      run={run}
+    />
+  );
+  const glyph = (engine: string) => {
+    const Icon =
+      engine === "haproxy" ? Workflow : engine === "realm" ? Network : Route;
+    return <Icon className="size-4" />;
+  };
   const picked = connections.filter((row) => selected.includes(row.id));
   async function action(operation: string, rows = picked) {
     setBusy(true);
@@ -75,7 +112,10 @@ export function ConnectionTable({
               aria-label={t("search")}
               placeholder={t("search")}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPageIndex(0);
+              }}
               className="ps-9"
             />
           </div>
@@ -115,172 +155,204 @@ export function ConnectionTable({
       {shown.length === 0 ? (
         <Blank onAdd={onAdd} filtered={query !== ""} />
       ) : (
-        <div className="table-frame">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {!compact && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      aria-label={t("selectAll")}
-                      checked={
-                        shown.length > 0 &&
-                        shown.every((row) => selected.includes(row.id))
-                          ? true
-                          : shown.some((row) => selected.includes(row.id))
-                            ? "indeterminate"
-                            : false
-                      }
-                      onCheckedChange={(checked) =>
-                        setSelected(
-                          checked
-                            ? [
-                                ...new Set([
-                                  ...selected,
-                                  ...shown.map((row) => row.id),
-                                ]),
-                              ]
-                            : selected.filter(
-                                (id) => !shown.some((row) => row.id === id),
-                              ),
-                        )
-                      }
-                    />
-                  </TableHead>
-                )}
-                <TableHead>{t("name")}</TableHead>
-                <TableHead>{t("listener")}</TableHead>
-                <TableHead>{t("destination")}</TableHead>
-                <TableHead>{t("status")}</TableHead>
-                <TableHead className="text-end">{t("actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shown.slice(0, compact ? 5 : 1000).map((row) => (
-                <TableRow key={row.id}>
-                  {!compact && (
-                    <TableCell>
+        <>
+          <div
+            className={
+              compact ? "grid gap-3" : "grid gap-3 md:grid-cols-2 xl:hidden"
+            }
+          >
+            {visible.map((row) => (
+              <article
+                key={row.id}
+                className="flex min-w-0 flex-col gap-4 rounded-xl border p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    {!compact && (
                       <Checkbox
-                        checked={selected.includes(row.id)}
                         aria-label={`${t("selectAll")} ${row.name}`}
-                        onCheckedChange={(checked) =>
+                        checked={selected.includes(row.id)}
+                        onCheckedChange={(v) =>
                           setSelected(
-                            checked
-                              ? [...selected, row.id]
+                            v
+                              ? [...new Set([...selected, row.id])]
                               : selected.filter((id) => id !== row.id),
                           )
                         }
                       />
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <span className="engine-icon" aria-hidden>
-                        {row.engine === "haproxy"
-                          ? "H"
-                          : row.engine === "realm"
-                            ? "R"
-                            : "N"}
+                    )}
+                    <div className="min-w-0">
+                      <p className="break-words font-medium">{row.name}</p>
+                      <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {glyph(row.engine)}
+                        <bdi>{engineName(row.engine)}</bdi>
                       </span>
-                      <div className="flex flex-col gap-1">
-                        <span className="font-medium">{row.name}</span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <bdi>{engineName(row.engine)}</bdi>
-                          <HelpTip
-                            label={t("connectionID")}
-                          >{`${t("connectionID")}: ${row.id}`}</HelpTip>
-                        </span>
-                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <code dir="ltr">:{row.ports}</code>
-                      <span className="text-xs text-muted-foreground" dir="ltr">
+                  </div>
+                  <Status
+                    value={
+                      row.status || (row.enabled ? "configured" : "disabled")
+                    }
+                  />
+                </div>
+                <dl className="grid min-w-0 gap-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <dt className="text-xs text-muted-foreground">
+                      {t("listener")}
+                    </dt>
+                    <dd className="flex items-center gap-2">
+                      <bdi dir="ltr" className="font-mono">
+                        {row.ports}
+                      </bdi>
+                      <span className="text-xs text-muted-foreground">
                         {row.protocol.toUpperCase()}
                       </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <code dir="ltr">
-                        {endpoint(row.targets[0].ip, row.targets[0].port)}
-                      </code>
-                      {row.targets.length > 1 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{row.targets.length - 1} · {t(row.strategy)}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Status
-                      value={
-                        row.status || (row.enabled ? "configured" : "disabled")
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <ActionButton
-                        variant="ghost"
-                        size="icon"
-                        label={`${t("edit")} ${row.name}`}
-                        disabled={busy}
-                        onClick={() => onEdit(row)}
-                      >
-                        <Pencil />
-                      </ActionButton>
-                      {!compact && (
-                        <>
-                          <ActionButton
-                            variant="ghost"
-                            size="icon"
-                            label={`${t(row.enabled ? "disable" : "enable")} ${row.name}`}
-                            disabled={busy}
-                            onClick={() =>
-                              void action(row.enabled ? "disable" : "enable", [
-                                row,
-                              ]).catch(() => {})
-                            }
-                          >
-                            {row.enabled ? <Square /> : <Play />}
-                          </ActionButton>
-                          {["realm", "haproxy"].includes(row.engine) && (
-                            <ActionButton
-                              variant="ghost"
-                              size="icon"
-                              label={t("logs")}
-                              onClick={() =>
-                                void run({
-                                  action: "logs",
-                                  service: `gtm-${row.id}`,
-                                }).catch(() => {})
-                              }
-                            >
-                              <FileText />
-                            </ActionButton>
-                          )}
-                          <ActionButton
-                            variant="ghost"
-                            size="icon"
-                            label={`${t("delete")} ${row.name}`}
-                            disabled={busy}
-                            onClick={() => {
-                              setSelected([row.id]);
-                              setDeleting(true);
-                            }}
-                          >
-                            <Trash2 />
-                          </ActionButton>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
+                    </dd>
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <dt className="text-xs text-muted-foreground">
+                      {t("destination")}
+                    </dt>
+                    <dd className="min-w-0">
+                      <Destinations connection={row} />
+                    </dd>
+                  </div>
+                </dl>
+                {actions(row)}
+              </article>
+            ))}
+          </div>
+          <div className={compact ? "hidden" : "table-frame hidden xl:block"}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {!compact && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label={t("selectAll")}
+                        checked={
+                          shown.length > 0 &&
+                          shown.every((row) => selected.includes(row.id))
+                            ? true
+                            : shown.some((row) => selected.includes(row.id))
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(checked) =>
+                          setSelected(
+                            checked
+                              ? [
+                                  ...new Set([
+                                    ...selected,
+                                    ...shown.map((row) => row.id),
+                                  ]),
+                                ]
+                              : selected.filter(
+                                  (id) => !shown.some((row) => row.id === id),
+                                ),
+                          )
+                        }
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead>{t("name")}</TableHead>
+                  <TableHead>{t("listener")}</TableHead>
+                  <TableHead>{t("destination")}</TableHead>
+                  <TableHead>{t("status")}</TableHead>
+                  <TableHead className="text-end">{t("actions")}</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {visible.map((row) => (
+                  <TableRow key={row.id}>
+                    {!compact && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.includes(row.id)}
+                          aria-label={`${t("selectAll")} ${row.name}`}
+                          onCheckedChange={(checked) =>
+                            setSelected(
+                              checked
+                                ? [...selected, row.id]
+                                : selected.filter((id) => id !== row.id),
+                            )
+                          }
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <span className="engine-icon" aria-hidden>
+                          {glyph(row.engine)}
+                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium">{row.name}</span>
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <bdi>{engineName(row.engine)}</bdi>
+                            <HelpTip
+                              label={t("connectionID")}
+                            >{`${t("connectionID")}: ${row.id}`}</HelpTip>
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <bdi dir="ltr" className="font-mono text-sm">
+                          {row.ports}
+                        </bdi>
+                        <span
+                          className="text-xs text-muted-foreground"
+                          dir="ltr"
+                        >
+                          {row.protocol.toUpperCase()}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Destinations connection={row} />
+                    </TableCell>
+                    <TableCell>
+                      <Status
+                        value={
+                          row.status ||
+                          (row.enabled ? "configured" : "disabled")
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>{actions(row)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
+      {!compact && pageCount > 1 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">
+            <bdi>
+              {currentPage + 1} / {pageCount}
+            </bdi>
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 0}
+              onClick={() => setPageIndex(currentPage - 1)}
+            >
+              {t("previousPage")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === pageCount - 1}
+              onClick={() => setPageIndex(currentPage + 1)}
+            >
+              {t("nextPage")}
+            </Button>
+          </div>
         </div>
       )}
       <Dialog

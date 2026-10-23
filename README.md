@@ -44,6 +44,8 @@ Choose a port (blank selects a random free port), create an administrator userna
 
 **Current source:** quick setup, explicit HTTP/HTTPS, automatic IP discovery and eight-character user passwords are implemented for the next panel package. The published v1.3.0 binary still uses its earlier HTTPS setup. See the [installation guide](docs/WEB-PANEL.md#published-package-versus-current-source) for the supported path and local-package testing.
 
+Current source also adds [traffic cycles, quotas and history](docs/TRAFFIC-ACCOUNTING.md), [HAProxy routing](docs/HAPROXY-ROUTING.md), optional [IP affinity](docs/HAPROXY.md#remember-client-ip-optional) and [Realm profiles](docs/REALM-PROFILES.md). These are included only in updated source packages until the next approved release.
+
 With an updated source package, remove only the panel using `sudo bash panel-install.sh --uninstall`; tunnels remain running. [Removal and recovery](docs/PANEL-REMOVAL.md) · [Engine capabilities](docs/ENGINE-CAPABILITIES.md).
 
 Optional **Nodes and Agents** bring inventory from other servers into one panel, with optional [coordinated GRE/FRP setup](docs/PAIRED-CONNECTIONS.md). The panel host is included automatically; a third server is optional. This is a current-source feature, not part of the published v1.3.0 archive. See the concise setup and local-package instructions in [Nodes and Agents](docs/NODES.md).

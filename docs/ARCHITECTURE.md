@@ -7,6 +7,8 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | core | Bounded validators, endpoints, paths, privileges, flock |
 | server_info | Session-cached host/address metadata and bounded optional public-IP/provider lookup |
 | ui | Fixed ANSI styling, dedicated headers, numbered selectors and input rendering |
+| haproxy_routing | Separate closed routing contract, operator PEM validation and bounded SNI/HTTP backends |
+| metadata | Fingerprint-bound display-name sidecar; locked CAS updates and retirement |
 | haproxy | Validated TCP options, rendering, local stats, worker readiness and settings UI |
 | realm_options | Validated Realm network options with compatible v3 records |
 | state | TSV records, conflicts, snapshots, apply/recovery |
@@ -86,3 +88,12 @@ Panel installation is independent of runtime control. `panel/internal/setup` own
 `panel/internal/nodes` owns protocol contracts, private PKI, bounded registry storage, the dedicated TLS-only Controller listener and outbound Agent. `httpapi/nodes.go` exposes authenticated administrator enrollment/revocation and a local/remote inventory list. The normal broker remains local; Agent installations default to an inventory/capabilities-only broker. Explicit `--operations` additionally allows only typed leased-create tasks; it does not expose the general local operation vocabulary. No Node field is added to current operation requests. `nodes/pairs.go` persists Controller plans and advances their two-node state machine. `control/node_task.go` owns root receipts, idempotency and lease recovery; `src/pair_api.sh` compares revisions and resource fingerprints under the shared Bash lock. The frontend lazily loads `features/nodes` and preserves the shared visual/localization system. See [NODES.md](NODES.md) for authentication, limits, artifact ownership and migration boundaries.
 
 Paired operations preflight both Nodes, apply entrance before destination, then require time-limited confirmation. Individual outcomes persist through Controller restarts; missing acknowledgments are redelivered to the broker receipt. Uncertain create outcomes and changed resources require inspection. There is no distributed atomic transaction. See [PAIRED-CONNECTIONS.md](PAIRED-CONNECTIONS.md).
+
+
+## Phase 5 advanced management
+
+Routing is isolated in `model/routing.go` and `src/haproxy_routing.sh`; v4 appends a routing field after ordinary HAProxy options. Both validators enforce the same bounded grammar. Kernel nftables selection has random, incremental and fixed-seed source-IP hash profiles; no host policy editor is introduced. Extended Realm options require pinned-version feature checks and, for MPTCP, a compatible enabled kernel.
+
+`resource-names.tsv` stores optional ASCII display names independently from GRE/reverse technical IDs. Inventory binds them to the unit content hash, and edits compare both the unit hash and old metadata-row hash under the manager's existing lock. Writes preserve the complete sidecar and create a previous-file backup. No network reload is needed for a display edit.
+
+Traffic collection remains in `metrics.go`; cycle baselines, customer policies, bounded histories and pure ledger changes are in `traffic_ledger.go`. The public boundary exposes authenticated summary/history reads and allowlisted mutations. Mutations return small receipts to avoid retaining histories in the job cache. The browser's Traffic tabs separate usage from collection drafts; `TrafficActions` captures identity/revision at dialog opening. Frontend number/date formatters force Latin digits independently of locale. Primary button foreground correction is a user-approved style extension, leaving imported fill/source values unchanged.

@@ -1,39 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recordSamples } from "../src/features/traffic/history.ts";
+import { archiveSamples } from "../src/features/traffic/history.ts";
 import { number, uptime } from "../src/lib/format.ts";
 
-const sample = (updated, received = 100, sent = 20) => ({ updated, received, sent, source: "nftables" });
-const view = (counters) => ({ counters });
-
-test("chart does not fabricate points for missing, duplicate or older samples", () => {
-  const empty = recordSamples({}, view({ A: sample("0001-01-01T00:00:00Z") }));
-  assert.deepEqual(empty, {});
-  const first = recordSamples({}, view({ A: sample("2026-10-22T10:00:00Z") }));
-  const duplicate = recordSamples(first, view({ A: sample("2026-10-22T10:00:00Z", 150) }));
-  const older = recordSamples(duplicate, view({ A: sample("2026-10-22T09:00:00Z") }));
-  assert.equal(older.A.length, 1);
-  assert.equal(older.A[0].received, 100);
+const point=(time,received=100)=>({time,received,sent:20});
+test("archive chart does not fabricate missing or future samples",()=>{
+ assert.deepEqual(archiveSamples(undefined),[]);
+ const history=[point('0001-01-01T00:00:00Z'),point('invalid'),point('2099-01-01T00:00:00Z'),point('2026-10-22T10:00:00Z')];
+ assert.equal(archiveSamples({history},undefined,Date.parse('2026-10-23T10:00:00Z')).length,1);
 });
-
-test("overlapping GRE and forward resources remain separate", () => {
-  const result = recordSamples({}, view({ GRE: sample("2026-10-22T10:00:00Z", 1200), FORWARD: sample("2026-10-22T10:00:00Z", 1000) }));
-  assert.deepEqual(Object.keys(result).sort(), ["FORWARD", "GRE"]);
-  assert.equal(result.GRE[0].received, 1200);
-  assert.equal(result.FORWARD[0].received, 1000);
+test("duplicate timestamps do not create extra points and resets exclude old cycles",()=>{
+ const history=[point('2026-10-22T10:00:00Z',100),point('2026-10-22T10:00:00Z',120),point('2026-10-22T10:01:00Z',30)];
+ const now=Date.parse('2026-10-23T10:00:00Z');
+ assert.equal(archiveSamples({history},undefined,now).length,2);
+ assert.equal(archiveSamples({history},undefined,now)[0].received,120);
+ const reset=archiveSamples({history},'2026-10-22T10:00:30Z',now);assert.equal(reset.length,1);assert.equal(reset[0].received,30);
 });
-
-test("long visits retain at most 60 samples and discard removed resources", () => {
-  let history = {};
-  for (let index = 0; index < 100; index++) history = recordSamples(history, view({ A: sample(new Date(Date.UTC(2026, 9, 22, 10, index)).toISOString(), index) }));
-  assert.equal(history.A.length, 60);
-  assert.equal(history.A[0].received, 40);
-  assert.deepEqual(recordSamples(history, view({})), {});
+test("charts are bounded and do not mutate selected-resource archives",()=>{
+ const history=Array.from({length:400},(_,i)=>point(new Date(Date.UTC(2026,9,22,10,i)).toISOString(),i));
+ const next=archiveSamples({history},undefined,Date.parse('2026-10-23T10:00:00Z'));
+ assert.equal(next.length,288);assert.equal(next[0].received,112);assert.equal(history.length,400);
 });
-
-test("display numbers localize without changing technical input values", () => {
-  assert.equal(number(123, "fa"), "۱۲۳");
-  assert.equal(number(123, "en"), "123");
-  assert.equal(uptime("4h15m0s", "fa"), "۴ ساعت · ۱۵ دقیقه");
-  assert.equal(uptime("4h15m0s", "en"), "4 h · 15 m");
+test("system-generated digits stay Latin in both languages while labels localize",()=>{
+ assert.equal(number(123,'fa'),'123');assert.equal(number(123,'en'),'123');
+ assert.equal(uptime('4h15m0s','fa'),'4 ساعت · 15 دقیقه');assert.equal(uptime('4h15m0s','en'),'4 h · 15 m');
 });

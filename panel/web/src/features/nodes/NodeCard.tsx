@@ -30,7 +30,9 @@ export function NodeCard({
   const locale = useContext(LocaleContext);
   const date = (value?: string) =>
     value
-      ? new Date(value).toLocaleString(locale === "fa" ? "fa-IR" : "en-US")
+      ? new Date(value).toLocaleString(
+          locale === "fa" ? "fa-IR-u-nu-latn" : "en-US",
+        )
       : t("notReported");
   return (
     <Card key={node.id} className="min-w-0">

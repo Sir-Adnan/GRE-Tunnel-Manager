@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,9 +37,11 @@ export function HelpTip({
   label?: string;
 }) {
   const t = useT();
+  const [open, setOpen] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
   return (
-    <Popover>
-      <Tooltip>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip open={!open && tooltipOpen} onOpenChange={setTooltipOpen}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <Button

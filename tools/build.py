@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('legacy', 'core', 'server_info', 'ui', 'haproxy', 'realm_options', 'state', 'firewall', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'forms', 'tuning', 'cleanup', 'links', 'reverse_api', 'pair_api', 'api', 'panel', 'menus')
+MODULES = ('legacy', 'core', 'server_info', 'ui', 'haproxy_routing', 'haproxy', 'realm_options', 'metadata', 'state', 'firewall', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'forms', 'tuning', 'cleanup', 'links', 'reverse_api', 'pair_api', 'api', 'panel', 'menus')
 
 
 def build():

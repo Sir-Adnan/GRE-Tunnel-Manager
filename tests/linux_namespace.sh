@@ -11,7 +11,7 @@ test_dir=$(mktemp -d)
 cleanup() {
     local status=$?
     if ((status)); then for log in "$test_dir"/*.log; do [[ ! -f $log ]] || tail -20 "$log" >&2; done; fi
-    for child in "${health_pid:-}" "${held_pid:-}" "${proxy_server_pid:-}" "${capture_pid:-}" "${rathole_client_pid:-}" "${rathole_server_pid:-}" "${gateway_pid:-}" "${relay_pid:-}" "${frpc_pid:-}" "${frps_pid:-}" "${server_pid:-}" "${client_ns:-}" "${backend_ns:-}"; do [[ -z $child ]] || kill "$child" 2>/dev/null || true; done
+    for child in "${routing_pid:-}" "${realm_peer_pid:-}" "${health_pid:-}" "${held_pid:-}" "${proxy_server_pid:-}" "${capture_pid:-}" "${rathole_client_pid:-}" "${rathole_server_pid:-}" "${gateway_pid:-}" "${relay_pid:-}" "${frpc_pid:-}" "${frps_pid:-}" "${server_pid:-}" "${client_ns:-}" "${backend_ns:-}"; do [[ -z $child ]] || kill "$child" 2>/dev/null || true; done
     # mktemp above creates this absolute private root; never follow symlinks out.
     [[ $test_dir == /tmp/tmp.* && -d $test_dir ]] || return 1
     find "$test_dir" -mindepth 1 -depth -delete; rmdir "$test_dir"
@@ -33,6 +33,14 @@ GTM_RECORDS=($'F000001\tIPv6 forward\tnftables\tboth\t2001:db8::1\t51820\trandom
 gtm_nft_render > "$test_dir/rules.nft"
 nft -c -f "$test_dir/rules.nft"
 nft -f "$test_dir/rules.nft"
+# Weighted incremental and stable source-IP selectors, accepted by the kernel.
+for selector in roundrobin source; do
+    GTM_RECORDS=("${GTM_RECORDS[0]/$'\trandom\t'/$'\t'${selector}$'\t'}")
+    gtm_nft_render > "$test_dir/rules.nft"
+    nft -c -f "$test_dir/rules.nft"
+    nft -f "$test_dir/rules.nft"
+    GTM_RECORDS=("${GTM_RECORDS[0]/$'\t'${selector}$'\t'/$'\trandom\t'}")
+done
 GTM_RECORDS=()
 gtm_nft_render > "$test_dir/rules.nft"
 nft -f "$test_dir/rules.nft"
@@ -196,6 +204,50 @@ if command -v haproxy >/dev/null; then
     if python3 tests/packet_probe.py client 127.0.0.1 28443 tcp > "$test_dir/http-unready.log" 2>&1; then exit 1; fi
     kill "$relay_pid" "$health_pid"; wait "$relay_pid" || true; wait "$health_pid" || true; relay_pid=''; health_pid=''
     printf 'PASS: HTTP readiness rejects reachable-but-unhealthy targets and recovers without changing TCP data.\n'
+    # Real exact Host/path, SNI passthrough and TLS termination routing.
+    mkdir -m 700 "$test_dir/certificates"
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$test_dir/route.key" -out "$test_dir/route.crt" -subj /CN=route-b.test -addext subjectAltName=DNS:route-b.test,DNS:route-a.test -days 1 > "$test_dir/route-cert.log" 2>&1
+    cat "$test_dir/route.crt" "$test_dir/route.key" > "$test_dir/certificates/test.pem"
+    chmod 600 "$test_dir/certificates/test.pem"
+    nsenter -t "$backend_ns" -n python3 tests/routing_probe.py serve "$test_dir/route.crt" "$test_dir/route.key" > "$test_dir/routing-server.log" 2>&1 & routing_pid=$!
+    sleep 0.3
+    for routing_mode in http sni https; do
+        route_cert=-; route_path=/special; target_a=28005; target_b=28006; request_mode=http
+        if [[ $routing_mode == sni ]]; then route_path=-; target_a=28007; target_b=28008; request_mode=https; fi
+        if [[ $routing_mode == https ]]; then route_cert=test; request_mode=https; fi
+        line=$'F000001\tApplication routing\thaproxy\ttcp\t0.0.0.0\t28443\troundrobin\t1\tpreserve\tany\t'
+        line+="203.0.113.20:$target_a@1,203.0.113.20:$target_b@1"$'\t4\tconnect=5\t'"1|$routing_mode|$route_cert|route-b.test~$route_path~2"
+        gtm_record_validate "$line"
+        if [[ $routing_mode == https ]]; then (GTM_CONFIG_DIR=$test_dir; gtm_haproxy_certificate >/dev/null); fi
+        (GTM_CONFIG_DIR=$test_dir; gtm_haproxy_render) > "$test_dir/haproxy.conf"
+        haproxy -c -f "$test_dir/haproxy.conf"
+        haproxy -W -db -f "$test_dir/haproxy.conf" > "$test_dir/haproxy.log" 2>&1 & relay_pid=$!
+        sleep 0.3
+        python3 tests/routing_probe.py client "$request_mode" 28443 route-b.test /special/child B "$test_dir/route.crt"
+        kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    done
+    # Source-IP memory affinity must keep repeated IPv4 connections on one target.
+    line=$'F000001\tRemember clients\thaproxy\ttcp\t0.0.0.0\t28443\troundrobin\t1\tpreserve\tany\t203.0.113.20:28005@1,203.0.113.20:28006@1\t2\tstick=source;stick_size=1024;stick_expire=60'
+    gtm_record_validate "$line"; gtm_haproxy_render > "$test_dir/haproxy.conf"
+    haproxy -c -f "$test_dir/haproxy.conf"
+    haproxy -W -db -f "$test_dir/haproxy.conf" > "$test_dir/haproxy.log" 2>&1 & relay_pid=$!
+    sleep 0.3
+    affinity_target=$(python3 tests/routing_probe.py client http 28443 route-a.test / 'A|B' "$test_dir/route.crt")
+    for attempt in {1..5}; do python3 tests/routing_probe.py client http 28443 route-a.test / "$affinity_target" "$test_dir/route.crt"; done
+    kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    printf 'PASS: bounded source-IP affinity preserves the selected target across new connections.\n'
+    line=${line/$'\t0.0.0.0\t'/$'\t::\t'}
+    gtm_record_validate "$line"; gtm_haproxy_render > "$test_dir/haproxy.conf"
+    haproxy -c -f "$test_dir/haproxy.conf"
+    haproxy -W -db -f "$test_dir/haproxy.conf" > "$test_dir/haproxy.log" 2>&1 & relay_pid=$!
+    sleep 0.3
+    affinity_target=$(python3 tests/routing_probe.py client http 28443 route-a.test / 'A|B' "$test_dir/route.crt" ::1)
+    for attempt in {1..3}; do python3 tests/routing_probe.py client http 28443 route-a.test / "$affinity_target" "$test_dir/route.crt" ::1; done
+    kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
+    printf 'PASS: bounded source-IP affinity supports IPv6 clients.\n'
+
+    kill "$routing_pid"; wait "$routing_pid" || true; routing_pid=''
+    printf 'PASS: exact Host/path routing, SNI passthrough and verified HTTPS termination.\n'
     nsenter -t "$backend_ns" -n python3 tests/haproxy_probe.py server 192.0.2.2 > "$test_dir/proxy-server.log" 2>&1 & proxy_server_pid=$!
     sleep 0.2
     for proxy_version in v1 v2; do
@@ -241,6 +293,17 @@ if command -v realm >/dev/null; then
         kill "$relay_pid"; wait "$relay_pid" || true; relay_pid=''
     done
     kill "$proxy_server_pid"; wait "$proxy_server_pid" || true; proxy_server_pid=''
+    # A pair of pinned Realm WS profiles must carry unmodified TCP bytes.
+    line=$'F000001\tRealm WS peer\trealm\ttcp\t203.0.113.20\t28009\tsingle\t1\tpreserve\tany\t127.0.0.1:28001@1\t3\tlisten_transport=ws;ws_host=relay.test;ws_path=/relay;log=error'
+    gtm_record_validate "$line"; gtm_realm_profile_preflight; gtm_realm_render > "$test_dir/realm-peer.toml"
+    nsenter -t "$backend_ns" -n realm -c "$test_dir/realm-peer.toml" > "$test_dir/realm-peer.log" 2>&1 & realm_peer_pid=$!
+    line=$'F000001\tRealm WS entrance\trealm\ttcp\t0.0.0.0\t28443\tsingle\t1\tpreserve\tany\t203.0.113.20:28009@1\t3\tremote_transport=ws;ws_host=relay.test;ws_path=/relay;log=error'
+    gtm_record_validate "$line"; gtm_realm_profile_preflight; gtm_realm_render > "$test_dir/realm.toml"
+    realm -c "$test_dir/realm.toml" > "$test_dir/realm.log" 2>&1 & relay_pid=$!
+    sleep 0.5
+    python3 tests/packet_probe.py client 127.0.0.1 28443 tcp 131072
+    kill "$relay_pid" "$realm_peer_pid"; wait "$relay_pid" "$realm_peer_pid" || true; relay_pid=''; realm_peer_pid=''
+    printf 'PASS: pinned Realm WebSocket profiles carry TCP payloads.\n'
     printf 'PASS: Realm v3 network options and PROXY v1/v2 metadata on real traffic.\n'
 fi
 

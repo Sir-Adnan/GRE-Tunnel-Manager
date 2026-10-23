@@ -110,7 +110,12 @@ gtm_nft_render() {
                 gtm_endpoint "${targets[0]}" || return 1
                 printf 'dnat %s to %s' "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
             else
-                printf 'numgen random mod %d vmap { ' "$total"; offset=0; index=0
+                case $R_STRATEGY in
+                    source) printf 'jhash %s saddr mod %d seed 0 vmap { ' "$family" "$total";;
+                    roundrobin) printf 'numgen inc mod %d vmap { ' "$total";;
+                    *) printf 'numgen random mod %d vmap { ' "$total";;
+                esac
+                offset=0; index=0
                 for target in "${targets[@]}"; do
                     gtm_endpoint "$target" || return 1; (( index > 0 )) && printf ', '
                     end=$((offset+EP_WEIGHT-1)); if (( offset == end )); then printf '%d' "$offset"; else printf '%d-%d' "$offset" "$end"; fi

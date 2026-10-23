@@ -3,4 +3,5 @@
 @layer xp.styles, xp.axes, xp.adjust, xp.regions;
 @import "./styles/nettinx/tokens.css" layer(xp.styles);
 @import "./styles/neutral/tokens.css" layer(xp.styles);
+@import "./styles/nettinx/approved-overrides.css" layer(xp.adjust);
 @import "./styles/neutral/adjustments.css" layer(xp.adjust);

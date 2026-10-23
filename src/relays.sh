@@ -9,7 +9,7 @@ gtm_install_component() {
             if command -v realm >/dev/null 2>&1; then
                 local installed_version
                 installed_version=$(realm --version 2>/dev/null) || { gtm_error 'The installed realm command is not a supported network relay. No binary was replaced.'; return 1; }
-                [[ $installed_version =~ ^realm[[:space:]]+2\. ]] || { gtm_error 'Expected Realm relay 2.x; check the existing realm command before continuing.'; return 1; }
+                [[ $installed_version =~ ^[Rr]ealm[[:space:]]+2\. ]] || { gtm_error 'Expected Realm relay 2.x; check the existing realm command before continuing.'; return 1; }
                 return 0
             fi ;;
         frp) command -v frpc >/dev/null 2>&1 && command -v frps >/dev/null 2>&1 && return 0 ;;
@@ -82,7 +82,12 @@ gtm_realm_render() {
     if [[ $R_VERSION == 3 ]]; then
         printf 'tcp_keepalive_probe = %d\nsend_proxy = %s\nsend_proxy_version = %d\naccept_proxy = %s\naccept_proxy_timeout = %d\n' "$((10#$M_PROBES))" "$M_SEND_PROXY" "$M_PROXY_VERSION" "$M_ACCEPT_PROXY" "$((10#$M_ACCEPT_TIMEOUT))"
     fi
+    [[ $M_SEND_MPTCP != true ]] || printf 'send_mptcp = true\n'
+    [[ $M_ACCEPT_MPTCP != true ]] || printf 'accept_mptcp = true\n'
+    [[ $M_IPV6_ONLY != true ]] || printf 'ipv6_only = true\n'
     printf '\n[[endpoints]]\nlisten = "%s"\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")"
+    [[ $M_LISTEN_TRANSPORT != ws ]] || printf 'listen_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
+    [[ $M_REMOTE_TRANSPORT != ws ]] || printf 'remote_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; remote=$(gtm_address "$EP_IP" "$EP_PORT")
         if (( index == 0 )); then printf 'remote = "%s"\n' "$remote"

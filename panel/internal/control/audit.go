@@ -10,7 +10,7 @@ import (
 // Record action metadata only. Never persist request bodies, tokens, keys,
 // passwords, generated native configs or command output in the audit log.
 func audit(request Request, operationError error) error {
-	if request.Action == "inventory" || request.Action == "metrics" || request.Action == "capabilities" {
+	if request.Action == "inventory" || request.Action == "metrics" || request.Action == "metrics-history" || request.Action == "capabilities" {
 		return nil
 	}
 	directory := "/var/lib/gre-manager-panel"

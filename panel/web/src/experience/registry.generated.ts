@@ -2,6 +2,7 @@
 // Re-run after adding, removing, or changing a pack, style, region variant or the host contract; commit the result.
 /* eslint-disable */
 import type { GeneratedRegistry } from "./types";
+import "./experience.generated.css";
 
 export const registry: GeneratedRegistry = {
   contractVersion: "1.0.0",
@@ -18,7 +19,7 @@ export const registry: GeneratedRegistry = {
     nettinx: {
       id: "nettinx",
       name: "Nettinx",
-      styleVersion: "1.0.0",
+      styleVersion: "1.0.1",
       surfaces: ["admin"],
       modes: ["light", "dark"],
       format: "css",

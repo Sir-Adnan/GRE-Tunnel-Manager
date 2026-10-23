@@ -239,3 +239,43 @@
     margin-bottom: 0.75rem;
   }
 }
+
+/* Navigation uses existing readable foreground/muted tokens; no source palette changes. */
+[data-slot="sidebar-menu-button"]:is(
+  :hover,
+  :focus-visible,
+  [data-active="true"]
+) {
+  color: var(--foreground);
+  background: var(--muted);
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+[data-slot="sidebar-menu-button"][data-active="true"] {
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+[data-slot="sidebar-menu-button"][data-active="true"]:dir(rtl) {
+  box-shadow: inset -2px 0 0 var(--primary);
+}
+@media (max-width: 767px) {
+  .app-footer {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .page-stack,
+  [data-slot="tabs-content"][data-state="active"] {
+    animation: panel-reveal 160ms ease-out;
+  }
+}
+@keyframes panel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

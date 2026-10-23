@@ -41,6 +41,7 @@ gtm_link_delete() {
     fi
     systemctl disable --now "gre-tun-$tid" || return 1
     rm -f "$GTM_SERVICE_DIR/gre-tun-$tid.service" "$GTM_SERVICE_DIR/gre-keepalive-$tid.service" || return 1
+    gtm_metadata_forget "gre-tun-$tid" || return 1
     systemctl daemon-reload
 }
 

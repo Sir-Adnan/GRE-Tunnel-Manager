@@ -4,6 +4,8 @@ gtm_haproxy_defaults() {
     H_CHECK_INTERVAL=3; H_CHECK_TIMEOUT=5; H_CHECK_FALL=3; H_CHECK_RISE=2; H_CHECK_PORT=0
     H_SLOWSTART=0; H_PROXY=off; H_LOG=connections
     H_CHECK_MODE=tcp; H_CHECK_PATH=/health; H_CHECK_HOST=localhost; H_CHECK_STATUS=200
+    H_STICK=off; H_STICK_SIZE=16384; H_STICK_EXPIRE=1800
+    gtm_routing_defaults
 }
 
 gtm_haproxy_values_validate() {
@@ -16,7 +18,8 @@ gtm_haproxy_values_validate() {
         [[ $H_CHECK_MODE =~ ^(tcp|http)$ && $H_CHECK_PATH =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ &&
             $H_CHECK_HOST =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] &&
         gtm_uint "$H_CHECK_STATUS" 200 599 &&
-        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); }
+        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); } &&
+        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 100000 && gtm_uint "$H_STICK_EXPIRE" 30 86400
 }
 
 gtm_haproxy_options_validate() {
@@ -26,7 +29,7 @@ gtm_haproxy_options_validate() {
     [[ -n $options && $options != ';'* && $options != *';' && $options != *';;'* ]] || return 1
     gtm_haproxy_defaults
     IFS=';' read -r -a pairs <<< "$options"
-    ((${#pairs[@]} <= 17)) || return 1
+    ((${#pairs[@]} <= 20)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
@@ -39,7 +42,8 @@ gtm_haproxy_options_validate() {
             check_fall) H_CHECK_FALL=$value;; check_rise) H_CHECK_RISE=$value;; check_port) H_CHECK_PORT=$value;;
             slowstart) H_SLOWSTART=$value;; proxy) H_PROXY=$value;; log) H_LOG=$value;;
             check_mode) H_CHECK_MODE=$value;; check_path) H_CHECK_PATH=$value;;
-            check_host) H_CHECK_HOST=$value;; check_status) H_CHECK_STATUS=$value;; *) return 1;;
+            check_host) H_CHECK_HOST=$value;; check_status) H_CHECK_STATUS=$value;;
+            stick) H_STICK=$value;; stick_size) H_STICK_SIZE=$value;; stick_expire) H_STICK_EXPIRE=$value;; *) return 1;;
         esac
     done
     gtm_haproxy_values_validate
@@ -55,38 +59,52 @@ gtm_haproxy_options() {
     if [[ $H_CHECK_MODE != tcp || $H_CHECK_PATH != /health || $H_CHECK_HOST != localhost || $H_CHECK_STATUS != 200 ]]; then
         printf ';check_mode=%s;check_path=%s;check_host=%s;check_status=%d' "$H_CHECK_MODE" "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
     fi
+    if [[ $H_STICK != off || $H_STICK_SIZE != 16384 || $H_STICK_EXPIRE != 1800 ]]; then
+        printf ';stick=%s;stick_size=%d;stick_expire=%d' "$H_STICK" "$((10#$H_STICK_SIZE))" "$((10#$H_STICK_EXPIRE))"
+    fi
 }
 
 gtm_haproxy_socket() { gtm_id "$1" && printf '%s/haproxy/%s.sock' "$GTM_RUN_DIR" "$1"; }
 
 gtm_haproxy_render() {
-    local target index=0 algorithm=$R_STRATEGY
-    local -a targets=()
+    local algorithm=$R_STRATEGY
     gtm_haproxy_values_validate || return 1
     case $algorithm in single|failover) algorithm=roundrobin;; esac
     printf 'global\n'
     [[ $H_LOG == off ]] || printf '    log stdout format raw local0\n'
     printf '    maxconn %d\n    user nobody\n    group nogroup\n' "$((10#$H_MAXCONN))"
     printf '    stats socket %s mode 600 level user\n    stats timeout 3s\n' "$(gtm_haproxy_socket "$R_ID")"
-    printf 'defaults\n    mode tcp\n'
-    [[ $H_LOG == off ]] || printf '    log global\n    option tcplog\n'
+    printf 'defaults\n    mode %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf http || printf tcp)"
+    [[ $H_LOG == off ]] || printf '    log global\n    option %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf httplog || printf tcplog)"
     [[ $H_LOG != errors ]] || printf '    option dontlog-normal\n'
     printf '    option clitcpka\n    option srvtcpka\n    retries 3\n    option redispatch\n'
     printf '    timeout connect %ds\n    timeout client %ds\n    timeout server %ds\n    timeout queue %ds\n    timeout check %ds\n' "$((10#$H_CONNECT))" "$((10#$H_IDLE))" "$((10#$H_IDLE))" "$((10#$H_QUEUE))" "$((10#$H_CHECK_TIMEOUT))"
-    printf 'frontend entrance\n    bind %s\n    maxconn %d\n    default_backend destinations\nbackend destinations\n    balance %s\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")" "$((10#$H_MAXCONN))" "$algorithm"
+    gtm_haproxy_frontend || return 1
+    printf 'backend destinations\n    balance %s\n' "$algorithm"
     [[ $algorithm != source ]] || printf '    hash-type consistent\n'
+    gtm_haproxy_servers || return 1
+    gtm_haproxy_route_backends
+}
+
+gtm_haproxy_servers() {
+    local selected=${1:-0} target index=0
+    local -a targets=()
+    if [[ $H_STICK == source && $selected == 0 && $R_TARGETS == *,* ]]; then
+        printf '    stick-table type ipv6 size %d expire %ds\n    stick on src\n' "$((10#$H_STICK_SIZE))" "$((10#$H_STICK_EXPIRE))"
+    fi
     if [[ $H_CHECK_MODE == http ]]; then
         printf '    option httpchk\n    http-check send meth GET uri %s ver HTTP/1.1 hdr Host %s\n    http-check expect status %d\n' "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
     fi
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; ((index+=1))
+        ((selected==0 || index==10#$selected)) || continue
         printf '    server target%d %s weight %d check inter %ds fall %d rise %d' "$index" "$(gtm_address "$EP_IP" "$EP_PORT")" "$EP_WEIGHT" "$((10#$H_CHECK_INTERVAL))" "$((10#$H_CHECK_FALL))" "$((10#$H_CHECK_RISE))"
         ((10#$H_CHECK_PORT == 0)) || printf ' port %d' "$((10#$H_CHECK_PORT))"
         ((10#$H_SERVER_MAXCONN == 0)) || printf ' maxconn %d' "$((10#$H_SERVER_MAXCONN))"
         ((10#$H_SLOWSTART == 0)) || printf ' slowstart %ds' "$((10#$H_SLOWSTART))"
         case $H_PROXY in v1) printf ' send-proxy';; v2) printf ' send-proxy-v2';; esac
-        [[ $R_STRATEGY != failover || $index -le 1 ]] || printf ' backup'
+        [[ $R_STRATEGY != failover || $index -le 1 || $selected != 0 ]] || printf ' backup'
         printf '\n'
     done
 }
@@ -185,6 +203,7 @@ gtm_haproxy_settings() {
         gtm_option 6 'PROXY protocol / logs'
         gtm_option 7 'Server status'
         gtm_option 8 'Save & apply'
+        gtm_option 9 'Remember client IP' "$H_STICK"
         gtm_option 0 Cancel
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -214,12 +233,16 @@ gtm_haproxy_settings() {
                 gtm_choose Logs "$H_LOG" Connections connections 'Errors only' errors Off off || continue
                 H_LOG=$GTM_REPLY;;
             7) (gtm_haproxy_status "$id"); gtm_pause;;
+            9)
+                gtm_choose 'Client affinity' "$H_STICK" Off off 'Remember source IP (memory)' source || continue
+                H_STICK=$GTM_REPLY
+                [[ $H_STICK == off ]] || { gtm_default 'Maximum stored IPs [1024-100000]' H_STICK_SIZE "$H_STICK_SIZE" && gtm_default 'Idle expiry [30-86400s]' H_STICK_EXPIRE "$H_STICK_EXPIRE"; } || return;;
             8) break;; 0) return;; *) continue;;
         esac
     done
     options=$(gtm_haproxy_options) || { gtm_error 'Invalid HAProxy values. Nothing was saved.'; return 1; }
     gtm_record_validate "$original" || return 1
-    R_VERSION=2; R_OPTIONS=$options; replacement=$(gtm_record_emit) || return 1
+    [[ $R_VERSION == 4 ]] || R_VERSION=2; R_OPTIONS=$options; replacement=$(gtm_record_emit) || return 1
     [[ $replacement != "$original" ]] || { printf 'No changes.\n'; return; }
     printf 'Apply TCP settings to %s. A unit/FD-limit upgrade or engine change requires restart; compatible config changes use verified worker reload.\n' "$id"
     gtm_confirm && gtm_prepare && gtm_lock || return

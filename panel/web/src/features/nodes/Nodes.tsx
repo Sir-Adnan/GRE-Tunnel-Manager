@@ -88,7 +88,9 @@ export function Nodes() {
   }
   const date = (value?: string) =>
     value
-      ? new Date(value).toLocaleString(locale === "fa" ? "fa-IR" : "en-US")
+      ? new Date(value).toLocaleString(
+          locale === "fa" ? "fa-IR-u-nu-latn" : "en-US",
+        )
       : t("notReported");
   const closeAdd = () => {
     setAdding(false);

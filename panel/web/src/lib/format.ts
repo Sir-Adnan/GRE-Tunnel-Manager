@@ -5,7 +5,7 @@ export function number(
   locale: Locale,
   maximumFractionDigits = 0,
 ) {
-  return new Intl.NumberFormat(locale === "fa" ? "fa-IR" : "en-US", {
+  return new Intl.NumberFormat(locale === "fa" ? "fa-IR-u-nu-latn" : "en-US", {
     maximumFractionDigits,
   }).format(value);
 }

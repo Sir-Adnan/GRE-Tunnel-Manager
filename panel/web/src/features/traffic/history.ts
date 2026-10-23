@@ -1,21 +1,28 @@
-import type { Metrics } from "@/lib/api";
+import type { TrafficArchive } from "@/lib/api";
 export type Sample = { time: number; received: number; sent: number };
-export type History = Record<string, Sample[]>;
 
-/** Bounded session samples; never invent a starting point or combine overlapping resources. */
-export function recordSamples(history: History, metrics: Metrics): History {
-  const next = { ...history };
-  for (const [id, counter] of Object.entries(metrics.counters)) {
-    const time = Date.parse(counter.updated);
-    if (!Number.isFinite(time) || time <= 0) continue;
-    const previous = next[id] || [];
-    if (previous.length && previous[previous.length - 1].time >= time) continue;
-    next[id] = [
-      ...previous,
-      { time, received: counter.received, sent: counter.sent },
-    ].slice(-60);
+/** Plot actual selected-resource samples only; never interpolate missing epochs. */
+export function archiveSamples(
+  archive: TrafficArchive | undefined,
+  cycleStart?: string,
+  now = Date.now(),
+): Sample[] {
+  const start = cycleStart ? Date.parse(cycleStart) : NaN;
+  const points = new Map<number, Sample>();
+  for (const p of archive?.history || []) {
+    const time = Date.parse(p.time);
+    if (
+      !Number.isFinite(time) ||
+      time <= 0 ||
+      time > now ||
+      p.received < 0 ||
+      p.sent < 0 ||
+      !Number.isFinite(p.received) ||
+      !Number.isFinite(p.sent)
+    )
+      continue;
+    if (Number.isFinite(start) && start > 0 && time < start) continue;
+    points.set(time, { time, received: p.received, sent: p.sent });
   }
-  for (const id of Object.keys(next))
-    if (!(id in metrics.counters)) delete next[id];
-  return next;
+  return [...points.values()].sort((a, b) => a.time - b.time).slice(-288);
 }

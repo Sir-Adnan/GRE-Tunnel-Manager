@@ -87,7 +87,7 @@ gtm_reverse_delete() {
     local id=$1 gateway
     [[ $id =~ ^gtm-(frp|rathole)-(entrance|destination)-[a-zA-Z0-9_-]{1,32}$ ]] || return 1
     [[ -f $GTM_SERVICE_DIR/$id.service && -f $GTM_CONFIG_DIR/$id.toml ]] || return 1
-    if [[ $id == gtm-rathole-* ]]; then gtm_rathole_cleanup "$id"; return $?; fi
+    if [[ $id == gtm-rathole-* ]]; then gtm_rathole_cleanup "$id" && gtm_metadata_forget "$id"; return $?; fi
     systemctl disable --now "$id" || return 1
     if [[ $id == gtm-frp-entrance-* ]]; then
         gateway="gtm-gateway-${id#gtm-frp-entrance-}"
@@ -96,5 +96,5 @@ gtm_reverse_delete() {
             rm -f "$GTM_SERVICE_DIR/$gateway.service" "$GTM_CONFIG_DIR/$gateway.conf" || return 1
         fi
     fi
-    rm -f "$GTM_SERVICE_DIR/$id.service" "$GTM_CONFIG_DIR/$id.toml" && systemctl daemon-reload
+    rm -f "$GTM_SERVICE_DIR/$id.service" "$GTM_CONFIG_DIR/$id.toml" && gtm_metadata_forget "$id" && systemctl daemon-reload
 }

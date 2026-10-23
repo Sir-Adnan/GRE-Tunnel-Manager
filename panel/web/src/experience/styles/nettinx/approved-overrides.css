@@ -1,0 +1,6 @@
+/* User-approved on 2026-10-23: dark labels/icons on orange buttons only.
+   Imported Nettinx fills and tokens remain untouched, including switch thumbs.
+   Uses Nettinx's original dark base as ink, in both light and dark mode. */
+[data-style="nettinx"] {
+  --button-primary-foreground: #0a0c10;
+}

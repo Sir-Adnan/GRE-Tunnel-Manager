@@ -15,11 +15,14 @@ export default function TrafficChart({ samples }: { samples: Sample[] }) {
   const t = useT();
   const locale = useContext(LocaleContext);
   const time = (value: number) =>
-    new Date(value).toLocaleTimeString(locale === "fa" ? "fa-IR" : "en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    new Date(value).toLocaleTimeString(
+      locale === "fa" ? "fa-IR-u-nu-latn" : "en-US",
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      },
+    );
   return (
     <div dir="ltr">
       <ChartContainer

@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { FileText, Play, Plus, RotateCw, Square, Trash2 } from "lucide-react";
+import {
+  FileText,
+  Play,
+  Plus,
+  RotateCw,
+  Square,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 import {
   Card,
   CardContent,
@@ -44,6 +52,9 @@ export function Resources({
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Resource>();
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState<Resource>();
+  const [displayName, setDisplayName] = useState("");
+  const [renameError, setRenameError] = useState("");
   const shown = inventory.resources.filter((r) =>
     engine === "gre" ? r.engine === "gre" : r.engine !== "gre",
   );
@@ -106,6 +117,18 @@ export function Resources({
                 )}
               </CardContent>
               <CardFooter className="flex flex-wrap gap-1">
+                <ActionButton
+                  variant="ghost"
+                  size="icon"
+                  label={t("renameDisplay")}
+                  onClick={() => {
+                    setRenaming(resource);
+                    setDisplayName(resource.name);
+                    setRenameError("");
+                  }}
+                >
+                  <Pencil />
+                </ActionButton>
                 {[
                   ["start", Play],
                   ["stop", Square],
@@ -153,6 +176,67 @@ export function Resources({
           onClose={() => setCreating(false)}
         />
       )}
+      <Dialog
+        open={Boolean(renaming)}
+        onOpenChange={(open) => !open && !busy && setRenaming(undefined)}
+      >
+        <DialogContent closeLabel={t("close")}>
+          <DialogHeader>
+            <DialogTitle>{t("renameDisplay")}</DialogTitle>
+            <DialogDescription>{t("renameHelp")}</DialogDescription>
+          </DialogHeader>
+          <form
+            id="rename-resource"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!renaming) return;
+              setBusy(true);
+              setRenameError("");
+              try {
+                await run({
+                  action: "resource-rename",
+                  resource_name: {
+                    id: renaming.id,
+                    revision: renaming.revision,
+                    name: displayName,
+                  },
+                });
+                setRenaming(undefined);
+              } catch (e) {
+                setRenameError(String(e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <TextField
+              id="resource-display-name"
+              label={t("name")}
+              value={displayName}
+              maxLength={40}
+              pattern="[a-zA-Z0-9][a-zA-Z0-9_. \-]{0,39}"
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+            {renameError && (
+              <p role="alert" className="mt-3 text-sm text-destructive">
+                {renameError}
+              </p>
+            )}
+          </form>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => setRenaming(undefined)}
+            >
+              {t("cancel")}
+            </Button>
+            <Button type="submit" form="rename-resource" disabled={busy}>
+              {t(busy ? "working" : "save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(deleting)}
         onOpenChange={(open) => !open && !busy && setDeleting(undefined)}
@@ -452,7 +536,7 @@ function ResourceForm({
                     placeholder={`tunnel-${reverse.public}`}
                     value={reverse.name}
                     onChange={(event) => change("name", event.target.value)}
-                    pattern="[a-zA-Z0-9_-]{1,32}"
+                    pattern="[a-zA-Z0-9_\-]{1,32}"
                     maxLength={32}
                   />
                   <FieldGroup>
@@ -464,7 +548,7 @@ function ResourceForm({
                       onChange={(event) => change("token", event.target.value)}
                       minLength={24}
                       maxLength={128}
-                      pattern="[a-zA-Z0-9_-]{24,128}"
+                      pattern="[a-zA-Z0-9_\-]{24,128}"
                       required
                       autoComplete="new-password"
                     />
@@ -555,7 +639,7 @@ function ResourceForm({
                           change("group", event.target.value)
                         }
                         required
-                        pattern="[a-zA-Z0-9_-]{1,32}"
+                        pattern="[a-zA-Z0-9_\-]{1,32}"
                       />
                       {reverse.transport === "wss" && (
                         <>

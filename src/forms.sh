@@ -107,6 +107,7 @@ gtm_form_targets() {
         case $W_ENGINE in
             haproxy) gtm_choose 'Load balancing' "$W_STRATEGY" 'Round robin' roundrobin 'Least connections' leastconn 'Same client, same server' source 'Primary / backup' failover || return 1; W_STRATEGY=$GTM_REPLY;;
             realm) gtm_choose 'Load balancing' "$W_STRATEGY" 'Round robin' roundrobin 'Same client, same server' source || return 1; W_STRATEGY=$GTM_REPLY;;
+            nftables) gtm_choose 'Load balancing' "$W_STRATEGY" 'Weighted random' random 'Round robin (new flows)' roundrobin 'Same source IP, same server' source || return 1; W_STRATEGY=$GTM_REPLY;;
             *) W_STRATEGY=random;;
         esac
     else W_STRATEGY=single; fi
@@ -222,6 +223,7 @@ gtm_form_rows() {
         local row
         row=$(printf 'F000000\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$name" "$W_ENGINE" "$W_PROTO" "$W_BIND" "$port" "$W_STRATEGY" "$W_ENABLED" "$W_SNAT" "$W_IFACE" "$targets" "$W_VERSION")
         [[ $W_VERSION == 1 ]] || row+=$'\t'"$W_OPTIONS"
+        [[ $W_VERSION != 4 ]] || row+=$'\t'"$W_ROUTING"
         gtm_record_validate "$row" || { gtm_error 'Check the address family, ports and destinations.'; return 1; }
         GTM_FORM_ROWS+=("$row")
     done
@@ -259,7 +261,7 @@ gtm_form_save() {
 
 gtm_new_forward() {
     local W_ENGINE=${1:-iptables} W_EDIT=${2:-} W_MODE=${3:-single} W_TITLE line target choice result
-    local W_NAME='' W_BIND='' W_TARGETS='' W_PROTO=tcp W_STRATEGY=single W_ENABLED=1 W_SNAT=masquerade W_IFACE=any W_VERSION=1 W_OPTIONS='' W_MAP=one
+    local W_NAME='' W_BIND='' W_TARGETS='' W_PROTO=tcp W_STRATEGY=single W_ENABLED=1 W_SNAT=masquerade W_IFACE=any W_VERSION=1 W_OPTIONS='' W_ROUTING='' W_MAP=one
     local W_ORIGINAL='' W_OLD_BIND='' W_OLD_PORT='' W_OLD_PROTO=''
     local W_REMOTE_IP W_REMOTE_PORT W_REMOTE_WEIGHT
     local -a W_PORTS=() review_targets=()
@@ -270,7 +272,7 @@ gtm_new_forward() {
             gtm_record_validate "$line" || return 1
             [[ $R_ID == "$W_EDIT" ]] || continue
             W_ORIGINAL=$line; W_NAME=$R_NAME; W_BIND=$R_BIND; W_PORTS=("$R_PORT"); W_TARGETS=$R_TARGETS
-            W_PROTO=$R_PROTO; W_STRATEGY=$R_STRATEGY; W_ENABLED=$R_ENABLED; W_SNAT=$R_SNAT; W_IFACE=$R_IFACE; W_VERSION=$R_VERSION; W_OPTIONS=$R_OPTIONS
+            W_PROTO=$R_PROTO; W_STRATEGY=$R_STRATEGY; W_ENABLED=$R_ENABLED; W_SNAT=$R_SNAT; W_IFACE=$R_IFACE; W_VERSION=$R_VERSION; W_OPTIONS=$R_OPTIONS; W_ROUTING=$R_ROUTING
             W_OLD_BIND=$R_BIND; W_OLD_PORT=$R_PORT; W_OLD_PROTO=$R_PROTO
             [[ $R_TARGETS != *,* ]] || W_MODE=balance
         done

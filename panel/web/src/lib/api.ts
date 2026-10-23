@@ -14,6 +14,13 @@ export type Connection = {
   options: Record<string, string>;
   revision: string;
   status?: string;
+  routing?: Routing;
+};
+export type Routing = {
+  version: 1;
+  mode: "sni" | "http" | "https";
+  certificate: string;
+  rules: { host: string; prefix: string; target: number }[];
 };
 export type Resource = {
   id: string;
@@ -27,6 +34,7 @@ export type Resource = {
   port?: number;
   bind?: string;
   protocol?: string;
+  revision?: string;
 };
 export type Option = {
   key: string;
@@ -89,13 +97,57 @@ export type Job = {
   error?: string;
 };
 export type Metrics = {
-  settings: { enabled: boolean; interval: number; ids: string[] };
+  settings: {
+    enabled: boolean;
+    interval: number;
+    ids: string[];
+    retention_hours?: number;
+  };
   counters: Record<
     string,
-    { received: number; sent: number; updated: string; source: string }
+    {
+      received: number;
+      sent: number;
+      updated: string;
+      source: string;
+      baseline_received?: number;
+      baseline_sent?: number;
+      cycle_start?: string;
+    }
   >;
   since: string;
   error?: string;
+  revision: number;
+  policies?: Record<string, TrafficPolicy>;
+  history?: Record<
+    string,
+    { time: string; received: number; sent: number; cycle_start: string }[]
+  >;
+  cycles?: Record<
+    string,
+    { start: string; end: string; received: number; sent: number }[]
+  >;
+};
+export type TrafficPolicy = {
+  label: string;
+  limit: number;
+  direction: "total" | "received" | "sent";
+};
+export type TrafficArchive = {
+  id: string;
+  history: {
+    time: string;
+    received: number;
+    sent: number;
+    cycle_start: string;
+  }[];
+  cycles: {
+    start: string;
+    end: string;
+    received: number;
+    sent: number;
+    label?: string;
+  }[];
 };
 let csrf = "";
 export async function api<T>(path: string, body?: unknown): Promise<T> {

@@ -1,3 +1,4 @@
+import { NodeTopology } from "./NodeTopology";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -115,7 +116,10 @@ export function PairForm({
         if (!busy && !value) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-2xl" closeLabel={t("close")}>
+      <DialogContent
+        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-3xl"
+        closeLabel={t("close")}
+      >
         <DialogHeader>
           <DialogTitle>{t(review ? "pairReview" : "pairCreate")}</DialogTitle>
           <DialogDescription>
@@ -123,7 +127,7 @@ export function PairForm({
           </DialogDescription>
         </DialogHeader>
         <form
-          className="flex min-h-0 flex-col gap-5"
+          className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden"
           onSubmit={(event) => {
             event.preventDefault();
             if (busy) return;
@@ -137,7 +141,7 @@ export function PairForm({
             });
           }}
         >
-          <div className="flex max-h-[55dvh] flex-col gap-5 overflow-auto [scrollbar-width:thin]">
+          <div className="flex min-h-0 max-h-[55dvh] flex-col gap-5 overflow-auto [scrollbar-width:thin]">
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -163,41 +167,24 @@ export function PairForm({
                   onChange={(e) => setName(e.target.value)}
                   maxLength={64}
                 />
-                <FieldGroup className="md:grid md:grid-cols-2">
-                  <Choice
-                    id="pair-entrance"
-                    label={t("pairEntrance")}
-                    value={entrance}
-                    onChange={(v) => choose(v, "entrance")}
-                    choices={choices}
-                  />
-                  <Choice
-                    id="pair-destination"
-                    label={t("pairDestination")}
-                    value={destination}
-                    onChange={(v) => choose(v, "destination")}
-                    choices={choices}
-                  />
-                  <TextField
-                    id="pair-entrance-ip"
-                    label={t("pairEntranceIP")}
-                    help={t("pairAddressHelp")}
-                    value={entranceIP}
-                    onChange={(e) => setEntranceIP(e.target.value)}
-                    dir="ltr"
-                    required
-                  />
-                  {kind === "gre" && (
-                    <TextField
-                      id="pair-destination-ip"
-                      label={t("pairDestinationIP")}
-                      value={destinationIP}
-                      onChange={(e) => setDestinationIP(e.target.value)}
-                      dir="ltr"
-                      required
-                    />
-                  )}
-                </FieldGroup>
+                <NodeTopology
+                  choices={choices}
+                  entrance={entrance}
+                  destination={destination}
+                  entranceIP={entranceIP}
+                  destinationIP={destinationIP}
+                  gre={kind === "gre"}
+                  onChoose={choose}
+                  onAddress={(v, side) =>
+                    side === "entrance" ? setEntranceIP(v) : setDestinationIP(v)
+                  }
+                  onSwap={() => {
+                    setEntrance(destination);
+                    setDestination(entrance);
+                    setEntranceIP(destinationIP);
+                    setDestinationIP(entranceIP);
+                  }}
+                />
                 {kind === "gre" ? (
                   <FieldGroup className="md:grid md:grid-cols-2">
                     <TextField
@@ -322,7 +309,7 @@ export function PairForm({
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {review && (
               <Button
                 type="button"

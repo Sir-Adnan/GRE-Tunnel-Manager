@@ -154,18 +154,31 @@ export function PageTitle({
   title,
   description,
   action,
+  heading: Heading = "h1",
 }: {
+  heading?: "h1" | "h2";
   title: string;
   description: string;
   action?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="flex flex-col gap-2">
-        <h1 className="page-title">{title}</h1>
-        <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
-          {description}
-        </p>
+        <div className="flex items-center gap-2">
+          <Heading
+            className={
+              Heading === "h1"
+                ? "page-title"
+                : "text-lg font-semibold tracking-tight"
+            }
+          >
+            {title}
+          </Heading>
+          {description && (
+            <HelpTip label={`${title} · ${t("help")}`}>{description}</HelpTip>
+          )}
+        </div>
       </div>
       {action}
     </div>

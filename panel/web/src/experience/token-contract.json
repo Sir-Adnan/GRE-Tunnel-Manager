@@ -3,6 +3,7 @@
   "name": "shadcn-v4",
   "modes": ["light", "dark"],
   "tokens": {
+    "button-primary-foreground": { "type": "color", "required": false },
     "background": {
       "type": "color",
       "required": true
@@ -383,6 +384,14 @@
       "level": "error",
       "use": "info as text (links, error messages, status words)",
       "optional": true
+    },
+    {
+      "fg": "button-primary-foreground",
+      "bg": "primary",
+      "min": 4.5,
+      "level": "error",
+      "optional": true,
+      "use": "approved primary button labels and icons"
     }
   ],
   "derived": {

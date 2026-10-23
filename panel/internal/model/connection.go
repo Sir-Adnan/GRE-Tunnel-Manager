@@ -34,6 +34,7 @@ type Connection struct {
 	Options   map[string]string `json:"options"`
 	Revision  string            `json:"revision"`
 	Status    string            `json:"status,omitempty"`
+	Routing   *Routing          `json:"routing,omitempty"`
 }
 type Capability struct {
 	ID         string   `json:"id"`
@@ -52,6 +53,13 @@ type Option struct {
 }
 
 var RealmOptions = []Option{
+	{Key: "send_mptcp", Default: "false", Choices: []string{"false", "true"}},
+	{Key: "accept_mptcp", Default: "false", Choices: []string{"false", "true"}},
+	{Key: "ipv6_only", Default: "false", Choices: []string{"false", "true"}},
+	{Key: "listen_transport", Default: "plain", Choices: []string{"plain", "ws"}},
+	{Key: "remote_transport", Default: "plain", Choices: []string{"plain", "ws"}},
+	{Key: "ws_host", Default: "localhost", Format: "http_host"},
+	{Key: "ws_path", Default: "/", Format: "http_path"},
 	{Key: "tcp_timeout", Min: 1, Max: 300, Default: "5"}, {Key: "udp_timeout", Min: 1, Max: 3600, Default: "30"},
 	{Key: "tcp_keepalive", Min: 0, Max: 3600, Default: "15"}, {Key: "tcp_keepalive_probe", Min: 1, Max: 30, Default: "3"},
 	{Key: "send_proxy", Default: "false", Choices: []string{"false", "true"}}, {Key: "send_proxy_version", Default: "2", Choices: []string{"1", "2"}},
@@ -59,6 +67,9 @@ var RealmOptions = []Option{
 	{Key: "log", Default: "warn", Choices: []string{"off", "error", "warn", "info", "debug", "trace"}},
 }
 var HAOptions = []Option{
+	{Key: "stick", Default: "off", Choices: []string{"off", "source"}},
+	{Key: "stick_size", Min: 1024, Max: 100000, Default: "16384"},
+	{Key: "stick_expire", Min: 30, Max: 86400, Default: "1800"},
 	{Key: "connect", Min: 1, Max: 300, Default: "5"}, {Key: "idle", Min: 10, Max: 604800, Default: "3600"},
 	{Key: "queue", Min: 1, Max: 3600, Default: "30"}, {Key: "maxconn", Min: 1, Max: 100000, Default: "16384"},
 	{Key: "server_maxconn", Min: 0, Max: 100000, Default: "0"}, {Key: "check_interval", Min: 1, Max: 300, Default: "3"},
@@ -74,7 +85,7 @@ var HAOptions = []Option{
 
 func Capabilities() []Capability {
 	return []Capability{
-		{ID: "nftables", Protocols: []string{"tcp", "udp", "both"}, Strategies: []string{"single", "random"}, Options: []Option{}, Scope: "Kernel DNAT; weighted distribution, no active health checks"},
+		{ID: "nftables", Protocols: []string{"tcp", "udp", "both"}, Strategies: []string{"single", "random", "roundrobin", "source"}, Options: []Option{}, Scope: "Owned DNAT with random, incremental or source-IP hash distribution; no active health checks"},
 		{ID: "iptables", Protocols: []string{"tcp", "udp", "both"}, Strategies: []string{"single", "random"}, Options: []Option{}, Scope: "Kernel DNAT; weighted distribution, no active health checks"},
 		{ID: "haproxy", Protocols: []string{"tcp"}, Strategies: []string{"single", "roundrobin", "leastconn", "source", "failover"}, Options: HAOptions, Scope: "Managed TCP forwarding with health checks; not an arbitrary HTTP/TLS configuration editor"},
 		{ID: "realm", Protocols: []string{"tcp", "udp", "both"}, Strategies: []string{"single", "roundrobin", "source"}, Options: RealmOptions, Scope: "TCP/UDP, weights, timeouts, keepalive, PROXY protocol and logs; native encrypted transports are not exposed"},
@@ -264,7 +275,32 @@ func (c Connection) Rows(id string) ([]string, error) {
 			}
 		}
 	}
+	if c.Engine == "realm" {
+		if c.Options["ipv6_only"] == "true" && bind.Is4() {
+			return nil, errors.New("IPv6-only requires an IPv6 listener")
+		}
+		if c.Protocol == "udp" && (c.Options["send_mptcp"] == "true" || c.Options["accept_mptcp"] == "true") {
+			return nil, errors.New("MPTCP applies to TCP only")
+		}
+		if c.Protocol != "tcp" && (c.Options["listen_transport"] == "ws" || c.Options["remote_transport"] == "ws") {
+			return nil, errors.New("WebSocket profiles require TCP-only traffic")
+		}
+	}
 	enabled := "0"
+	routing := ""
+	if c.Routing != nil {
+		if c.Engine != "haproxy" {
+			return nil, errors.New("routing requires HAProxy")
+		}
+		routing, err = c.Routing.Encode(len(c.Targets))
+		if err != nil {
+			return nil, err
+		}
+		version = "4"
+		if len(options) == 0 {
+			options = append(options, "connect=5")
+		}
+	}
 	if c.Enabled {
 		enabled = "1"
 	}
@@ -283,8 +319,11 @@ func (c Connection) Rows(id string) ([]string, error) {
 			return nil, errors.New("name must be 1–40 ASCII letters, digits, spaces, dots, dashes or underscores")
 		}
 		row := strings.Join([]string{id, name, c.Engine, c.Protocol, c.Bind, strconv.Itoa(port), c.Strategy, enabled, c.SNAT, c.Interface, strings.Join(targets, ","), version}, "\t")
-		if version == "2" || version == "3" {
+		if version == "2" || version == "3" || version == "4" {
 			row += "\t" + strings.Join(options, ";")
+		}
+		if version == "4" {
+			row += "\t" + routing
 		}
 		rows = append(rows, row)
 	}
@@ -302,13 +341,13 @@ func ParseState(data string) ([]Connection, map[string]string, error) {
 			continue
 		}
 		f := strings.Split(row, "\t")
-		if len(f) != 12 && len(f) != 13 {
+		if len(f) != 12 && len(f) != 13 && len(f) != 14 {
 			return nil, nil, errors.New("invalid manager state")
 		}
 		if f[7] != "0" && f[7] != "1" {
 			return nil, nil, errors.New("invalid enabled flag")
 		}
-		if (len(f) == 12 && f[11] != "1") || (len(f) == 13 && ((f[11] != "2" || f[2] != "haproxy") && (f[11] != "3" || f[2] != "realm"))) || (len(f) == 13 && f[12] == "") {
+		if (len(f) == 12 && f[11] != "1") || (len(f) == 13 && ((f[11] != "2" || f[2] != "haproxy") && (f[11] != "3" || f[2] != "realm"))) || (len(f) >= 13 && f[12] == "") || (len(f) == 14 && (f[11] != "4" || f[2] != "haproxy")) {
 			return nil, nil, errors.New("unsupported record version")
 		}
 		c := Connection{ID: f[0], Name: f[1], Engine: f[2], Protocol: f[3], Bind: f[4], Ports: f[5], Strategy: f[6], Enabled: f[7] == "1", SNAT: f[8], Interface: f[9], Targets: []Target{}, Options: map[string]string{}, Revision: Revision(row)}
@@ -327,13 +366,20 @@ func ParseState(data string) ([]Connection, map[string]string, error) {
 			}
 			c.Targets = append(c.Targets, Target{IP: ep.Addr().String(), Port: int(ep.Port()), Weight: weight})
 		}
-		if len(f) == 13 {
+		if len(f) >= 13 {
 			for _, pair := range strings.Split(f[12], ";") {
 				k, v, ok := strings.Cut(pair, "=")
 				if !ok {
 					return nil, nil, errors.New("invalid advanced options")
 				}
 				c.Options[k] = v
+			}
+		}
+		if len(f) == 14 {
+			var e error
+			c.Routing, e = parseRouting(f[13])
+			if e != nil {
+				return nil, nil, e
 			}
 		}
 		if _, e := c.Rows(c.ID); e != nil {

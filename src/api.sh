@@ -76,6 +76,11 @@ gtm_api() {
     local operation=${1:-} component
     shift || return 2
     case $operation in
+        resource-rename) (($#==2)) || return 2
+            local display_name
+            IFS= read -r display_name || return 2
+            gtm_prepare && gtm_lock || return 2
+            gtm_metadata_rename "$1" "$2" "$display_name"; local result=$?; gtm_unlock; return "$result";;
         pair-check-gre|pair-apply-gre|pair-check-frp|pair-apply-frp|pair-verify|pair-delete) gtm_pair_api "$operation" "$@";;
         state) (($#==0)) && gtm_load_records && { ((${#GTM_RECORDS[@]}==0)) || printf '%s\n' "${GTM_RECORDS[@]}"; };;
         create) (($#==0)) && gtm_api_rows;;

@@ -2,6 +2,187 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  confirm: ["Confirm", "تأیید"],
+  invalid: ["Invalid destination", "مقصد نامعتبر"],
+  quotaDialogHelp: [
+    "Label this connection and set an optional cycle quota.",
+    "برای این اتصال برچسب و سقف دلخواه دوره را تعیین کنید.",
+  ],
+  destinations: ["Destinations", "مقصدها"],
+  viewDestinations: ["View all destinations", "مشاهدهٔ همهٔ مقصدها"],
+  clickAllDestinations: [
+    "Click to view all destinations",
+    "برای مشاهدهٔ همهٔ مقصدها کلیک کنید.",
+  ],
+  weightHelp: [
+    "Weight is a relative share of new connections, not a speed or volume limit. Weights 2 and 1 favor the first target roughly 2:1 for weighted distribution. Sticky/source rules and least-connection algorithms change selection behavior.",
+    "وزن، سهم نسبی از اتصال‌های جدید است، نه سقف سرعت یا حجم. وزن‌های 2 و 1 در تقسیم وزنی، سهم مقصد اول را تقریباً دو برابر می‌کنند. چسبندگی IP و روش کمترین اتصال، رفتار انتخاب را تغییر می‌دهند.",
+  ],
+  clientAffinity: ["Client affinity", "چسبندگی اتصال مشتری"],
+  stick: ["Remember client IP", "به‌خاطرسپاری IP مشتری"],
+  rememberSourceIP: [
+    "Remember source IP · bounded memory",
+    "ذخیرهٔ IP مبدا · حافظهٔ محدود",
+  ],
+  stick_size: ["Maximum stored IPs", "حداکثر IP ذخیره‌شده"],
+  stick_expire: ["Idle expiry · seconds", "انقضای بی‌کاری · ثانیه"],
+  affinityHelp: [
+    "Optional in-memory source-IP table for a default pool with multiple destinations. New connections reuse the remembered healthy target. Shared NAT/proxy IPs share an entry. Off by default; memory is bounded. Tables reset on reload/restart; this does not migrate live VPN sessions or balance one connection across servers.",
+    "جدول اختیاری IP در حافظه، برای مجموعهٔ پیش‌فرض با چند مقصد است. اتصال‌های جدید، مقصد سالم قبلی را انتخاب می‌کنند. کاربران پشت NAT یا پراکسی با IP مشترک، یک ورودی دارند. پیش‌فرض خاموش و حافظه محدود است. جدول با بارگذاری مجدد یا راه‌اندازی دوباره پاک می‌شود؛ نشست فعال VPN منتقل نمی‌شود.",
+  ],
+  connectionTopology: ["Entrance to destination", "مسیر ورودی به مقصد"],
+  swapNodes: ["Swap entrance and destination", "جابه‌جایی ورودی و خروجی"],
+  server: ["Server", "سرور"],
+  mobileNavigation: ["Mobile navigation", "ناوبری موبایل"],
+  moreNavigation: ["More", "بیشتر"],
+  previousPage: ["Previous", "قبلی"],
+  nextPage: ["Next", "بعدی"],
+  feature_source_affinity: [
+    "Bounded client-IP affinity",
+    "چسبندگی IP با حافظهٔ محدود",
+  ],
+  feature_incremental_balancing: [
+    "Incremental flow distribution",
+    "تقسیم نوبتی اتصال‌ها",
+  ],
+  feature_source_hash: ["Stable source-IP hash", "نگاشت پایدار IP مبدا"],
+
+  usageCycles: ["Usage & cycles", "مصرف و دوره‌ها"],
+  trafficSections: ["Traffic sections", "بخش‌های مصرف ترافیک"],
+  feature_sni_routing: ["Exact SNI routing", "مسیر‌دهی دقیق SNI"],
+  feature_http_routing: [
+    "HTTP Host / path routes",
+    "مسیر‌دهی میزبان و مسیر HTTP",
+  ],
+  feature_https_termination: ["HTTPS termination", "پایان‌دهی HTTPS"],
+  feature_ws_profile: [
+    "Pinned WebSocket profiles",
+    "پروفایل‌های WebSocket نسخهٔ منتخب",
+  ],
+  feature_mptcp_profile: ["Kernel-gated MPTCP", "گزینهٔ MPTCP با بررسی کرنل"],
+  limit_bounded_routing: [
+    "Up to 16 exact-host routes; local PEM provisioning; no raw ACL editor",
+    "تا 16 مسیر با میزبان دقیق؛ نصب گواهی روی سرور؛ بدون ویرایشگر ACL خام",
+  ],
+  limit_no_native_tls: [
+    "Native Realm TLS/WSS is not exposed; WS is unencrypted",
+    "حالت TLS و WSS بومی Realm ارائه نشده است؛ حالت WS رمزگذاری ندارد",
+  ],
+
+  applicationRouting: ["Application routing", "مسیر‌دهی برنامه"],
+  routingMode: ["Traffic mode", "حالت ترافیک"],
+  routingHelp: [
+    "Keep TCP for VPN/Reality passthrough. Advanced modes change how traffic is handled.",
+    "برای عبور مستقیم VPN و Reality حالت TCP را نگه دارید. حالت‌های پیشرفته نحوهٔ پردازش ترافیک را تغییر می‌دهند.",
+  ],
+  routeMode_tcp: ["TCP passthrough · default", "عبور مستقیم TCP · پیش‌فرض"],
+  routeMode_sni: [
+    "TLS passthrough · route by SNI",
+    "عبور مستقیم TLS · مسیر‌دهی SNI",
+  ],
+  routeMode_http: [
+    "Plain HTTP · Host / path routing",
+    "مسیر‌دهی HTTP ساده · میزبان و مسیر",
+  ],
+  routeMode_https: [
+    "HTTPS termination · Host / path routing",
+    "پایان‌دهی HTTPS · میزبان و مسیر",
+  ],
+  sniHelp: [
+    "Reads the visible TLS ClientHello only; no decryption. First matching exact SNI wins. ECH/absent SNI uses the default destination pool. This is not a Reality camouflage guarantee.",
+    "فقط نام قابل‌مشاهدهٔ TLS خوانده می‌شود؛ رمزگشایی انجام نمی‌شود. اولین تطابق دقیق انتخاب می‌شود. نبود SNI یا استفاده از ECH به مقصد پیش‌فرض می‌رود. این روش تضمین پوشش Reality نیست.",
+  ],
+  httpRoutingHelp: [
+    "For HTTP services only. HTTPS decrypts here and sends plain HTTP to destinations. First matching Host and optional path prefix wins; unmatched requests use the destination pool.",
+    "فقط برای سرویس HTTP. حالت HTTPS اینجا رمزگشایی می‌کند و به مقصد HTTP ساده می‌فرستد. اولین تطابق میزبان و پیشوند مسیر انتخاب می‌شود؛ بقیه به مجموعهٔ مقصدهای پیش‌فرض می‌روند.",
+  ],
+  certificateID: ["Certificate ID", "شناسهٔ گواهی"],
+  certificateHelp: [
+    "A server administrator must provision /etc/gre-manager/certificates/ID.pem (certificate chain + private key), owned by root, file 600 / directory 700. The panel never uploads, returns or deletes the key.",
+    "مدیر سرور باید فایل زنجیرهٔ گواهی و کلید خصوصی را در مسیر /etc/gre-manager/certificates/ID.pem نصب کند؛ مالک root، دسترسی فایل 600 و پوشه 700 باشد. پنل کلید را آپلود، نمایش یا حذف نمی‌کند.",
+  ],
+  routeRule: ["Rule", "قانون"],
+  routeHost: ["Exact hostname", "نام دقیق میزبان"],
+  routePrefix: ["Path prefix · optional", "پیشوند مسیر · اختیاری"],
+  addRoute: ["Add route", "افزودن مسیر"],
+  send_mptcp: ["Outgoing MPTCP", "اتصال خروجی MPTCP"],
+  accept_mptcp: ["Incoming MPTCP", "اتصال ورودی MPTCP"],
+  ipv6_only: ["IPv6-only listener", "شنود فقط IPv6"],
+  listen_transport: ["Incoming transport", "انتقال ورودی"],
+  remote_transport: ["Outgoing transport", "انتقال خروجی"],
+  ws_host: ["WebSocket Host", "میزبان WebSocket"],
+  ws_path: ["WebSocket path", "مسیر WebSocket"],
+  plain: ["Plain TCP", "اتصال TCP ساده"],
+  ws: ["WebSocket · TCP only", "وب‌سوکت · فقط TCP"],
+  renameDisplay: ["Display name", "نام نمایشی"],
+  renameHelp: [
+    "Optional, up to 40 ASCII characters. Does not change the service ID, peer settings or tunnel addresses. Leave empty to restore the technical name.",
+    "نام دلخواه تا 40 نویسهٔ انگلیسی. شناسهٔ سرویس، تنظیمات طرف مقابل و آدرس تونل تغییر نمی‌کنند. برای بازگشت به نام فنی خالی بگذارید.",
+  ],
+
+  retention: ["History retention", "نگهداری تاریخچه"],
+  historyOff: ["Off · minimum storage", "خاموش · کمترین فضای ذخیره"],
+  historyDay: ["24 hours · up to 288 samples", "24 ساعت · حداکثر 288 نمونه"],
+  historyWeek: ["7 days · up to 288 samples", "7 روز · حداکثر 288 نمونه"],
+  historyMonth: ["30 days · up to 288 samples", "30 روز · حداکثر 288 نمونه"],
+  ledgerDescription: [
+    "Independent billing cycles, customer labels and advisory quotas. Network byte counters, not an invoice.",
+    "دوره‌های مستقل مصرف، برچسب مشتری و سقف هشدار. آمار بایت‌های شبکه است، نه صورتحساب دقیق.",
+  ],
+  exportCSV: ["Export CSV", "خروجی CSV"],
+  localAccounting: [
+    "Accounting on this server. GRE and port counters can overlap; totals are never combined.",
+    "آمار این سرور. شمارندهٔ GRE و پورت ممکن است هم‌پوشانی داشته باشند؛ با هم جمع نمی‌شوند.",
+  ],
+  usageSearch: ["Name, port or customer…", "نام، پورت یا مشتری…"],
+  allMethods: ["All methods", "همهٔ روش‌ها"],
+  unassignedCustomer: ["No customer label", "بدون برچسب مشتری"],
+  cycleQuota: ["Cycle quota", "سقف دورهٔ مصرف"],
+  quotaHelp: [
+    "Set a customer label and optional GiB quota. Zero means no limit. The quota applies to the current cycle and selected direction.",
+    "برچسب مشتری و سقف دلخواه بر حسب GiB را تعیین کنید. صفر یعنی بدون سقف. سقف بر اساس جهت انتخاب‌شده و دورهٔ فعلی محاسبه می‌شود.",
+  ],
+  quotaReached: ["Quota reached", "سقف مصرف رسیده"],
+  withinQuota: ["Within quota", "زیر سقف مصرف"],
+  noQuota: ["No quota", "بدون سقف"],
+  advisoryQuota: [
+    "Alert only. No automatic cutoff. Samples may be delayed; disable the connection manually when needed.",
+    "فقط هشدار؛ توقف خودکار ندارد. نمونه‌ها ممکن است تأخیر داشته باشند؛ در صورت نیاز اتصال را دستی غیرفعال کنید.",
+  ],
+  cycleStarted: ["Cycle started", "شروع دوره"],
+  lifetimeUsage: ["Lifetime recorded", "مصرف ثبت‌شدهٔ کل"],
+  customerQuota: ["Customer & quota", "مشتری و سقف مصرف"],
+  resetUsage: ["Reset usage", "صفر کردن مصرف"],
+  forgetAccounting: ["Forget archived usage", "حذف آمار بایگانی‌شده"],
+  resetUsageHelp: [
+    "Archive the current cycle and show zero for the new cycle. Lifetime totals and the tunnel stay intact. This cannot be undone.",
+    "دورهٔ فعلی بایگانی و مصرف دورهٔ جدید صفر می‌شود. مصرف کل و تونل حفظ می‌شوند. این عمل قابل بازگشت نیست.",
+  ],
+  disableQuotaHelp: [
+    "Disable this forward using its current saved revision. Active relay connections may close; kernel connections can remain until conntrack expiry. No host conntrack flush is performed.",
+    "این فوروارد با نسخهٔ فعلی تنظیمات غیرفعال می‌شود. اتصال‌های فعال رله ممکن است قطع شوند؛ اتصال‌های کرنل تا انقضای وضعیت شبکه ممکن است باقی بمانند.",
+  ],
+  forgetAccountingHelp: [
+    "Permanently remove the accounting, customer label and cycle history of this deleted connection.",
+    "آمار، برچسب مشتری و تاریخچهٔ دوره‌های این اتصال حذف‌شده برای همیشه پاک می‌شود.",
+  ],
+  retainedChartHelp: [
+    "Actual persisted samples of this cycle. Limited by retention time and the latest 288 samples; gaps are not estimates.",
+    "نمونه‌های واقعی و ذخیره‌شدهٔ این دوره. محدود به زمان نگهداری و آخرین 288 نمونه؛ فاصله‌های خالی تخمین زده نمی‌شوند.",
+  ],
+  historyOffHelp: [
+    "History is off. Enable retention above to keep chart samples across visits and restarts.",
+    "تاریخچه خاموش است. برای نگهداری نمودار پس از خروج یا راه‌اندازی مجدد، نگهداری تاریخچه را فعال کنید.",
+  ],
+  retainedSamples: ["retained samples", "نمونهٔ ذخیره‌شده"],
+  previousCycles: [
+    "Previous cycles · latest 12",
+    "دوره‌های قبلی · 12 مورد آخر",
+  ],
+  customerLabel: ["Customer / reference", "مشتری / شناسهٔ دلخواه"],
+  quotaGiB: ["Quota in GiB · 0 = unlimited", "سقف بر حسب GiB · صفر = نامحدود"],
+  quotaDirection: ["Count toward quota", "جهت محاسبهٔ سقف"],
+
   healthProbe: ["Health probe", "بررسی سلامت"],
   healthProbeHelp: [
     "TCP checks reachability. HTTP checks a separate plain HTTP readiness port; VPN traffic remains unchanged. This is not a VPN handshake check.",
@@ -41,11 +222,11 @@ const words = {
   ],
   versionPolicy_haproxy: [
     "HAProxy 2.4+ and 3.x. Every configuration must pass the installed engine's native check.",
-    "نسخه‌های HAProxy از ۲٫۴ به بالا و شاخهٔ ۳. هر تنظیم باید بررسی خود موتور نصب‌شده را بگذراند.",
+    "نسخه‌های HAProxy از 2.4 به بالا و شاخهٔ 3. هر تنظیم باید بررسی خود موتور نصب‌شده را بگذراند.",
   ],
   versionPolicy_realm: [
     "Pinned to Realm 2.9.6. Other 2.x versions are unverified; encrypted transports are not exposed.",
-    "نسخهٔ انتخاب‌شده Realm 2.9.6 است. نسخه‌های دیگر شاخهٔ ۲ بررسی نشده‌اند و ترنسپورت‌های رمزنگاری‌شده در این مدیر ارائه نمی‌شوند.",
+    "نسخهٔ انتخاب‌شده Realm 2.9.6 است. نسخه‌های دیگر شاخهٔ 2 بررسی نشده‌اند و ترنسپورت‌های رمزنگاری‌شده در این مدیر ارائه نمی‌شوند.",
   ],
   versionPolicy_nftables: [
     "Distribution package. Kernel support and native validation are required.",
@@ -201,7 +382,7 @@ const words = {
   ],
   pairGREHelp: [
     "Allow GRE protocol 47 between both servers. Entrance uses the existing Iran role; destination uses Kharej. No default routes or firewall policies are changed.",
-    "پروتکل GRE با شمارهٔ ۴۷ باید بین دو سرور مجاز باشد. ورودی از نقش فعلی ایران و مقصد از نقش خارج استفاده می‌کند. مسیر پیش‌فرض و سیاست فایروال تغییر نمی‌کند.",
+    "پروتکل GRE با شمارهٔ 47 باید بین دو سرور مجاز باشد. ورودی از نقش فعلی ایران و مقصد از نقش خارج استفاده می‌کند. مسیر پیش‌فرض و سیاست فایروال تغییر نمی‌کند.",
   ],
   pairFRPHelp: [
     "Allow the control and public service ports. A private shared token is generated automatically. This FRP preset uses TLS and token authentication; custom CA verification and WSS are not included.",
@@ -351,7 +532,7 @@ const words = {
   ],
   agentPackageNotice: [
     "The published v1.3.0 package predates Agents. Until a new release, use a current source package with --package-dir; see the guide.",
-    "بستهٔ منتشرشدهٔ نسخهٔ ۱٫۳٫۰ ایجنت ندارد. تا انتشار نسخهٔ جدید از بستهٔ سورس فعلی با گزینهٔ ‎--package-dir استفاده کنید؛ راهنما را ببینید.",
+    "بستهٔ منتشرشدهٔ نسخهٔ 1.3.0 ایجنت ندارد. تا انتشار نسخهٔ جدید از بستهٔ سورس فعلی با گزینهٔ ‎--package-dir استفاده کنید؛ راهنما را ببینید.",
   ],
   manualCopyHelp: [
     "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
@@ -374,7 +555,7 @@ const words = {
   controllerRole: ["Controller setup", "راه‌اندازی کنترل‌کننده"],
   controllerGuide: [
     "After installing the updated panel, run node-install.sh --controller with its reachable HTTPS URL. It opens a separate TLS-only control listener (default 9443). Permit that TCP port; browser HTTP remains independent.",
-    "پس از نصب پنل به‌روز، نصب‌کنندهٔ نود را در حالت کنترل‌کننده با آدرس HTTPS قابل دسترس اجرا کنید. پورت جداگانهٔ رمزگذاری‌شده، پیش‌فرض ۹۴۴۳ است. این پورت TCP را باز کنید؛ حالت HTTP مرورگر مستقل است.",
+    "پس از نصب پنل به‌روز، نصب‌کنندهٔ نود را در حالت کنترل‌کننده با آدرس HTTPS قابل دسترس اجرا کنید. پورت جداگانهٔ رمزگذاری‌شده، پیش‌فرض 9443 است. این پورت TCP را باز کنید؛ حالت HTTP مرورگر مستقل است.",
   ],
   agentGuide: [
     "Create a code here, run the one-command Agent installer on each other server, and paste the code at its hidden prompt. The Agent connects outward; no inbound Agent port is opened. Only managed inventory is sent, never tunnel keys or raw configuration files.",
@@ -387,7 +568,7 @@ const words = {
   ],
   nodeReleaseHelp: [
     "These features are in current source, not the existing v1.3.0 release. See docs/NODES.md for source packages. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
-    "این قابلیت‌ها در سورس فعلی هستند و در انتشار قبلی نسخهٔ ۱٫۳٫۰ نیستند. راهنمای NODES روش ساخت بسته را توضیح می‌دهد. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
+    "این قابلیت‌ها در سورس فعلی هستند و در انتشار قبلی نسخهٔ 1.3.0 نیستند. راهنمای NODES روش ساخت بسته را توضیح می‌دهد. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",
@@ -395,7 +576,7 @@ const words = {
   ],
   nodeBoundsHelp: [
     "Up to 64 identities and 256 KiB per report. Inventory remains a manually refreshed snapshot. Only active pair jobs poll every two seconds in this page. Opted-in Agents pull work every five to six seconds; inventory still reports about once a minute.",
-    "حداکثر ۶۴ هویت و ۲۵۶ کیلوبایت برای هر گزارش. اطلاعات سرورها دستی تازه‌سازی می‌شود. فقط عملیات فعال این صفحه هر دو ثانیه بررسی می‌شود. ایجنت مجاز هر پنج تا شش ثانیه کار جدید می‌گیرد؛ اطلاعات سرور همچنان حدود هر دقیقه گزارش می‌شود.",
+    "حداکثر 64 هویت و 256 کیلوبایت برای هر گزارش. اطلاعات سرورها دستی تازه‌سازی می‌شود. فقط عملیات فعال این صفحه هر دو ثانیه بررسی می‌شود. ایجنت مجاز هر پنج تا شش ثانیه کار جدید می‌گیرد؛ اطلاعات سرور همچنان حدود هر دقیقه گزارش می‌شود.",
   ],
   help: ["Help", "راهنما"],
   toggleSidebar: ["Toggle navigation", "باز و بسته‌کردن منو"],
@@ -419,7 +600,7 @@ const words = {
   ],
   intervalHelp: [
     "15–3600 seconds. Longer intervals reduce collection work; default: 60 seconds.",
-    "بین ۱۵ تا ۳۶۰۰ ثانیه؛ فاصلهٔ بیشتر، نمونه‌برداری کمتری دارد. پیش‌فرض ۶۰ ثانیه است.",
+    "بین 15 تا 3600 ثانیه؛ فاصلهٔ بیشتر، نمونه‌برداری کمتری دارد. پیش‌فرض 60 ثانیه است.",
   ],
   trackedResources: ["Connections to track", "انتخاب اتصال‌ها برای ثبت مصرف"],
   trackedResource: ["Connection", "اتصال"],
@@ -558,7 +739,7 @@ const words = {
   localPorts: ["Local port or ports", "پورت یا پورت‌های ورودی"],
   portsHelp: [
     "One port, a list, or a range. Up to 32 ports.",
-    "یک پورت، چند پورت یا بازه؛ حداکثر ۳۲ پورت.",
+    "یک پورت، چند پورت یا بازه؛ حداکثر 32 پورت.",
   ],
   remoteIP: ["Destination IP", "آی‌پی مقصد"],
   remotePort: ["Destination port", "پورت مقصد"],
@@ -676,7 +857,7 @@ const words = {
   ],
   autoRefreshHelp: [
     "Refresh every 30 seconds; pauses when this tab is hidden.",
-    "هر ۳۰ ثانیه؛ با پنهان‌شدن تب متوقف می‌شود.",
+    "هر 30 ثانیه؛ با پنهان‌شدن تب متوقف می‌شود.",
   ],
   account: ["Account & access", "حساب و دسترسی"],
   passwordHelp: [
@@ -735,7 +916,7 @@ const words = {
   mtu: ["MTU", "اندازهٔ MTU"],
   greHelp: [
     "Use the same ID on both servers and opposite roles. GRE needs IP protocol 47 and does not encrypt traffic. No watchdog is added by this form.",
-    "روی دو سرور شناسهٔ یکسان و نقش مخالف انتخاب کنید. GRE به پروتکل ۴۷ نیاز دارد و ترافیک را رمزگذاری نمی‌کند. این فرم سرویس نگهبان اضافه نمی‌کند.",
+    "روی دو سرور شناسهٔ یکسان و نقش مخالف انتخاب کنید. GRE به پروتکل 47 نیاز دارد و ترافیک را رمزگذاری نمی‌کند. این فرم سرویس نگهبان اضافه نمی‌کند.",
   ],
   entrance: ["Entrance (public server)", "ورودی؛ سرور عمومی"],
   destinationRole: ["Destination (service server)", "مقصد؛ سرور سرویس"],

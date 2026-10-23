@@ -122,6 +122,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.forward(w, r, control.Request{Action: "inventory"})
 	case r.URL.Path == "/api/metrics" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "metrics"})
+	case r.URL.Path == "/api/metrics/history" && r.Method == "GET":
+		s.forward(w,r,control.Request{Action:"metrics-history",Traffic:control.TrafficChange{ID:r.URL.Query().Get("id")}})
 	case strings.HasPrefix(r.URL.Path, "/api/jobs/") && r.Method == "GET":
 		job, ok := s.Jobs.Get(strings.TrimPrefix(r.URL.Path, "/api/jobs/"))
 		if !ok {
@@ -150,7 +152,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func allowed(action string) bool {
 	switch action {
-	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure":
+	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename":
 		return true
 	}
 	return false

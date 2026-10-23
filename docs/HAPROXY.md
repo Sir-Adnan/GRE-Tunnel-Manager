@@ -1,6 +1,6 @@
 # HAProxy TCP adapter
 
-The manager controls HAProxy Community as an optional local TCP relay. It does not implement a tunnel wire protocol, generic UDP forwarding, HTTP routing or TLS termination in this adapter. Existing Reality/TLS application bytes pass through unchanged unless the operator explicitly enables a supported PROXY header at both ends.
+The manager controls HAProxy Community as an optional local TCP relay. It does not implement a tunnel wire protocol or generic UDP forwarding. TCP passthrough remains the default for Reality/TLS application bytes. Optional bounded SNI/HTTP routing and HTTPS termination use a separate v4 contract; see [HAProxy routing](HAPROXY-ROUTING.md). PROXY headers still require support at both ends.
 
 ## Implemented capabilities
 
@@ -74,7 +74,7 @@ Native validation happens before replacing managed state. The broader transactio
 5. **DNS targets:** resolvers, address-family preferences, TTL/failure behavior and stale-address handling. Current targets are literal IPs, which avoids silently changing destinations on DNS updates.
 6. **Connection abuse controls:** optional per-source connection/rate caps via stick tables. NAT can group many legitimate clients behind one address; policies need workload-aware defaults and a clear rejection reason.
 
-HTTP/WebSocket reverse proxying, caches and compression belong to a separate HTTP adapter. Generic UDP needs a suitable existing kernel/Realm/FRP/rathole path; this TCP adapter does not become a UDP relay by changing a menu label. Keep kernel NAT available when its routing/source semantics better fit the requirement.
+Caches, compression, raw ACLs, rewrites and unrestricted HTTP/WebSocket reverse proxying remain outside the bounded routing adapter. Generic UDP needs a suitable existing kernel/Realm/FRP/rathole path; this TCP adapter does not become a UDP relay by changing a menu label. Keep kernel NAT available when its routing/source semantics better fit the requirement.
 
 ## Primary references
 
@@ -85,4 +85,15 @@ HTTP/WebSocket reverse proxying, caches and compression belong to a separate HTT
 
 ## Optional web controls
 
-The Go panel exposes the same managed TCP adapter, 17 bounded options and balanced/VPN/low-resource presets, with HTTP readiness fields shown only when selected. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated browser endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).
+The Go panel exposes the same managed TCP adapter, 20 bounded options and balanced/VPN/low-resource presets, with HTTP readiness fields shown only when selected. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated browser endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).
+
+Routing forms show the selected mode, certificate reference and resolved route destinations during review. Ordinary TCP records remain unchanged; v4 requires the updated manager for reads, edits and recovery.
+
+
+## Remember client IP (optional)
+
+The new `stick=source` option enables a bounded in-memory HAProxy stick table for the default destination pool when it has multiple targets. `stick_size` is 1024–100000 entries (default 16384); `stick_expire` is 30–86400 idle seconds (default 1800). The default is `stick=off`. The table uses IPv6 keys with native address conversion so IPv4 and IPv6 clients are covered. Fixed-destination routing backends do not allocate duplicate tables.
+
+This remembers a client-to-target association rather than merely hashing the source. Healthy-target selection and native redispatch still apply. Users behind the same NAT/proxy IP share an association; no untrusted forwarded-IP header is read. Memory use scales with the chosen table size and number of enabled connections. Tables reset on reload/restart: this implementation does not configure peers, disk persistence, per-IP rate policing or a replicated table. Established VPN sessions are not moved between servers.
+
+For a lighter deterministic choice, the existing **source** balancing strategy uses consistent source hashing without this memory table. nftables adds fixed-seed source-IP hashing, and Realm exposes its native iphash strategy; those are selection algorithms, not stored HAProxy-style client tables. iptables retains weighted random distribution. No engine is described as supporting another engine's native table features.

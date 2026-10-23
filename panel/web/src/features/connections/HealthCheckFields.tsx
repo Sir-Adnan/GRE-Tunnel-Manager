@@ -1,10 +1,6 @@
-import {
-  FieldGroup,
-  FieldSet,
-  FieldLegend,
-  FieldDescription,
-} from "@/components/ui/field";
+import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field";
 import { Choice, TextField } from "@/components/shared";
+import { HelpTip } from "@/components/help";
 import { useT } from "@/lib/i18n";
 
 export function HealthCheckFields({
@@ -20,8 +16,10 @@ export function HealthCheckFields({
     onChange({ ...options, [key]: value });
   return (
     <FieldSet>
-      <FieldLegend>{t("healthProbe")}</FieldLegend>
-      <FieldDescription>{t("healthProbeHelp")}</FieldDescription>
+      <FieldLegend className="inline-flex items-center gap-1">
+        {t("healthProbe")}
+        <HelpTip>{t("healthProbeHelp")}</HelpTip>
+      </FieldLegend>
       <FieldGroup>
         <Choice
           id="option-check_mode"

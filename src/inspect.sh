@@ -84,8 +84,8 @@ gtm_preflight_checks() {
         case $R_ENGINE in
             iptables) if [[ $R_BIND == *:* ]]; then has6=1; else has4=1; fi ;;
             nftables) hasnft=1 ;;
-            haproxy) gtm_need haproxy && gtm_need socat && gtm_need timeout && gtm_haproxy_render > "$file" && haproxy -c -f "$file" || return 1 ;;
-            realm) gtm_need realm && gtm_realm_render > "$file" || return 1 ;;
+            haproxy) [[ $H_ROUTE_MODE != https ]] || gtm_haproxy_certificate >/dev/null || return 1; gtm_need haproxy && gtm_need socat && gtm_need timeout && gtm_haproxy_render > "$file" && haproxy -c -f "$file" || return 1 ;;
+            realm) gtm_need realm && gtm_realm_profile_preflight && gtm_realm_render > "$file" || return 1 ;;
         esac
     done
     for family in 4 6; do
@@ -117,7 +117,7 @@ gtm_inspect_state() {
     local file=${1:-$GTM_STATE}
     [[ -f $file && -r $file ]] || { gtm_error "State file is missing or unreadable: $file"; return 1; }
     gtm_load_records "$file" || return 1
-    printf 'Valid state: %d connection(s), supported record versions v1/v2/v3.\n' "${#GTM_RECORDS[@]}"
+    printf 'Valid state: %d connection(s), supported record versions v1/v2/v3/v4.\n' "${#GTM_RECORDS[@]}"
 }
 
 # Offline deterministic preview: no root, package installs, temp files or probes.

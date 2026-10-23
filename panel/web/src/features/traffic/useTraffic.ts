@@ -1,27 +1,24 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Metrics } from "@/lib/api";
-import { recordSamples } from "./history";
-import type { History } from "./history";
 
-/** Owns drafts, API results and bounded samples independently of presentation. */
+/** Owns drafts, API results and persisted accounting independently of presentation. */
 export function useTraffic(run: (request: unknown) => Promise<void>) {
   const [metrics, setMetrics] = useState<Metrics>();
   const [enabled, setEnabled] = useState(false);
   const [interval, setInterval] = useState(60);
+  const [retention, setRetention] = useState(0);
   const [ids, setIDs] = useState<string[]>([]);
   const [all, setAll] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<History>({});
-  const [chartID, setChartID] = useState("");
   function accept(value: Metrics, syncDraft = false) {
     setMetrics(value);
-    setHistory((current) => recordSamples(current, value));
     if (syncDraft) {
       setEnabled(value.settings.enabled);
       setInterval(value.settings.interval);
+      setRetention(value.settings.retention_hours || 0);
       setIDs(value.settings.ids || []);
       setAll(!value.settings.ids?.length);
     }
@@ -37,11 +34,33 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
       live = false;
     };
   }, []);
+  useEffect(() => {
+    if (!metrics?.settings.enabled) return;
+    let live = true;
+    const timer = window.setInterval(
+      () => {
+        if (document.hidden) return;
+        api<Metrics>("metrics")
+          .then((value) => {
+            if (live) accept(value);
+          })
+          .catch((e) => {
+            if (live) setError(String(e));
+          });
+      },
+      Math.max(30, metrics.settings.interval) * 1000,
+    );
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [metrics?.settings.enabled, metrics?.settings.interval]);
   const requestedIDs = all ? [] : ids;
   const dirty = Boolean(
     metrics &&
     (enabled !== metrics.settings.enabled ||
       interval !== metrics.settings.interval ||
+      retention !== (metrics.settings.retention_hours || 0) ||
       [...requestedIDs].sort().join() !==
         [...(metrics.settings.ids || [])].sort().join()),
   );
@@ -69,7 +88,13 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
     try {
       await run({
         action: "metrics-configure",
-        metrics: { enabled, interval, ids: requestedIDs },
+        metrics_revision: metrics.revision,
+        metrics: {
+          enabled,
+          interval,
+          ids: requestedIDs,
+          retention_hours: retention,
+        },
       });
       accept(await api<Metrics>("metrics"), true);
     } catch (error) {
@@ -78,17 +103,14 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
       setBusy(false);
     }
   }
-  const counters = Object.entries(metrics?.counters || {});
-  const selectedID = counters.some(([id]) => id === chartID)
-    ? chartID
-    : counters[0]?.[0] || "";
-  const samples = history[selectedID] || [];
   return {
     metrics,
     enabled,
     setEnabled,
     interval,
     setInterval,
+    retention,
+    setRetention,
     ids,
     setIDs,
     all,
@@ -96,13 +118,9 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
     error,
     busy,
     loading,
-    setChartID,
     dirty,
     invalid,
     refresh,
     save,
-    counters,
-    selectedID,
-    samples,
   };
 }

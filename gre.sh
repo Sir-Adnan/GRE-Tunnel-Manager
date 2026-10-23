@@ -1450,6 +1450,89 @@ gtm_connection_card() {
     gtm_panel_rule
 }
 
+# BEGIN MODULE: haproxy_routing
+# Closed routing schema v1, separate from TCP/health options. No raw directives.
+gtm_routing_defaults() { H_ROUTE_MODE=tcp; H_CERT=-; H_ROUTES=-; }
+gtm_routing_validate() {
+    local input=$1 version mode cert routes extra rule host path target key
+    local -a rules=() destinations=()
+    local -A seen=()
+    [[ $input != *$'\t'* && $input != *$'\n'* && $input != *$'\r'* ]] || return 1
+    extra=${input//[^|]/}; ((${#extra}==3)) || return 1
+    IFS='|' read -r version mode cert routes <<< "$input"
+    [[ $version == 1 && $mode =~ ^(sni|http|https)$ ]] || return 1
+    if [[ $mode == https ]]; then [[ $cert =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$ ]] || return 1
+    else [[ $cert == - ]] || return 1; fi
+    IFS=, read -r -a destinations <<< "$R_TARGETS"
+    if [[ $routes != - ]]; then
+        [[ -n $routes && $routes != ,* && $routes != *, && $routes != *,,* ]] || return 1
+        IFS=, read -r -a rules <<< "$routes"
+        ((${#rules[@]}<=16)) || return 1
+        for rule in "${rules[@]}"; do
+            extra=${rule//[^~]/}; ((${#extra}==2)) || return 1
+            IFS='~' read -r host path target <<< "$rule"
+            [[ $host =~ ^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$ && $host != *..* ]] || return 1
+            [[ $path == - || ( $mode != sni && $path =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ ) ]] || return 1
+            gtm_uint "$target" 1 "${#destinations[@]}" || return 1
+            key="$host~$path"; [[ ! ${seen[$key]+set} ]] || return 1; seen[$key]=1
+        done
+    fi
+    H_ROUTE_MODE=$mode; H_CERT=$cert; H_ROUTES=$routes
+}
+
+gtm_haproxy_certificate() {
+    local dir="$GTM_CONFIG_DIR/certificates" file
+    [[ $H_ROUTE_MODE == https && $H_CERT =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,39}$ ]] || return 1
+    file="$dir/$H_CERT.pem"
+    # Root-provisioned PEM only. The HTTP process never reads or uploads keys.
+    [[ -d $dir && ! -L $dir && -f $file && ! -L $file ]] &&
+        [[ $(stat -c %u "$dir") == 0 && $(stat -c %a "$dir") == 700 &&
+           $(stat -c %u "$file") == 0 && $(stat -c %a "$file") == 600 ]] || {
+        gtm_error "Provision root-owned mode-600 PEM in mode-700 directory: $file"; return 1;
+    }
+    printf '%s' "$file"
+}
+
+gtm_haproxy_frontend() {
+    local rule host path target index=0 cert
+    local -a rules=()
+    printf 'frontend entrance\n    bind %s' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")"
+    if [[ $H_ROUTE_MODE == https ]]; then
+        # Offline preview only prints the reference. Native preflight checks PEM ownership.
+        cert="$GTM_CONFIG_DIR/certificates/$H_CERT.pem"
+        printf ' ssl crt %s ssl-min-ver TLSv1.2 alpn http/1.1' "$cert"
+    fi
+    printf '\n    maxconn %d\n' "$((10#$H_MAXCONN))"
+    if [[ $H_ROUTE_MODE == sni ]]; then
+        printf '    tcp-request inspect-delay 5s\n    tcp-request content accept if { req.ssl_hello_type 1 }\n'
+    fi
+    if [[ $H_ROUTES != - ]]; then
+        IFS=, read -r -a rules <<< "$H_ROUTES"
+        for rule in "${rules[@]}"; do
+            ((index+=1)); IFS='~' read -r host path target <<< "$rule"
+            if [[ $H_ROUTE_MODE == sni ]]; then printf '    use_backend route%d if { req.ssl_sni -i %s }\n' "$index" "$host"
+            else
+                printf '    use_backend route%d if { hdr(host),lower,field(1,:) -m str %s }' "$index" "$host"
+                [[ $path == - ]] || printf ' { path_beg %s }' "$path"
+                printf '\n'
+            fi
+        done
+    fi
+    printf '    default_backend destinations\n'
+}
+
+gtm_haproxy_route_backends() {
+    local rule host path target index=0
+    local -a rules=()
+    [[ $H_ROUTES != - ]] || return 0
+    IFS=, read -r -a rules <<< "$H_ROUTES"
+    for rule in "${rules[@]}"; do
+        ((index+=1)); IFS='~' read -r host path target <<< "$rule"
+        printf 'backend route%d\n' "$index"
+        gtm_haproxy_servers "$target" || return 1
+    done
+}
+
 # BEGIN MODULE: haproxy
 # HAProxy TCP adapter. All knobs have bounded values; no raw config snippets.
 gtm_haproxy_defaults() {
@@ -1457,6 +1540,8 @@ gtm_haproxy_defaults() {
     H_CHECK_INTERVAL=3; H_CHECK_TIMEOUT=5; H_CHECK_FALL=3; H_CHECK_RISE=2; H_CHECK_PORT=0
     H_SLOWSTART=0; H_PROXY=off; H_LOG=connections
     H_CHECK_MODE=tcp; H_CHECK_PATH=/health; H_CHECK_HOST=localhost; H_CHECK_STATUS=200
+    H_STICK=off; H_STICK_SIZE=16384; H_STICK_EXPIRE=1800
+    gtm_routing_defaults
 }
 
 gtm_haproxy_values_validate() {
@@ -1469,7 +1554,8 @@ gtm_haproxy_values_validate() {
         [[ $H_CHECK_MODE =~ ^(tcp|http)$ && $H_CHECK_PATH =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ &&
             $H_CHECK_HOST =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] &&
         gtm_uint "$H_CHECK_STATUS" 200 599 &&
-        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); }
+        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); } &&
+        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 100000 && gtm_uint "$H_STICK_EXPIRE" 30 86400
 }
 
 gtm_haproxy_options_validate() {
@@ -1479,7 +1565,7 @@ gtm_haproxy_options_validate() {
     [[ -n $options && $options != ';'* && $options != *';' && $options != *';;'* ]] || return 1
     gtm_haproxy_defaults
     IFS=';' read -r -a pairs <<< "$options"
-    ((${#pairs[@]} <= 17)) || return 1
+    ((${#pairs[@]} <= 20)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
@@ -1492,7 +1578,8 @@ gtm_haproxy_options_validate() {
             check_fall) H_CHECK_FALL=$value;; check_rise) H_CHECK_RISE=$value;; check_port) H_CHECK_PORT=$value;;
             slowstart) H_SLOWSTART=$value;; proxy) H_PROXY=$value;; log) H_LOG=$value;;
             check_mode) H_CHECK_MODE=$value;; check_path) H_CHECK_PATH=$value;;
-            check_host) H_CHECK_HOST=$value;; check_status) H_CHECK_STATUS=$value;; *) return 1;;
+            check_host) H_CHECK_HOST=$value;; check_status) H_CHECK_STATUS=$value;;
+            stick) H_STICK=$value;; stick_size) H_STICK_SIZE=$value;; stick_expire) H_STICK_EXPIRE=$value;; *) return 1;;
         esac
     done
     gtm_haproxy_values_validate
@@ -1508,38 +1595,52 @@ gtm_haproxy_options() {
     if [[ $H_CHECK_MODE != tcp || $H_CHECK_PATH != /health || $H_CHECK_HOST != localhost || $H_CHECK_STATUS != 200 ]]; then
         printf ';check_mode=%s;check_path=%s;check_host=%s;check_status=%d' "$H_CHECK_MODE" "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
     fi
+    if [[ $H_STICK != off || $H_STICK_SIZE != 16384 || $H_STICK_EXPIRE != 1800 ]]; then
+        printf ';stick=%s;stick_size=%d;stick_expire=%d' "$H_STICK" "$((10#$H_STICK_SIZE))" "$((10#$H_STICK_EXPIRE))"
+    fi
 }
 
 gtm_haproxy_socket() { gtm_id "$1" && printf '%s/haproxy/%s.sock' "$GTM_RUN_DIR" "$1"; }
 
 gtm_haproxy_render() {
-    local target index=0 algorithm=$R_STRATEGY
-    local -a targets=()
+    local algorithm=$R_STRATEGY
     gtm_haproxy_values_validate || return 1
     case $algorithm in single|failover) algorithm=roundrobin;; esac
     printf 'global\n'
     [[ $H_LOG == off ]] || printf '    log stdout format raw local0\n'
     printf '    maxconn %d\n    user nobody\n    group nogroup\n' "$((10#$H_MAXCONN))"
     printf '    stats socket %s mode 600 level user\n    stats timeout 3s\n' "$(gtm_haproxy_socket "$R_ID")"
-    printf 'defaults\n    mode tcp\n'
-    [[ $H_LOG == off ]] || printf '    log global\n    option tcplog\n'
+    printf 'defaults\n    mode %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf http || printf tcp)"
+    [[ $H_LOG == off ]] || printf '    log global\n    option %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf httplog || printf tcplog)"
     [[ $H_LOG != errors ]] || printf '    option dontlog-normal\n'
     printf '    option clitcpka\n    option srvtcpka\n    retries 3\n    option redispatch\n'
     printf '    timeout connect %ds\n    timeout client %ds\n    timeout server %ds\n    timeout queue %ds\n    timeout check %ds\n' "$((10#$H_CONNECT))" "$((10#$H_IDLE))" "$((10#$H_IDLE))" "$((10#$H_QUEUE))" "$((10#$H_CHECK_TIMEOUT))"
-    printf 'frontend entrance\n    bind %s\n    maxconn %d\n    default_backend destinations\nbackend destinations\n    balance %s\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")" "$((10#$H_MAXCONN))" "$algorithm"
+    gtm_haproxy_frontend || return 1
+    printf 'backend destinations\n    balance %s\n' "$algorithm"
     [[ $algorithm != source ]] || printf '    hash-type consistent\n'
+    gtm_haproxy_servers || return 1
+    gtm_haproxy_route_backends
+}
+
+gtm_haproxy_servers() {
+    local selected=${1:-0} target index=0
+    local -a targets=()
+    if [[ $H_STICK == source && $selected == 0 && $R_TARGETS == *,* ]]; then
+        printf '    stick-table type ipv6 size %d expire %ds\n    stick on src\n' "$((10#$H_STICK_SIZE))" "$((10#$H_STICK_EXPIRE))"
+    fi
     if [[ $H_CHECK_MODE == http ]]; then
         printf '    option httpchk\n    http-check send meth GET uri %s ver HTTP/1.1 hdr Host %s\n    http-check expect status %d\n' "$H_CHECK_PATH" "$H_CHECK_HOST" "$((10#$H_CHECK_STATUS))"
     fi
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; ((index+=1))
+        ((selected==0 || index==10#$selected)) || continue
         printf '    server target%d %s weight %d check inter %ds fall %d rise %d' "$index" "$(gtm_address "$EP_IP" "$EP_PORT")" "$EP_WEIGHT" "$((10#$H_CHECK_INTERVAL))" "$((10#$H_CHECK_FALL))" "$((10#$H_CHECK_RISE))"
         ((10#$H_CHECK_PORT == 0)) || printf ' port %d' "$((10#$H_CHECK_PORT))"
         ((10#$H_SERVER_MAXCONN == 0)) || printf ' maxconn %d' "$((10#$H_SERVER_MAXCONN))"
         ((10#$H_SLOWSTART == 0)) || printf ' slowstart %ds' "$((10#$H_SLOWSTART))"
         case $H_PROXY in v1) printf ' send-proxy';; v2) printf ' send-proxy-v2';; esac
-        [[ $R_STRATEGY != failover || $index -le 1 ]] || printf ' backup'
+        [[ $R_STRATEGY != failover || $index -le 1 || $selected != 0 ]] || printf ' backup'
         printf '\n'
     done
 }
@@ -1638,6 +1739,7 @@ gtm_haproxy_settings() {
         gtm_option 6 'PROXY protocol / logs'
         gtm_option 7 'Server status'
         gtm_option 8 'Save & apply'
+        gtm_option 9 'Remember client IP' "$H_STICK"
         gtm_option 0 Cancel
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -1667,12 +1769,16 @@ gtm_haproxy_settings() {
                 gtm_choose Logs "$H_LOG" Connections connections 'Errors only' errors Off off || continue
                 H_LOG=$GTM_REPLY;;
             7) (gtm_haproxy_status "$id"); gtm_pause;;
+            9)
+                gtm_choose 'Client affinity' "$H_STICK" Off off 'Remember source IP (memory)' source || continue
+                H_STICK=$GTM_REPLY
+                [[ $H_STICK == off ]] || { gtm_default 'Maximum stored IPs [1024-100000]' H_STICK_SIZE "$H_STICK_SIZE" && gtm_default 'Idle expiry [30-86400s]' H_STICK_EXPIRE "$H_STICK_EXPIRE"; } || return;;
             8) break;; 0) return;; *) continue;;
         esac
     done
     options=$(gtm_haproxy_options) || { gtm_error 'Invalid HAProxy values. Nothing was saved.'; return 1; }
     gtm_record_validate "$original" || return 1
-    R_VERSION=2; R_OPTIONS=$options; replacement=$(gtm_record_emit) || return 1
+    [[ $R_VERSION == 4 ]] || R_VERSION=2; R_OPTIONS=$options; replacement=$(gtm_record_emit) || return 1
     [[ $replacement != "$original" ]] || { printf 'No changes.\n'; return; }
     printf 'Apply TCP settings to %s. A unit/FD-limit upgrade or engine change requires restart; compatible config changes use verified worker reload.\n' "$id"
     gtm_confirm && gtm_prepare && gtm_lock || return
@@ -1687,6 +1793,8 @@ gtm_haproxy_settings() {
 gtm_realm_defaults() {
     M_TCP_TIMEOUT=5; M_UDP_TIMEOUT=30; M_KEEPALIVE=15; M_PROBES=3
     M_SEND_PROXY=false; M_PROXY_VERSION=2; M_ACCEPT_PROXY=false; M_ACCEPT_TIMEOUT=5; M_LOG=warn
+    M_SEND_MPTCP=false; M_ACCEPT_MPTCP=false; M_IPV6_ONLY=false
+    M_LISTEN_TRANSPORT=plain; M_REMOTE_TRANSPORT=plain; M_WS_HOST=localhost; M_WS_PATH=/
 }
 gtm_realm_options_validate() {
     local input=$1 pair key value
@@ -1695,7 +1803,7 @@ gtm_realm_options_validate() {
     gtm_realm_defaults
     [[ -n $input && $input != ';'* && $input != *';' && $input != *';;'* ]] || return 1
     IFS=';' read -r -a pairs <<< "$input"
-    ((${#pairs[@]}<=9)) || return 1
+    ((${#pairs[@]}<=16)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
@@ -1710,9 +1818,88 @@ gtm_realm_options_validate() {
             accept_proxy) [[ $value == true || $value == false ]] || return 1; M_ACCEPT_PROXY=$value;;
             accept_proxy_timeout) gtm_uint "$value" 1 300 || return 1; M_ACCEPT_TIMEOUT=$value;;
             log) [[ $value =~ ^(off|error|warn|info|debug|trace)$ ]] || return 1; M_LOG=$value;;
+            send_mptcp|accept_mptcp|ipv6_only)
+                [[ $value == true || $value == false ]] || return 1
+                case $key in send_mptcp) M_SEND_MPTCP=$value;; accept_mptcp) M_ACCEPT_MPTCP=$value;; ipv6_only) M_IPV6_ONLY=$value;; esac;;
+            listen_transport|remote_transport)
+                [[ $value == plain || $value == ws ]] || return 1
+                if [[ $key == listen_transport ]]; then M_LISTEN_TRANSPORT=$value; else M_REMOTE_TRANSPORT=$value; fi;;
+            ws_host) [[ $value =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] || return 1; M_WS_HOST=$value;;
+            ws_path) [[ $value =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ ]] || return 1; M_WS_PATH=$value;;
             *) return 1;;
         esac
     done
+}
+
+gtm_realm_profile_validate() {
+    [[ $M_IPV6_ONLY != true || $R_BIND == *:* ]] || return 1
+    [[ $R_PROTO != udp || ( $M_SEND_MPTCP == false && $M_ACCEPT_MPTCP == false ) ]] || return 1
+    [[ $R_PROTO == tcp || ( $M_LISTEN_TRANSPORT == plain && $M_REMOTE_TRANSPORT == plain ) ]] || return 1
+}
+
+gtm_realm_profile_preflight() {
+    local version
+    if [[ $M_SEND_MPTCP == true || $M_ACCEPT_MPTCP == true || $M_IPV6_ONLY == true || $M_LISTEN_TRANSPORT != plain || $M_REMOTE_TRANSPORT != plain ]]; then
+        version=$(realm --version) || return 1
+        [[ $version =~ ^[Rr]ealm[[:space:]]+2\.9\.6([[:space:]]|$) ]] || { gtm_error 'Extended Realm profiles require the pinned Realm 2.9.6 binary.'; return 1; }
+        if [[ $M_LISTEN_TRANSPORT != plain || $M_REMOTE_TRANSPORT != plain ]]; then
+            [[ $version == *'[transport]'* ]] || { gtm_error 'This Realm binary was built without native transport support.'; return 1; }
+        fi
+    fi
+    if [[ $M_SEND_MPTCP == true || $M_ACCEPT_MPTCP == true ]]; then
+        [[ $(sysctl -n net.mptcp.enabled 2>/dev/null) == 1 ]] || { gtm_error 'MPTCP requires a compatible kernel with net.mptcp.enabled=1; no sysctl was changed.'; return 1; }
+    fi
+}
+
+# BEGIN MODULE: metadata
+# Optional display names. Callers hold the existing manager lock for all writes.
+# Technical unit names, peer keys and tunnel addresses never change.
+gtm_metadata_id() { [[ $1 =~ ^(gre-tun-([1-9][0-9]{0,2})|gtm-(frp|rathole)-(entrance|destination)-[a-zA-Z0-9_-]{1,32})$ ]]; }
+gtm_metadata_load() {
+    local file="$GTM_CONFIG_DIR/resource-names.tsv" line id fingerprint name extra
+    local -A seen=()
+    GTM_METADATA=()
+    [[ -e $file || -L $file ]] || return 0
+    [[ -f $file && ! -L $file && $(stat -c %s "$file") -le 131072 ]] || return 1
+    while IFS= read -r line || [[ -n $line ]]; do
+        extra=${line//[^$'\t']/}; ((${#extra}==2)) || return 1
+        IFS=$'\t' read -r id fingerprint name <<< "$line"
+        gtm_metadata_id "$id" && [[ $fingerprint =~ ^[a-f0-9]{64}$ ]] && gtm_name "$name" && [[ ! ${seen[$id]+set} ]] || return 1
+        seen[$id]=1; GTM_METADATA+=("$line")
+        ((${#GTM_METADATA[@]}<=512)) || return 1
+    done < "$file"
+}
+gtm_metadata_save() {
+    local file="$GTM_CONFIG_DIR/resource-names.tsv" tmp
+    tmp=$(mktemp "$GTM_CONFIG_DIR/names.XXXXXX") || return 1
+    if ((${#GTM_METADATA[@]})); then printf '%s\n' "${GTM_METADATA[@]}" > "$tmp" || { rm -f "$tmp"; return 1; }; fi
+    if [[ -f $file ]]; then
+        [[ ! -L $file.bak && ( ! -e $file.bak || -f $file.bak ) ]] && cp -p "$file" "$file.bak" || { rm -f "$tmp"; return 1; }
+    fi
+    chmod 600 "$tmp" && mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+}
+gtm_metadata_forget() {
+    local id=$1 line
+    local -a kept=()
+    gtm_metadata_load || return 1
+    for line in "${GTM_METADATA[@]}"; do [[ ${line%%$'\t'*} == "$id" ]] || kept+=("$line"); done
+    ((${#kept[@]}!=${#GTM_METADATA[@]})) || return 0
+    GTM_METADATA=("${kept[@]}"); gtm_metadata_save
+}
+gtm_metadata_rename() {
+    local id=$1 revision=$2 name=$3 file="$GTM_SERVICE_DIR/$1.service" unit_hash row_hash='-' line existing='' hash
+    local -a kept=()
+    gtm_metadata_id "$id" && [[ $revision =~ ^[a-f0-9]{64}:([a-f0-9]{64}|-)$ ]] && { [[ $name == - ]] || gtm_name "$name"; } || return 1
+    [[ -f $file && ! -L $file ]] && gtm_metadata_load || return 1
+    unit_hash=$(sha256sum "$file") || return 1; unit_hash=${unit_hash%% *}
+    for line in "${GTM_METADATA[@]}"; do
+        if [[ ${line%%$'\t'*} == "$id" ]]; then existing=$line; else kept+=("$line"); fi
+    done
+    if [[ -n $existing ]]; then hash=$(printf '%s' "$existing" | sha256sum) || return 1; row_hash=${hash%% *}; fi
+    [[ $revision == "$unit_hash:$row_hash" ]] || { gtm_error 'Display name changed; refresh and try again.'; return 1; }
+    [[ $name == - ]] || kept+=("$id"$'\t'"$unit_hash"$'\t'"$name")
+    ((${#kept[@]}<=512)) || return 1
+    GTM_METADATA=("${kept[@]}"); gtm_metadata_save
 }
 
 # BEGIN MODULE: state
@@ -1723,12 +1910,14 @@ gtm_record_validate() {
     local -A seen_targets=()
     [[ $line != *$'\r'* && $line != *$'\n'* ]] || return 1
     fields=${line//[^$'\t']/}
-    (( ${#fields} == 11 || ${#fields} == 12 )) || return 1
-    IFS=$'\t' read -r R_ID R_NAME R_ENGINE R_PROTO R_BIND R_PORT R_STRATEGY R_ENABLED R_SNAT R_IFACE R_TARGETS R_VERSION R_OPTIONS <<< "$line"
-    gtm_haproxy_defaults; gtm_realm_defaults
+    (( ${#fields} == 11 || ${#fields} == 12 || ${#fields} == 13 )) || return 1
+    IFS=$'\t' read -r R_ID R_NAME R_ENGINE R_PROTO R_BIND R_PORT R_STRATEGY R_ENABLED R_SNAT R_IFACE R_TARGETS R_VERSION R_OPTIONS R_ROUTING <<< "$line"
+    gtm_haproxy_defaults; gtm_realm_defaults; gtm_routing_defaults
     if (( ${#fields} == 11 )); then [[ $R_VERSION == 1 ]] || return 1
-    elif [[ $R_VERSION == 2 && $R_ENGINE == haproxy ]]; then gtm_haproxy_options_validate "$R_OPTIONS" || return 1
-    elif [[ $R_VERSION == 3 && $R_ENGINE == realm ]]; then gtm_realm_options_validate "$R_OPTIONS" || return 1
+    elif (( ${#fields} == 13 )) && [[ $R_VERSION == 4 && $R_ENGINE == haproxy ]]; then
+        gtm_haproxy_options_validate "$R_OPTIONS" && gtm_routing_validate "$R_ROUTING" || return 1
+    elif (( ${#fields} == 12 )) && [[ $R_VERSION == 2 && $R_ENGINE == haproxy ]]; then gtm_haproxy_options_validate "$R_OPTIONS" || return 1
+    elif (( ${#fields} == 12 )) && [[ $R_VERSION == 3 && $R_ENGINE == realm ]]; then gtm_realm_options_validate "$R_OPTIONS" || return 1
     else return 1; fi
     gtm_id "$R_ID" && gtm_name "$R_NAME" && gtm_ip "$R_BIND" && gtm_port "$R_PORT" && gtm_iface "$R_IFACE" || return 1
     [[ $R_ENABLED =~ ^[01]$ && $R_SNAT =~ ^(masquerade|preserve)$ ]] || return 1
@@ -1758,8 +1947,9 @@ gtm_record_validate() {
     done
     [[ $R_STRATEGY != single || $count == 1 ]] || return 1
     case $R_ENGINE in
-        iptables|nftables) [[ $R_STRATEGY == single || $R_STRATEGY == random ]] || return 1 ;;
-        realm) [[ $R_STRATEGY == single || $R_STRATEGY == roundrobin || $R_STRATEGY == source ]] || return 1 ;;
+        iptables) [[ $R_STRATEGY == single || $R_STRATEGY == random ]] || return 1 ;;
+        nftables) [[ $R_STRATEGY =~ ^(single|random|roundrobin|source)$ ]] || return 1 ;;
+        realm) [[ $R_STRATEGY == single || $R_STRATEGY == roundrobin || $R_STRATEGY == source ]] && gtm_realm_profile_validate || return 1 ;;
         haproxy) [[ $R_PROTO == tcp && $R_STRATEGY =~ ^(single|roundrobin|leastconn|source|failover)$ ]] || return 1 ;;
     esac
 }
@@ -1816,12 +2006,13 @@ gtm_new_id() {
 
 gtm_write_records() {
     local dest=$1
-    { printf '# Traffic Manager records v1/v2/v3\n'; printf '%s\n' "${GTM_RECORDS[@]}"; } > "$dest"
+    { printf '# Traffic Manager records v1/v2/v3/v4\n'; printf '%s\n' "${GTM_RECORDS[@]}"; } > "$dest"
 }
 
 gtm_record_emit() {
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$R_ID" "$R_NAME" "$R_ENGINE" "$R_PROTO" "$R_BIND" "$R_PORT" "$R_STRATEGY" "$R_ENABLED" "$R_SNAT" "$R_IFACE" "$R_TARGETS" "$R_VERSION"
     [[ $R_VERSION == 1 ]] || printf '\t%s' "$R_OPTIONS"
+    [[ $R_VERSION != 4 ]] || printf '\t%s' "$R_ROUTING"
     return 0
 }
 
@@ -2022,7 +2213,12 @@ gtm_nft_render() {
                 gtm_endpoint "${targets[0]}" || return 1
                 printf 'dnat %s to %s' "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
             else
-                printf 'numgen random mod %d vmap { ' "$total"; offset=0; index=0
+                case $R_STRATEGY in
+                    source) printf 'jhash %s saddr mod %d seed 0 vmap { ' "$family" "$total";;
+                    roundrobin) printf 'numgen inc mod %d vmap { ' "$total";;
+                    *) printf 'numgen random mod %d vmap { ' "$total";;
+                esac
+                offset=0; index=0
                 for target in "${targets[@]}"; do
                     gtm_endpoint "$target" || return 1; (( index > 0 )) && printf ', '
                     end=$((offset+EP_WEIGHT-1)); if (( offset == end )); then printf '%d' "$offset"; else printf '%d-%d' "$offset" "$end"; fi
@@ -2085,7 +2281,7 @@ gtm_install_component() {
             if command -v realm >/dev/null 2>&1; then
                 local installed_version
                 installed_version=$(realm --version 2>/dev/null) || { gtm_error 'The installed realm command is not a supported network relay. No binary was replaced.'; return 1; }
-                [[ $installed_version =~ ^realm[[:space:]]+2\. ]] || { gtm_error 'Expected Realm relay 2.x; check the existing realm command before continuing.'; return 1; }
+                [[ $installed_version =~ ^[Rr]ealm[[:space:]]+2\. ]] || { gtm_error 'Expected Realm relay 2.x; check the existing realm command before continuing.'; return 1; }
                 return 0
             fi ;;
         frp) command -v frpc >/dev/null 2>&1 && command -v frps >/dev/null 2>&1 && return 0 ;;
@@ -2158,7 +2354,12 @@ gtm_realm_render() {
     if [[ $R_VERSION == 3 ]]; then
         printf 'tcp_keepalive_probe = %d\nsend_proxy = %s\nsend_proxy_version = %d\naccept_proxy = %s\naccept_proxy_timeout = %d\n' "$((10#$M_PROBES))" "$M_SEND_PROXY" "$M_PROXY_VERSION" "$M_ACCEPT_PROXY" "$((10#$M_ACCEPT_TIMEOUT))"
     fi
+    [[ $M_SEND_MPTCP != true ]] || printf 'send_mptcp = true\n'
+    [[ $M_ACCEPT_MPTCP != true ]] || printf 'accept_mptcp = true\n'
+    [[ $M_IPV6_ONLY != true ]] || printf 'ipv6_only = true\n'
     printf '\n[[endpoints]]\nlisten = "%s"\n' "$(gtm_address "$R_BIND" "$((10#$R_PORT))")"
+    [[ $M_LISTEN_TRANSPORT != ws ]] || printf 'listen_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
+    [[ $M_REMOTE_TRANSPORT != ws ]] || printf 'remote_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; remote=$(gtm_address "$EP_IP" "$EP_PORT")
         if (( index == 0 )); then printf 'remote = "%s"\n' "$remote"
@@ -2718,8 +2919,8 @@ gtm_preflight_checks() {
         case $R_ENGINE in
             iptables) if [[ $R_BIND == *:* ]]; then has6=1; else has4=1; fi ;;
             nftables) hasnft=1 ;;
-            haproxy) gtm_need haproxy && gtm_need socat && gtm_need timeout && gtm_haproxy_render > "$file" && haproxy -c -f "$file" || return 1 ;;
-            realm) gtm_need realm && gtm_realm_render > "$file" || return 1 ;;
+            haproxy) [[ $H_ROUTE_MODE != https ]] || gtm_haproxy_certificate >/dev/null || return 1; gtm_need haproxy && gtm_need socat && gtm_need timeout && gtm_haproxy_render > "$file" && haproxy -c -f "$file" || return 1 ;;
+            realm) gtm_need realm && gtm_realm_profile_preflight && gtm_realm_render > "$file" || return 1 ;;
         esac
     done
     for family in 4 6; do
@@ -2751,7 +2952,7 @@ gtm_inspect_state() {
     local file=${1:-$GTM_STATE}
     [[ -f $file && -r $file ]] || { gtm_error "State file is missing or unreadable: $file"; return 1; }
     gtm_load_records "$file" || return 1
-    printf 'Valid state: %d connection(s), supported record versions v1/v2/v3.\n' "${#GTM_RECORDS[@]}"
+    printf 'Valid state: %d connection(s), supported record versions v1/v2/v3/v4.\n' "${#GTM_RECORDS[@]}"
 }
 
 # Offline deterministic preview: no root, package installs, temp files or probes.
@@ -2962,6 +3163,7 @@ gtm_form_targets() {
         case $W_ENGINE in
             haproxy) gtm_choose 'Load balancing' "$W_STRATEGY" 'Round robin' roundrobin 'Least connections' leastconn 'Same client, same server' source 'Primary / backup' failover || return 1; W_STRATEGY=$GTM_REPLY;;
             realm) gtm_choose 'Load balancing' "$W_STRATEGY" 'Round robin' roundrobin 'Same client, same server' source || return 1; W_STRATEGY=$GTM_REPLY;;
+            nftables) gtm_choose 'Load balancing' "$W_STRATEGY" 'Weighted random' random 'Round robin (new flows)' roundrobin 'Same source IP, same server' source || return 1; W_STRATEGY=$GTM_REPLY;;
             *) W_STRATEGY=random;;
         esac
     else W_STRATEGY=single; fi
@@ -3077,6 +3279,7 @@ gtm_form_rows() {
         local row
         row=$(printf 'F000000\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$name" "$W_ENGINE" "$W_PROTO" "$W_BIND" "$port" "$W_STRATEGY" "$W_ENABLED" "$W_SNAT" "$W_IFACE" "$targets" "$W_VERSION")
         [[ $W_VERSION == 1 ]] || row+=$'\t'"$W_OPTIONS"
+        [[ $W_VERSION != 4 ]] || row+=$'\t'"$W_ROUTING"
         gtm_record_validate "$row" || { gtm_error 'Check the address family, ports and destinations.'; return 1; }
         GTM_FORM_ROWS+=("$row")
     done
@@ -3114,7 +3317,7 @@ gtm_form_save() {
 
 gtm_new_forward() {
     local W_ENGINE=${1:-iptables} W_EDIT=${2:-} W_MODE=${3:-single} W_TITLE line target choice result
-    local W_NAME='' W_BIND='' W_TARGETS='' W_PROTO=tcp W_STRATEGY=single W_ENABLED=1 W_SNAT=masquerade W_IFACE=any W_VERSION=1 W_OPTIONS='' W_MAP=one
+    local W_NAME='' W_BIND='' W_TARGETS='' W_PROTO=tcp W_STRATEGY=single W_ENABLED=1 W_SNAT=masquerade W_IFACE=any W_VERSION=1 W_OPTIONS='' W_ROUTING='' W_MAP=one
     local W_ORIGINAL='' W_OLD_BIND='' W_OLD_PORT='' W_OLD_PROTO=''
     local W_REMOTE_IP W_REMOTE_PORT W_REMOTE_WEIGHT
     local -a W_PORTS=() review_targets=()
@@ -3125,7 +3328,7 @@ gtm_new_forward() {
             gtm_record_validate "$line" || return 1
             [[ $R_ID == "$W_EDIT" ]] || continue
             W_ORIGINAL=$line; W_NAME=$R_NAME; W_BIND=$R_BIND; W_PORTS=("$R_PORT"); W_TARGETS=$R_TARGETS
-            W_PROTO=$R_PROTO; W_STRATEGY=$R_STRATEGY; W_ENABLED=$R_ENABLED; W_SNAT=$R_SNAT; W_IFACE=$R_IFACE; W_VERSION=$R_VERSION; W_OPTIONS=$R_OPTIONS
+            W_PROTO=$R_PROTO; W_STRATEGY=$R_STRATEGY; W_ENABLED=$R_ENABLED; W_SNAT=$R_SNAT; W_IFACE=$R_IFACE; W_VERSION=$R_VERSION; W_OPTIONS=$R_OPTIONS; W_ROUTING=$R_ROUTING
             W_OLD_BIND=$R_BIND; W_OLD_PORT=$R_PORT; W_OLD_PROTO=$R_PROTO
             [[ $R_TARGETS != *,* ]] || W_MODE=balance
         done
@@ -3687,6 +3890,7 @@ gtm_link_delete() {
     fi
     systemctl disable --now "gre-tun-$tid" || return 1
     rm -f "$GTM_SERVICE_DIR/gre-tun-$tid.service" "$GTM_SERVICE_DIR/gre-keepalive-$tid.service" || return 1
+    gtm_metadata_forget "gre-tun-$tid" || return 1
     systemctl daemon-reload
 }
 
@@ -3792,7 +3996,7 @@ gtm_reverse_delete() {
     local id=$1 gateway
     [[ $id =~ ^gtm-(frp|rathole)-(entrance|destination)-[a-zA-Z0-9_-]{1,32}$ ]] || return 1
     [[ -f $GTM_SERVICE_DIR/$id.service && -f $GTM_CONFIG_DIR/$id.toml ]] || return 1
-    if [[ $id == gtm-rathole-* ]]; then gtm_rathole_cleanup "$id"; return $?; fi
+    if [[ $id == gtm-rathole-* ]]; then gtm_rathole_cleanup "$id" && gtm_metadata_forget "$id"; return $?; fi
     systemctl disable --now "$id" || return 1
     if [[ $id == gtm-frp-entrance-* ]]; then
         gateway="gtm-gateway-${id#gtm-frp-entrance-}"
@@ -3801,7 +4005,7 @@ gtm_reverse_delete() {
             rm -f "$GTM_SERVICE_DIR/$gateway.service" "$GTM_CONFIG_DIR/$gateway.conf" || return 1
         fi
     fi
-    rm -f "$GTM_SERVICE_DIR/$id.service" "$GTM_CONFIG_DIR/$id.toml" && systemctl daemon-reload
+    rm -f "$GTM_SERVICE_DIR/$id.service" "$GTM_CONFIG_DIR/$id.toml" && gtm_metadata_forget "$id" && systemctl daemon-reload
 }
 
 # BEGIN MODULE: pair_api
@@ -4001,6 +4205,11 @@ gtm_api() {
     local operation=${1:-} component
     shift || return 2
     case $operation in
+        resource-rename) (($#==2)) || return 2
+            local display_name
+            IFS= read -r display_name || return 2
+            gtm_prepare && gtm_lock || return 2
+            gtm_metadata_rename "$1" "$2" "$display_name"; local result=$?; gtm_unlock; return "$result";;
         pair-check-gre|pair-apply-gre|pair-check-frp|pair-apply-frp|pair-verify|pair-delete) gtm_pair_api "$operation" "$@";;
         state) (($#==0)) && gtm_load_records && { ((${#GTM_RECORDS[@]}==0)) || printf '%s\n' "${GTM_RECORDS[@]}"; };;
         create) (($#==0)) && gtm_api_rows;;

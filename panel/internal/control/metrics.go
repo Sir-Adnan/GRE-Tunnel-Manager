@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,23 +19,31 @@ import (
 const metricsTable = "gtm_panel_metrics"
 
 type MetricsSettings struct {
-	Enabled  bool     `json:"enabled"`
-	Interval int      `json:"interval"`
-	IDs      []string `json:"ids"`
+	Enabled        bool     `json:"enabled"`
+	Interval       int      `json:"interval"`
+	IDs            []string `json:"ids"`
+	RetentionHours int      `json:"retention_hours,omitempty"`
 }
 type Traffic struct {
-	Received     uint64    `json:"received"`
-	Sent         uint64    `json:"sent"`
-	LastReceived uint64    `json:"last_received"`
-	LastSent     uint64    `json:"last_sent"`
-	Updated      time.Time `json:"updated"`
-	Source       string    `json:"source"`
+	Received         uint64    `json:"received"`
+	Sent             uint64    `json:"sent"`
+	LastReceived     uint64    `json:"last_received"`
+	LastSent         uint64    `json:"last_sent"`
+	Updated          time.Time `json:"updated"`
+	Source           string    `json:"source"`
+	CycleStart       time.Time `json:"cycle_start,omitempty"`
+	BaselineReceived uint64    `json:"baseline_received,omitempty"`
+	BaselineSent     uint64    `json:"baseline_sent,omitempty"`
 }
 type MetricsView struct {
-	Settings MetricsSettings    `json:"settings"`
-	Counters map[string]Traffic `json:"counters"`
-	Since    time.Time          `json:"since"`
-	Error    string             `json:"error,omitempty"`
+	Settings MetricsSettings           `json:"settings"`
+	Counters map[string]Traffic        `json:"counters"`
+	Since    time.Time                 `json:"since"`
+	Error    string                    `json:"error,omitempty"`
+	Revision uint64                    `json:"revision"`
+	Policies map[string]TrafficPolicy  `json:"policies"`
+	History  map[string][]TrafficPoint `json:"history,omitempty"`
+	Cycles   map[string][]TrafficCycle `json:"cycles,omitempty"`
 }
 type Metrics struct {
 	mu        sync.Mutex
@@ -47,7 +56,18 @@ type Metrics struct {
 
 func NewMetrics(r Runner, path string) (*Metrics, error) {
 	m := &Metrics{Runner: r, Path: path, view: MetricsView{Settings: MetricsSettings{Interval: 60, IDs: []string{}}, Counters: map[string]Traffic{}, Since: time.Now().UTC()}}
-	data, e := os.ReadFile(path)
+	if info, e := os.Lstat(path); e == nil && !info.Mode().IsRegular() {
+		return nil, errors.New("traffic ledger must be a regular file")
+	}
+	f, e := os.Open(path)
+	var data []byte
+	if e == nil {
+		data, e = io.ReadAll(io.LimitReader(f, 16*1024*1024+1))
+		_ = f.Close()
+		if len(data) > 16*1024*1024 {
+			return nil, errors.New("traffic ledger exceeds size limit")
+		}
+	}
 	if e == nil {
 		if e = json.Unmarshal(data, &m.view); e != nil {
 			return nil, e
@@ -61,13 +81,16 @@ func NewMetrics(r Runner, path string) (*Metrics, error) {
 	} else if !os.IsNotExist(e) {
 		return nil, e
 	}
+	if e = m.validateLedger(); e != nil {
+		return nil, e
+	}
 	// Kernel counters do not survive every reboot/reload. Establish a new baseline
 	// on first reconciliation; lifetime totals are never replaced by raw samples.
 	m.nftActive = m.view.Settings.Enabled
 	return m, nil
 }
 func metricsValid(s MetricsSettings) error {
-	if s.Interval < 15 || s.Interval > 3600 || len(s.IDs) > 128 {
+	if s.Interval < 15 || s.Interval > 3600 || len(s.IDs) > 128 || s.RetentionHours < 0 || s.RetentionHours > 720 {
 		return errors.New("metrics interval must be 15–3600 seconds, with at most 128 selections")
 	}
 	return nil
@@ -75,13 +98,9 @@ func metricsValid(s MetricsSettings) error {
 func (m *Metrics) View() MetricsView {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	v := m.view
-	v.Settings.IDs = append([]string{}, v.Settings.IDs...)
-	v.Counters = map[string]Traffic{}
-	for k, c := range m.view.Counters {
-		v.Counters[k] = c
-	}
-	return v
+	view := Metrics{view: cloneMetrics(m.view)}
+	view.trimHistory(time.Now().UTC())
+	return view.view
 }
 func (m *Metrics) save() error {
 	if e := os.MkdirAll(filepath.Dir(m.Path), 0700); e != nil {
@@ -100,7 +119,7 @@ func wanted(ids []string, id string) bool {
 	}
 	return false
 }
-func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory Inventory) (MetricsView, error) {
+func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory Inventory, expectedRevision ...uint64) (MetricsView, error) {
 	if e := metricsValid(s); e != nil {
 		return MetricsView{}, e
 	}
@@ -118,7 +137,16 @@ func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory In
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if len(expectedRevision) > 0 && expectedRevision[0] != m.view.Revision {
+		return MetricsView{}, errors.New("traffic settings changed; refresh before saving")
+	}
+	if s.Enabled {
+		if e := m.checkCapacity(s, inventory); e != nil {
+			return MetricsView{}, e
+		}
+	}
 	old := m.view.Settings
+	previous := cloneMetrics(m.view)
 	if old.Enabled {
 		if e := m.collect(ctx); e != nil {
 			if s.Enabled {
@@ -128,15 +156,19 @@ func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory In
 		m.sampleInterfaces(inventory, false)
 	}
 	m.view.Settings = s
+	m.view.Revision++
+	m.trimHistory(time.Now().UTC())
 	m.signature = ""
 	if e := m.save(); e != nil {
-		m.view.Settings = old
+		m.view = previous
 		return MetricsView{}, e
 	}
 	if e := m.reconcile(ctx, inventory); e != nil {
-		m.view.Settings = old
+		m.view = previous
 		m.signature = ""
-		_ = m.save()
+		if recovery := m.save(); recovery != nil {
+			return MetricsView{}, fmt.Errorf("%w; metrics settings recovery failed: %v", e, recovery)
+		}
 		return MetricsView{}, e
 	}
 	if s.Enabled {
@@ -145,7 +177,7 @@ func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory In
 	if e := m.save(); e != nil {
 		return MetricsView{}, e
 	}
-	return m.view, nil
+	return cloneMetrics(m.view), nil
 }
 func MetricsRules(inventory Inventory, s MetricsSettings) string {
 	var definitions, input, output, forward strings.Builder
@@ -284,15 +316,21 @@ func (m *Metrics) collect(ctx context.Context) error {
 			continue
 		}
 		id := name[:len(name)-3]
+		if !trafficID(id) {
+			continue
+		}
+		if _, ok := m.view.Counters[id]; !ok && len(m.view.Counters) >= maxTrafficResources {
+			return errors.New("traffic archive full; forget removed resources")
+		}
 		v := m.view.Counters[id]
 		sample := entry.Counter.Bytes
 		v.Source = "nftables"
 		v.Updated = now
 		if strings.HasSuffix(name, "_rx") {
-			v.Received += delta(sample, v.LastReceived)
+			v.Received = addTraffic(v.Received, delta(sample, v.LastReceived))
 			v.LastReceived = sample
 		} else {
-			v.Sent += delta(sample, v.LastSent)
+			v.Sent = addTraffic(v.Sent, delta(sample, v.LastSent))
 			v.LastSent = sample
 		}
 		m.view.Counters[id] = v
@@ -311,6 +349,10 @@ func (m *Metrics) Tick(ctx context.Context, inventory Inventory) error {
 	if !m.view.Settings.Enabled {
 		return nil
 	}
+	if e := m.checkCapacity(m.view.Settings, inventory); e != nil {
+		m.view.Error = e.Error()
+		return e
+	}
 	if e := m.collect(ctx); e != nil {
 		m.signature = ""
 	}
@@ -324,6 +366,7 @@ func (m *Metrics) Tick(ctx context.Context, inventory Inventory) error {
 	}
 	m.sampleInterfaces(inventory, false)
 	m.view.Error = ""
+	m.recordHistory(time.Now().UTC())
 	return m.save()
 }
 func (m *Metrics) sampleInterfaces(inventory Inventory, baseline bool) {
@@ -342,12 +385,15 @@ func (m *Metrics) sampleInterfaces(inventory Inventory, baseline bool) {
 			continue
 		}
 		v := m.view.Counters[r.ID]
+		if _, ok := m.view.Counters[r.ID]; !ok && len(m.view.Counters) >= maxTrafficResources {
+			continue
+		}
 		if v.Source == "" || baseline {
 			v.LastReceived = a
 			v.LastSent = b
 		}
-		v.Received += delta(a, v.LastReceived)
-		v.Sent += delta(b, v.LastSent)
+		v.Received = addTraffic(v.Received, delta(a, v.LastReceived))
+		v.Sent = addTraffic(v.Sent, delta(b, v.LastSent))
 		v.LastReceived = a
 		v.LastSent = b
 		v.Source = "interface"
