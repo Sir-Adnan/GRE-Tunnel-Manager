@@ -17,7 +17,7 @@ The normal tunnel pages and privileged write broker remain local. There is no re
 | Outbound HTTPS reports every 60–70 seconds | Reuse standard Go networking without WebSocket dependencies, queues or a database |
 | Memory-only last inventory/contact times | Avoid periodic state writes and stale persisted snapshots after restart |
 | Separate metadata and inventory revisions | Protect revocation from stale selections without making routine reporting conflict with it |
-| Per-request identity checks, including after body decoding | Enforce revocation on reused TLS connections and while a slow report is in flight |
+| Per-request identity checks, including after body decoding | Enforce revocation and certificate expiry on reused TLS connections and while a slow report is in flight |
 | Restricted Agent and inventory-only root broker | Keep public networking unprivileged and deny writes before manager execution |
 | Service-account key creation during installation | Avoid root writing/chowning identity files inside a service-writable directory |
 | Lazy-loaded Nodes UI using existing components | Preserve the palette, font, responsive shell and existing dependency footprint |
@@ -38,7 +38,7 @@ The Controller persists only bounded registry/PKI/enrollment metadata with priva
 - All **98 Python tests passed on Linux**, including the five new isolated Node installer cases and actual setup/recovery PTY tests using a native Linux binary.
 - Windows Python discovery also passed with the expected 17 Linux/PTY skips.
 - `go test ./...`, Linux `go test -race ./...` and `go vet ./...` passed.
-- New real loopback TLS tests cover multiple identities, pinned enrollment, expired/reused invitations, plaintext-secret non-persistence, foreign authorities, anonymous requests, incompatible protocol/capabilities, canonical bounded inventory, stale/degraded state, certificate overlap/renewal, revocation, state reload, concurrent enrollment, storage failure, connection interruption/retry and cancellation. A slow-body regression verifies that revocation does not wait for report upload and that the revoked report cannot commit.
+- New real loopback TLS tests cover multiple identities, pinned enrollment, expired/reused invitations, plaintext-secret non-persistence, foreign authorities, anonymous requests, incompatible protocol/capabilities, canonical bounded inventory, stale/degraded state, certificate overlap/renewal, expiry on reused TLS connections, authority lifetime caps, revocation, state reload, concurrent enrollment, storage failure, connection interruption/retry and cancellation. A slow-body regression verifies that revocation does not wait for report upload and that the revoked report cannot commit.
 - The read-only broker regression sends every write category against a nil manager and verifies rejection before execution. Browser API tests cover authenticated local inventory, optional Controller state, same-origin/CSRF enrollment and refusal of remote-node operation fields.
 - `npm ci`, frontend production build, lint, formatting, four Node tests and dependency audit passed; audit found no vulnerabilities at validation time.
 - ShellCheck passed for all modern modules, `panel-install.sh` and `node-install.sh`.

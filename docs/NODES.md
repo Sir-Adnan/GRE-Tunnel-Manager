@@ -84,7 +84,7 @@ Inventory and contact times are intentionally memory-only. Controller restart pr
 
 ## Identity lifecycle and recovery
 
-Each Agent certificate lasts 30 days. The Agent renews it automatically when less than seven days remain, while preserving its locally generated key. Two certificate serials overlap to recover a lost renewal response; revocation blocks both. The Controller renews its one-year server leaf certificate during TLS handshakes when less than 30 days remain. Its private CA lasts ten years; **CA rotation is an operator migration**, not automatic trust replacement. Keep system clocks accurate.
+Each Agent certificate lasts 30 days. The Agent renews it automatically when less than seven days remain, while preserving its locally generated key. Two certificate serials overlap to recover a lost renewal response; revocation blocks both. Certificate validity is checked on every request, including reused TLS connections; issued certificates cannot outlive their authority. The Controller renews its one-year server leaf certificate during TLS handshakes when less than 30 days remain. Its private CA lasts ten years; **CA rotation is an operator migration**, not automatic trust replacement. Keep system clocks accurate.
 
 Revocation requires the current metadata revision. It does not stop services or delete tunnel files. To re-enroll after revocation, expiration, a lost initial enrollment response or identity loss:
 

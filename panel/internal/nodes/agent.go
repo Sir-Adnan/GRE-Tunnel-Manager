@@ -284,7 +284,7 @@ func (a Agent) Run(ctx context.Context) error {
 }
 func fatal(e error) bool {
 	p, ok := e.(*Problem)
-	return ok && (p.Code == "identity_revoked" || p.Code == "identity_required" || p.Code == "incompatible_protocol" || p.Code == "incompatible_capabilities")
+	return ok && (p.Code == "identity_revoked" || p.Code == "identity_expired" || p.Code == "identity_required" || p.Code == "incompatible_protocol" || p.Code == "incompatible_capabilities")
 }
 func jitter(max time.Duration) time.Duration {
 	n, e := rand.Int(rand.Reader, big.NewInt(int64(max)))

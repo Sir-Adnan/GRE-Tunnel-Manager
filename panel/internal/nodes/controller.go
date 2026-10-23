@@ -1,6 +1,7 @@
 package nodes
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -83,10 +84,10 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	crt := r.TLS.PeerCertificates[0]
 	h.mu.Lock()
-	index := h.activeIdentity(crt.Subject.CommonName, crt.SerialNumber.String())
+	index, identityError := h.identify(crt)
 	h.mu.Unlock()
-	if index < 0 {
-		nodeError(w, 403, problem("identity_revoked", "Node identity is unknown, revoked or stopping"))
+	if identityError != nil {
+		nodeError(w, 403, identityError)
 		return
 	}
 	// Never hold the registry mutex while reading a network body. Reauthorize
@@ -117,9 +118,9 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	index = h.activeIdentity(crt.Subject.CommonName, crt.SerialNumber.String())
-	if index < 0 {
-		nodeError(w, 403, problem("identity_revoked", "Node identity is unknown, revoked or stopping"))
+	index, identityError = h.identify(crt)
+	if identityError != nil {
+		nodeError(w, 403, identityError)
 		return
 	}
 	if r.URL.Path == "/v1/rotate" {
@@ -153,6 +154,19 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache[id] = o
 	nodeReply(w, 200, map[string]any{"protocol": Protocol, "capabilities": capabilities, "interval_seconds": 60})
+}
+
+// TLS verifies certificates at handshake time. Recheck their lifetime for every
+// request too, so a reused connection cannot outlive its credential.
+func (h *Hub) identify(crt *x509.Certificate) (int, error) {
+	if h.now().Before(crt.NotBefore) || !h.now().Before(crt.NotAfter) {
+		return -1, problem("identity_expired", "Node certificate is expired or not yet valid")
+	}
+	i := h.activeIdentity(crt.Subject.CommonName, crt.SerialNumber.String())
+	if i < 0 {
+		return -1, problem("identity_revoked", "Node identity is unknown, revoked or stopping")
+	}
+	return i, nil
 }
 
 // activeIdentity requires h.mu. Certificate proof is checked by TLS and the

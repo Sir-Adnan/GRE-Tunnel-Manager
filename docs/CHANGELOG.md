@@ -4,7 +4,7 @@
 
 - Add optional Controller enrollment and outbound inventory Agents without requiring a third server or an Agent on the panel host. Keep existing tunnel operations local.
 - Define independent protocol 1, stable node IDs, closed capability negotiation, structured failures and separate metadata/inventory revisions. No remote operation endpoint is added.
-- Pin the Controller authority before one-time enrollment, issue per-node mTLS identities, renew leaf certificates, preserve identities across updates and enforce revocation on every report/renewal. Protect single-process state with file locks and atomic private writes.
+- Pin the Controller authority before one-time enrollment, issue per-node mTLS identities, renew leaf certificates, preserve identities across updates and enforce revocation and certificate lifetime on every report/renewal, including reused TLS connections. Protect single-process state with file locks and atomic private writes.
 - Add checksum/protocol-verified optional Controller/Agent installation, hidden invitation entry and a separately allowlisted read-only root broker. Browser HTTP never permits plaintext Agent transport.
 - Add a lazy-loaded bilingual Nodes page, snapshot details, distinct connectivity/service status, collection timestamps, revocation confirmation and topology/recovery help. Preserve Nettinx colors and Vazirmatn.
 - Bound enrollment, reports and retries; keep inventory memory-only with no history or queue. Document local-package installation because published v1.3.0 does not contain this source feature.

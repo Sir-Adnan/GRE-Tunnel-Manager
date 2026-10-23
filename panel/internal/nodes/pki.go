@@ -97,6 +97,9 @@ func sign(caPEM, keyPEM []byte, csrPEM []byte, id, host string) ([]byte, string,
 			t.DNSNames = []string{host}
 		}
 	}
+	if t.NotAfter.After(ca.NotAfter) {
+		t.NotAfter = ca.NotAfter
+	}
 	crt, e := certificate(t, ca, csr.PublicKey, pair.PrivateKey)
 	return crt, t.SerialNumber.String(), e
 }

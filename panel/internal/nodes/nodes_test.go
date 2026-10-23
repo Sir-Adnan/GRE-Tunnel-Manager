@@ -293,6 +293,57 @@ func TestRotationRevocationAndRestart(t *testing.T) {
 		t.Fatal("identity persistence or cache reset failed")
 	}
 }
+func TestExpiredCertificateRejectedOnReusedTLSConnection(t *testing.T) {
+	f := newFixture(t)
+	id, _ := f.enroll(t, "Expiry")
+	c := transport(client(t, id))
+	defer c.CloseIdleConnections()
+	var ack any
+	if e := post(context.Background(), c, f.s.URL+"/v1/report", sample(t), &ack); e != nil {
+		t.Fatal(e)
+	}
+	f.h.mu.Lock()
+	f.h.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
+	f.h.mu.Unlock()
+	e := post(context.Background(), c, f.s.URL+"/v1/report", sample(t), &ack)
+	if e == nil || e.(*Problem).Code != "identity_expired" || !fatal(e) {
+		t.Fatal("expired TLS identity remained authorized", e)
+	}
+}
+func TestIssuedCredentialCannotOutliveAuthority(t *testing.T) {
+	f := newFixture(t)
+	ca, _ := parseCert(f.h.state.CA)
+	pair, e := tls.X509KeyPair(f.h.state.CA, f.h.state.Key)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ca.NotAfter = time.Now().Add(48 * time.Hour).Truncate(time.Second)
+	shortCA, e := certificate(ca, ca, ca.PublicKey, pair.PrivateKey)
+	if e != nil {
+		t.Fatal(e)
+	}
+	key, _, e := newKey()
+	if e != nil {
+		t.Fatal(e)
+	}
+	csr, e := makeCSR(key)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, host := range []string{"", "127.0.0.1"} {
+		crt, _, e := sign(shortCA, f.h.state.Key, csr, randomID(), host)
+		if e != nil {
+			t.Fatal(e)
+		}
+		leaf, e := parseCert(crt)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if !leaf.NotAfter.Equal(ca.NotAfter) {
+			t.Fatal("credential outlives its authority")
+		}
+	}
+}
 func TestConcurrentEnrollmentConsumesOnce(t *testing.T) {
 	f := newFixture(t)
 	inv, e := f.h.Invite("One")

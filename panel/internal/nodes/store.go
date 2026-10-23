@@ -309,7 +309,11 @@ func (h *Hub) serverCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) 
 	if e != nil {
 		return nil, e
 	}
-	if time.Until(leaf.NotAfter) < 30*24*time.Hour {
+	ca, e := parseCert(h.state.CA)
+	if e != nil {
+		return nil, e
+	}
+	if time.Until(leaf.NotAfter) < 30*24*time.Hour && leaf.NotAfter.Before(ca.NotAfter) {
 		block, _ := pem.Decode(h.state.ServerKey)
 		if block == nil {
 			return nil, errors.New("invalid controller key")
