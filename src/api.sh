@@ -86,6 +86,7 @@ gtm_api() {
         create) (($#==0)) && gtm_api_rows;;
         update|enable|disable|delete) (($#==0)) && gtm_api_change "$operation";;
         plan) (($#==0)) && gtm_plan;;
+        config-render) (($#==0)) && gtm_config_render;;
         doctor) (($#==0)) && gtm_doctor;;
         install)
             (($#>0 && $#<=7)) && gtm_prepare || return 2

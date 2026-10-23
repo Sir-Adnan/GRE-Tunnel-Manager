@@ -1,11 +1,11 @@
-import { Pencil, Play, Square, Trash2, FileText } from "lucide-react";
+import { Pencil, Play, Square, Trash2, FileText, Code2 } from "lucide-react";
 import { ActionButton } from "@/components/help";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 export function ConnectionActions({
   row,
   busy,
-  compact,
+  onConfig,
   onEdit,
   onDelete,
   onToggle,
@@ -13,7 +13,7 @@ export function ConnectionActions({
 }: {
   row: Connection;
   busy: boolean;
-  compact: boolean;
+  onConfig: () => void;
   onEdit: (c: Connection) => void;
   onDelete: () => void;
   onToggle: () => void;
@@ -21,7 +21,15 @@ export function ConnectionActions({
 }) {
   const t = useT();
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1">
+    <div className="flex flex-wrap items-center justify-end gap-1 [&_[data-slot=button]]:size-11 @3xl:[&_[data-slot=button]]:size-8 @3xl:[&_[data-slot=button]]:min-h-8">
+      <ActionButton
+        variant="ghost"
+        size="icon"
+        label={`${t("viewConfig")} ${row.name}`}
+        onClick={onConfig}
+      >
+        <Code2 />
+      </ActionButton>
       <ActionButton
         variant="ghost"
         size="icon"
@@ -31,7 +39,7 @@ export function ConnectionActions({
       >
         <Pencil />
       </ActionButton>
-      {!compact && (
+      {
         <>
           <ActionButton
             variant="ghost"
@@ -66,7 +74,7 @@ export function ConnectionActions({
             <Trash2 />
           </ActionButton>
         </>
-      )}
+      }
     </div>
   );
 }

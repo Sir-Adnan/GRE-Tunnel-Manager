@@ -17,10 +17,11 @@ import { HelpTip, ActionButton } from "@/components/help";
 import { engineName } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { endpoint } from "@/lib/api";
-import type { Connection, Inventory } from "@/lib/api";
+import type { Connection, Inventory, Preset } from "@/lib/api";
 import { HealthCheckFields } from "./HealthCheckFields";
 import { AffinityFields } from "./AffinityFields";
 import { RoutingFields } from "./RoutingFields";
+import { ProfilePicker } from "./ProfilePicker";
 
 const healthOptionKeys = [
   "check_mode",
@@ -74,7 +75,7 @@ export function ConnectionForm({
       (original?.options && Object.keys(original.options).length),
     ),
   );
-  const [preset, setPreset] = useState("balanced");
+  const [preset, setPreset] = useState("custom");
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -88,16 +89,19 @@ export function ConnectionForm({
     setValue((current) => ({ ...current, [key]: next }));
     setReview(false);
   }
-  function applyPreset(id: string) {
-    setPreset(id);
-    patch(
-      "options",
-      id === "vpn"
-        ? { idle: "86400", log: "errors" }
-        : id === "lean"
-          ? { maxconn: "4096", log: "off" }
-          : {},
-    );
+  function applyPreset(profile: Preset | undefined) {
+    setPreset(profile?.id || "custom");
+    if (!profile) return;
+    setValue((current) => ({
+      ...current,
+      protocol: profile.protocol || current.protocol,
+      strategy:
+        current.targets.length > 1
+          ? profile.strategy || current.strategy
+          : "single",
+      options: { ...current.options, ...profile.options },
+    }));
+    setReview(false);
   }
   function parseCombinedIP(index: number, input: string) {
     const target = value.targets[index];
@@ -411,7 +415,12 @@ export function ConnectionForm({
                         { ip: "", port: value.targets[0].port, weight: 1 },
                       ]);
                       if (value.strategy === "single")
-                        patch("strategy", capability.strategies[1]);
+                        patch(
+                          "strategy",
+                          (inventory.presets || []).find(
+                            (p) => p.id === preset && p.engine === value.engine,
+                          )?.strategy || capability.strategies[1],
+                        );
                     }}
                   >
                     <Plus data-icon="inline-start" />
@@ -436,18 +445,14 @@ export function ConnectionForm({
                     onChange={(next) => patch("strategy", next)}
                   />
                 )}
-                {value.engine === "haproxy" && (
-                  <Choice
-                    id="preset"
-                    label={t("preset")}
-                    value={preset}
-                    choices={["balanced", "vpn", "lean"].map((id) => ({
-                      value: id,
-                      label: t(id),
-                    }))}
-                    onChange={applyPreset}
-                  />
-                )}
+                <ProfilePicker
+                  presets={(inventory.presets || []).filter(
+                    (p) => p.engine === value.engine,
+                  )}
+                  value={preset}
+                  onChange={applyPreset}
+                  targetCount={value.targets.length}
+                />
                 <Button
                   variant="ghost"
                   type="button"

@@ -120,6 +120,7 @@ func canonicalInventory(raw json.RawMessage) (json.RawMessage, error) {
 	if e := json.Unmarshal(raw, &inv); e != nil {
 		return nil, errors.New("invalid inventory")
 	}
+	inv.Presets = nil // UI catalog belongs to the Controller, not a Node snapshot.
 	b, e := json.Marshal(inv)
 	if len(b) > MaxInventory {
 		return nil, errors.New("canonical inventory exceeds 256 KiB")

@@ -145,3 +145,7 @@ Routing remains inside the existing generated per-connection HAProxy config/unit
 ## Optional Agent traffic accounting
 
 Explicit `node-install.sh --agent --traffic` adds `--agent-traffic` to the private broker and `--traffic` to the outbound Agent, preserving those flags across upgrades. It creates `/var/lib/gre-manager-agent-traffic` as root, mode 700; the ledger `metrics.json` is mode 600 and is written only when local accounting settings/samples change. Collection is initially off and requires the local root `gtm-panel nodes traffic --enable` command. It reuses only `inet gtm_panel_metrics`; disable with `nodes traffic --disable` before retiring the Agent to remove those counters and retain the ledger. No new service, remote port or database is added. Controller traffic snapshots are memory-only and cleared on restart/revocation. Panel-only removal does not delete this Agent ledger.
+
+## Configuration viewer/editor
+
+Inspection creates no server artifact and accepts no arbitrary path. HAProxy/Realm previews are rendered from saved records; bounded fixed-path reads only compare the saved managed file. GRE views project recognized IP commands; FRP/rathole saved TOML is projected with secret values masked. Forward edits persist in the existing TSV/snapshot/generated-file lifecycle through the same locked update operation. There is no parallel native override file, extra service or new credential store.

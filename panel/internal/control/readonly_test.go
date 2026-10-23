@@ -8,7 +8,7 @@ import (
 
 func TestReadOnlyBrokerRejectsEveryWriteBeforeExecution(t *testing.T) {
 	for _, b := range []*Broker{{ReadOnly: true}, {ReadOnly: true, Nodes: &NodeExecutor{}}} { // A nil manager proves rejected actions never execute.
-		for _, action := range []string{"create", "delete", "service", "logs", "doctor", "install", "metrics", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "gre-create", "reverse-create", "shell", "node-task", "uninstall-prepare"} {
+		for _, action := range []string{"create", "delete", "service", "logs", "doctor", "install", "metrics", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "gre-create", "reverse-create", "configuration", "configuration-review", "configuration-apply", "shell", "node-task", "uninstall-prepare"} {
 			r := httptest.NewRequest("POST", "http://broker/control", strings.NewReader(`{"action":"`+action+`"}`))
 			w := httptest.NewRecorder()
 			b.ServeHTTP(w, r)
@@ -21,7 +21,7 @@ func TestReadOnlyBrokerRejectsEveryWriteBeforeExecution(t *testing.T) {
 
 func TestAgentTrafficDoesNotGrantOtherOperations(t *testing.T) {
 	b := &Broker{ReadOnly: true, AgentTraffic: true}
-	for _, action := range []string{"create", "service", "logs", "install", "metrics-history", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "node-task", "shell"} {
+	for _, action := range []string{"create", "service", "logs", "install", "metrics-history", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "configuration", "configuration-review", "configuration-apply", "node-task", "shell"} {
 		w := httptest.NewRecorder()
 		b.ServeHTTP(w, httptest.NewRequest("POST", "/control", strings.NewReader(`{"action":"`+action+`"}`)))
 		if w.Code != 403 {

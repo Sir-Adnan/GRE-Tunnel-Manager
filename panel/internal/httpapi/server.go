@@ -113,6 +113,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/api/configuration" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "configuration", Configuration: control.ConfigInput{ID: r.URL.Query().Get("id"), Revision: r.URL.Query().Get("revision")}})
+	case r.URL.Path == "/api/configuration/review" && r.Method == "POST":
+		var input control.ConfigInput
+		if !decode(w, r, &input) {
+			return
+		}
+		s.forward(w, r, control.Request{Action: "configuration-review", Configuration: input})
 	case r.URL.Path == "/api/nodes" || strings.HasPrefix(r.URL.Path, "/api/nodes/"):
 		s.nodeRoutes(w, r)
 	case r.URL.Path == "/api/logout" && r.Method == "POST":
@@ -123,7 +131,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/api/metrics" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "metrics"})
 	case r.URL.Path == "/api/metrics/history" && r.Method == "GET":
-		s.forward(w,r,control.Request{Action:"metrics-history",Traffic:control.TrafficChange{ID:r.URL.Query().Get("id")}})
+		s.forward(w, r, control.Request{Action: "metrics-history", Traffic: control.TrafficChange{ID: r.URL.Query().Get("id")}})
 	case strings.HasPrefix(r.URL.Path, "/api/jobs/") && r.Method == "GET":
 		job, ok := s.Jobs.Get(strings.TrimPrefix(r.URL.Path, "/api/jobs/"))
 		if !ok {
@@ -152,7 +160,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func allowed(action string) bool {
 	switch action {
-	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename":
+	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "configuration-apply":
 		return true
 	}
 	return false

@@ -76,7 +76,7 @@ export function Choice({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  choices: { value: string; label: string }[];
+  choices: { value: string; label: string; disabled?: boolean }[];
   id: string;
 }) {
   return (
@@ -89,7 +89,11 @@ export function Choice({
         className="w-full"
       >
         {choices.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
+          <NativeSelectOption
+            key={option.value}
+            value={option.value}
+            disabled={option.disabled}
+          >
             {option.label}
           </NativeSelectOption>
         ))}

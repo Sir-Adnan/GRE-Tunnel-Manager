@@ -7,6 +7,7 @@ import {
   Square,
   Trash2,
   Pencil,
+  Code2,
 } from "lucide-react";
 import {
   Card,
@@ -37,7 +38,10 @@ import {
 } from "@/components/shared";
 import { ActionButton } from "@/components/help";
 import { useT } from "@/lib/i18n";
-import type { Inventory, Resource } from "@/lib/api";
+import type { Inventory, Resource, Preset } from "@/lib/api";
+
+import { ConfigurationDialog } from "./configuration/ConfigurationDialog";
+import { ProfilePicker } from "./connections/ProfilePicker";
 
 export function Resources({
   inventory,
@@ -49,6 +53,7 @@ export function Resources({
   run: (request: unknown) => Promise<void>;
 }) {
   const t = useT();
+  const [config, setConfig] = useState<Resource>();
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Resource>();
   const [busy, setBusy] = useState(false);
@@ -116,12 +121,20 @@ export function Resources({
                   {resource.id}
                 </code>
                 {resource.interface && (
-                  <p className="mt-3 text-sm" dir="ltr">
-                    {resource.interface}
+                  <p className="mt-3 text-sm">
+                    <bdi>{resource.interface}</bdi>
                   </p>
                 )}
               </CardContent>
               <CardFooter className="flex flex-wrap gap-1">
+                <ActionButton
+                  variant="ghost"
+                  size="icon"
+                  label={`${t("viewConfig")} ${resource.name}`}
+                  onClick={() => setConfig(resource)}
+                >
+                  <Code2 />
+                </ActionButton>
                 <ActionButton
                   variant="ghost"
                   size="icon"
@@ -172,6 +185,17 @@ export function Resources({
             </Card>
           ))}
         </div>
+      )}
+      {config && (
+        <ConfigurationDialog
+          resource={{
+            id: config.id,
+            revision: config.revision || "",
+            name: config.name,
+          }}
+          run={run}
+          onClose={() => setConfig(undefined)}
+        />
       )}
       {creating && (
         <ResourceForm
@@ -309,6 +333,21 @@ function ResourceForm({
     certificate: "",
     internal: 7001,
   });
+  const [profile, setProfile] = useState("custom");
+  function applyProfile(p: Preset | undefined) {
+    setProfile(p?.id || "custom");
+    if (!p) return;
+    if (engine === "gre")
+      setGRE((current) => ({ ...current, mtu: p.mtu || current.mtu }));
+    else
+      setReverse((current) => ({
+        ...current,
+        engine: p.engine,
+        protocol: p.protocol || current.protocol,
+        transport: p.transport || current.transport,
+        mux: p.mux ?? current.mux,
+      }));
+  }
   const [review, setReview] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -406,6 +445,15 @@ function ResourceForm({
             }}
           >
             <FieldGroup>
+              <ProfilePicker
+                presets={(inventory.presets || []).filter((p) =>
+                  engine === "gre"
+                    ? p.engine === "gre"
+                    : p.engine === reverse.engine,
+                )}
+                value={profile}
+                onChange={applyProfile}
+              />
               {engine === "gre" ? (
                 <>
                   <TextField

@@ -26,7 +26,10 @@ export function Destinations({ connection }: { connection: Connection }) {
   if (connection.targets.length === 1)
     return (
       <span className="inline-flex max-w-full">
-        <bdi dir="ltr" className="break-all font-mono text-xs">
+        <bdi
+          dir="ltr"
+          className="min-w-0 break-all whitespace-normal font-mono text-xs"
+        >
           {endpoint(first.ip, first.port)}
         </bdi>
       </span>

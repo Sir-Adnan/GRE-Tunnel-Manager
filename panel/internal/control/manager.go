@@ -78,6 +78,7 @@ type Host struct {
 	PublicIP        string   `json:"public_ip,omitempty"`
 }
 type Inventory struct {
+	Presets        []model.Preset        `json:"presets,omitempty"`
 	Connections    []model.Connection    `json:"connections"`
 	Resources      []Resource            `json:"resources"`
 	Components     []Component           `json:"components"`
@@ -88,6 +89,7 @@ type Inventory struct {
 	Demo           bool                  `json:"demo"`
 }
 type Request struct {
+	Configuration   ConfigInput      `json:"configuration,omitzero"`
 	NodeTask        *NodeTask        `json:"node_task,omitempty"`
 	Action          string           `json:"action"`
 	Connection      model.Connection `json:"connection"`
@@ -240,10 +242,21 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.0"}, nil
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.1"}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {
+	case "configuration":
+		return m.Configuration(ctx, r.Configuration)
+	case "configuration-review", "configuration-apply":
+		next, view, e := m.ReviewConfiguration(ctx, r.Configuration)
+		if e != nil {
+			return nil, e
+		}
+		if r.Action == "configuration-review" {
+			return view, nil
+		}
+		return m.Execute(ctx, Request{Action: "update", Connection: next, Selected: []Selection{{ID: r.Configuration.ID, Revision: r.Configuration.Revision}}})
 	case "inventory":
 		return m.Inventory(ctx)
 	case "capabilities":

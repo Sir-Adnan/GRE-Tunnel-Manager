@@ -1,5 +1,7 @@
 # Web panel development roadmap
 
+Release v1.3.1 consolidates the delivered milestones below. Earlier source-availability notes in phase reviews are historical; current installers select the matching released package.
+
 Work is phase-gated. Complete one phase, validate it, report evidence and limitations, then wait for the user's explicit instruction before starting the next. Completion does not imply an automatic release or deployment to live servers. Resource benchmarking is outside this roadmap at the user's request.
 
 ## Phase 1: Interaction fixes and responsive interface
@@ -21,7 +23,7 @@ Acceptance: switches visibly toggle and persist after saving; row selection and 
 
 ## Phase 2: Simple installation and access
 
-Status: implemented and validated in source; Phase 3 follows below. No replacement release was published. See [Phase 2 review](PHASE-2-REVIEW.md) and [installation guide](WEB-PANEL.md#installation-and-login).
+Status: implemented, validated and shipped in v1.3.1. See [Phase 2 review](PHASE-2-REVIEW.md) and [installation guide](WEB-PANEL.md#installation-and-login).
 
 - Explicit HTTP or HTTPS on IP, plus domain addresses. HTTPS remains the recommended choice; HTTP clearly identifies its unencrypted transport. Cookie and Origin checks must follow the configured protocol.
 - Quick installation with automatic IP detection when omitted, optional/random port and generated administrator credentials, printed once. The installer cannot provision an arbitrary public domain without DNS access.
@@ -32,7 +34,7 @@ Acceptance: fresh installation and upgrade, both browser protocols, login/logout
 
 ## Phase 3: Versioned Node/Agent contract and secure read-only inventory
 
-Status: implemented in source. See [Node guide](NODES.md) and [Phase 3 review](PHASE-3-REVIEW.md). No replacement release was published; Phase 4 follows below.
+Status: implemented and shipped in v1.3.1. See [Node guide](NODES.md) and [Phase 3 review](PHASE-3-REVIEW.md).
 
 - Support local-only installation, Controller with its own local Node, and Controller with multiple remote Nodes. A third server and remote Agent enrollment are optional.
 - Define stable node IDs, protocol versions independent of application versions, capability negotiation, revisions and structured failures.
@@ -45,7 +47,7 @@ Acceptance: multiple remote Nodes plus a local Node, enrollment/revocation, inco
 
 ## Phase 4: Bounded operations and coordinated two-node connections
 
-Status: implemented in source for leased GRE and FRP pairing. See [Paired connections](PAIRED-CONNECTIONS.md) and [Phase 4 review](PHASE-4-REVIEW.md). Wait for the user before Phase 5.
+Status: implemented in source for leased GRE and FRP pairing. See [Paired connections](PAIRED-CONNECTIONS.md) and [Phase 4 review](PHASE-4-REVIEW.md). Subsequent Phase 5 milestones are delivered below.
 
 - Allowlisted operations with authorization, unique job IDs, expiry, idempotency and revision checks; no arbitrary shell endpoint.
 - Persist Controller jobs and results, and reject expired jobs after reconnection.
@@ -57,7 +59,7 @@ Acceptance: successful pairing, one-sided failure, repeated delivery, Controller
 
 ## Phase 5: Engine capabilities and advanced management
 
-Status: milestones 5A–5D implemented in source within the closed profiles below. The user explicitly authorized the remaining milestones together, then approved dark text/icons on orange buttons and Latin digits throughout the panel. See [Phase 5B–5D review](PHASE-5BCD-REVIEW.md). No replacement release was published. Public two-server/systemd/reboot verification remains a deployment check.
+Status: milestones 5A–5D implemented in source within the closed profiles below. The user explicitly authorized the remaining milestones together, then approved dark text/icons on orange buttons and Latin digits throughout the panel. See [Phase 5B–5D review](PHASE-5BCD-REVIEW.md). These profiles are included in v1.3.1. Public two-server/systemd/reboot verification remains a deployment check.
 
 This phase is split into reviewable milestones because TLS/routing state, display metadata and retained accounting have different compatibility and recovery requirements:
 
@@ -78,11 +80,11 @@ Acceptance: each advertised capability has a supported version, generated config
 
 ### Explicit follow-up scope
 
-Read-only remote traffic summaries are delivered in Phase 6 below. Remote retained history, quota/reset operations, automatic hard volume cutoffs, scheduled billing cycles and customer accounts require separate contracts and tests. They are not implied by local advisory quotas. Realm native TLS/WSS certificate handling, arbitrary HAProxy ACLs and unrestricted firewall editing remain outside the delivered profiles. Release v1.3.1 requires explicit user approval after reviewing the final implementation and verification evidence.
+Read-only remote traffic summaries are delivered in Phase 6 below. Remote retained history, quota/reset operations, automatic hard volume cutoffs, scheduled billing cycles and customer accounts require separate contracts and tests. They are not implied by local advisory quotas. Realm native TLS/WSS certificate handling, arbitrary HAProxy ACLs and unrestricted firewall editing remain outside the delivered profiles. Release v1.3.1 was explicitly authorized after the configuration/profile work; publication follows verification.
 
 ## Phase 6: Multi-server traffic visibility
 
-Status: read-only summary milestone and compact dashboard implemented and validated in source. See [Phase 6 review](PHASE-6-REVIEW.md). No release is implied.
+Status: read-only summary milestone and compact dashboard implemented and validated in source. See [Phase 6 review](PHASE-6-REVIEW.md). Included in v1.3.1.
 
 - Add optional traffic protocol 1 independently of inventory/pair negotiation, with existing per-identity mTLS and revocation.
 - Keep ordinary Agents inventory-only; require explicit `--traffic` installation and separate local collection enablement. Preserve identity and opt-ins on upgrade.
@@ -95,3 +97,7 @@ Status: read-only summary milestone and compact dashboard implemented and valida
 Acceptance: identity isolation, old inventory compatibility, revoked/expired identities, failure/staleness, payload bounds, privacy projection, restart behavior, installer opt-in preservation and responsive UI are verified. Public server/systemd rollout remains an operator check.
 
 Next milestones remain separately reviewable: remote history/on-demand reads, revision-checked remote reset/configuration, scheduled local cycles, and broader engine profiles. Hard cutoffs need an explicit connection-lifecycle policy; they are not inferred from advisory quotas.
+
+## Phase 7: Responsive alignment, configuration inspection/editing and profiles
+
+Delivered in v1.3.1: container-based management-table breakpoints, logical start alignment for technical values, single-card auto-fit, local configuration viewer/importer with review and revision-checked apply, 23 bilingual connection profiles, and bounded HAProxy FIN/tunnel/retry controls. GRE/reverse file views remain read-only; arbitrary native overrides and remote config editing are not exposed. Release publication was explicitly authorized after these changes.

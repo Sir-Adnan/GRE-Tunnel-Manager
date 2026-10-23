@@ -57,8 +57,10 @@ export function NodeCard({
       <CardContent className="flex flex-col gap-4">
         {node.inventory ? (
           <>
-            <p className="break-all text-sm" dir="ltr">
-              {node.inventory.host.addresses?.join(" · ") || t("notReported")}
+            <p className="break-all text-sm">
+              <bdi>
+                {node.inventory.host.addresses?.join(" · ") || t("notReported")}
+              </bdi>
             </p>
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">

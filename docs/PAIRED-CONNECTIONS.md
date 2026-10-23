@@ -2,7 +2,7 @@
 
 The Nodes page can coordinate a new **GRE** or **FRP Reverse** connection across two servers. Choose the panel host and a remote Node, or two remote Nodes. A third management server is optional. Existing engine pages still manage the panel host only.
 
-This is current-source functionality. The existing published v1.3.0 archive predates Agents and paired operations. Build matching frontend/binary/Bash packages as described in [DEVELOPMENT.md](DEVELOPMENT.md), then install with `--package-dir`. No existing release asset was replaced.
+This feature is included in v1.3.1. Use matching release packages on Controller/Agents; v1.3.0 predates Node support. Source/offline packages can still be installed with `--package-dir`.
 
 ## Enable only where needed
 

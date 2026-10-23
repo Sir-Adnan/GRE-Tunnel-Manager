@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased — Phase 6 remote traffic summaries and compact dashboard
+## v1.3.1 — Configuration workflows, VPN profiles and multi-server management
+
+- Correct RTL value alignment and content-width table/card switching, including single-card and long IPv6 layouts.
+- Add local configuration inspection, copy/download, revision-checked JSON/native review and apply through the existing transaction. Keep GRE/reverse views read-only and redact reverse secrets.
+- Add 23 bilingual profiles and optional HAProxy FIN/tunnel/retry controls with backward defaults. Keep existing connections unchanged until explicit selection/application.
+- Ship the previously unreleased milestones below in matched versioned packages; preserve v1.3.0 release assets.
+
+
+### Included milestone — Phase 6 remote traffic summaries and compact dashboard
 
 - Add opt-in read-only traffic-protocol-1 reports over the existing active mTLS identity without changing inventory/pair negotiation. Keep one bounded memory-only Controller snapshot per Node and preserve known totals on read failure.
 - Add explicit Agent reporting installation, separate local accounting enable/pause, a private root-owned ledger and upgrade flag preservation. No collection starts by default; no new service or listener is added.
@@ -10,7 +18,7 @@
 
 
 
-## Unreleased — Phase 5B–5D advanced management
+### Included milestone — Phase 5B–5D advanced management
 
 - Add bounded optional HAProxy client-IP memory affinity with size/expiry controls, distinct from source hashing. Add responsive destination disclosure, paginated mobile cards, visual Node selection, full-menu mobile navigation and reduced-motion-aware CSS transitions.
 - Add a separate HAProxy v4/routing-v1 contract for exact-host SNI passthrough, bounded HTTP Host/path routes and operator-provisioned HTTPS termination. Keep opaque TCP passthrough as the default and preserve routing through terminal edits.
@@ -22,15 +30,15 @@
 - Separate traffic usage from collection settings with responsive tabs, use Latin display digits in both UI languages, bound dialogs to the viewport and apply the user-approved dark label/icon override only to Nettinx orange buttons. Preserve imported fills and source tokens.
 - Add routing/WS packet tests, metadata CAS regressions, ledger reset/restart/failure tests and browser checks. No version bump, public release or live-server deployment is included.
 
-## Unreleased — Phase 5A
+### Included milestone — Phase 5A
 
 - Add an engine/version capability matrix and cached fixed-command version probes; show adapter scope, native/schema validation and FRP client/server mismatches in the bilingual panel.
 - Add bounded HAProxy plain HTTP GET readiness checks on a separate port, preserving TCP passthrough/defaults, with terminal/web controls and reachable-but-unhealthy namespace coverage.
 - Fix the Go model dropping Realm version-3 option fields during record serialization; preserve them through round-trip create/edit.
 - Add confirmed `panel-install.sh --uninstall` and a terminal removal action. Protect unresolved paired operations and Agent-shared resources; remove only panel files/counters and retain tunnels/forwarding.
-- Keep application/package version 1.3.0 pending explicit approval of a future release. Do not overwrite published assets. Phase 5B–5D remain gated.
+- Preserve older published assets; the completed milestones are consolidated in v1.3.1.
 
-## Unreleased — Phase 4 leased two-node connections
+### Included milestone — Phase 4 leased two-node connections
 
 - Add explicit `--operations` Agent opt-in while keeping the general local write API inaccessible remotely. Negotiate `connections.pair.v1` alongside protocol-1 inventory.
 - Persist bounded Controller jobs and root receipts with preparation revisions, idempotent delivery, expiry, restart recovery, timed confirmation and fingerprint-guarded compensation. Expose individual and uncertain outcomes without claiming atomic multi-server changes.
@@ -38,7 +46,7 @@
 - Add responsive bilingual setup/review, per-server progress and recovery controls. Preserve Nettinx and Vazirmatn. Poll active browser jobs only; retain the existing inventory cadence.
 - Extend installer preservation, TLS/broker/Bash tests and real isolated GRE TCP/UDP checks. Document current-source packages; published v1.3.0 remains unchanged.
 
-## Unreleased — Phase 3 read-only Nodes and Agents
+### Included milestone — Phase 3 read-only Nodes and Agents
 
 - Add optional Controller enrollment and outbound inventory Agents without requiring a third server or an Agent on the panel host. Keep existing tunnel operations local.
 - Define independent protocol 1, stable node IDs, closed capability negotiation, structured failures and separate metadata/inventory revisions. No remote operation endpoint is added.
@@ -47,7 +55,7 @@
 - Add a lazy-loaded bilingual Nodes page, snapshot details, distinct connectivity/service status, collection timestamps, revocation confirmation and topology/recovery help. Preserve Nettinx colors and Vazirmatn.
 - Bound enrollment, reports and retries; keep inventory memory-only with no history or queue. Document local-package installation because published v1.3.0 does not contain this source feature.
 
-## Unreleased — Phase 2 installation and access
+### Included milestone — Phase 2 installation and access
 
 - Add modular quick/custom setup with automatic public-IP discovery, IP/domain addresses, IPv6 URL formatting, selected/random ports and generated credentials printed once.
 - Add explicit HTTP alongside default HTTPS; align listener and cookie policy while retaining exact Origin/CSRF checks. Separate transport cookie names to avoid stale Secure-cookie conflicts. Explain HTTP transport on the bilingual login page and through accessible connection help.
@@ -56,7 +64,7 @@
 - Preserve default installation of the older published v1.3.0 package; reject unsupported new setup flags before stopping services. Support explicit local-package installation for the updated source. Preinstall engines only when requested.
 - Require a matching release tag and remove asset clobbering from release automation. No new release or tag is published by these source changes.
 
-## Unreleased — Phase 1 interface corrections
+### Included milestone — Phase 1 interface corrections
 
 - Correct Radix state selectors for switches, checkboxes, tabs, overlays and orientation styling.
 - Adopt shadcn sidebar navigation, top-bar appearance controls, action tooltips and hover/focus/tap help.

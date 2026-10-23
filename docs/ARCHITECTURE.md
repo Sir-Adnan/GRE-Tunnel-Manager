@@ -1,4 +1,4 @@
-# Architecture — v1.3.0
+# Architecture — v1.3.1
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
@@ -103,3 +103,5 @@ Traffic collection remains in `metrics.go`; cycle baselines, customer policies, 
 `nodes/traffic.go` defines a separate bounded traffic-protocol-1 sideband over the existing active mTLS identity. Inventory and pair capability negotiation remain unchanged. Agents explicitly installed with `--traffic` read compact summaries from an accounting-enabled private broker; collection remains paused until enabled through the local root CLI. The broker uses the existing metrics engine and its own root ledger. The Controller retains one memory-only snapshot per identity, rechecks revocation after body decoding and does not persist or sum histories. Authenticated browser reads fetch one Node only. Node detail tabs mount/poll the read-only component only when selected and visible. See [Remote traffic summaries](REMOTE-TRAFFIC.md).
 
 The overview uses `connections/ConnectionSummary.tsx`, a bounded five-row presentation separate from the full CRUD table. Container queries select a compact desktop row or two-row mobile composition. Data direction stays localized while IP/port values are isolated inline; destination disclosures share one component. No management selection or network state is copied into the overview.
+
+Configuration inspection/import is isolated in `control/configuration*.go`. Only closed IDs and revisions cross the public API. Native edits must round-trip through the same typed adapter; apply reuses the full-state Bash transaction. Reverse projections use a strict generated grammar and mask secrets. Local inventory embeds the static model profile catalog; remote Node snapshots omit UI catalog data.

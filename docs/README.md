@@ -4,6 +4,9 @@ Start with the [README](../README.md), then the guides below. Technical guides a
 
 | Doc | Read it when you need... |
 | --- | --- |
+| [PHASE-7-REVIEW.md](PHASE-7-REVIEW.md) | v1.3.1 alignment, configuration/profile workflows and verification limits |
+| [CONFIGURATION-EDITOR.md](CONFIGURATION-EDITOR.md) | Native previews, managed edits, review/apply and ownership limits |
+| [CONNECTION-PROFILES.md](CONNECTION-PROFILES.md) | VPN-oriented starting profiles and real engine tradeoffs |
 | [ROADMAP.md](ROADMAP.md) | Phase-gated UI, installation, Node/Agent and engine-capability development |
 | [PHASE-6-REVIEW.md](PHASE-6-REVIEW.md) | Remote summaries, compact dashboard, verification and remaining scope |
 | [REMOTE-TRAFFIC.md](REMOTE-TRAFFIC.md) | Optional Agent snapshots, local enable/pause, compatibility and privacy |

@@ -55,7 +55,7 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	operationContext := r.Context()
-	if request.Action != "inventory" && request.Action != "metrics" && request.Action != "metrics-history" && request.Action != "capabilities" {
+	if request.Action != "inventory" && request.Action != "metrics" && request.Action != "metrics-history" && request.Action != "capabilities" && request.Action != "configuration" && request.Action != "configuration-review" {
 		// A browser disconnect/public-service restart must not kill an in-flight
 		// network transaction. The broker owns its independent bounded lifetime.
 		var cancel context.CancelFunc

@@ -18,10 +18,11 @@ type Demo struct {
 	inventory Inventory
 	counter   int
 	metrics   MetricsView
+	configs   map[string]string
 }
 
 func NewDemo() *Demo {
-	d := &Demo{counter: 4, inventory: Inventory{Version: "1.3.0", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
+	d := &Demo{counter: 4, inventory: Inventory{Presets: model.Presets(), Version: "1.3.1", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
 	d.inventory.EngineProfiles = model.EngineProfiles()
 	for index := range d.inventory.Components {
 		c := &d.inventory.Components[index]
@@ -38,11 +39,51 @@ func NewDemo() *Demo {
 	d.metrics = MetricsView{Settings: MetricsSettings{Interval: 60, IDs: []string{}}, Counters: map[string]Traffic{}, Since: time.Now().UTC(), Policies: map[string]TrafficPolicy{}, History: map[string][]TrafficPoint{}, Cycles: map[string][]TrafficCycle{}}
 	return d
 }
-func (d *Demo) Do(_ context.Context, r Request) (json.RawMessage, error) {
+func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var result any = "Demo operation completed. No server settings were changed."
 	switch r.Action {
+	case "configuration", "configuration-review", "configuration-apply":
+		if r.Action == "configuration" && !model.IDPattern.MatchString(r.Configuration.ID) {
+			for _, resource := range d.inventory.Resources {
+				if resource.ID == r.Configuration.ID {
+					if resource.Revision != r.Configuration.Revision {
+						return nil, errors.New("resource changed; refresh inventory")
+					}
+					return json.Marshal(ConfigView{ID: resource.ID, Revision: resource.Revision, Engine: resource.Engine, SavedState: "saved", Files: []ConfigFile{{Name: resource.ID + ".demo.txt", Path: "Demo only", Kind: "redacted", Text: "# DEMO: illustrative settings, no server file\n" + d.configs[resource.ID]}}})
+				}
+			}
+			return nil, errors.New("resource not found")
+		}
+		manager := &Manager{Runner: demoConfigRunner{connections: d.inventory.Connections}}
+		if r.Action == "configuration" {
+			v, e := manager.Configuration(ctx, r.Configuration)
+			if e != nil {
+				return nil, e
+			}
+			return json.Marshal(v)
+		}
+		next, v, e := manager.ReviewConfiguration(ctx, r.Configuration)
+		if e != nil {
+			return nil, e
+		}
+		if r.Action == "configuration-review" {
+			return json.Marshal(v)
+		}
+		rows, e := next.Rows(next.ID)
+		if e != nil {
+			return nil, e
+		}
+		next.Revision = model.Revision(rows[0])
+		for i, c := range d.inventory.Connections {
+			if c.ID == next.ID {
+				next.Status = c.Status
+				d.inventory.Connections[i] = next
+			}
+		}
+		return json.Marshal(map[string]bool{"ok": true})
+
 	case "inventory":
 		result = d.inventory
 	case "metrics":
@@ -153,14 +194,28 @@ func (d *Demo) Do(_ context.Context, r Request) (json.RawMessage, error) {
 		g := r.GRE
 		d.inventory.Resources = append(d.inventory.Resources, Resource{ID: fmt.Sprintf("gre-tun-%d", g.ID), Engine: "gre", Name: fmt.Sprintf("GRE %d", g.ID), Role: g.Role, Status: "active", Configured: true, Interface: fmt.Sprintf("gre%d", g.ID)})
 		d.inventory.Resources[len(d.inventory.Resources)-1].Revision = model.Revision("demo unit "+d.inventory.Resources[len(d.inventory.Resources)-1].ID) + ":-"
+		if d.configs == nil {
+			d.configs = map[string]string{}
+		}
+		b, _ := json.MarshalIndent(g, "", "  ")
+		d.configs[d.inventory.Resources[len(d.inventory.Resources)-1].ID] = string(b)
 	case "reverse-create":
 		if _, e := r.Reverse.Input(); e != nil {
 			return nil, e
 		}
 		v := r.Reverse
+		if d.configs == nil {
+			d.configs = map[string]string{}
+		}
+		redacted := v
+		redacted.Token = "[REDACTED]"
+		redacted.Key = "[REDACTED]"
+		b, _ := json.MarshalIndent(redacted, "", "  ")
+		d.configs["gtm-"+v.Engine+"-"+v.Role+"-"+v.Name] = string(b)
 		d.inventory.Resources = append(d.inventory.Resources, Resource{ID: "gtm-" + v.Engine + "-" + v.Role + "-" + v.Name, Engine: v.Engine, Name: v.Name, Role: v.Role, Status: "active", Configured: true})
 		d.inventory.Resources[len(d.inventory.Resources)-1].Revision = model.Revision("demo unit "+d.inventory.Resources[len(d.inventory.Resources)-1].ID) + ":-"
 	case "gre-delete", "reverse-delete":
+		delete(d.configs, r.Service)
 		next := []Resource{}
 		for _, v := range d.inventory.Resources {
 			if v.ID != r.Service {

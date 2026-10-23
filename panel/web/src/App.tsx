@@ -477,7 +477,7 @@ export default function App() {
             <footer className="app-footer">
               <span>TUNNEL MANAGER</span>
               <span>
-                {inventory?.host.hostname} · v{inventory?.version || "1.3.0"}
+                {inventory?.host.hostname} · v{inventory?.version || "1.3.1"}
               </span>
             </footer>
           </SidebarInset>

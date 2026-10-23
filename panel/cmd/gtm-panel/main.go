@@ -27,7 +27,7 @@ import (
 	"golang.org/x/term"
 )
 
-const Version = "1.3.0"
+const Version = "1.3.1"
 
 func main() {
 	if e := run(); e != nil {

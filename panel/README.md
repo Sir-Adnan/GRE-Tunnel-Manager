@@ -23,15 +23,15 @@ On Windows, name the executable `bin/gtm-panel.exe`; use a Linux development env
 
 From the repository root, `python3 tools/package_panel.py` creates Linux amd64/arm64 archives and `SHA256SUMS` after the frontend build. Compiled assets and binaries are not committed.
 
-## Source and published packages
+## Release packages
 
-Published **v1.3.0** contains the original panel. Current source adds quick HTTP/HTTPS setup, Nodes/Agents, advanced engine profiles and accounting cycles. It has not replaced those release assets. Use matching source-built packages with `panel-install.sh --package-dir panel/bin`; a new installer cannot add features to an older executable.
+Version **v1.3.1** includes quick HTTP/HTTPS setup, Nodes/Agents, coordinated GRE/FRP creation, optional remote traffic, advanced engine profiles, traffic cycles and the configuration viewer/editor. Published v1.3.0 assets remain unchanged. A source checkout does not replace an installed binary; use the matching release installer or an explicit local package directory.
 
-The setup contract is `2`; Node inventory, paired operations and optional traffic each have separate protocol/contract checks. See [Nodes](../docs/NODES.md), [paired connections](../docs/PAIRED-CONNECTIONS.md), [remote traffic](../docs/REMOTE-TRAFFIC.md) and [release checklist](RELEASE.md).
+The setup contract is `2`; inventory, paired operations and optional traffic each retain separate protocol/contract checks. See [Nodes](../docs/NODES.md), [paired connections](../docs/PAIRED-CONNECTIONS.md), [remote traffic](../docs/REMOTE-TRAFFIC.md), [configuration editing](../docs/CONFIGURATION-EDITOR.md) and [profiles](../docs/CONNECTION-PROFILES.md).
 
 ## Development boundaries
 
-- Public HTTP/HTTPS runs unprivileged. Closed operations go through a protected local Unix broker and the Bash API; never add shell-command, arbitrary-file or raw-config endpoints.
+- Public HTTP/HTTPS runs unprivileged. Closed operations go through a protected local Unix broker and the Bash API; never add shell-command, arbitrary-file or unrestricted native-config endpoints. The configuration editor imports only validated adapter fields and reuses the existing update transaction.
 - Forwarding writes reload complete state under its existing lock, compare revisions, validate natively where supported and retain recovery paths. Presentation filters are not saved state.
 - Feature modules share semantic tokens and the allowlisted experience registry. Keep the selected Nettinx fills/source tokens intact. Its approved dark foreground applies only to orange buttons; other known contrast findings remain documented. Locale controls direction and Latin numerals independently of theme.
 - The overview has a dedicated bounded summary component; the management table owns selection/actions. Keep transport and system operations out of presentation components.

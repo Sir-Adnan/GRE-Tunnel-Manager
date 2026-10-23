@@ -1,15 +1,17 @@
-Optional Go web panel with Persian/English, RTL/LTR, responsive shadcn/ui, and the original Nettinx theme.
+# GRE Tunnel Manager v1.3.1
 
-Current source also includes engine/version profiles, separate-port HAProxy HTTP readiness and guarded `panel-install.sh --uninstall`. The installed package must report `gtm-panel uninstall-version` as `1` for automatic removal. Phase 5B–5D adds bounded routing, Realm/firewall profiles, display metadata and local traffic cycles/quotas/history. Obtain explicit release approval before changing the application/package version or publishing v1.3.1; do not overwrite v1.3.0 assets.
+This release brings the completed installation, Node/Agent, advanced management and interface milestones into one matched package.
 
-Manage GRE, iptables/nftables forwarding, HAProxy TCP, Realm TCP/UDP, and FRP/rathole reverse connections. Includes staged forms, multiport creation, grouped operations, engine preinstallation, and optional per-port/interface network counters.
+- Fix RTL port/value alignment and choose management tables/cards by available content width. Improve compact dashboards, mobile forms, destination disclosure, Latin numerals and bilingual typography while preserving Nettinx fills.
+- Add 23 opt-in connection profiles across HAProxy, Realm, kernel forwarding, GRE, FRP and rathole. HAProxy profiles include long-lived VPN/Reality, bounded IP affinity, primary/backup and small-server choices, with optional FIN/tunnel/retry controls.
+- Add per-connection configuration inspection, copy/download, managed JSON editing and supported HAProxy/Realm native-text imports. Review is read-only; apply uses existing revisions, full-state locking, native checks where available, snapshots and recovery. GRE/reverse configuration views remain read-only and reverse secrets are masked. Arbitrary file paths, executable directives and unrestricted native overrides are not exposed.
+- Include quick/custom setup, automatic address discovery, selected/random ports and explicit HTTP/HTTPS. HTTPS remains the default. Existing credentials, certificates and protocol settings are preserved on upgrade.
+- Include optional outbound mTLS Agents, local Node support, leased paired GRE/FRP setup and optional read-only remote traffic summaries. A separate management server is not required. Remote generic configuration/accounting writes are outside this release.
+- Include bounded HAProxy TLS/SNI/HTTP routing, Realm WS/MPTCP/IPv6-only profiles, nftables selection methods and independent display names.
+- Include local traffic cycles, resets, labels, advisory quotas, bounded history and CSV export. Quotas do not impose automatic hard cutoffs; accounting is operational rather than billing-grade.
 
-The public HTTP/HTTPS process runs as a restricted user and talks to a local privileged broker. Passwords use bcrypt; authenticated writes require a session and CSRF token. Tunnel engines run independently of the panel. Prebuilt Linux amd64/arm64 packages include the matching Bash manager and embedded frontend; no Go, Node, Docker or database is required on servers.
+Linux amd64/arm64 archives contain the Go executable, embedded built interface and matching Bash helper. Managed servers need no Node.js, Python, Go compiler, Docker or database server. Verify the matching `SHA256SUMS`.
 
-Supported settings are listed in docs/WEB-PANEL.md. This is not an arbitrary native HAProxy/Realm/firewall configuration editor. Imported Nettinx fills remain unchanged; a user-approved dark label/icon override applies only to orange buttons. Other documented contrast limits remain. Public two-server, reboot and sustained-load validation remain deployment checks.
+Upgrade with the current installer, then refresh the browser to load the new embedded interface. The old v1.3.0 assets are unchanged. Retain private configuration/identity backups; newer state/options may require matching prior snapshots for downgrade. Controller/Agent identities and explicit operation/traffic opt-ins are preserved. Protocol checks: setup 2, inventory 1, paired operations 1, traffic 1, panel removal 1.
 
-Quick/custom setup supports automatic IP discovery, selected/random ports, explicit HTTP/HTTPS and generated administrator credentials. HTTPS remains the default. Existing settings and certificates are preserved; user passwords require eight characters within the bcrypt byte limit. The login page and connection help identify unencrypted HTTP.
-
-Node support has a separate `gtm-panel nodes protocol` contract (currently 1). Until a new release is published, `node-install.sh --agent` requires a matching current source archive through `--package-dir`. Do not overwrite old v1.3.0 assets to make that command succeed. Test Controller/Agent upgrades and preserve private identities before publishing a new version.
-
-Paired-operation packages additionally report `gtm-panel nodes operations-version` as `1`. Upgrade the Controller before opting Agents into `--operations`. Preserve `pairs.json` and each root operation journal privately; verify leased recovery through real systemd/reboot checks before publishing. The wire extension remains protocol 1 with an explicit `connections.pair.v1` capability.
+Verification covers automated Bash/Python, frontend, Go race/vet, real isolated networking/native configuration checks, and responsive browser flows. Public two-server connectivity, provider firewalls, real systemd/reboots and sustained load remain deployment checks; no throughput/latency/resource benchmark is claimed.

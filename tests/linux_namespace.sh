@@ -154,7 +154,7 @@ if command -v iptables-restore >/dev/null; then
 fi
 
 if command -v haproxy >/dev/null; then
-    line=$'F000001\tChecked failover\thaproxy\ttcp\t0.0.0.0\t28443\tfailover\t1\tpreserve\tany\t203.0.113.20:28002@1,203.0.113.20:28001@1\t1'
+    line=$'F000001\tChecked failover\thaproxy\ttcp\t0.0.0.0\t28443\tfailover\t1\tpreserve\tany\t203.0.113.20:28002@1,203.0.113.20:28001@1\t2\tidle=86400;tunnel=86400;fin=30;retries=2'
     gtm_record_validate "$line"
     gtm_relay_loop_check
     gtm_haproxy_render > "$test_dir/haproxy.conf"

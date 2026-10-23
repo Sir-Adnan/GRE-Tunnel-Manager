@@ -121,6 +121,25 @@ gtm_inspect_state() {
 }
 
 # Offline deterministic preview: no root, package installs, temp files or probes.
+gtm_config_render() {
+    local line extra family table
+    IFS= read -r line || return 1
+    if IFS= read -r extra; then return 1; fi
+    gtm_record_validate "$line" || return 1
+    # Rendering an inactive record shows its desired config without enabling it.
+    R_ENABLED=1
+    GTM_RECORDS=("$(gtm_record_emit)")
+    case $R_ENGINE in
+        haproxy) gtm_haproxy_render;;
+        realm) gtm_realm_render;;
+        nftables) gtm_nft_render;;
+        iptables)
+            family=4; [[ $R_BIND != *:* ]] || family=6
+            for table in nat filter mangle; do gtm_iptables_render "$family" "$table" || return 1; done;;
+        *) return 1;;
+    esac
+}
+
 gtm_plan() {
     local line engine family table has4=0 has6=0 hasnft=0
     gtm_inspect_state "${1:-$GTM_STATE}" || return 1

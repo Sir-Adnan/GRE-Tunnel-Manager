@@ -66,6 +66,7 @@ export type Capability = {
   scope: string;
 };
 export type Inventory = {
+  presets?: Preset[];
   connections: Connection[];
   resources: Resource[];
   components: Component[];
@@ -83,6 +84,20 @@ export type Inventory = {
   };
   version: string;
   demo: boolean;
+};
+
+export type Preset = {
+  id: string;
+  engine: string;
+  label: Record<string, string>;
+  help: Record<string, string>;
+  protocol?: string;
+  strategy?: string;
+  options?: Record<string, string>;
+  max_targets?: number;
+  mtu?: number;
+  transport?: string;
+  mux?: boolean;
 };
 export type Session = {
   authenticated: boolean;

@@ -281,7 +281,11 @@ func (a Agent) Run(ctx context.Context) error {
 		if readErr != nil || len(raw) > MaxInventory {
 			r.Failure = &Problem{"inventory_unavailable", "Local inventory could not be read"}
 		} else {
-			r.Inventory = raw
+			r.Inventory, readErr = canonicalInventory(raw)
+			if readErr != nil {
+				r.Inventory = nil
+				r.Failure = &Problem{"inventory_unavailable", "Local inventory could not be read"}
+			}
 		}
 		var ack struct {
 			Protocol     int      `json:"protocol"`

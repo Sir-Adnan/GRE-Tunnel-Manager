@@ -143,7 +143,7 @@ export function PanelSidebar({
               <bdi>{inventory?.host.hostname || "Server"}</bdi>
             </p>
             <p className="text-xs text-muted-foreground">
-              <bdi>v{inventory?.version || "1.3.0"}</bdi>
+              <bdi>v{inventory?.version || "1.3.1"}</bdi>
             </p>
           </div>
           <span className="group-data-[collapsible=icon]:hidden">

@@ -67,6 +67,9 @@ var RealmOptions = []Option{
 	{Key: "log", Default: "warn", Choices: []string{"off", "error", "warn", "info", "debug", "trace"}},
 }
 var HAOptions = []Option{
+	{Key: "fin", Min: 0, Max: 300, Default: "0"},
+	{Key: "tunnel", Min: 0, Max: 604800, Default: "0"},
+	{Key: "retries", Min: 0, Max: 5, Default: "3"},
 	{Key: "stick", Default: "off", Choices: []string{"off", "source"}},
 	{Key: "stick_size", Min: 1024, Max: 100000, Default: "16384"},
 	{Key: "stick_expire", Min: 30, Max: 86400, Default: "1800"},

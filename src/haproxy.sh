@@ -5,6 +5,7 @@ gtm_haproxy_defaults() {
     H_SLOWSTART=0; H_PROXY=off; H_LOG=connections
     H_CHECK_MODE=tcp; H_CHECK_PATH=/health; H_CHECK_HOST=localhost; H_CHECK_STATUS=200
     H_STICK=off; H_STICK_SIZE=16384; H_STICK_EXPIRE=1800
+    H_FIN=0; H_TUNNEL=0; H_RETRIES=3
     gtm_routing_defaults
 }
 
@@ -19,7 +20,8 @@ gtm_haproxy_values_validate() {
             $H_CHECK_HOST =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] &&
         gtm_uint "$H_CHECK_STATUS" 200 599 &&
         { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); } &&
-        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 100000 && gtm_uint "$H_STICK_EXPIRE" 30 86400
+        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 100000 && gtm_uint "$H_STICK_EXPIRE" 30 86400 &&
+        gtm_uint "$H_FIN" 0 300 && gtm_uint "$H_TUNNEL" 0 604800 && gtm_uint "$H_RETRIES" 0 5
 }
 
 gtm_haproxy_options_validate() {
@@ -29,13 +31,14 @@ gtm_haproxy_options_validate() {
     [[ -n $options && $options != ';'* && $options != *';' && $options != *';;'* ]] || return 1
     gtm_haproxy_defaults
     IFS=';' read -r -a pairs <<< "$options"
-    ((${#pairs[@]} <= 20)) || return 1
+    ((${#pairs[@]} <= 23)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
         [[ -n $key && -n $value && ! ${seen[$key]+set} ]] || return 1
         seen[$key]=1
         case $key in
+            fin) H_FIN=$value;; tunnel) H_TUNNEL=$value;; retries) H_RETRIES=$value;;
             connect) H_CONNECT=$value;; idle) H_IDLE=$value;; queue) H_QUEUE=$value;;
             maxconn) H_MAXCONN=$value;; server_maxconn) H_SERVER_MAXCONN=$value;;
             check_interval) H_CHECK_INTERVAL=$value;; check_timeout) H_CHECK_TIMEOUT=$value;;
@@ -62,6 +65,9 @@ gtm_haproxy_options() {
     if [[ $H_STICK != off || $H_STICK_SIZE != 16384 || $H_STICK_EXPIRE != 1800 ]]; then
         printf ';stick=%s;stick_size=%d;stick_expire=%d' "$H_STICK" "$((10#$H_STICK_SIZE))" "$((10#$H_STICK_EXPIRE))"
     fi
+    if [[ $H_FIN != 0 || $H_TUNNEL != 0 || $H_RETRIES != 3 ]]; then
+        printf ';fin=%d;tunnel=%d;retries=%d' "$((10#$H_FIN))" "$((10#$H_TUNNEL))" "$((10#$H_RETRIES))"
+    fi
 }
 
 gtm_haproxy_socket() { gtm_id "$1" && printf '%s/haproxy/%s.sock' "$GTM_RUN_DIR" "$1"; }
@@ -77,8 +83,10 @@ gtm_haproxy_render() {
     printf 'defaults\n    mode %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf http || printf tcp)"
     [[ $H_LOG == off ]] || printf '    log global\n    option %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf httplog || printf tcplog)"
     [[ $H_LOG != errors ]] || printf '    option dontlog-normal\n'
-    printf '    option clitcpka\n    option srvtcpka\n    retries 3\n    option redispatch\n'
+    printf '    option clitcpka\n    option srvtcpka\n    retries %d\n    option redispatch\n' "$((10#$H_RETRIES))"
     printf '    timeout connect %ds\n    timeout client %ds\n    timeout server %ds\n    timeout queue %ds\n    timeout check %ds\n' "$((10#$H_CONNECT))" "$((10#$H_IDLE))" "$((10#$H_IDLE))" "$((10#$H_QUEUE))" "$((10#$H_CHECK_TIMEOUT))"
+    ((10#$H_FIN == 0)) || printf '    timeout client-fin %ds\n    timeout server-fin %ds\n' "$((10#$H_FIN))" "$((10#$H_FIN))"
+    ((10#$H_TUNNEL == 0)) || printf '    timeout tunnel %ds\n' "$((10#$H_TUNNEL))"
     gtm_haproxy_frontend || return 1
     printf 'backend destinations\n    balance %s\n' "$algorithm"
     [[ $algorithm != source ]] || printf '    hash-type consistent\n'

@@ -97,3 +97,7 @@ The new `stick=source` option enables a bounded in-memory HAProxy stick table fo
 This remembers a client-to-target association rather than merely hashing the source. Healthy-target selection and native redispatch still apply. Users behind the same NAT/proxy IP share an association; no untrusted forwarded-IP header is read. Memory use scales with the chosen table size and number of enabled connections. Tables reset on reload/restart: this implementation does not configure peers, disk persistence, per-IP rate policing or a replicated table. Established VPN sessions are not moved between servers.
 
 For a lighter deterministic choice, the existing **source** balancing strategy uses consistent source hashing without this memory table. nftables adds fixed-seed source-IP hashing, and Realm exposes its native iphash strategy; those are selection algorithms, not stored HAProxy-style client tables. iptables retains weighted random distribution. No engine is described as supporting another engine's native table features.
+
+## Connection profiles and configuration text
+
+Version v1.3.1 adds [VPN-oriented profiles](CONNECTION-PROFILES.md), optional FIN/tunnel/retry controls and a [configuration viewer/editor](CONFIGURATION-EDITOR.md). Absent new keys preserve previous rendering. Extended v2 option records require a matching current manager; older binaries may reject them, so downgrade using an appropriate prior snapshot. Source-IP memory remains opt-in and bounded; presets do not migrate existing connections automatically.

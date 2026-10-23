@@ -45,8 +45,8 @@ export function NodeDetails({
             <div className="flex max-h-[60dvh] min-w-0 flex-col gap-4 overflow-auto">
               <dl className="flex flex-col gap-2 text-sm">
                 <dt>{t("nodeIdentity")}</dt>
-                <dd className="break-all font-mono text-xs" dir="ltr">
-                  {node.id}
+                <dd className="break-all font-mono text-xs">
+                  <bdi>{node.id}</bdi>
                 </dd>
                 <dt>{t("os")}</dt>
                 <dd>

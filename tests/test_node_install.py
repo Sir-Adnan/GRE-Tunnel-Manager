@@ -55,7 +55,7 @@ case "$1 ${2:-}" in 'cat gre-manager-panel.service') [[ -f "$TEST_ROOT/panel-ser
         binary = """#!/bin/bash
 set -euo pipefail
 case "$1" in
-version) printf 'v1.3.0\\n';;
+version) printf 'v1.3.1\\n';;
 nodes) case "$2" in
 protocol) printf '%s\\n' "$TEST_NODE_PROTOCOL";;
 operations-version) printf '1\\n';;
@@ -70,7 +70,7 @@ init) printf 'init\\n' >> "$TEST_LOG"; mkdir -p "$TEST_ROOT/var/lib/gre-manager-
         (self.root / 'usr/local/bin/gtm-panel').write_text(binary)
         (self.root / 'usr/local/bin/gtm-panel').chmod(0o755)
         arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
-        archive = self.packages / f'gtm-panel-v1.3.0-linux-{arch}.tar.gz'
+        archive = self.packages / f'gtm-panel-v1.3.1-linux-{arch}.tar.gz'
         with tarfile.open(archive, 'w:gz') as output:
             for name, body in [('gtm-panel', binary), ('gre.sh', '#!/bin/bash\nexit 0\n')]:
                 info = tarfile.TarInfo(name)

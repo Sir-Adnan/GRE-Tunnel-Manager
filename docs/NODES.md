@@ -17,15 +17,9 @@ No third server is required. Agent availability is separate from tunnel availabi
 
 ## Release availability
 
-The existing published **v1.3.0 predates Node protocol 1**. The current source has this feature; no release assets were overwritten. Until a new version is released, build the frontend and packages using [DEVELOPMENT.md](DEVELOPMENT.md), then copy `panel/bin/gtm-panel-v1.3.0-linux-ARCH.tar.gz` and its `SHA256SUMS` to the target. The installer explicitly rejects older binaries before stopping services.
+Version **v1.3.1** includes inventory protocol 1, paired operations and optional traffic summaries. Default installers download that matching version. Earlier v1.3.0 packages predate Nodes and are rejected before services stop. Existing release assets are never overwritten.
 
-```bash
-# Development machine, after the normal frontend build:
-python3 tools/package_panel.py
-
-# Panel host, using the matching source checkout and local package directory:
-sudo bash panel-install.sh --package-dir /path/to/packages --quick --address SERVER_IP
-```
+For offline/source packages, build using [DEVELOPMENT.md](DEVELOPMENT.md) and copy `gtm-panel-v1.3.1-linux-ARCH.tar.gz` plus `SHA256SUMS` to the target. Then use the installer with `--package-dir /path/to/packages`.
 
 Node.js, Python and Go compilers are not installed on managed servers. The Agent uses the same prebuilt Go executable; it does not serve embedded frontend assets or open an inbound port.
 
@@ -59,7 +53,7 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
    bash <(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh) --agent
    ```
 
-   Until an updated release exists, instead use the source installer and matching packages:
+   For an offline/local package, use:
 
    ```bash
    sudo bash node-install.sh --agent --package-dir /path/to/packages
@@ -68,7 +62,7 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
 4. Paste the code at the **hidden terminal prompt**. Do not put it in a URL, environment variable, command argument, issue or log. The Agent pins the Controller CA from this invitation before sending the secret. It generates its private key locally, submits a signed P-256 CSR and stores its issued identity privately.
 5. Refresh Nodes after the first report. Reports normally arrive every 60–70 seconds. Inventory is refreshed manually. Only active paired jobs use temporary browser polling.
 
-The normal published-package command above is the intended release flow; it currently rejects the old v1.3.0 archive with an explicit message. It does not silently install an unsupported Agent.
+The default installer selects the matching v1.3.1 package and verifies its checksum/protocol before changing services.
 
 The Agent installer targets Debian/Ubuntu with systemd, x86_64/arm64, and requires existing `curl`, `tar`, `sha256sum`, `iproute2` and `util-linux` tools. It verifies matching release checksums and protocol support, creates the restricted `greagent` account, and installs an unprivileged outbound Agent plus a separate root **read-only** Unix broker. Controller and Agent identity creation run as their respective service users via `runuser`; the installer does not chown identity files inside service-writable directories. It installs no tunnel engine and changes no tunnel configuration. Do not install an Agent on the panel host; that host is already the local Node. Updates preserve identity and validate it before stopping an existing Agent. Installation shares the panel installer lock.
 

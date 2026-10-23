@@ -2,6 +2,62 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  copyConfig: ["Copy configuration", "کپی کانفیگ"],
+  configDriftHelp: [
+    "The saved engine file differs from the manager settings. This preview shows manager-generated settings; applying replaces the managed file through normal backup/recovery.",
+    "فایل موتور با تنظیمات مدیر تفاوت دارد. این پیش‌نمایش از تنظیمات مدیر ساخته شده است؛ اعمال تغییر، فایل را از مسیر معمول پشتیبان‌گیری و بازیابی جایگزین می‌کند.",
+  ],
+  configRedactedHelp: [
+    "Tokens and private keys are hidden. This redacted copy cannot replace a working configuration as-is.",
+    "توکن‌ها و کلیدهای خصوصی مخفی شده‌اند. این نسخه با مقادیر مخفی‌شده، جایگزین آمادهٔ فایل فعال نیست.",
+  ],
+  configuration: ["Configuration", "کانفیگ"],
+  viewConfig: ["View configuration", "مشاهدهٔ کانفیگ"],
+  managedEditor: ["Edit JSON", "ویرایش JSON"],
+  nativeEditor: ["Edit text", "ویرایش متن"],
+  configText: ["Configuration text", "متن کانفیگ"],
+  downloadConfig: ["Download", "دانلود"],
+  configDescription: [
+    "Inspect generated settings or review an edit before applying it.",
+    "تنظیمات را ببینید یا پیش از اعمال، تغییرات را بررسی کنید.",
+  ],
+  configHelp: [
+    "Forward previews are generated from saved manager settings, including disabled records. They are not a dump of live firewall state. Single-connection firewall previews are excerpts; never run them as a complete host ruleset. Reverse secrets are redacted. GRE/reverse files are view-only in this editor.",
+    "پیش‌نمایش فوروارد از تنظیمات ذخیره‌شده ساخته می‌شود، حتی اگر اتصال خاموش باشد؛ خروجی زندهٔ فایروال نیست. پیش‌نمایش تک‌اتصال را به‌جای قوانین کامل سرور اجرا نکنید. اطلاعات محرمانهٔ تونل معکوس مخفی می‌شود. فایل GRE و تونل معکوس در این ویرایشگر فقط قابل مشاهده‌اند.",
+  ],
+  nativeEditorHelp: [
+    "Edit existing supported timeout, connection-limit, balancing and target values. Both sides of a shared timeout and repeated target definitions must agree. New or unsupported native structures require the JSON editor or form. Comments/formatting are not persisted; the manager regenerates canonical files.",
+    "مقادیر موجودِ مهلت‌ها، سقف اتصال، توزیع و مقصدها را ویرایش کنید. مهلت‌های مشترک و تعریف‌های تکراری مقصد باید هماهنگ باشند. برای افزودن ساختار، از JSON یا فرم استفاده کنید. مدیر فایل را دوباره تولید می‌کند؛ قالب‌بندی و نظرهای دلخواه ذخیره نمی‌شوند.",
+  ],
+  managedEditorHelp: [
+    "Edit the supported manager fields. The engine and technical identity stay fixed. Keep one local port; use the creation form for a port batch. Saved files are regenerated from this source of truth.",
+    "فیلدهای پشتیبانی‌شدهٔ مدیر را ویرایش کنید. نوع موتور و شناسهٔ فنی ثابت‌اند. یک پورت محلی نگه دارید و برای چند پورت از فرم ساخت استفاده کنید. فایل‌ها از همین تنظیمات بازتولید می‌شوند.",
+  ],
+  configReviewed: ["Reviewed configuration", "کانفیگ بررسی‌شده"],
+  configApplyHelp: [
+    "Applying can reload/restart this connection. Normal validation, full-state locks, revision checks, backups and recovery still apply. Check a live VPN connection after saving.",
+    "اعمال تغییر ممکن است این اتصال را بازخوانی یا دوباره راه‌اندازی کند. اعتبارسنجی، قفل کامل تنظیمات، کنترل هم‌زمانی و پشتیبان‌گیری برقرار است. پس از ذخیره، اتصال VPN را بررسی کنید.",
+  ],
+  config_matches: ["Manager file matches", "فایل مدیر هماهنگ است"],
+  config_different: ["Saved file differs", "فایل ذخیره‌شده متفاوت است"],
+  config_missing: [
+    "Generated preview · file absent",
+    "پیش‌نمایش؛ فایل هنوز موجود نیست",
+  ],
+  config_generated: ["Generated preview", "پیش‌نمایش تولیدشده"],
+  config_saved: ["Saved managed file", "فایل ذخیره‌شدهٔ مدیر"],
+  connectionProfile: ["Connection profile", "پروفایل اتصال"],
+  customProfile: ["Custom / current settings", "تنظیمات فعلی یا دلخواه"],
+  profileApplied: [
+    "Profile fills the form; review before applying.",
+    "پروفایل فرم را پر می‌کند؛ پیش از اعمال بررسی کنید.",
+  ],
+  fin: [
+    "Half-close timeout · seconds; 0 keeps default",
+    "مهلت اتصال نیمه‌بسته؛ ثانیه، 0 پیش‌فرض",
+  ],
+  retries: ["Connect retries", "تعداد تلاش برای اتصال"],
+
   nodeTraffic: ["Traffic", "مصرف ترافیک"],
   nodeTrafficObserved: ["Report received", "زمان دریافت گزارش"],
   nodeTrafficNoSamples: ["No samples yet", "هنوز نمونه‌ای ثبت نشده"],
@@ -560,8 +616,8 @@ const words = {
     "ارتباط مرورگر HTTP است. کد اتصال را از مسیر خصوصی مطمئن یا HTTPS دریافت کنید؛ ارتباط خود ایجنت همیشه رمزگذاری شده است.",
   ],
   agentPackageNotice: [
-    "The published v1.3.0 package predates Agents. Until a new release, use a current source package with --package-dir; see the guide.",
-    "بستهٔ منتشرشدهٔ نسخهٔ 1.3.0 ایجنت ندارد. تا انتشار نسخهٔ جدید از بستهٔ سورس فعلی با گزینهٔ ‎--package-dir استفاده کنید؛ راهنما را ببینید.",
+    "Use a matching v1.3.1 Agent package. For offline packages, add --package-dir; see the guide.",
+    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.1 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
   ],
   manualCopyHelp: [
     "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
@@ -596,8 +652,8 @@ const words = {
     "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
   ],
   nodeReleaseHelp: [
-    "These features are in current source, not the existing v1.3.0 release. See docs/NODES.md for source packages. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
-    "این قابلیت‌ها در سورس فعلی هستند و در انتشار قبلی نسخهٔ 1.3.0 نیستند. راهنمای NODES روش ساخت بسته را توضیح می‌دهد. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
+    "These features are included in v1.3.1. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
+    "این قابلیت‌ها در نسخهٔ 1.3.1 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",
@@ -960,6 +1016,10 @@ const words = {
   localPort: ["Service port", "پورت سرویس"],
   token: ["Shared token", "توکن مشترک"],
   generate: ["Generate", "ساخت خودکار"],
+  tunnel: [
+    "Tunnel idle timeout · seconds; 0 keeps default",
+    "مهلت بی‌کاری تونل؛ ثانیه، 0 پیش‌فرض",
+  ],
   transport: ["Transport", "روش انتقال"],
   mux: ["Stream multiplexing", "چندگانه‌سازی جریان"],
   group: ["Load balancing group", "گروه لودبالانس"],

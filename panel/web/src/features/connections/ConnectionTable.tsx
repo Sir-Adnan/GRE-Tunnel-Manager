@@ -33,6 +33,7 @@ import { LocaleContext } from "@/lib/i18n";
 import { Blank, Status } from "@/components/shared";
 import { Destinations } from "./Destinations";
 import { ConnectionActions } from "./ConnectionActions";
+import { ConfigurationDialog } from "../configuration/ConfigurationDialog";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -49,6 +50,7 @@ export function ConnectionTable({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
+  const [config, setConfig] = useState<Connection>();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
@@ -66,7 +68,7 @@ export function ConnectionTable({
     <ConnectionActions
       row={row}
       busy={busy}
-      compact={false}
+      onConfig={() => setConfig(row)}
       onEdit={onEdit}
       onDelete={() => {
         setSelected([row.id]);
@@ -98,7 +100,7 @@ export function ConnectionTable({
     }
   }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="@container flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full sm:w-80">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -150,7 +152,7 @@ export function ConnectionTable({
         <Blank onAdd={onAdd} filtered={query !== ""} />
       ) : (
         <>
-          <div className={"grid gap-3 md:grid-cols-2 xl:hidden"}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3 @3xl:hidden">
             {visible.map((row) => (
               <article
                 key={row.id}
@@ -211,8 +213,16 @@ export function ConnectionTable({
               </article>
             ))}
           </div>
-          <div className="table-frame hidden xl:block">
-            <Table>
+          <div className="table-frame hidden @3xl:block">
+            <Table className="table-fixed">
+              <colgroup>
+                <col style={{ width: 36 }} />
+                <col />
+                <col style={{ width: 88 }} />
+                <col style={{ width: 190 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 196 }} />
+              </colgroup>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
@@ -268,12 +278,14 @@ export function ConnectionTable({
                     </TableCell>
 
                     <TableCell>
-                      <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
                         <span className="engine-icon" aria-hidden>
                           {glyph(row.engine)}
                         </span>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-medium">{row.name}</span>
+                        <div className="flex min-w-0 flex-col items-start gap-1">
+                          <span className="whitespace-normal font-medium [overflow-wrap:anywhere]">
+                            {row.name}
+                          </span>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <bdi>{engineName(row.engine)}</bdi>
                             <HelpTip
@@ -284,7 +296,7 @@ export function ConnectionTable({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
+                      <div className="flex min-w-0 flex-col items-start gap-1">
                         <bdi dir="ltr" className="font-mono text-sm">
                           {row.ports}
                         </bdi>
@@ -341,6 +353,13 @@ export function ConnectionTable({
             </Button>
           </div>
         </div>
+      )}
+      {config && (
+        <ConfigurationDialog
+          resource={config}
+          run={run}
+          onClose={() => setConfig(undefined)}
+        />
       )}
       <Dialog
         open={deleting}

@@ -16,6 +16,28 @@ func trafficSample() TrafficReport {
 	return TrafficReport{Protocol: 1, Enabled: true, Interval: 60, Since: now, Counters: map[string]TrafficCounter{"F000001": {Received: 120, Sent: 50, CycleReceived: 20, CycleSent: 10, Updated: now, CycleStart: now, Source: "nftables"}}}
 }
 
+func TestRemoteInventoryOmitsPresentationCatalog(t *testing.T) {
+	raw, e := control.NewDemo().Do(context.Background(), control.Request{Action: "inventory"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	var inv control.Inventory
+	json.Unmarshal(raw, &inv)
+	if len(inv.Presets) == 0 {
+		t.Fatal("local catalog missing")
+	}
+	canonical, e := canonicalInventory(raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	inv.Presets[0].Label["en"] = "Different UI copy"
+	changed, _ := json.Marshal(inv)
+	other, e := canonicalInventory(changed)
+	if e != nil || string(canonical) != string(other) || strings.Contains(string(canonical), `"presets"`) {
+		t.Fatal("UI catalog affects Node inventory/revision")
+	}
+}
+
 func TestTrafficIdentityIsolationStalenessFailureAndRevocation(t *testing.T) {
 	f := newFixture(t)
 	a, _ := f.enroll(t, "One")

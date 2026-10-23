@@ -2,11 +2,11 @@
 
 The optional Go panel manages connections on its own host. The interface supports Persian RTL and English LTR, desktop/mobile layouts, the original Nettinx palette and the Neutral alternative. Tunnel traffic does not pass through the panel. Stopping the panel does not stop independently managed tunnels.
 
-The [development roadmap](ROADMAP.md) tracks local management, optional Nodes, leased paired operations and read-only remote traffic. Current source includes these completed milestones and the updated installation flow. The published v1.3.0 package still contains the earlier interface and HTTPS-only setup; pulling a newer installer does not rebuild that binary. See the release boundary below.
+The [development roadmap](ROADMAP.md) tracks the delivered local and optional multi-server milestones. Version v1.3.1 includes them; older v1.3.0 binaries need an actual package upgrade to receive the updated interface and setup flow.
 
 ## Installation and login
 
-Source now includes [engine/version details](ENGINE-CAPABILITIES.md), bounded HAProxy HTTP readiness and [guarded panel removal](PANEL-REMOVAL.md). These require a matching current source package until a new release is approved and published. General engine edits still act locally; remote writes are limited to the documented paired GRE/FRP workflow.
+Version v1.3.1 includes [engine/version details](ENGINE-CAPABILITIES.md), bounded HAProxy HTTP readiness and [guarded panel removal](PANEL-REMOVAL.md). Use a matching v1.3.1 package. General engine edits still act locally; remote writes are limited to the documented paired GRE/FRP workflow.
 
 On Debian/Ubuntu with systemd:
 
@@ -18,25 +18,23 @@ Terminal menu **8 · Web Panel** uses the same installer. It downloads a version
 
 ### Published package versus current source
 
-The default command above remains compatible with published v1.3.0: enter the public IP, listen IP, selected/random port, administrator username and a confirmed 12–72-byte password. It installs HTTPS with a self-signed IP certificate. New options are never silently ignored: asking an older package for `--quick`, `--protocol` or other new setup options on a fresh installation fails before stopping any service.
+The installer now selects v1.3.1, including setup contract `2`. Older v1.3.0 binaries predate quick installation, explicit HTTP and Nodes. Reinstallation preserves existing credentials, protocol and certificates rather than rerunning setup. Release assets are versioned; downloading the installer alone does not update a running binary.
 
-The following flow requires a package built from the updated source (`gtm-panel setup-version` prints `2`). It has not yet been published as a new release. Developers can build matching packages using [the development guide](DEVELOPMENT.md#optional-panel), then install explicitly:
+For offline/development packages built from the matching source, use:
 
 ```bash
-sudo bash panel-install.sh --package-dir panel/bin --quick
+sudo bash panel-install.sh --package-dir /path/to/packages --quick
 ```
 
 ### Quick and custom setup
 
-With an updated package, ordinary installation offers **1 · Quick setup** or **2 · Custom setup**, followed by numbered HTTPS/HTTP selection. Quick setup detects the public IP, chooses an available random port and generates a strong 32-character password. It prints the URL, username and generated password once. Save that password; only its bcrypt hash is stored. Custom setup lets you choose the address, port, username and a hidden, confirmed password.
+In v1.3.1, ordinary installation offers **1 · Quick setup** or **2 · Custom setup**, followed by numbered HTTPS/HTTP selection. Quick setup detects the public IP, chooses an available random port and generates a strong 32-character password. It prints the URL, username and generated password once. Save that password; only its bcrypt hash is stored. Custom setup lets you choose the address, port, username and a hidden, confirmed password.
 
-For a downloaded installer and an updated published package, the direct quick-install command is:
+For direct quick installation, the direct quick-install command is:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh --quick
 ```
-
-Until that package is published, use `--package-dir` as above; the current published package will explicitly reject this quick command. No release/tag was replaced by the source changes.
 
 | Option | Behavior for a fresh installation |
 | --- | --- |
@@ -91,14 +89,14 @@ Setup refuses an existing config or TLS files rather than overwriting them. If a
 | --- | --- |
 | Forward/relay management | Multi-port creation, individual edits, bulk selection, enable/disable/delete and review before application |
 | iptables/nftables | IPv4/IPv6, TCP/UDP/both, DNAT, destination-port mapping, masquerade/preserve source, interface selection and weighted distribution |
-| HAProxy | TCP, weighted targets, round robin/leastconn/source/failover, 20 bounded timeout/queue/maxconn/check/slow-start/PROXY/log options and balanced/VPN/lean presets |
+| HAProxy | TCP, weighted targets, round robin/leastconn/source/failover, 23 bounded timeout/queue/maxconn/check/slow-start/PROXY/log options and balanced/VPN/lean presets |
 | Realm | TCP/UDP/both, weighted targets, round robin/iphash, timeouts, keepalive/probes, incoming/outgoing PROXY metadata and log level |
 | GRE | GRE/ip6gre creation with ID, role, local/peer IP and MTU; service state/actions/logs and dependency-aware deletion |
 | FRP | Entrance/destination, TCP/UDP services, TCP/WS/WSS/QUIC transports, stream multiplexing and TCP balancing groups |
 | rathole | Entrance/destination, TCP/UDP/both, Noise NK, entrance key creation and public-key pinning at destination |
 | Engine installation | Install optional engines selectively or together without creating tunnels |
 
-Current source additionally supports bounded [HAProxy TLS/SNI/HTTP routing](HAPROXY-ROUTING.md), source-IP memory affinity, pinned [Realm WS/MPTCP/IPv6-only profiles](REALM-PROFILES.md), and nftables incremental/source hashing. This remains a closed adapter set: arbitrary native config/ACL editing, Realm native TLS/WSS and hostname destinations are not exposed. Capabilities advertised by the API/forms define the supported profile. Optional [paired GRE/FRP orchestration](PAIRED-CONNECTIONS.md) is separate from the general local editors.
+Current source additionally supports bounded [HAProxy TLS/SNI/HTTP routing](HAPROXY-ROUTING.md), source-IP memory affinity, pinned [Realm WS/MPTCP/IPv6-only profiles](REALM-PROFILES.md), and nftables incremental/source hashing. This remains a closed adapter set: unrestricted native config/ACL editing, Realm native TLS/WSS and hostname destinations are not exposed. Capabilities advertised by the API/forms define the supported profile. Optional [paired GRE/FRP orchestration](PAIRED-CONNECTIONS.md) is separate from the general local editors.
 
 Presets initialize settings; they do not guarantee throughput or resource usage on every route. PROXY metadata requires a compatible receiver. Preserved source IP requires correct return routing. A kernel forward marked configured does not prove peer reachability; an active relay process does not prove end-to-end tunnel health.
 
@@ -156,7 +154,7 @@ Fonts are served locally, Persian letter-spacing is zero and technical values re
 
 ## Optional servers and Agents
 
-The **Nodes** page always includes the panel host. To see other servers, explicitly enable the separate TLS Controller listener and install outbound Agents (read-only by default; optional leased GRE/FRP pairing is described in [Paired connections](PAIRED-CONNECTIONS.md)) with hidden, expiring enrollment codes. The panel may run on an entrance, destination or third server; local-only operation needs no Agent. Existing tunnel pages still control only the panel host. See [NODES.md](NODES.md) for setup, protocol/PKI, status interpretation and recovery. This is an unreleased source feature; the existing v1.3.0 archive does not implement it.
+The **Nodes** page always includes the panel host. To see other servers, explicitly enable the separate TLS Controller listener and install outbound Agents (read-only by default; optional leased GRE/FRP pairing is described in [Paired connections](PAIRED-CONNECTIONS.md)) with hidden, expiring enrollment codes. The panel may run on an entrance, destination or third server; local-only operation needs no Agent. Existing tunnel pages still control only the panel host. See [NODES.md](NODES.md) for setup, protocol/PKI, status interpretation and recovery. This requires v1.3.1; the old v1.3.0 archive does not implement it.
 
 
 ## Current advanced profiles and display preferences
@@ -165,7 +163,7 @@ See [HAProxy routing](HAPROXY-ROUTING.md) for exact-host SNI/HTTP routes and HTT
 
 GRE/reverse cards have a display-name action. Names use 1–40 ASCII characters; an empty edit restores the technical name. Display metadata is separate from unit IDs, peer tokens and addresses, is fingerprint-bound, and is updated under the existing manager lock with revision checks. It does not rename the network resource. Deleting a managed resource retires its matching display entry.
 
-All system-generated numbers, dates and chart values use Latin digits in Persian and English; language still controls labels and RTL/LTR. Nettinx's original fills remain unchanged. The user approved a dark dark label/icon override on orange primary buttons only, recorded in `approved-overrides.css` and `fidelity.accept`. Other pre-existing contrast limits remain; this is not a claim that the entire palette passes WCAG. The old generic primary-foreground and sidebar pairs still fail the theme-wide contrast audit and are documented, not silently recolored.
+All system-generated numbers, dates and chart values use Latin digits in Persian and English; language still controls labels and RTL/LTR. Nettinx's original fills remain unchanged. The user approved a dark label/icon override on orange primary buttons only, recorded in `approved-overrides.css` and `fidelity.accept`. Other pre-existing contrast limits remain; this is not a claim that the entire palette passes WCAG. The old generic primary-foreground and sidebar pairs still fail the theme-wide contrast audit and are documented, not silently recolored.
 
 
 ## Minimal responsive workflows
@@ -175,3 +173,7 @@ Multi-destination connections expose a compact destination preview on hover/focu
 Page descriptions and long form explanations move to focus/hover/tap help. Routing and optional IP-affinity controls stay under Advanced settings. The paired GRE/FRP wizard shows entrance and destination as separate server cards, a directional connector and a swap action; on small screens it stacks them vertically. This changes presentation only: existing eligibility, preflight, leasing and rollback contracts still apply.
 
 Mobile navigation provides Overview, Connections, Traffic and Nodes shortcuts plus the full menu. Sidebar hover/active items use existing readable foreground/muted tokens with a stable active indicator. Tooltips use the existing popover surface with a short delay and suppress duplicate hover content while persistent help is open. Brief CSS entry/color transitions respect `prefers-reduced-motion`; no new animation or graph runtime dependency is introduced.
+
+## Configuration and profiles
+
+Use each local connection’s configuration button to inspect generated settings, edit managed JSON or supported HAProxy/Realm native text, review and apply through the normal transaction. GRE/reverse configuration views are read-only; reverse secrets are masked. See [Configuration editor](CONFIGURATION-EDITOR.md). Built-in [connection profiles](CONNECTION-PROFILES.md) cover all engine families and remain opt-in draft settings.
