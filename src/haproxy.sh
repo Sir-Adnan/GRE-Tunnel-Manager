@@ -82,7 +82,7 @@ gtm_haproxy_render() {
     gtm_haproxy_frontend || return 1
     printf 'backend destinations\n    balance %s\n' "$algorithm"
     [[ $algorithm != source ]] || printf '    hash-type consistent\n'
-    gtm_haproxy_servers || return 1
+    gtm_haproxy_servers 0 || return 1
     gtm_haproxy_route_backends
 }
 
