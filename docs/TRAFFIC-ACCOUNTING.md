@@ -1,12 +1,14 @@
 # Traffic accounting
 
-The full traffic accounting workspace is optional and local to the panel server. Other Nodes can separately opt into [read-only traffic summaries](REMOTE-TRAFFIC.md). Open **Traffic usage** for the **Usage & cycles** and **Traffic collection** tabs. Collection and retained chart history are off by default. Tunnel engines continue to work independently of the panel.
+The full accounting workspace is optional and local to the panel server. Other Nodes can opt into [read-only summaries](REMOTE-TRAFFIC.md). The workspace separates **All connections**, **Details & history**, and **Traffic collection**. Collection and retained history are off by default. Tunnels work independently of the panel.
+
+The all-connections tab presents 20 rows per page with search/method filters, cycle received/sent/total, advisory quota status and a per-row menu. Use that menu for reset, customer/quota settings or stopping a supported active forward; open the arrow action for details/history. Missing samples display as unavailable. The list does not sum overlapping GRE and forward totals or add automatic quota enforcement. Mobile layouts use compact rows instead of a wide table.
 
 ## Track a port or customer
 
 1. Create a forward with a dedicated entrance port. A batch of ports creates independent connection IDs, so each port can have its own accounting.
 2. In **Traffic collection**, enable collection, choose all supported connections or a subset, and save. The interval is 15–3600 seconds; 60 seconds is the default. Port accounting requires nftables even when the forwarding engine is HAProxy, Realm or iptables.
-3. In **Usage & cycles**, select the connection. Search by name, entrance port or customer label; filter by engine.
+3. In **All connections**, find the connection by name, entrance port or customer label, optionally filtering by engine. Open its row action or **Details & history**.
 4. Open **Customer & quota**. Enter an optional customer/reference label, quota in GiB and the counted direction: received, sent or their sum. Zero means unlimited.
 5. Export the filtered list as CSV when needed. Values are quoted and leading spreadsheet formulas are neutralized. The export contains recorded byte values as well as resource IDs and cycle timestamps.
 

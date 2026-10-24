@@ -1,6 +1,6 @@
 # Configuration viewer and editor
 
-Open **View configuration** on a connection or GRE/reverse resource. The panel operates on local manager-owned resources, not arbitrary file paths or remote Node files. This feature is available in v1.3.1.
+Open **View configuration** on a connection or GRE/reverse resource. The panel operates on local manager-owned resources, not arbitrary file paths or remote Node files. This feature is available in v1.3.2.
 
 ## What is displayed
 

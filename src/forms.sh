@@ -278,6 +278,12 @@ gtm_new_forward() {
         done
         [[ -n $W_ORIGINAL ]] || { gtm_error 'Tunnel no longer exists.'; return 1; }
     fi
+    if [[ -z $W_EDIT ]]; then
+        case $W_ENGINE in
+            haproxy) W_VERSION=2; W_OPTIONS='maxconn=100000;server_maxconn=0;log=off';;
+            realm) W_VERSION=3; W_OPTIONS='log=off';;
+        esac
+    fi
     gtm_header "$W_TITLE / $([[ -n $W_EDIT ]] && printf 'Edit tunnel' || printf 'Add tunnel')"
     gtm_form_ports && gtm_form_targets && gtm_form_bind || return 1
     W_NAME=${W_NAME:-$W_ENGINE-${W_PORTS[0]}}

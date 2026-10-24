@@ -1,5 +1,7 @@
 # Phase 7 / v1.3.1 review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 This milestone fixes responsive RTL alignment, adds local configuration workflows and connection profiles, and consolidates the previously unreleased panel milestones into a matched v1.3.1 package. Publication was explicitly authorized by the user after implementation and checks.
 
 ## Delivered
@@ -27,4 +29,4 @@ Screenshots/logs are ignored local review artifacts under `output/playwright/` a
 
 The editor applies to local managed forward records. Generic remote configuration editing, direct GRE/reverse file writes, unrestricted raw iptables/nftables editing, arbitrary native extensions and operator-global `/etc/haproxy/haproxy.cfg` management are outside this release. Use the dedicated forms/lifecycle tools for resources not editable here. Remote accounting stays read-only; local quotas stay advisory.
 
-See [configuration editing](CONFIGURATION-EDITOR.md), [connection profiles](CONNECTION-PROFILES.md), [release notes](../panel/RELEASE.md) and [roadmap](ROADMAP.md).
+See [configuration editing](../CONFIGURATION-EDITOR.md), [connection profiles](../CONNECTION-PROFILES.md), [release notes](../../panel/RELEASE.md) and [roadmap](../ROADMAP.md).

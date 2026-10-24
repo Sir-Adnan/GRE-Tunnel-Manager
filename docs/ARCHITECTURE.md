@@ -1,4 +1,8 @@
-# Architecture — v1.3.1
+# Architecture
+
+Form layout: `DialogBody` owns modal scrolling and the containing block for hidden absolute form controls; `FieldGroup columns` owns responsive form columns. `EngineOptionFields` groups typed adapter options without changing their schema. The traffic list delegates writes to the existing captured-target `TrafficActions` flow. See [Interface conventions](INTERFACE.md).
+
+`model/creation_defaults.json` is embedded by Go and imported by Vite. Only create merges these defaults, with explicit values taking precedence. Reads, updates, configuration import and reconciliation retain legacy absent-key behavior. New terminal forms write matching explicit values. No Node protocol or broker action is added.
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
 
@@ -90,7 +94,7 @@ Panel installation is independent of runtime control. `panel/internal/setup` own
 Paired operations preflight both Nodes, apply entrance before destination, then require time-limited confirmation. Individual outcomes persist through Controller restarts; missing acknowledgments are redelivered to the broker receipt. Uncertain create outcomes and changed resources require inspection. There is no distributed atomic transaction. See [PAIRED-CONNECTIONS.md](PAIRED-CONNECTIONS.md).
 
 
-## Phase 5 advanced management
+## Routing, metadata and accounting
 
 Routing is isolated in `model/routing.go` and `src/haproxy_routing.sh`; v4 appends a routing field after ordinary HAProxy options. Both validators enforce the same bounded grammar. Kernel nftables selection has random, incremental and fixed-seed source-IP hash profiles; no host policy editor is introduced. Extended Realm options require pinned-version feature checks and, for MPTCP, a compatible enabled kernel.
 

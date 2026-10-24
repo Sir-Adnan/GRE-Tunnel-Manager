@@ -1,5 +1,7 @@
 # Phase 1 completion report
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 ## Scope and status
 
 Phase 1 implements interaction corrections, responsive/RTL presentation and the traffic-page redesign. Subsequent phases remain gated by the user's next instruction. This work is an unreleased source change; the existing v1.3.0 release archive is not silently replaced. No production VPS was modified.

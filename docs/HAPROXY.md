@@ -29,7 +29,9 @@ For normal setup choose **Add Tunnel**: local port(s), remote IP and remote port
 
 Version-1 records retain their 12 fields and load the baseline defaults. An advanced HAProxy save writes version 2 with the same first 12 fields (`version=2`) and a 13th field of semicolon-separated `key=value` options. Only the HAProxy engine accepts version 2. Missing optional keys use defaults; duplicate/unknown keys, empty values, control characters, out-of-range integers and raw config snippets are rejected. No data is sourced or evaluated.
 
-| Key | Default | Allowed values |
+New setups explicitly set `maxconn=100000`, `server_maxconn=0` and `log=off`; explicit operator values override them. Existing records retain their saved values. The table documents absent-key compatibility defaults. See [Setup presets](CONNECTION-PROFILES.md).
+
+| Key | Legacy absent-key default | Allowed values |
 | --- | --- | --- |
 | connect | 5 | 1–300 seconds |
 | idle | 3600 | 10–604800 seconds of inactivity, not a total session lifetime |
@@ -85,7 +87,7 @@ Caches, compression, raw ACLs, rewrites and unrestricted HTTP/WebSocket reverse 
 
 ## Optional web controls
 
-The Go panel exposes the same managed TCP adapter, 20 bounded options and balanced/VPN/low-resource presets, with HTTP readiness fields shown only when selected. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated browser endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).
+The Go panel exposes the same managed TCP adapter, 23 bounded adapter options and three setup presets: Balanced, Long-lived and IP affinity, with HTTP readiness fields shown only when selected. Browser forms do not imply full native HAProxy HTTP/TLS/ACL coverage. Its authenticated browser endpoint is separate from HAProxy runtime sockets, which remain local and restricted. See [WEB-PANEL.md](WEB-PANEL.md).
 
 Routing forms show the selected mode, certificate reference and resolved route destinations during review. Ordinary TCP records remain unchanged; v4 requires the updated manager for reads, edits and recovery.
 
@@ -100,4 +102,4 @@ For a lighter deterministic choice, the existing **source** balancing strategy u
 
 ## Connection profiles and configuration text
 
-Version v1.3.1 adds [VPN-oriented profiles](CONNECTION-PROFILES.md), optional FIN/tunnel/retry controls and a [configuration viewer/editor](CONFIGURATION-EDITOR.md). Absent new keys preserve previous rendering. Extended v2 option records require a matching current manager; older binaries may reject them, so downgrade using an appropriate prior snapshot. Source-IP memory remains opt-in and bounded; presets do not migrate existing connections automatically.
+Use [VPN-oriented profiles](CONNECTION-PROFILES.md), optional FIN/tunnel/retry controls and a [configuration viewer/editor](CONFIGURATION-EDITOR.md). Absent new keys preserve previous rendering. Extended v2 option records require a matching current manager; older binaries may reject them, so downgrade using an appropriate prior snapshot. Source-IP memory remains opt-in and bounded; presets do not migrate existing connections automatically.

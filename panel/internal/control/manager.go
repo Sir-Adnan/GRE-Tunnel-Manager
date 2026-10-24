@@ -242,7 +242,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.1"}, nil
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.2"}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {
@@ -276,6 +276,7 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		}
 		return m.call(ctx, "resource-rename", name+"\n", v.ID, v.Revision)
 	case "create":
+		r.Connection = r.Connection.WithCreationDefaults()
 		rows, e := r.Connection.Rows("F000000")
 		if e != nil {
 			return nil, e

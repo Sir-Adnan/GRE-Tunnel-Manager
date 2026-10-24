@@ -2,7 +2,7 @@
 
 The Nodes page can coordinate a new **GRE** or **FRP Reverse** connection across two servers. Choose the panel host and a remote Node, or two remote Nodes. A third management server is optional. Existing engine pages still manage the panel host only.
 
-This feature is included in v1.3.1. Use matching release packages on Controller/Agents; v1.3.0 predates Node support. Source/offline packages can still be installed with `--package-dir`.
+This feature is included in v1.3.2. Use matching release packages on Controller/Agents; v1.3.0 predates Node support. Source/offline packages can still be installed with `--package-dir`.
 
 ## Enable only where needed
 
@@ -14,7 +14,7 @@ This feature is included in v1.3.1. Use matching release packages on Controller/
    sudo bash node-install.sh --agent --operations --package-dir /path/to/packages
    ```
 
-   The intended one-command release flow, after compatible packages are published, is:
+   Install with the matching release package:
 
    ```bash
    bash <(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh) --agent --operations
@@ -70,7 +70,7 @@ An individual confirmation can be compensated only within the original ten-minut
 - Protocol 1 adds the optional capability `connections.pair.v1`. Existing `inventory.read` Agents remain compatible and cannot pull work. Older Controllers reject this new capability; upgrade the Controller before opting in Agents.
 - The Agent remains unprivileged. The operations broker accepts only `node-task` plus inventory/capabilities; it still rejects general service commands, package installation, forwarding CRUD, logs and arbitrary native configuration.
 - Root tasks have only prepare/apply/confirm/rollback/status stages and validated GRE/FRP specifications. There is no executable, shell text, generic argv, file path or remote SSH endpoint.
-- The local panel's broader API remains local. Rathole key exchange, WSS certificate provisioning, remote forwarding edits and higher-level balancing groups are outside this phase.
+- The local panel's broader API remains local. Rathole key exchange, WSS certificate provisioning, remote forwarding edits and higher-level balancing groups are outside this workflow.
 
 ## Persistence and limits
 

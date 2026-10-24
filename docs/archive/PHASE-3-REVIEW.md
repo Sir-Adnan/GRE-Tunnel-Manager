@@ -1,5 +1,7 @@
 # Phase 3 delivery review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 ## Delivered scope
 
 Optional, secure **read-only Node inventory** is implemented in source. A panel can run on an entrance, destination or separate management server. Its own local Node is always available without enrollment. Remote Agents are optional and initiate outbound connections; no remote Agent listener is installed.
@@ -22,7 +24,7 @@ The normal tunnel pages and privileged write broker remain local. There is no re
 | Service-account key creation during installation | Avoid root writing/chowning identity files inside a service-writable directory |
 | Lazy-loaded Nodes UI using existing components | Preserve the palette, font, responsive shell and existing dependency footprint |
 
-The Controller persists only bounded registry/PKI/enrollment metadata with private atomic file replacement and a process-held lock. Agents have a separate identity lease. Certificates renew with bounded serial overlap; CA rotation is explicitly an operator migration. Limits and recovery are documented in [NODES.md](NODES.md).
+The Controller persists only bounded registry/PKI/enrollment metadata with private atomic file replacement and a process-held lock. Agents have a separate identity lease. Certificates renew with bounded serial overlap; CA rotation is explicitly an operator migration. Limits and recovery are documented in [NODES.md](../NODES.md).
 
 ## Interface
 

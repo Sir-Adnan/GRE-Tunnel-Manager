@@ -1,6 +1,10 @@
 # Connection profiles
 
-v1.3.1 provides 23 built-in profiles across forwarding, GRE and reverse transports. Select a profile in the setup form, adjust the details and review before applying. A profile fills a draft; selecting it never changes an existing service automatically. Existing connections open as **Custom / current settings** and are not migrated to a new preset.
+There are three setup presets per engine (21 total). Presets fill a draft; nothing changes until review and save. Existing connections retain their saved settings. Other supported transports, algorithms and limits remain in advanced controls.
+
+New HAProxy connections explicitly use `maxconn=100000`, `server_maxconn=0` and `log=off`. New Realm connections use `log=off`. The browser and Go API share `model/creation_defaults.json`; new terminal forms write matching options. Explicit operator values win. Existing records retain saved values and absent-key semantics.
+
+A 100000 ceiling permits connections; it does not guarantee capacity. The managed HAProxy service descriptor budget is `2 * maxconn + 2048`. Real capacity also depends on RAM, CPU, bandwidth, available source ports and destinations. Reduce the cap for small servers. This neither allocates 100000 active sessions nor changes host tuning. Maximizing every timeout, queue and retry count can increase latency and resource retention; unspecified options retain the compatible baseline. Engine logging choices do not disable panel security audits or service startup errors.
 
 The catalog is `panel/internal/model/presets.json`, embedded in the Go panel and exposed with local inventory. It supplies both language labels and bounded form values. It is not fetched remotely. Agents omit this UI catalog from inventory reports so presentation changes do not enlarge remote snapshots or affect their revisions.
 
@@ -8,11 +12,11 @@ The catalog is `panel/internal/model/presets.json`, embedded in the Go panel and
 
 | Profile | Main choices |
 | --- | --- |
-| Balanced TCP | Least connections with multiple targets, 1-hour idle, 8192 max connections, errors-only logs |
-| VPN / Reality | Opaque TCP, 24-hour client/server/tunnel idle window, shorter queue, no content inspection or TLS termination enabled |
-| VPN with IP affinity | VPN settings plus a bounded 16384-entry source-IP table with 1-hour expiry |
-| Primary + backup | First destination primary, other targets backup; checked new-connection failover |
-| Small server | 2048 connection ceiling, 1-hour idle window, logs off |
+| Balanced | Least connections with multiple targets, 1-hour idle window |
+| Long-lived | Opaque TCP, 24-hour client/server/tunnel idle window |
+| IP affinity | Long-lived TCP plus a bounded 16384-entry source-IP table with 1-hour expiry |
+
+All three use a 100000 ceiling, no per-target cap and logs off. Primary/backup remains in the balancing selector; lower connection limits remain in advanced controls. No TLS termination or PROXY header is added automatically.
 
 These profiles use bounded TCP checks, two connect retries and 30-second client/server half-close timeouts. They retain explicit PROXY/readiness/TLS-routing fields rather than silently removing them; review any existing advanced settings. They do not enable TLS termination or a PROXY header automatically. A single target stays `single`; multi-target profiles choose the documented algorithm.
 
@@ -24,16 +28,16 @@ Native behavior: [HAProxy configuration manual](https://docs.haproxy.org/3.0/con
 
 ## Other forwarding engines
 
-- **Realm:** TCP VPN, UDP WireGuard/AmneziaWG and mixed TCP/UDP. They set explicit network timeouts/keepalive/log values and reset TCP transport extensions to plain. UDP uses a 120-second relay association window; it is not a host conntrack sysctl. Source hashing has no active health-check failover. PROXY settings remain explicit and require a compatible receiver.
-- **nftables:** direct TCP distribution or source-hashed UDP, with no userspace relay or new health checker. Multi-destination VPN endpoints need compatible keys/session behavior; source IP is not a user identity.
-- **iptables:** direct TCP distribution or single-destination UDP. The UDP profile is unavailable with multiple targets because this adapter has no source-affinity selector. Use the normal validated form for other supported distributions.
+- **Realm:** TCP, UDP and TCP + UDP. Presets use native timeouts/keepalive with logs off and plain transport extensions. UDP uses a 120-second relay association window, not global conntrack tuning. Source hashing has no active failover. Explicit PROXY choices require a compatible receiver.
+- **nftables:** TCP, UDP affinity and single-destination TCP + UDP. No userspace relay or active checker is added. VPN destination keys/session behavior must be compatible; source IP is not a user identity.
+- **iptables:** TCP, single-destination UDP and single-destination TCP + UDP. The latter two presets are unavailable with multiple targets because this adapter has no source affinity. Other supported distributions remain available in the normal form.
 
 Profiles do not change host-wide TCP/UDP conntrack timeouts, routes, forwarding sysctls, NIC settings or logging for unrelated software. Existing source policy/interface/address choices remain under the operator's control.
 
 ## GRE and reverse
 
 - **GRE:** MTU 1430, 1400 or 1280. Select compatible values at both peers and verify the real path. This does not discover PMTU, encrypt GRE or guarantee fewer drops.
-- **FRP:** TCP with/without multiplexing, UDP over QUIC, TCP over WebSocket, and WSS. Apply compatible transport choices at both peers. QUIC needs a usable UDP path. WSS requires the existing operator certificate/CA setup. Multiplexing shares the outer transport and can reduce socket count; its effect under loss depends on the route.
+- **FRP:** TCP with multiplexing, QUIC and WSS are the three presets. TCP without multiplexing and WebSocket remain in transport controls. Apply compatible choices at both peers. QUIC needs a UDP path; WSS needs operator certificates. Multiplexing shares the outer transport; its effect under loss depends on the route.
 - **rathole:** TCP, UDP or both over authenticated Noise/TCP. The UDP service still has a TCP outer transport; it is not native UDP/QUIC. Tokens/keys, peer addresses and ports remain explicit and are not replaced by profile selection.
 
 Use the question-mark help for each profile's tradeoffs. Native feature/version gates and normal preflight still apply. A profile is not a way to enable unsupported engine options.

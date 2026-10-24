@@ -12,6 +12,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import { Address } from "@/components/shared";
 import { ActionButton } from "@/components/help";
 import type { Node } from "./types";
 
@@ -57,11 +58,11 @@ export function NodeCard({
       <CardContent className="flex flex-col gap-4">
         {node.inventory ? (
           <>
-            <p className="break-all text-sm">
-              <bdi>
-                {node.inventory.host.addresses?.join(" · ") || t("notReported")}
-              </bdi>
-            </p>
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              {node.inventory.host.addresses?.map((ip) => (
+                <Address key={ip}>{ip}</Address>
+              ))}
+            </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">
                 {t("connections")} ·{" "}

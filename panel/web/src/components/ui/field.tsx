@@ -38,12 +38,19 @@ function FieldLegend({
   );
 }
 
-function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
+function FieldGroup({
+  className,
+  columns = false,
+  ...props
+}: React.ComponentProps<"div"> & { columns?: boolean }) {
   return (
     <div
       data-slot="field-group"
       className={cn(
-        "group/field-group @container/field-group flex w-full flex-col gap-5 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4",
+        "group/field-group @container/field-group min-w-0 w-full gap-5 data-[slot=checkbox-group]:gap-3 *:data-[slot=field-group]:gap-4",
+        columns
+          ? "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 [&>*]:min-w-0"
+          : "flex flex-col",
         className,
       )}
       {...props}
@@ -52,7 +59,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const fieldVariants = cva(
-  "group/field flex w-full gap-2 data-[invalid=true]:text-destructive",
+  "group/field relative flex min-w-0 w-full gap-2 data-[invalid=true]:text-destructive",
   {
     variants: {
       orientation: {

@@ -1,17 +1,25 @@
-# GRE Tunnel Manager v1.3.1
+# GRE Tunnel Manager v1.3.2
 
-This release brings the completed installation, Node/Agent, advanced management and interface milestones into one matched package.
+This update fixes oversized modal scrolling, simplifies setup and reorganizes the guides around installation and everyday use.
 
-- Fix RTL port/value alignment and choose management tables/cards by available content width. Improve compact dashboards, mobile forms, destination disclosure, Latin numerals and bilingual typography while preserving Nettinx fills.
-- Add 23 opt-in connection profiles across HAProxy, Realm, kernel forwarding, GRE, FRP and rathole. HAProxy profiles include long-lived VPN/Reality, bounded IP affinity, primary/backup and small-server choices, with optional FIN/tunnel/retry controls.
-- Add per-connection configuration inspection, copy/download, managed JSON editing and supported HAProxy/Realm native-text imports. Review is read-only; apply uses existing revisions, full-state locking, native checks where available, snapshots and recovery. GRE/reverse configuration views remain read-only and reverse secrets are masked. Arbitrary file paths, executable directives and unrestricted native overrides are not exposed.
-- Include quick/custom setup, automatic address discovery, selected/random ports and explicit HTTP/HTTPS. HTTPS remains the default. Existing credentials, certificates and protocol settings are preserved on upgrade.
-- Include optional outbound mTLS Agents, local Node support, leased paired GRE/FRP setup and optional read-only remote traffic summaries. A separate management server is not required. Remote generic configuration/accounting writes are outside this release.
-- Include bounded HAProxy TLS/SNI/HTTP routing, Realm WS/MPTCP/IPv6-only profiles, nftables selection methods and independent display names.
-- Include local traffic cycles, resets, labels, advisory quotas, bounded history and CSV export. Quotas do not impose automatic hard cutoffs; accounting is operational rather than billing-grade.
+## Interface and setup
 
-Linux amd64/arm64 archives contain the Go executable, embedded built interface and matching Bash helper. Managed servers need no Node.js, Python, Go compiler, Docker or database server. Verify the matching `SHA256SUMS`.
+- Fix nested modal scrolling and hidden Radix form inputs extending the dialog. Keep actions reachable, compact desktop field groups and single-column mobile layouts across connection, GRE/reverse, configuration and Node forms.
+- Offer three short setup presets per engine (21 total), with advanced controls still available. Explain relative share, start-after-save and read-only configuration preview.
+- Make Add server open a three-step Controller/Agent guide when setup is needed. Keep commands readable and IPv4/IPv6 addresses separate; browser HTTP remains independent of the TLS Agent listener.
+- Add a paginated traffic list with search, filters and row actions for advisory quotas, cycle reset and supported manual stop. Keep details/history and collection settings in separate tabs.
+- Fix Demo revision/status updates so newly created and changed records remain inspectable.
 
-Upgrade with the current installer, then refresh the browser to load the new embedded interface. The old v1.3.0 assets are unchanged. Retain private configuration/identity backups; newer state/options may require matching prior snapshots for downgrade. Controller/Agent identities and explicit operation/traffic opt-ins are preserved. Protocol checks: setup 2, inventory 1, paired operations 1, traffic 1, panel removal 1.
+## Defaults and compatibility
 
-Verification covers automated Bash/Python, frontend, Go race/vet, real isolated networking/native configuration checks, and responsive browser flows. Public two-server connectivity, provider firewalls, real systemd/reboots and sustained load remain deployment checks; no throughput/latency/resource benchmark is claimed.
+New HAProxy connections use `maxconn=100000`, no per-target cap and logging off; new Realm connections also start with logging off. Explicit user values win. Saved configurations and legacy absent-key behavior are preserved. The ceiling is not a capacity guarantee; size it for the host and workload. No host-wide tuning or automatic quota cutoff is added.
+
+The selected Nettinx palette, bilingual interface, Latin display digits and reduced-motion support are retained. Node protocols, identities and operation/traffic opt-ins remain compatible. General remote configuration/accounting writes remain outside the supported profile.
+
+## Documentation and upgrade
+
+Rewrite the English/Persian quick starts, shorten contributor instructions and current guides, add a release checklist and archive completed implementation reviews. Keep detailed recovery and security guidance linked from the quick start.
+
+Run the matching installer to upgrade, then refresh the browser for the embedded interface. Existing credentials, certificates and tunnel settings are preserved. Linux amd64/arm64 packages include the executable, frontend and matching Bash helper; verify `SHA256SUMS`. Managed servers need no Node.js, Python, compiler or database server.
+
+Verification includes Bash/Python, modern ShellCheck, frontend build/lint/tests, Go race/vet, isolated networking and responsive browser flows. Public VPS connectivity, real systemd/reboots, native arm64 execution and sustained capacity remain deployment checks. Previous release assets are unchanged.

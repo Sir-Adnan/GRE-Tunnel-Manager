@@ -6,7 +6,7 @@ Removal is available from **Web Panel → Remove Web Panel**, the installer's in
 sudo bash panel-install.sh --uninstall
 ```
 
-The script asks you to type `REMOVE`. Press Enter to cancel. `--uninstall` must be used alone; it does not download a package, install prerequisites or alter tunnel settings. The installed binary must support `gtm-panel uninstall-version` (`1`). The old published v1.3.0 binary predates this command; first upgrade to v1.3.1 using the matching installer. No release/tag is implicitly replaced by downloading the newer installer.
+The script asks you to type `REMOVE`. Press Enter to cancel. `--uninstall` must be used alone; it does not download a package, install prerequisites or alter tunnel settings. The installed binary must support `gtm-panel uninstall-version` (`1`). The old published v1.3.0 binary predates this command; first upgrade to v1.3.2 using the matching installer. No release/tag is implicitly replaced by downloading the newer installer.
 
 ## Removed and retained resources
 

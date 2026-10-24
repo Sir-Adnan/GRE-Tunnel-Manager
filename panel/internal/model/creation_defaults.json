@@ -1,0 +1,10 @@
+{
+  "haproxy": {
+    "maxconn": "100000",
+    "server_maxconn": "0",
+    "log": "off"
+  },
+  "realm": {
+    "log": "off"
+  }
+}

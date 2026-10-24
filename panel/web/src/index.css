@@ -31,6 +31,10 @@
     font-family: "JetBrains Mono Variable", monospace;
     font-size: 0.82em;
   }
+  pre code {
+    font-size: inherit;
+    line-height: inherit;
+  }
   button:not(:disabled),
   select:not(:disabled) {
     cursor: pointer;
@@ -119,7 +123,7 @@
     @apply min-w-0 break-words;
   }
   .code-block {
-    @apply whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 text-xs leading-7 text-foreground;
+    @apply shrink-0 whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 text-xs leading-7 text-foreground;
   }
   .toast {
     @apply fixed bottom-5 start-1/2 z-[80] flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-lg rtl:translate-x-1/2;
@@ -184,14 +188,8 @@
   --font-heading: "Vazirmatn Variable", sans-serif;
 }
 @layer components {
-  .form-dialog {
-    @apply max-h-[92dvh] overflow-y-auto;
-  }
-  .form-dialog [data-slot="dialog-header"] {
-    @apply pe-7;
-  }
-  .form-dialog [data-slot="dialog-footer"] {
-    @apply sticky -bottom-4 mt-2 bg-muted;
+  .dialog-shell {
+    @apply flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col overflow-hidden;
   }
   .stat-value {
     @apply break-words tabular-nums;
@@ -221,7 +219,7 @@
   [data-slot="button"][data-size="icon"] {
     min-width: 44px;
   }
-  .form-dialog {
+  .dialog-shell {
     max-width: calc(100% - 1rem);
     max-height: calc(100dvh - 1rem);
   }

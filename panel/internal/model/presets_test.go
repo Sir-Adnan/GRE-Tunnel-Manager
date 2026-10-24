@@ -40,8 +40,17 @@ func TestBuiltInPresetsUseSupportedAdapterContracts(t *testing.T) {
 			}
 		}
 	}
-	if len(seen) < 20 {
+	if len(seen) != 21 {
 		t.Fatal("catalog missing engine families")
+	}
+	counts := map[string]int{}
+	for _, p := range Presets() {
+		counts[p.Engine]++
+	}
+	for engine, count := range counts {
+		if count != 3 {
+			t.Fatalf("%s: want three setup presets, got %d", engine, count)
+		}
 	}
 	first := Presets()
 	first[0].Options["idle"] = "bad"

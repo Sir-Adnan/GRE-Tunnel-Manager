@@ -2,6 +2,73 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  maxconnHelp: [
+    "Maximum concurrent connections for this HAProxy service, not a speed limit or a guarantee. New setups allow up to 100000; actual capacity depends on RAM, file descriptors and the destination. Lower it for small servers.",
+    "سقف اتصال هم‌زمان همین سرویس است؛ سقف سرعت یا تضمین ظرفیت نیست. اتصال جدید تا 100000 اجازه دارد؛ ظرفیت واقعی به رم، تعداد فایل‌های باز و مقصد بستگی دارد. برای سرور کوچک می‌توانید کمترش کنید.",
+  ],
+  previewAllHelp: [
+    "Read-only preview of enabled local connections. Nothing is applied. Use the code icon on each row to inspect or edit one connection.",
+    "پیش‌نمایش فقط‌خواندنی اتصال‌های فعال همین سرور است؛ چیزی اعمال نمی‌شود. برای مشاهده یا ویرایش یک اتصال از آیکون کانفیگ همان ردیف استفاده کنید.",
+  ],
+  previewAll: ["Preview all configurations", "پیش‌نمایش همهٔ کانفیگ‌ها"],
+  viewUsage: ["View usage details", "مشاهدهٔ جزئیات مصرف"],
+  usageActions: ["Usage actions", "عملیات مصرف"],
+  usageListHelp: [
+    "Current-cycle usage for each managed connection. Missing samples are shown as unavailable, not zero. GRE and forwarded traffic can overlap; totals are not summed.",
+    "مصرف دورهٔ فعلی هر اتصال؛ نبود گزارش با خط تیره نشان داده می‌شود، نه مصرف صفر. مصرف GRE و فوروارد ممکن است هم‌پوشانی داشته باشد و با هم جمع نمی‌شود.",
+  ],
+  usageDetails: ["Details & history", "جزئیات و تاریخچه"],
+  allUsage: ["All connections", "فهرست مصرف‌ها"],
+  copyManually: [
+    "Select and copy the text manually.",
+    "متن را انتخاب و دستی کپی کنید.",
+  ],
+  command: ["Command", "دستور"],
+  copyCommand: ["Copy command", "کپی دستور"],
+  nodeCapabilitiesHelp: [
+    "Agents initially report inventory. To create paired GRE/FRP, add --operations to the Agent installer. Traffic reports require --traffic and local collection setup.",
+    "ایجنت در ابتدا فقط اطلاعات سرور را می‌فرستد. برای ساخت GRE و FRP بین دو سرور، هنگام نصب گزینهٔ --operations را اضافه کنید. گزارش مصرف به --traffic و فعال‌کردن ثبت مصرف روی نود نیاز دارد.",
+  ],
+  nodeStepAgentHelp: [
+    "Run this on the other server. Paste the one-time code when asked; it connects automatically. No inbound Agent port is needed.",
+    "این دستور را روی سرور دیگر اجرا کنید و وقتی خواست، کد اتصال را وارد کنید. ایجنت خودکار وصل می‌شود و به پورت ورودی نیاز ندارد.",
+  ],
+  nodeStepInviteHelp: [
+    "Choose Add server, name it, and copy its one-time code.",
+    "روی «افزودن سرور» بزنید، نامش را بنویسید و کد یک‌بارمصرف را کپی کنید.",
+  ],
+  nodeStepAgent: ["3. Install the Agent", "مرحلهٔ 3: نصب ایجنت"],
+  nodeStepInvite: ["2. Create an enrollment code", "مرحلهٔ 2: ساخت کد اتصال"],
+  nodeStepController: [
+    "1. Prepare the panel server",
+    "مرحلهٔ 1: آماده‌کردن سرور پنل",
+  ],
+  controllerHTTPNote: [
+    "HTTP is for your browser. Agents use a separate TLS connection on port 9443 with their own pinned certificates. No browser HTTPS certificate is needed.",
+    "ارتباط مرورگر می‌تواند HTTP باشد. ایجنت‌ها با گواهی مخصوص خودشان از پورت جداگانهٔ TLS روی 9443 وصل می‌شوند؛ گواهی HTTPS مرورگر لازم نیست.",
+  ],
+  controllerAddress: ["Panel server IP or domain", "آی‌پی یا دامنهٔ سرور پنل"],
+  controllerSetupStep: [
+    "Run this on the panel server, then refresh this page. Open TCP port 9443 in your server firewall.",
+    "این دستور را روی سرور پنل اجرا کنید، پورت TCP 9443 را در فایروال سرور باز کنید و سپس این صفحه را تازه کنید.",
+  ],
+  controllerSetupTitle: [
+    "Enable server management",
+    "راه‌اندازی مدیریت سرورها",
+  ],
+  controllerRequiredHelp: [
+    "First enable the Agent listener on this panel server. Your browser can continue using HTTP.",
+    "ابتدا سرویس اتصال ایجنت‌ها را روی همین سرور راه بیندازید. پنل می‌تواند همچنان با HTTP باز شود.",
+  ],
+  controllerRequired: ["Connect other servers", "اتصال سرورهای دیگر"],
+  routingAndAffinity: ["Routing & health", "مسیریابی و سلامت"],
+  networkOptions: ["Network & logs", "شبکه و گزارش"],
+  limitsAndTimeouts: ["Limits & timeouts", "ظرفیت و مهلت‌ها"],
+  startAfterSaveHelp: [
+    "Off saves the connection without running it.",
+    "اگر خاموش باشد، اتصال ذخیره می‌شود ولی اجرا نمی‌شود.",
+  ],
+  startAfterSave: ["Start after saving", "اجرای اتصال پس از ذخیره"],
   copyConfig: ["Copy configuration", "کپی کانفیگ"],
   configDriftHelp: [
     "The saved engine file differs from the manager settings. This preview shows manager-generated settings; applying replaces the managed file through normal backup/recovery.",
@@ -46,12 +113,9 @@ const words = {
   ],
   config_generated: ["Generated preview", "پیش‌نمایش تولیدشده"],
   config_saved: ["Saved managed file", "فایل ذخیره‌شدهٔ مدیر"],
-  connectionProfile: ["Connection profile", "پروفایل اتصال"],
-  customProfile: ["Custom / current settings", "تنظیمات فعلی یا دلخواه"],
-  profileApplied: [
-    "Profile fills the form; review before applying.",
-    "پروفایل فرم را پر می‌کند؛ پیش از اعمال بررسی کنید.",
-  ],
+  connectionProfile: ["Setup preset", "پریست راه‌اندازی"],
+  customProfile: ["Default / custom", "پیش‌فرض یا دلخواه"],
+  profileApplied: ["Preset selected", "پریست انتخاب شد"],
   fin: [
     "Half-close timeout · seconds; 0 keeps default",
     "مهلت اتصال نیمه‌بسته؛ ثانیه، 0 پیش‌فرض",
@@ -100,8 +164,8 @@ const words = {
     "برای مشاهدهٔ همهٔ مقصدها کلیک کنید.",
   ],
   weightHelp: [
-    "Weight is a relative share of new connections, not a speed or volume limit. Weights 2 and 1 favor the first target roughly 2:1 for weighted distribution. Sticky/source rules and least-connection algorithms change selection behavior.",
-    "وزن، سهم نسبی از اتصال‌های جدید است، نه سقف سرعت یا حجم. وزن‌های 2 و 1 در تقسیم وزنی، سهم مقصد اول را تقریباً دو برابر می‌کنند. چسبندگی IP و روش کمترین اتصال، رفتار انتخاب را تغییر می‌دهند.",
+    "A higher value gives this destination more new connections: 2 and 1 mean roughly 2:1 in weighted distribution. This is not priority or a speed limit. Source affinity and least-connections can change the ratio; backup order is controlled separately.",
+    "عدد بیشتر، سهم بیشتری از اتصال‌های جدید می‌گیرد؛ مثلاً 2 و 1 در تقسیم وزنی حدوداً نسبت 2 به 1 دارند. این عدد اولویت یا سقف سرعت نیست. حفظ مقصد و روش کمترین اتصال می‌توانند نسبت را تغییر دهند؛ ترتیب پشتیبان جداست.",
   ],
   clientAffinity: ["Client affinity", "چسبندگی اتصال مشتری"],
   stick: ["Remember client IP", "به‌خاطرسپاری IP مشتری"],
@@ -616,8 +680,8 @@ const words = {
     "ارتباط مرورگر HTTP است. کد اتصال را از مسیر خصوصی مطمئن یا HTTPS دریافت کنید؛ ارتباط خود ایجنت همیشه رمزگذاری شده است.",
   ],
   agentPackageNotice: [
-    "Use a matching v1.3.1 Agent package. For offline packages, add --package-dir; see the guide.",
-    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.1 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
+    "Use a matching v1.3.2 Agent package. For offline packages, add --package-dir; see the guide.",
+    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.2 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
   ],
   manualCopyHelp: [
     "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
@@ -630,8 +694,8 @@ const words = {
   nodeIdentity: ["Stable node ID", "شناسهٔ ثابت سرور"],
   nodeGuide: ["Servers and Agents", "راهنمای سرورها و ایجنت‌ها"],
   nodeGuideIntro: [
-    "Start locally. Add other servers only when needed.",
-    "ابتدا از سرور فعلی استفاده کنید؛ سرورهای دیگر را در صورت نیاز اضافه کنید.",
+    "Three steps to connect another server. Your local server is ready now.",
+    "سرور فعلی آماده است. برای اتصال سرور دیگر، این سه مرحله را انجام دهید.",
   ],
   localGuide: [
     "The panel host is automatically listed. It may be your entrance, exit or a separate management server. Local tunnels work without enrollment or a third server.",
@@ -652,8 +716,8 @@ const words = {
     "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
   ],
   nodeReleaseHelp: [
-    "These features are included in v1.3.1. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
-    "این قابلیت‌ها در نسخهٔ 1.3.1 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
+    "These features are included in v1.3.2. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
+    "این قابلیت‌ها در نسخهٔ 1.3.2 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",
@@ -790,7 +854,7 @@ const words = {
   restart: ["Restart", "راه‌اندازی مجدد"],
   cancel: ["Cancel", "انصراف"],
   save: ["Save & apply", "ذخیره و اعمال"],
-  review: ["Review configuration", "بررسی تنظیمات"],
+  review: ["Review changes", "بازبینی تغییرات"],
   back: ["Back", "بازگشت"],
   close: ["Close", "بستن"],
   headline: ["Your network. Under control.", "شبکهٔ شما، تحت کنترل."],
@@ -836,7 +900,7 @@ const words = {
   protocol: ["Protocol", "پروتکل"],
   strategy: ["Load balancing", "توزیع اتصال‌ها"],
   addTarget: ["Add destination", "افزودن مقصد"],
-  weight: ["Weight", "وزن"],
+  weight: ["Relative share", "سهم اتصال"],
   interface: ["Network interface", "رابط شبکه"],
   sourcePolicy: ["Source address", "آدرس مبدأ"],
   masquerade: ["Masquerade (recommended)", "جایگزینی مبدأ؛ پیشنهادی"],

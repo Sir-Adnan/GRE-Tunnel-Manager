@@ -26,7 +26,7 @@ import { PageTitle, TextField, Choice } from "@/components/shared";
 import { HelpTip } from "@/components/help";
 import type { Inventory } from "@/lib/api";
 import { engineName } from "@/lib/format";
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { useTraffic } from "./traffic/useTraffic";
 
@@ -39,6 +39,7 @@ export function Traffic({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
+  const [section, setSection] = useState("usage");
   const {
     metrics,
     enabled,
@@ -107,29 +108,35 @@ export function Traffic({
       )}
       <Tabs
         dir={locale === "fa" ? "rtl" : "ltr"}
-        defaultValue="usage"
+        value={section}
+        onValueChange={setSection}
         className="gap-5"
       >
         <TabsList
-          className="h-10 w-full sm:w-fit"
+          className="h-auto min-h-10 w-full flex-wrap sm:w-fit"
           aria-label={t("trafficSections")}
         >
-          <TabsTrigger value="usage">{t("usageCycles")}</TabsTrigger>
+          <TabsTrigger value="usage">{t("allUsage")}</TabsTrigger>
+          <TabsTrigger value="details">{t("usageDetails")}</TabsTrigger>
           <TabsTrigger value="collection">
             {t("collectionSettings")}
             {dirty ? " *" : ""}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="usage">
-          {" "}
-          <TrafficWorkspace
-            inventory={inventory}
-            metrics={metrics}
-            busy={busy}
-            refresh={refresh}
-            run={run}
-          />
-        </TabsContent>
+        {section !== "collection" && (
+          <TabsContent value={section}>
+            {" "}
+            <TrafficWorkspace
+              inventory={inventory}
+              view={section === "details" ? "details" : "list"}
+              onDetails={() => setSection("details")}
+              metrics={metrics}
+              busy={busy}
+              refresh={refresh}
+              run={run}
+            />
+          </TabsContent>
+        )}
         <TabsContent value="collection">
           {" "}
           <Card>

@@ -1,6 +1,12 @@
 # Nodes and Agents
 
-Agents provide **optional read-only inventory** by default. Phase 4 adds a separately enabled, leased GRE/FRP paired-create workflow in **Nodes → Connect two servers**. Existing tunnel pages still operate on the panel host. See [Paired connections](PAIRED-CONNECTIONS.md) before enabling writes.
+## Quick setup in the browser
+
+**Add server** opens a three-step guide when the Controller is disabled. The panel host is already available locally and needs no Agent. Enable the dedicated Controller listener on the panel server, open its TCP port (9443 by default), refresh Nodes, then create an invitation. On the other server, run the displayed Agent installer and paste the one-time code at its hidden prompt.
+
+An HTTP browser panel can coexist with the TLS-only Agent listener and its pinned certificates. No browser HTTPS certificate is required for Agent transport. The guide builds a command from a validated literal IP/domain, including IPv6, but never executes it through the browser or broker. It does not open firewall ports automatically. Commands use fixed installer URLs and contain no invitation secret. On public HTTP, clipboard access may be unavailable; commands and codes remain selectable for manual copying.
+
+Agents provide **optional read-only inventory** by default. The optional operation profile adds a separately enabled, leased GRE/FRP paired-create workflow in **Nodes → Connect two servers**. Existing tunnel pages still operate on the panel host. See [Paired connections](PAIRED-CONNECTIONS.md) before enabling writes.
 
 ## Choose a topology
 
@@ -17,9 +23,9 @@ No third server is required. Agent availability is separate from tunnel availabi
 
 ## Release availability
 
-Version **v1.3.1** includes inventory protocol 1, paired operations and optional traffic summaries. Default installers download that matching version. Earlier v1.3.0 packages predate Nodes and are rejected before services stop. Existing release assets are never overwritten.
+Version **v1.3.2** includes inventory protocol 1, paired operations and optional traffic summaries. Default installers download that matching version. Earlier v1.3.0 packages predate Nodes and are rejected before services stop. Existing release assets are never overwritten.
 
-For offline/source packages, build using [DEVELOPMENT.md](DEVELOPMENT.md) and copy `gtm-panel-v1.3.1-linux-ARCH.tar.gz` plus `SHA256SUMS` to the target. Then use the installer with `--package-dir /path/to/packages`.
+For offline/source packages, build using [DEVELOPMENT.md](DEVELOPMENT.md) and copy `gtm-panel-v1.3.2-linux-ARCH.tar.gz` plus `SHA256SUMS` to the target. Then use the installer with `--package-dir /path/to/packages`.
 
 Node.js, Python and Go compilers are not installed on managed servers. The Agent uses the same prebuilt Go executable; it does not serve embedded frontend assets or open an inbound port.
 
@@ -62,7 +68,7 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
 4. Paste the code at the **hidden terminal prompt**. Do not put it in a URL, environment variable, command argument, issue or log. The Agent pins the Controller CA from this invitation before sending the secret. It generates its private key locally, submits a signed P-256 CSR and stores its issued identity privately.
 5. Refresh Nodes after the first report. Reports normally arrive every 60–70 seconds. Inventory is refreshed manually. Only active paired jobs use temporary browser polling.
 
-The default installer selects the matching v1.3.1 package and verifies its checksum/protocol before changing services.
+The default installer selects the matching v1.3.2 package and verifies its checksum/protocol before changing services.
 
 The Agent installer targets Debian/Ubuntu with systemd, x86_64/arm64, and requires existing `curl`, `tar`, `sha256sum`, `iproute2` and `util-linux` tools. It verifies matching release checksums and protocol support, creates the restricted `greagent` account, and installs an unprivileged outbound Agent plus a separate root **read-only** Unix broker. Controller and Agent identity creation run as their respective service users via `runuser`; the installer does not chown identity files inside service-writable directories. It installs no tunnel engine and changes no tunnel configuration. Do not install an Agent on the panel host; that host is already the local Node. Updates preserve identity and validate it before stopping an existing Agent. Installation shares the panel installer lock.
 
@@ -122,4 +128,4 @@ Enrollment CSRs cannot choose their identity, SANs, usage or lifetime. The Contr
 
 Browser APIs (`GET /api/nodes`, `POST /api/nodes/invitations`, `POST /api/nodes/revoke`) require normal administrator sessions; writes also require same-origin and CSRF checks. No invitation is returned by list calls. With browser HTTP, codes traverse that unencrypted browser connection; use a trusted private path or HTTPS when handling them. Neither the current write broker nor its socket is exposed on the control listener.
 
-Phase 4 implements separately authorized typed jobs, expiry, bounded idempotency retention, revision checks and partial recovery. See [Paired connections](PAIRED-CONNECTIONS.md) for the precise scope. Generic SSH, shell, file editors and executable configuration endpoints remain prohibited.
+The paired-operation contract implements separately authorized typed jobs, expiry, bounded idempotency retention, revision checks and partial recovery. See [Paired connections](PAIRED-CONNECTIONS.md) for the precise scope. Generic SSH, shell, file editors and executable configuration endpoints remain prohibited.

@@ -1,5 +1,7 @@
 # Phase 4 review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 ## Delivered scope
 
 Optional leased GRE/FRP creation now coordinates two selected Nodes, with the panel host optionally serving as either side. Read-only enrollment remains the default. Existing tunnel pages and general operations remain local; this phase adds no arbitrary remote administration.
@@ -33,6 +35,6 @@ Executed locally:
 
 No live VPS or production systemd service was deployed. Namespace tests replace systemd with a constrained unit runner, and installer tests use fake accounts/services. Verify real two-server setup, systemd shutdown/reboot ordering, address/NAT/provider firewall behavior, long disconnections and recovery on disposable servers before rollout.
 
-Automatic rollback requires a running broker and a saved fingerprint. Storage/process failures can leave an uncertain create; manual inspection is intentional. Confirmed resources are independent of panel availability. Retention/capacity, expiry, CA lifecycle and unsupported pairing engines are documented in [PAIRED-CONNECTIONS.md](PAIRED-CONNECTIONS.md).
+Automatic rollback requires a running broker and a saved fingerprint. Storage/process failures can leave an uncertain create; manual inspection is intentional. Confirmed resources are independent of panel availability. Retention/capacity, expiry, CA lifecycle and unsupported pairing engines are documented in [PAIRED-CONNECTIONS.md](../PAIRED-CONNECTIONS.md).
 
 Published v1.3.0 remains unchanged. Use packages built from current source with `--package-dir`; no release/tag was replaced. Phase 5 has not started and requires a separate user instruction.

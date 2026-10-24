@@ -1,5 +1,7 @@
 # Phase 2: Installation and browser access
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 Status: implemented and validated in source on 2026-10-22. Phase 3 has not started. No new release, tag or live-server deployment was made.
 
 ## Delivered behavior
@@ -34,4 +36,4 @@ Release automation now requires the matching version tag and creates a new relea
 
 IP discovery reports an outgoing public address and may be unsuitable behind NAT/proxies; an explicit address overrides it. DNS provisioning, ACME renewal, trusted reverse-proxy configuration and universal manual DNAT-port detection are outside this phase. The selected port is checked when setup runs, not reserved until service startup. Unexpected disk/systemd failure after executable replacement still requires operator recovery; there is no atomic host-wide upgrade claim. New config fields require matching binaries when downgrading.
 
-Next phase, only after explicit instruction: the optional versioned Node/Agent contract, secure enrollment and read-only inventory described in [the roadmap](ROADMAP.md).
+Next phase, only after explicit instruction: the optional versioned Node/Agent contract, secure enrollment and read-only inventory described in [the roadmap](../ROADMAP.md).

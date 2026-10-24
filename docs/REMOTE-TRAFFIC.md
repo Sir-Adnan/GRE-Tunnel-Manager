@@ -1,6 +1,6 @@
 # Remote traffic summaries
 
-Version v1.3.1 adds optional read-only accounting snapshots to **Nodes → View details → Traffic**. They are separate from the panel host's **Traffic usage** page. The older v1.3.0 package predates this feature; upgrade to v1.3.1.
+The panel supports optional read-only accounting snapshots to **Nodes → View details → Traffic**. They are separate from the panel host's **Traffic usage** page. Use matching current packages; v1.3.0 predates this feature.
 
 ## Enable it on an Agent
 

@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { RotateCcw, SlidersHorizontal, Square, Trash2 } from "lucide-react";
+import { useContext, useState } from "react";
+import {
+  MoreHorizontal,
+  RotateCcw,
+  SlidersHorizontal,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,7 +19,15 @@ import {
 } from "@/components/ui/dialog";
 import { Choice, TextField } from "@/components/shared";
 import type { Connection, TrafficPolicy } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { LocaleContext, useT } from "@/lib/i18n";
+
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 // Capture identity and revision when a dialog opens; a refresh cannot retarget it.
 export function TrafficActions({
@@ -26,6 +40,7 @@ export function TrafficActions({
   disabled,
   run,
   refresh,
+  compact = false,
 }: {
   id: string;
   name: string;
@@ -36,8 +51,10 @@ export function TrafficActions({
   disabled: boolean;
   run: (r: unknown) => Promise<void>;
   refresh: () => Promise<void>;
+  compact?: boolean;
 }) {
   const t = useT();
+  const locale = useContext(LocaleContext);
   const [editing, setEditing] = useState(false),
     [confirm, setConfirm] = useState("");
   const [working, setWorking] = useState(false),
@@ -93,6 +110,13 @@ export function TrafficActions({
       setWorking(false);
     }
   }
+  function openPolicy() {
+    captureTarget();
+    setError("");
+    setDraft(p || { label: "", limit: 0, direction: "total" });
+    setGiB(String((p?.limit || 0) / 1024 ** 3));
+    setEditing(true);
+  }
   return (
     <>
       {error && !editing && !confirm && (
@@ -100,50 +124,88 @@ export function TrafficActions({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <CardFooter className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          disabled={locked}
-          onClick={() => {
-            captureTarget();
-            setError("");
-            setDraft(p || { label: "", limit: 0, direction: "total" });
-            setGiB(String((p?.limit || 0) / 1024 ** 3));
-            setEditing(true);
-          }}
-        >
-          <SlidersHorizontal data-icon="inline-start" />
-          {t("customerQuota")}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={locked}
-          onClick={() => openConfirm("metrics-reset")}
-        >
-          <RotateCcw data-icon="inline-start" />
-          {t("resetUsage")}
-        </Button>
-        {connection?.enabled && (
+      {compact ? (
+        <DropdownMenu dir={locale === "fa" ? "rtl" : "ltr"}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`${t("usageActions")} ${name}`}
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            <DropdownMenuGroup>
+              <DropdownMenuItem disabled={locked} onSelect={openPolicy}>
+                <SlidersHorizontal />
+                {t("customerQuota")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={locked}
+                onSelect={() => openConfirm("metrics-reset")}
+              >
+                <RotateCcw />
+                {t("resetUsage")}
+              </DropdownMenuItem>
+              {connection?.enabled && (
+                <DropdownMenuItem
+                  disabled={locked}
+                  onSelect={() => openConfirm("disable")}
+                >
+                  <Square />
+                  {t("disable")}
+                </DropdownMenuItem>
+              )}
+              {removed && (
+                <DropdownMenuItem
+                  disabled={locked}
+                  onSelect={() => openConfirm("metrics-forget")}
+                >
+                  <Trash2 />
+                  {t("forgetAccounting")}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button variant="outline" disabled={locked} onClick={openPolicy}>
+            <SlidersHorizontal data-icon="inline-start" />
+            {t("customerQuota")}
+          </Button>
           <Button
             variant="outline"
             disabled={locked}
-            onClick={() => openConfirm("disable")}
+            onClick={() => openConfirm("metrics-reset")}
           >
-            <Square data-icon="inline-start" />
-            {t("disable")}
+            <RotateCcw data-icon="inline-start" />
+            {t("resetUsage")}
           </Button>
-        )}
-        {removed && (
-          <Button
-            variant="outline"
-            disabled={locked}
-            onClick={() => openConfirm("metrics-forget")}
-          >
-            <Trash2 data-icon="inline-start" />
-            {t("forgetAccounting")}
-          </Button>
-        )}
-      </CardFooter>
+          {connection?.enabled && (
+            <Button
+              variant="outline"
+              disabled={locked}
+              onClick={() => openConfirm("disable")}
+            >
+              <Square data-icon="inline-start" />
+              {t("disable")}
+            </Button>
+          )}
+          {removed && (
+            <Button
+              variant="outline"
+              disabled={locked}
+              onClick={() => openConfirm("metrics-forget")}
+            >
+              <Trash2 data-icon="inline-start" />
+              {t("forgetAccounting")}
+            </Button>
+          )}
+        </CardFooter>
+      )}
       <Dialog
         open={editing}
         onOpenChange={(open) => !working && setEditing(open)}

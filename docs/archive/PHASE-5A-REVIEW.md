@@ -1,5 +1,7 @@
 # Phase 5A review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 ## Delivered scope
 
 - Informational engine/version capability registry and bounded local version detection with a five-minute cache and executable-change invalidation. FRP reports client/server mismatch; unknown and unverified releases remain explicit.
@@ -21,7 +23,7 @@ Validated locally:
 - Private Linux network namespace suite, including native HAProxy 3.2.9 validation and HTTP readiness rejecting a TCP-reachable backend returning 503, restoring traffic at 204, then rejecting it again when unhealthy. Existing kernel forwarding, GRE/FRP and available engine checks also pass.
 - Browser checks: 32 combinations across engine details and HAProxy form, Persian/English, light/dark and widths 320/390/768/1440. No horizontal document overflow, visible form actions, isolated LTR technical fields, four simulated creations preserving HTTP options and no console errors/warnings. Screenshots inspected; Vazirmatn and the exact Nettinx palette retained.
 
-Installer tests redirect paths and use fake accounts/services. Browser mutation checks use the explicit demo; native packet checks use private network namespaces. Real systemd/reboot, public two-server rollout, provider firewalls and sustained load remain deployment checks. No production server or release asset is changed by this milestone. Future milestones remain in [ROADMAP.md](ROADMAP.md).
+Installer tests redirect paths and use fake accounts/services. Browser mutation checks use the explicit demo; native packet checks use private network namespaces. Real systemd/reboot, public two-server rollout, provider firewalls and sustained load remain deployment checks. No production server or release asset is changed by this milestone. Future milestones remain in [ROADMAP.md](../ROADMAP.md).
 
 ## Limits
 

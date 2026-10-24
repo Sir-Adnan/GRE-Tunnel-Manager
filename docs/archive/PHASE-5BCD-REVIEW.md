@@ -1,5 +1,7 @@
 # Phase 5B–5D review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 ## Delivered scope
 
 This source milestone completes the bounded advanced-management profiles authorized by the user after 5A. It also incorporates the subsequent requests for Latin digits, dark labels/icons on orange buttons, destination previews, minimal help, mobile navigation, a visual paired-node selector and source-IP affinity. Application/package version remains 1.3.0; v1.3.1 has not been tagged, published or deployed.
@@ -44,4 +46,4 @@ No live VPS, provider-firewall, production systemd/reboot or sustained-load depl
 
 Accounting is operational network-byte accounting, not guaranteed provider billing or an exact volume cutoff. Unobserved crashes/counter/interface replacement can leave gaps. GRE and port measurements may overlap and are not summed. Remote accounting/reset/quotas, automatic hard cutoffs, scheduled cycles and customer accounts are separate future contracts. The paired-node diagram changes presentation; it does not add arbitrary remote shell or general remote engine CRUD.
 
-See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [HAProxy routing](HAPROXY-ROUTING.md), [HAProxy affinity](HAPROXY.md#remember-client-ip-optional), [Realm profiles](REALM-PROFILES.md), [artifacts](ARTIFACTS.md) and [roadmap](ROADMAP.md). Release v1.3.1 requires the user's explicit approval after reviewing these changes and verification evidence.
+See [Traffic accounting](../TRAFFIC-ACCOUNTING.md), [HAProxy routing](../HAPROXY-ROUTING.md), [HAProxy affinity](../HAPROXY.md#remember-client-ip-optional), [Realm profiles](../REALM-PROFILES.md), [artifacts](../ARTIFACTS.md) and [roadmap](../ROADMAP.md). Release v1.3.1 requires the user's explicit approval after reviewing these changes and verification evidence.

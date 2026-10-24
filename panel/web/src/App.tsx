@@ -44,7 +44,7 @@ import {
 import { MobileNavigation } from "@/components/MobileNavigation";
 import { PanelSidebar } from "@/components/PanelSidebar";
 import { AccessStatus } from "@/components/AccessStatus";
-import { ActionButton } from "@/components/help";
+import { ActionButton, HelpTip } from "@/components/help";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Address, PageTitle } from "@/components/shared";
 import { ConnectionForm } from "@/features/connections/ConnectionForm";
@@ -202,7 +202,9 @@ export default function App() {
               ? "logs"
               : operation === "reverse-create"
                 ? "completed"
-                : "review",
+                : operation === "plan"
+                  ? "previewAll"
+                  : "review",
           ),
           text:
             typeof completed.result === "string"
@@ -440,12 +442,13 @@ export default function App() {
                                   void run({ action: "plan" }).catch(() => {})
                                 }
                               >
-                                {t("review")}
+                                {t("previewAll")}
                                 <ChevronRight
                                   data-icon="inline-end"
                                   className="rtl:rotate-180"
                                 />
                               </Button>
+                              <HelpTip>{t("previewAllHelp")}</HelpTip>
                             </CardFooter>
                           </Card>
                         </div>
@@ -477,7 +480,7 @@ export default function App() {
             <footer className="app-footer">
               <span>TUNNEL MANAGER</span>
               <span>
-                {inventory?.host.hostname} · v{inventory?.version || "1.3.1"}
+                {inventory?.host.hostname} · v{inventory?.version || "1.3.2"}
               </span>
             </footer>
           </SidebarInset>

@@ -1,10 +1,17 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { ArrowRight, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldContent,
+  FieldDescription,
+} from "@/components/ui/field";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -14,22 +21,16 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TextField, Choice } from "@/components/shared";
 import { HelpTip, ActionButton } from "@/components/help";
-import { engineName } from "@/lib/format";
-import { useT } from "@/lib/i18n";
+import { LocaleContext, useT } from "@/lib/i18n";
 import { endpoint } from "@/lib/api";
 import type { Connection, Inventory, Preset } from "@/lib/api";
 import { HealthCheckFields } from "./HealthCheckFields";
 import { AffinityFields } from "./AffinityFields";
 import { RoutingFields } from "./RoutingFields";
+import { EngineOptionFields } from "./EngineOptionFields";
 import { ProfilePicker } from "./ProfilePicker";
-
-const healthOptionKeys = [
-  "check_mode",
-  "check_port",
-  "check_path",
-  "check_host",
-  "check_status",
-];
+import { creationOptions } from "@/lib/creation-defaults";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 type Props = {
   inventory: Inventory;
@@ -48,6 +49,7 @@ export function ConnectionForm({
   onSubmit,
 }: Props) {
   const t = useT();
+  const locale = useContext(LocaleContext);
   const [value, setValue] = useState<Connection>(() =>
     original
       ? structuredClone(original)
@@ -65,7 +67,7 @@ export function ConnectionForm({
           snat: "masquerade",
           interface: "any",
           targets: [{ ip: "", port: 443, weight: 1 }],
-          options: {},
+          options: creationOptions(engine),
           revision: "",
         },
   );
@@ -76,6 +78,7 @@ export function ConnectionForm({
     ),
   );
   const [preset, setPreset] = useState("custom");
+  const [advancedTab, setAdvancedTab] = useState("limits");
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -87,6 +90,8 @@ export function ConnectionForm({
   )?.installed;
   function patch<K extends keyof Connection>(key: K, next: Connection[K]) {
     setValue((current) => ({ ...current, [key]: next }));
+    if (["options", "protocol", "strategy", "routing"].includes(key))
+      setPreset("custom");
     setReview(false);
   }
   function applyPreset(profile: Preset | undefined) {
@@ -143,7 +148,8 @@ export function ConnectionForm({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
         closeLabel={t("close")}
-        className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl"
+        scrollLayout="body"
+        className="dialog-shell sm:max-w-3xl"
       >
         <DialogHeader className="shrink-0 pe-7">
           <DialogTitle>
@@ -160,7 +166,7 @@ export function ConnectionForm({
             {t(review ? "reviewDesc" : "emptyDesc")}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex max-h-[60dvh] min-h-0 flex-col gap-4 overflow-y-auto px-1 [scrollbar-width:thin]">
+        <DialogBody key={review ? "review" : "form"}>
           {error && (
             <Alert>
               <AlertDescription>{error}</AlertDescription>
@@ -198,9 +204,23 @@ export function ConnectionForm({
                 <dd>{t(value.enabled ? "configured" : "disabled")}</dd>
               </dl>
               {Object.keys(value.options).length > 0 && (
-                <pre className="code-block" dir="ltr">
-                  {JSON.stringify(value.options, null, 2)}
-                </pre>
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer font-medium">
+                    {t("advanced")}
+                  </summary>
+                  <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {Object.entries(value.options).map(([key, option]) => (
+                      <div key={key} className="flex flex-col gap-1">
+                        <dt className="text-xs text-muted-foreground">
+                          {t(key)}
+                        </dt>
+                        <dd className="break-words">
+                          <bdi>{t(option)}</bdi>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
               )}
               {value.routing && (
                 <div className="mt-4 flex flex-col gap-3 rounded-xl border p-4">
@@ -264,6 +284,8 @@ export function ConnectionForm({
                       const cap = inventory.capabilities.find(
                         (item) => item.id === next,
                       )!;
+                      setAdvancedTab("limits");
+                      setPreset("custom");
                       setValue((current) => ({
                         ...current,
                         engine: next,
@@ -272,7 +294,8 @@ export function ConnectionForm({
                           : cap.protocols[0],
                         strategy: "single",
                         targets: current.targets.slice(0, 1),
-                        options: {},
+                        options: creationOptions(next),
+                        routing: undefined,
                         bind: ["iptables", "nftables"].includes(next)
                           ? inventory.host.addresses.find(
                               (ip) => !ip.includes(":"),
@@ -282,43 +305,41 @@ export function ConnectionForm({
                     }}
                   />
                 )}
-                <TextField
-                  id="connection-name"
-                  label={`${t("name")} · ${t("optional")}`}
-                  placeholder={`${value.engine}-${value.ports || "443"}`}
-                  help={t("autoName")}
-                  value={value.name}
-                  onChange={(event) => patch("name", event.target.value)}
-                  maxLength={40}
-                />
-                <p className="text-sm text-muted-foreground">
-                  {t("connectionEngine")}:{" "}
-                  <bdi className="font-medium text-foreground">
-                    {engineName(value.engine)}
-                  </bdi>
-                </p>
-                <TextField
-                  id="ports"
-                  label={t("localPorts")}
-                  help={t("portsHelp")}
-                  placeholder="443,8443 or 8000-8003"
-                  dir="ltr"
-                  value={value.ports}
-                  onChange={(event) => patch("ports", event.target.value)}
-                  required
-                  autoFocus
-                  maxLength={1024}
-                />
-                <Choice
-                  id="protocol"
-                  label={t("protocol")}
-                  value={value.protocol}
-                  choices={capability.protocols.map((protocol) => ({
-                    value: protocol,
-                    label: t(protocol),
-                  }))}
-                  onChange={(next) => patch("protocol", next)}
-                />
+                <FieldGroup columns>
+                  <TextField
+                    id="connection-name"
+                    label={`${t("name")} · ${t("optional")}`}
+                    placeholder={`${value.engine}-${value.ports || "443"}`}
+                    help={t("autoName")}
+                    value={value.name}
+                    onChange={(event) => patch("name", event.target.value)}
+                    maxLength={40}
+                  />
+                  <TextField
+                    id="ports"
+                    label={t("localPorts")}
+                    help={t("portsHelp")}
+                    placeholder="443,8443,8000-8003"
+                    dir="ltr"
+                    value={value.ports}
+                    onChange={(event) => patch("ports", event.target.value)}
+                    required
+                    autoFocus
+                    maxLength={1024}
+                  />
+                  {capability.protocols.length > 1 && (
+                    <Choice
+                      id="protocol"
+                      label={t("protocol")}
+                      value={value.protocol}
+                      choices={capability.protocols.map((protocol) => ({
+                        value: protocol,
+                        label: t(protocol),
+                      }))}
+                      onChange={(next) => patch("protocol", next)}
+                    />
+                  )}
+                </FieldGroup>
                 {value.targets.map((target, index) => (
                   <div key={index} className="destination-fields">
                     <TextField
@@ -409,18 +430,29 @@ export function ConnectionForm({
                   <Button
                     type="button"
                     variant="outline"
+                    className="self-start"
                     onClick={() => {
-                      patch("targets", [
-                        ...value.targets,
-                        { ip: "", port: value.targets[0].port, weight: 1 },
-                      ]);
-                      if (value.strategy === "single")
-                        patch(
-                          "strategy",
-                          (inventory.presets || []).find(
-                            (p) => p.id === preset && p.engine === value.engine,
-                          )?.strategy || capability.strategies[1],
-                        );
+                      const profile = (inventory.presets || []).find(
+                        (p) => p.id === preset && p.engine === value.engine,
+                      );
+                      const compatible =
+                        !profile?.max_targets ||
+                        value.targets.length + 1 <= profile.max_targets;
+                      setValue((current) => ({
+                        ...current,
+                        targets: [
+                          ...current.targets,
+                          { ip: "", port: current.targets[0].port, weight: 1 },
+                        ],
+                        strategy:
+                          current.strategy === "single"
+                            ? (compatible && profile?.strategy !== "single"
+                                ? profile?.strategy
+                                : undefined) || capability.strategies[1]
+                            : current.strategy,
+                      }));
+                      if (!compatible) setPreset("custom");
+                      setReview(false);
                     }}
                   >
                     <Plus data-icon="inline-start" />
@@ -453,6 +485,24 @@ export function ConnectionForm({
                   onChange={applyPreset}
                   targetCount={value.targets.length}
                 />
+                <Field
+                  orientation="horizontal"
+                  className="rounded-lg border p-3"
+                >
+                  <FieldContent>
+                    <FieldLabel htmlFor="connection-enabled">
+                      {t("startAfterSave")}
+                    </FieldLabel>
+                    <FieldDescription>
+                      {t("startAfterSaveHelp")}
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch
+                    id="connection-enabled"
+                    checked={value.enabled}
+                    onCheckedChange={(next) => patch("enabled", next)}
+                  />
+                </Field>
                 <Button
                   variant="ghost"
                   type="button"
@@ -465,106 +515,115 @@ export function ConnectionForm({
                 </Button>
                 {advanced && (
                   <FieldGroup>
-                    {value.engine === "haproxy" && (
-                      <RoutingFields
-                        value={value}
-                        onChange={(next) => patch("routing", next)}
-                      />
-                    )}
+                    <Tabs
+                      dir={locale === "fa" ? "rtl" : "ltr"}
+                      value={
+                        capability.options.length ? advancedTab : "network"
+                      }
+                      onValueChange={setAdvancedTab}
+                      className="gap-4"
+                    >
+                      <TabsList
+                        className="w-full h-auto flex-wrap"
+                        aria-label={t("advanced")}
+                      >
+                        {capability.options.length > 0 && (
+                          <TabsTrigger value="limits">
+                            {t("limitsAndTimeouts")}
+                          </TabsTrigger>
+                        )}
+                        <TabsTrigger value="network">
+                          {t("networkOptions")}
+                        </TabsTrigger>
+                        {value.engine === "haproxy" && (
+                          <TabsTrigger value="routing">
+                            {t("routingAndAffinity")}
+                          </TabsTrigger>
+                        )}
+                      </TabsList>
+                      {value.engine === "haproxy" && (
+                        <TabsContent value="routing">
+                          <FieldGroup>
+                            {value.engine === "haproxy" && (
+                              <RoutingFields
+                                value={value}
+                                onChange={(next) => patch("routing", next)}
+                              />
+                            )}
 
-                    {value.engine === "haproxy" && (
-                      <AffinityFields
-                        options={value.options}
-                        onChange={(next) => patch("options", next)}
-                      />
-                    )}
+                            {value.engine === "haproxy" && (
+                              <AffinityFields
+                                options={value.options}
+                                onChange={(next) => patch("options", next)}
+                              />
+                            )}
 
-                    <TextField
-                      id="bind"
-                      label={t("bind")}
-                      help={t("bindHelp")}
-                      dir="ltr"
-                      value={value.bind}
-                      onChange={(event) => patch("bind", event.target.value)}
-                      required
-                    />
-                    {["nftables", "iptables"].includes(value.engine) && (
-                      <>
-                        <TextField
-                          id="interface"
-                          label={t("interface")}
-                          value={value.interface}
-                          onChange={(event) =>
-                            patch("interface", event.target.value)
-                          }
-                          dir="ltr"
-                          required
-                          maxLength={15}
-                        />
-                        <Choice
-                          id="snat"
-                          label={t("sourcePolicy")}
-                          value={value.snat}
-                          choices={["masquerade", "preserve"].map((id) => ({
-                            value: id,
-                            label: t(id),
-                          }))}
-                          onChange={(next) => patch("snat", next)}
-                        />
-                      </>
-                    )}
-                    {value.engine === "haproxy" && (
-                      <HealthCheckFields
-                        options={value.options}
-                        onChange={(next) => patch("options", next)}
-                      />
-                    )}
-                    {capability.options
-                      .filter(
-                        (option) =>
-                          value.engine !== "haproxy" ||
-                          (!healthOptionKeys.includes(option.key) &&
-                            !["stick", "stick_size", "stick_expire"].includes(
-                              option.key,
-                            )),
-                      )
-                      .map((option) =>
-                        option.choices ? (
-                          <Choice
-                            key={option.key}
-                            id={`option-${option.key}`}
-                            label={t(option.key)}
-                            value={value.options[option.key] ?? option.default}
-                            choices={option.choices.map((id) => ({
-                              value: id,
-                              label: t(id),
-                            }))}
-                            onChange={(next) =>
-                              patch("options", {
-                                ...value.options,
-                                [option.key]: next,
-                              })
-                            }
-                          />
-                        ) : (
+                            <HealthCheckFields
+                              options={value.options}
+                              onChange={(next) => patch("options", next)}
+                            />
+                          </FieldGroup>
+                        </TabsContent>
+                      )}
+                      <TabsContent value="network">
+                        <FieldGroup columns>
                           <TextField
-                            key={option.key}
-                            id={`option-${option.key}`}
-                            label={t(option.key)}
-                            type={option.format ? "text" : "number"}
-                            min={option.min}
-                            max={option.max}
-                            value={value.options[option.key] ?? option.default}
+                            id="bind"
+                            label={t("bind")}
+                            help={t("bindHelp")}
+                            dir="ltr"
+                            value={value.bind}
                             onChange={(event) =>
-                              patch("options", {
-                                ...value.options,
-                                [option.key]: event.target.value,
-                              })
+                              patch("bind", event.target.value)
                             }
                             required
                           />
-                        ),
-                      )}
+                          {["nftables", "iptables"].includes(value.engine) && (
+                            <>
+                              <TextField
+                                id="interface"
+                                label={t("interface")}
+                                value={value.interface}
+                                onChange={(event) =>
+                                  patch("interface", event.target.value)
+                                }
+                                dir="ltr"
+                                required
+                                maxLength={15}
+                              />
+                              <Choice
+                                id="snat"
+                                label={t("sourcePolicy")}
+                                value={value.snat}
+                                choices={["masquerade", "preserve"].map(
+                                  (id) => ({
+                                    value: id,
+                                    label: t(id),
+                                  }),
+                                )}
+                                onChange={(next) => patch("snat", next)}
+                              />
+                            </>
+                          )}
+                          <EngineOptionFields
+                            capability={capability}
+                            options={value.options}
+                            section="network"
+                            onChange={(next) => patch("options", next)}
+                          />
+                        </FieldGroup>
+                      </TabsContent>
+                      <TabsContent value="limits">
+                        <FieldGroup columns>
+                          <EngineOptionFields
+                            capability={capability}
+                            options={value.options}
+                            section="limits"
+                            onChange={(next) => patch("options", next)}
+                          />
+                        </FieldGroup>
+                      </TabsContent>
+                    </Tabs>
                     {capability.options.length > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
@@ -575,22 +634,12 @@ export function ConnectionForm({
                         </HelpTip>
                       </div>
                     )}
-                    <Field orientation="horizontal">
-                      <FieldLabel htmlFor="connection-enabled">
-                        {t("enable")}
-                      </FieldLabel>
-                      <Switch
-                        id="connection-enabled"
-                        checked={value.enabled}
-                        onCheckedChange={(next) => patch("enabled", next)}
-                      />
-                    </Field>
                   </FieldGroup>
                 )}
               </FieldGroup>
             </form>
           )}
-        </div>
+        </DialogBody>
         <DialogFooter className="shrink-0">
           <Button
             variant="outline"

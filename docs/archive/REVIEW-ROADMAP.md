@@ -1,5 +1,7 @@
 # Project review and next steps — 2026-10-21
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 This source/configuration review was started with v1.1.0 and updated for v1.2.0. It is not a production two-VPS benchmark. The generated release, Bash modules, build/tests, CI and operational docs were examined. No live server was deployed or remotely changed.
 
 ## Recommendation: keep Bash, refactor incrementally
@@ -64,4 +66,4 @@ Preserve the current keys, IDs, addresses and MTU defaults. Add an opt-in underl
 
 Pure Bash/config regression tests, deterministic rebuild and ShellCheck cover the modern modules. Private Linux namespaces exercise real TCP/UDP NAT, keyed GRE, MSS capture, HAProxy failover, Realm, FRP TCP/WS/WSS/QUIC and installed rathole Noise. Optional engines absent from CI can be skipped; they were exercised locally with the pinned binaries. No production reboot, multi-VPS path, sustained-loss benchmark or exact administrator-firewall restoration is claimed.
 
-v1.2.0 additionally tests actual HAProxy worker reload with a retained TCP session, PROXY v1/v2 client metadata, real duplicate-rule/Simple GRE cleanup preserving unrelated rules, and mocked sysctl failure/drift restoration. Detailed HAProxy features and next steps are in [HAPROXY.md](HAPROXY.md).
+v1.2.0 additionally tests actual HAProxy worker reload with a retained TCP session, PROXY v1/v2 client metadata, real duplicate-rule/Simple GRE cleanup preserving unrelated rules, and mocked sysctl failure/drift restoration. Detailed HAProxy features and next steps are in [HAPROXY.md](../HAPROXY.md).

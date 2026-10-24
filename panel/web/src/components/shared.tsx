@@ -72,16 +72,21 @@ export function Choice({
   onChange,
   choices,
   id,
+  help,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   choices: { value: string; label: string; disabled?: boolean }[];
   id: string;
+  help?: string;
 }) {
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <div className="flex items-center gap-1">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
+      </div>
       <NativeSelect
         id={id}
         value={value}
@@ -113,7 +118,8 @@ export function Address({
     <Button
       size="sm"
       variant="ghost"
-      title={t("copy")}
+      className="max-w-full min-w-0 justify-start"
+      title={`${t("copy")}: ${children}`}
       onClick={() =>
         navigator.clipboard
           .writeText(children)
@@ -121,7 +127,10 @@ export function Address({
           .catch(() => notify?.(children))
       }
     >
-      <code className="max-w-64 truncate" dir="ltr">
+      <Badge variant="outline">
+        {children.includes(":") ? "IPv6" : "IPv4"}
+      </Badge>
+      <code className="max-w-64 truncate text-xs" dir="ltr">
         {children}
       </code>
       <Copy data-icon="inline-end" />

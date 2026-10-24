@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optional prebuilt Go panel installer. Never changes tunnel configurations.
 set -euo pipefail
-PANEL_VERSION=1.3.1
+PANEL_VERSION=1.3.2
 PANEL_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 # Closed uninstall manifest. Unknown files and links require operator inspection;

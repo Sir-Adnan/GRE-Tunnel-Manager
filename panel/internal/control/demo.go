@@ -22,7 +22,7 @@ type Demo struct {
 }
 
 func NewDemo() *Demo {
-	d := &Demo{counter: 4, inventory: Inventory{Presets: model.Presets(), Version: "1.3.1", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
+	d := &Demo{counter: 4, inventory: Inventory{Presets: model.Presets(), Version: "1.3.2", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
 	d.inventory.EngineProfiles = model.EngineProfiles()
 	for index := range d.inventory.Components {
 		c := &d.inventory.Components[index]
@@ -79,6 +79,11 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		for i, c := range d.inventory.Connections {
 			if c.ID == next.ID {
 				next.Status = c.Status
+				if !next.Enabled {
+					next.Status = "disabled"
+				} else if next.Status == "disabled" {
+					next.Status = "configured"
+				}
 				d.inventory.Connections[i] = next
 			}
 		}
@@ -132,6 +137,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		d.metrics = m.view
 		result = map[string]any{"ok": true, "revision": d.metrics.Revision}
 	case "create":
+		r.Connection = r.Connection.WithCreationDefaults()
 		rows, e := r.Connection.Rows("F000000")
 		if e != nil {
 			return nil, e
@@ -143,8 +149,15 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 			}
 			d.counter++
 			c[0].ID = fmt.Sprintf("F%06d", d.counter)
-			c[0].Revision = model.Revision(row)
+			finalRows, e := c[0].Rows(c[0].ID)
+			if e != nil {
+				return nil, e
+			}
+			c[0].Revision = model.Revision(finalRows[0])
 			c[0].Status = "configured"
+			if !c[0].Enabled {
+				c[0].Status = "disabled"
+			}
 			d.inventory.Connections = append(d.inventory.Connections, c[0])
 		}
 	case "delete", "enable", "disable", "update":
@@ -177,6 +190,15 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 						return nil, e
 					}
 					c = parsed[0]
+				}
+				finalRows, e := c.Rows(c.ID)
+				if e != nil {
+					return nil, e
+				}
+				c.Revision = model.Revision(finalRows[0])
+				c.Status = "configured"
+				if !c.Enabled {
+					c.Status = "disabled"
 				}
 			}
 			next = append(next, c)

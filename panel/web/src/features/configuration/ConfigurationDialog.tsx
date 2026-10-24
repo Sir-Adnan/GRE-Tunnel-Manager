@@ -10,6 +10,7 @@ import { HelpTip } from "@/components/help";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -110,7 +111,8 @@ export function ConfigurationDialog({
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
         closeLabel={t("close")}
-        className="flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col sm:max-w-4xl"
+        scrollLayout="body"
+        className="dialog-shell sm:max-w-4xl"
       >
         <DialogHeader className="shrink-0 pe-6">
           <DialogTitle className="flex flex-wrap items-center gap-2">
@@ -126,7 +128,7 @@ export function ConfigurationDialog({
         )}
         {!view && !error && <Skeleton className="h-64 w-full" />}
         {view && (
-          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+          <DialogBody>
             {view.saved_state === "different" && (
               <Alert>
                 <AlertDescription>{t("configDriftHelp")}</AlertDescription>
@@ -209,7 +211,7 @@ export function ConfigurationDialog({
                 </p>
               </section>
             )}
-          </div>
+          </DialogBody>
         )}
         <DialogFooter className="shrink-0 flex-wrap">
           <Button

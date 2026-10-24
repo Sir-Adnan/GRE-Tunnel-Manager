@@ -3,12 +3,12 @@
     "id": "ha-balanced",
     "engine": "haproxy",
     "label": {
-      "en": "Balanced TCP",
-      "fa": "اتصال TCP متعادل"
+      "en": "Balanced",
+      "fa": "متعادل"
     },
     "help": {
-      "en": "TCP checks, least connections and bounded half-close cleanup. No TLS termination or PROXY header is enabled.",
-      "fa": "بررسی TCP، توزیع با کمترین اتصال و جمع‌کردن اتصال نیمه‌بسته؛ بدون روشن‌کردن TLS یا هدر PROXY."
+      "en": "One-hour idle timeout with TCP health checks and least-connections balancing. Connection logs are off.",
+      "fa": "مهلت بی‌کاری یک ساعت، بررسی سلامت TCP و توزیع با کمترین اتصال؛ لاگ اتصال خاموش است."
     },
     "protocol": "tcp",
     "strategy": "leastconn",
@@ -16,139 +16,7 @@
       "connect": "5",
       "idle": "3600",
       "queue": "15",
-      "maxconn": "8192",
-      "server_maxconn": "0",
-      "check_interval": "3",
-      "check_timeout": "3",
-      "check_fall": "3",
-      "check_rise": "2",
-      "slowstart": "0",
-      "log": "errors",
-      "stick": "off",
-      "stick_size": "16384",
-      "stick_expire": "1800",
-      "fin": "30",
-      "tunnel": "0",
-      "retries": "2"
-    }
-  },
-  {
-    "id": "ha-vpn",
-    "engine": "haproxy",
-    "label": {
-      "en": "VPN / Reality",
-      "fa": "اتصال VPN و Reality"
-    },
-    "help": {
-      "en": "Long-lived opaque TCP; 24-hour idle timeout, errors-only logs. No inspection or TLS termination is added.",
-      "fa": "انتقال خام TCP برای نشست‌های طولانی؛ مهلت بی‌کاری 24 ساعت و فقط ثبت خطا. رمزگشایی یا بررسی محتوای TLS اضافه نمی‌شود."
-    },
-    "protocol": "tcp",
-    "strategy": "leastconn",
-    "options": {
-      "connect": "5",
-      "idle": "86400",
-      "queue": "10",
-      "maxconn": "8192",
-      "server_maxconn": "0",
-      "check_interval": "3",
-      "check_timeout": "3",
-      "check_fall": "3",
-      "check_rise": "2",
-      "slowstart": "0",
-      "log": "errors",
-      "stick": "off",
-      "stick_size": "16384",
-      "stick_expire": "1800",
-      "fin": "30",
-      "tunnel": "86400",
-      "retries": "2"
-    }
-  },
-  {
-    "id": "ha-sticky",
-    "engine": "haproxy",
-    "label": {
-      "en": "VPN with IP affinity",
-      "fa": "اتصال VPN با حفظ مقصد"
-    },
-    "help": {
-      "en": "Bounded 16k source-IP memory for new connections. Shared NAT users share a mapping; this cannot migrate a live VPN session.",
-      "fa": "حافظهٔ محدود 16k برای حفظ مقصد اتصال‌های جدید؛ کاربران با IP مشترک یک مقصد می‌گیرند و نشست فعال بین سرورها منتقل نمی‌شود."
-    },
-    "protocol": "tcp",
-    "strategy": "leastconn",
-    "options": {
-      "connect": "5",
-      "idle": "86400",
-      "queue": "15",
-      "maxconn": "8192",
-      "server_maxconn": "0",
-      "check_interval": "3",
-      "check_timeout": "3",
-      "check_fall": "3",
-      "check_rise": "2",
-      "slowstart": "0",
-      "log": "errors",
-      "stick": "source",
-      "stick_size": "16384",
-      "stick_expire": "3600",
-      "fin": "30",
-      "tunnel": "86400",
-      "retries": "2"
-    }
-  },
-  {
-    "id": "ha-failover",
-    "engine": "haproxy",
-    "label": {
-      "en": "Primary + backup",
-      "fa": "مقصد اصلی و پشتیبان"
-    },
-    "help": {
-      "en": "First destination is primary; others are backups. New connections can use a healthy backup; existing sessions must reconnect.",
-      "fa": "مقصد اول اصلی و بقیه پشتیبان‌اند؛ اتصال جدید به مقصد سالم می‌رود، ولی نشست قبلی باید دوباره وصل شود."
-    },
-    "protocol": "tcp",
-    "strategy": "failover",
-    "options": {
-      "connect": "5",
-      "idle": "86400",
-      "queue": "15",
-      "maxconn": "8192",
-      "server_maxconn": "0",
-      "check_interval": "3",
-      "check_timeout": "3",
-      "check_fall": "3",
-      "check_rise": "2",
-      "slowstart": "0",
-      "log": "errors",
-      "stick": "off",
-      "stick_size": "16384",
-      "stick_expire": "1800",
-      "fin": "30",
-      "tunnel": "86400",
-      "retries": "2"
-    }
-  },
-  {
-    "id": "ha-lean",
-    "engine": "haproxy",
-    "label": {
-      "en": "Small server",
-      "fa": "سرور کم‌منبع"
-    },
-    "help": {
-      "en": "Lower 2048 connection ceiling, no connection logs and a 1-hour idle window. A starting point, not a measured memory guarantee.",
-      "fa": "سقف 2048 اتصال، بدون لاگ اتصال و مهلت بی‌کاری یک ساعت؛ نقطهٔ شروع است، نه تضمین مصرف حافظه."
-    },
-    "protocol": "tcp",
-    "strategy": "leastconn",
-    "options": {
-      "connect": "5",
-      "idle": "3600",
-      "queue": "5",
-      "maxconn": "2048",
+      "maxconn": "100000",
       "server_maxconn": "0",
       "check_interval": "3",
       "check_timeout": "3",
@@ -165,11 +33,77 @@
     }
   },
   {
+    "id": "ha-vpn",
+    "engine": "haproxy",
+    "label": {
+      "en": "Long-lived",
+      "fa": "نشست طولانی"
+    },
+    "help": {
+      "en": "24-hour idle timeout for long TCP sessions. No connection logs, TLS termination or PROXY header.",
+      "fa": "مهلت بی‌کاری 24 ساعت برای نشست‌های TCP طولانی؛ بدون لاگ اتصال، رمزگشایی TLS یا هدر PROXY."
+    },
+    "protocol": "tcp",
+    "strategy": "leastconn",
+    "options": {
+      "connect": "5",
+      "idle": "86400",
+      "queue": "10",
+      "maxconn": "100000",
+      "server_maxconn": "0",
+      "check_interval": "3",
+      "check_timeout": "3",
+      "check_fall": "3",
+      "check_rise": "2",
+      "slowstart": "0",
+      "log": "off",
+      "stick": "off",
+      "stick_size": "16384",
+      "stick_expire": "1800",
+      "fin": "30",
+      "tunnel": "86400",
+      "retries": "2"
+    }
+  },
+  {
+    "id": "ha-sticky",
+    "engine": "haproxy",
+    "label": {
+      "en": "IP affinity",
+      "fa": "حفظ مقصد"
+    },
+    "help": {
+      "en": "Bounded 16k source-IP memory for new connections. Shared NAT users share a mapping; this cannot migrate a live VPN session.",
+      "fa": "حافظهٔ محدود 16k برای حفظ مقصد اتصال‌های جدید؛ کاربران با IP مشترک یک مقصد می‌گیرند و نشست فعال بین سرورها منتقل نمی‌شود."
+    },
+    "protocol": "tcp",
+    "strategy": "leastconn",
+    "options": {
+      "connect": "5",
+      "idle": "86400",
+      "queue": "15",
+      "maxconn": "100000",
+      "server_maxconn": "0",
+      "check_interval": "3",
+      "check_timeout": "3",
+      "check_fall": "3",
+      "check_rise": "2",
+      "slowstart": "0",
+      "log": "off",
+      "stick": "source",
+      "stick_size": "16384",
+      "stick_expire": "3600",
+      "fin": "30",
+      "tunnel": "86400",
+      "retries": "2"
+    }
+  },
+  {
     "id": "realm-tcp",
     "engine": "realm",
     "label": {
-      "en": "VPN TCP",
-      "fa": "اتصال VPN با TCP"
+      "en": "TCP",
+      "fa": "TCP"
     },
     "help": {
       "en": "Native relay settings; source hashing is not a health-checked failover or a shared VPN session store. TCP-only transport extensions are reset to plain.",
@@ -182,7 +116,7 @@
       "udp_timeout": "120",
       "tcp_keepalive": "30",
       "tcp_keepalive_probe": "3",
-      "log": "warn",
+      "log": "off",
       "send_mptcp": "false",
       "accept_mptcp": "false",
       "listen_transport": "plain",
@@ -194,8 +128,8 @@
     "id": "realm-udp",
     "engine": "realm",
     "label": {
-      "en": "WireGuard / AmneziaWG",
-      "fa": "اتصال وایرگارد و AmneziaWG"
+      "en": "UDP",
+      "fa": "UDP"
     },
     "help": {
       "en": "Native relay settings; source hashing is not a health-checked failover or a shared VPN session store. TCP-only transport extensions are reset to plain.",
@@ -208,7 +142,7 @@
       "udp_timeout": "120",
       "tcp_keepalive": "30",
       "tcp_keepalive_probe": "3",
-      "log": "warn",
+      "log": "off",
       "send_mptcp": "false",
       "accept_mptcp": "false",
       "listen_transport": "plain",
@@ -221,7 +155,7 @@
     "engine": "realm",
     "label": {
       "en": "TCP + UDP",
-      "fa": "اتصال TCP و UDP"
+      "fa": "TCP + UDP"
     },
     "help": {
       "en": "Native relay settings; source hashing is not a health-checked failover or a shared VPN session store. TCP-only transport extensions are reset to plain.",
@@ -234,7 +168,7 @@
       "udp_timeout": "120",
       "tcp_keepalive": "30",
       "tcp_keepalive_probe": "3",
-      "log": "warn",
+      "log": "off",
       "send_mptcp": "false",
       "accept_mptcp": "false",
       "listen_transport": "plain",
@@ -246,8 +180,8 @@
     "id": "nftables-tcp",
     "engine": "nftables",
     "label": {
-      "en": "Direct TCP / Reality",
-      "fa": "فوروارد مستقیم TCP و Reality"
+      "en": "TCP",
+      "fa": "TCP"
     },
     "help": {
       "en": "Kernel TCP forwarding. No encryption, active health checks or userspace relay is added.",
@@ -260,8 +194,8 @@
     "id": "nftables-udp",
     "engine": "nftables",
     "label": {
-      "en": "WireGuard / AmneziaWG",
-      "fa": "فوروارد وایرگارد و AmneziaWG"
+      "en": "UDP affinity",
+      "fa": "UDP با حفظ مقصد"
     },
     "help": {
       "en": "UDP forwarding; source hashing is per source IP, not per VPN account. Keep destination keys/session state compatible. No host timeout tuning is changed.",
@@ -274,8 +208,8 @@
     "id": "iptables-tcp",
     "engine": "iptables",
     "label": {
-      "en": "Direct TCP / Reality",
-      "fa": "فوروارد مستقیم TCP و Reality"
+      "en": "TCP",
+      "fa": "TCP"
     },
     "help": {
       "en": "Kernel TCP forwarding. No encryption, active health checks or userspace relay is added.",
@@ -288,8 +222,8 @@
     "id": "iptables-udp",
     "engine": "iptables",
     "label": {
-      "en": "WireGuard / AmneziaWG",
-      "fa": "فوروارد وایرگارد و AmneziaWG"
+      "en": "UDP",
+      "fa": "UDP"
     },
     "help": {
       "en": "Single-destination UDP. This iptables adapter has no source affinity; use nftables source hashing for supported multi-destination setups. No host timeouts are changed.",
@@ -303,8 +237,8 @@
     "id": "gre-1430",
     "engine": "gre",
     "label": {
-      "en": "Standard MTU · 1430",
-      "fa": "مقدار معمول MTU · 1430"
+      "en": "Standard",
+      "fa": "معمول"
     },
     "help": {
       "en": "Both peers need compatible MTU. This does not discover path MTU, encrypt GRE or change global routing.",
@@ -316,8 +250,8 @@
     "id": "gre-1400",
     "engine": "gre",
     "label": {
-      "en": "Lower MTU · 1400",
-      "fa": "مقدار کمتر MTU · 1400"
+      "en": "Lower MTU",
+      "fa": "MTU کمتر"
     },
     "help": {
       "en": "Both peers need compatible MTU. This does not discover path MTU, encrypt GRE or change global routing.",
@@ -329,8 +263,8 @@
     "id": "gre-1280",
     "engine": "gre",
     "label": {
-      "en": "Conservative MTU · 1280",
-      "fa": "مقدار محافظه‌کارانهٔ MTU · 1280"
+      "en": "Conservative",
+      "fa": "محافظه‌کار"
     },
     "help": {
       "en": "Both peers need compatible MTU. This does not discover path MTU, encrypt GRE or change global routing.",
@@ -342,8 +276,8 @@
     "id": "frp-tcp",
     "engine": "frp",
     "label": {
-      "en": "TCP with multiplexing",
-      "fa": "اتصال TCP با چندجریانی"
+      "en": "TCP",
+      "fa": "TCP"
     },
     "help": {
       "en": "Apply compatible settings on both peers. QUIC needs a working UDP path; WSS needs operator certificates. Multiplexing trades socket count for shared transport behavior.",
@@ -354,26 +288,11 @@
     "mux": true
   },
   {
-    "id": "frp-isolated",
-    "engine": "frp",
-    "label": {
-      "en": "TCP without multiplexing",
-      "fa": "اتصال TCP بدون چندجریانی"
-    },
-    "help": {
-      "en": "Apply compatible settings on both peers. QUIC needs a working UDP path; WSS needs operator certificates. Multiplexing trades socket count for shared transport behavior.",
-      "fa": "تنظیمات دو سمت باید سازگار باشد. برای QUIC مسیر UDP و برای WSS گواهی لازم است. چندجریانی تعداد سوکت را کم می‌کند، ولی جریان‌ها مسیر انتقال مشترک دارند."
-    },
-    "protocol": "tcp",
-    "transport": "tcp",
-    "mux": false
-  },
-  {
     "id": "frp-quic",
     "engine": "frp",
     "label": {
-      "en": "UDP over QUIC",
-      "fa": "انتقال UDP با QUIC"
+      "en": "QUIC",
+      "fa": "QUIC"
     },
     "help": {
       "en": "Apply compatible settings on both peers. QUIC needs a working UDP path; WSS needs operator certificates. Multiplexing trades socket count for shared transport behavior.",
@@ -384,26 +303,11 @@
     "mux": false
   },
   {
-    "id": "frp-ws",
-    "engine": "frp",
-    "label": {
-      "en": "TCP over WebSocket",
-      "fa": "انتقال TCP با وب‌سوکت"
-    },
-    "help": {
-      "en": "Apply compatible settings on both peers. QUIC needs a working UDP path; WSS needs operator certificates. Multiplexing trades socket count for shared transport behavior.",
-      "fa": "تنظیمات دو سمت باید سازگار باشد. برای QUIC مسیر UDP و برای WSS گواهی لازم است. چندجریانی تعداد سوکت را کم می‌کند، ولی جریان‌ها مسیر انتقال مشترک دارند."
-    },
-    "protocol": "tcp",
-    "transport": "websocket",
-    "mux": true
-  },
-  {
     "id": "frp-wss",
     "engine": "frp",
     "label": {
-      "en": "TCP over WSS",
-      "fa": "انتقال TCP با WSS"
+      "en": "WSS",
+      "fa": "WSS"
     },
     "help": {
       "en": "Apply compatible settings on both peers. QUIC needs a working UDP path; WSS needs operator certificates. Multiplexing trades socket count for shared transport behavior.",
@@ -417,8 +321,8 @@
     "id": "rathole-tcp",
     "engine": "rathole",
     "label": {
-      "en": "Noise · TCP",
-      "fa": "اتصال Noise با TCP"
+      "en": "TCP",
+      "fa": "TCP"
     },
     "help": {
       "en": "Authenticated Noise over TCP. The UDP service profile still uses a TCP outer connection; it is not a native QUIC/UDP transport.",
@@ -432,8 +336,8 @@
     "id": "rathole-udp",
     "engine": "rathole",
     "label": {
-      "en": "Noise · UDP",
-      "fa": "اتصال Noise با UDP"
+      "en": "UDP",
+      "fa": "UDP"
     },
     "help": {
       "en": "Authenticated Noise over TCP. The UDP service profile still uses a TCP outer connection; it is not a native QUIC/UDP transport.",
@@ -447,8 +351,8 @@
     "id": "rathole-both",
     "engine": "rathole",
     "label": {
-      "en": "Noise · BOTH",
-      "fa": "اتصال Noise با BOTH"
+      "en": "TCP + UDP",
+      "fa": "TCP + UDP"
     },
     "help": {
       "en": "Authenticated Noise over TCP. The UDP service profile still uses a TCP outer connection; it is not a native QUIC/UDP transport.",
@@ -457,5 +361,35 @@
     "protocol": "both",
     "transport": "tcp",
     "mux": false
+  },
+  {
+    "id": "nftables-both",
+    "engine": "nftables",
+    "label": {
+      "en": "TCP + UDP",
+      "fa": "TCP + UDP"
+    },
+    "help": {
+      "en": "Forward both TCP and UDP to one destination, without added encryption or active health checks.",
+      "fa": "فوروارد TCP و UDP به یک مقصد، بدون رمزنگاری اضافه یا بررسی سلامت فعال."
+    },
+    "protocol": "both",
+    "strategy": "single",
+    "max_targets": 1
+  },
+  {
+    "id": "iptables-both",
+    "engine": "iptables",
+    "label": {
+      "en": "TCP + UDP",
+      "fa": "TCP + UDP"
+    },
+    "help": {
+      "en": "Forward both TCP and UDP to one destination, without added encryption or active health checks.",
+      "fa": "فوروارد TCP و UDP به یک مقصد، بدون رمزنگاری اضافه یا بررسی سلامت فعال."
+    },
+    "protocol": "both",
+    "strategy": "single",
+    "max_targets": 1
   }
 ]

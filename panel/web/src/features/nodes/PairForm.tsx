@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogTitle,
   DialogDescription,
@@ -117,7 +118,8 @@ export function PairForm({
       }}
     >
       <DialogContent
-        className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-3xl"
+        scrollLayout="body"
+        className="dialog-shell sm:max-w-3xl"
         closeLabel={t("close")}
       >
         <DialogHeader>
@@ -141,7 +143,7 @@ export function PairForm({
             });
           }}
         >
-          <div className="flex min-h-0 max-h-[55dvh] flex-col gap-5 overflow-auto [scrollbar-width:thin]">
+          <DialogBody>
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -308,7 +310,7 @@ export function PairForm({
                 </Alert>
               </div>
             )}
-          </div>
+          </DialogBody>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             {review && (
               <Button

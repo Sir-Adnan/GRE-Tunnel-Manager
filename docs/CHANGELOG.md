@@ -1,78 +1,27 @@
 # Changelog
 
+## v1.3.2 — Compact forms, simpler setup and refreshed documentation
+
+- Fix nested modal scrolling and hidden Radix form controls escaping the scroll body. Keep headings/actions visible and use compact responsive field groups.
+- Simplify the web catalog to three short setup presets per engine; retain the other supported advanced settings.
+- New HAProxy connections use a 100000 connection ceiling, no per-target cap and logs off. New Realm connections start with logs off. Preserve all saved records and legacy absent-key semantics; explicit user values win.
+- Route Add server to a three-step setup guide when the optional Controller is disabled. Keep browser HTTP independent of the TLS Agent listener and show readable installer commands.
+- Add a paginated all-connections traffic tab with per-row quota/reset/stop actions and separate details/history. Keep missing samples unavailable.
+- Label address families separately, explain relative connection share and start-after-save, and clarify the read-only whole-server preview. Preserve the selected palette and reduced-motion support.
+- Correct simulated connection revisions after ID assignment and enable/disable so new Demo records remain inspectable; keep disabled Demo status consistent.
+- Rewrite English/Persian quick starts, simplify contributor instructions, add a release checklist and separate historical milestone reports from current guides.
+
 ## v1.3.1 — Configuration workflows, VPN profiles and multi-server management
 
-- Correct RTL value alignment and content-width table/card switching, including single-card and long IPv6 layouts.
-- Add local configuration inspection, copy/download, revision-checked JSON/native review and apply through the existing transaction. Keep GRE/reverse views read-only and redact reverse secrets.
-- Add 23 bilingual profiles and optional HAProxy FIN/tunnel/retry controls with backward defaults. Keep existing connections unchanged until explicit selection/application.
-- Ship the previously unreleased milestones below in matched versioned packages; preserve v1.3.0 release assets.
+- Correct RTL alignment, container-responsive tables/cards, mobile forms, Latin display digits and dashboard density.
+- Add local configuration inspection, copy/download and supported JSON/native editing with revision checks, validation and recovery. GRE/reverse file views remain read-only; reverse secrets are masked.
+- Add 23 starting profiles and bounded HAProxy FIN/tunnel/retry controls, IP affinity, TLS/SNI/HTTP routing, Realm WS/MPTCP/IPv6-only options and nftables selection methods.
+- Add quick/custom HTTP/HTTPS installation, automatic addresses/ports, generated credentials and upgrade preservation.
+- Add optional outbound mTLS Agents, the local Node, coordinated leased GRE/FRP creation and opt-in read-only remote traffic summaries.
+- Add local traffic cycles, labels, resets, advisory quotas, bounded optional history and CSV export.
+- Add engine/version discovery, independent GRE/reverse display names, guarded panel removal and scoped ownership/recovery checks.
 
-
-### Included milestone — Phase 6 remote traffic summaries and compact dashboard
-
-- Add opt-in read-only traffic-protocol-1 reports over the existing active mTLS identity without changing inventory/pair negotiation. Keep one bounded memory-only Controller snapshot per Node and preserve known totals on read failure.
-- Add explicit Agent reporting installation, separate local accounting enable/pause, a private root-owned ledger and upgrade flag preservation. No collection starts by default; no new service or listener is added.
-- Split Node details into inventory/traffic tabs with responsive cycle/lifetime cards, search, receipt/sample timestamps, stale/error states and visible-tab polling. Preserve the selected palette, bilingual layout and Latin display digits.
-- Replace oversized overview connection cards with a separate container-responsive summary list. Keep port/destination labels beside their values, tighten mobile manager cards, remove the redundant dashboard promotion block and prevent settings cards stretching to a taller neighbor. Preserve all actions and selected theme colors.
-- Rewrite English and Persian quick-start READMEs, clarify published-package/source differences and correct outdated adapter capability text. Technical guides remain English; the Persian README is restored at the user’s explicit request.
-
-
-
-### Included milestone — Phase 5B–5D advanced management
-
-- Add bounded optional HAProxy client-IP memory affinity with size/expiry controls, distinct from source hashing. Add responsive destination disclosure, paginated mobile cards, visual Node selection, full-menu mobile navigation and reduced-motion-aware CSS transitions.
-- Add a separate HAProxy v4/routing-v1 contract for exact-host SNI passthrough, bounded HTTP Host/path routes and operator-provisioned HTTPS termination. Keep opaque TCP passthrough as the default and preserve routing through terminal edits.
-- Verify Realm 2.9.6 source contracts; add feature-gated WS, kernel-gated incoming/outgoing MPTCP and IPv6-only profiles. Correct official `Realm` version output detection.
-- Add manager-owned nftables incremental and fixed-seed source-IP hash balancing for new flows; retain existing iptables behavior.
-- Add fingerprint-bound GRE/reverse display metadata, locked revision checks, atomic sidecar updates and previous-file backups without renaming network identities.
-- Add independent traffic cycles/resets, customer labels, direction-specific advisory quotas, CSV export, manual disable and scoped forgetting of deleted-resource accounting. Keep lifetime totals and preserve raw counters; no automatic cutoff or conntrack flush.
-- Add optional bounded persisted histories and completed-cycle summaries; fetch archives only for the selected resource and keep asynchronous job receipts small. Lazy-load the Traffic workspace.
-- Separate traffic usage from collection settings with responsive tabs, use Latin display digits in both UI languages, bound dialogs to the viewport and apply the user-approved dark label/icon override only to Nettinx orange buttons. Preserve imported fills and source tokens.
-- Add routing/WS packet tests, metadata CAS regressions, ledger reset/restart/failure tests and browser checks. No version bump, public release or live-server deployment is included.
-
-### Included milestone — Phase 5A
-
-- Add an engine/version capability matrix and cached fixed-command version probes; show adapter scope, native/schema validation and FRP client/server mismatches in the bilingual panel.
-- Add bounded HAProxy plain HTTP GET readiness checks on a separate port, preserving TCP passthrough/defaults, with terminal/web controls and reachable-but-unhealthy namespace coverage.
-- Fix the Go model dropping Realm version-3 option fields during record serialization; preserve them through round-trip create/edit.
-- Add confirmed `panel-install.sh --uninstall` and a terminal removal action. Protect unresolved paired operations and Agent-shared resources; remove only panel files/counters and retain tunnels/forwarding.
-- Preserve older published assets; the completed milestones are consolidated in v1.3.1.
-
-### Included milestone — Phase 4 leased two-node connections
-
-- Add explicit `--operations` Agent opt-in while keeping the general local write API inaccessible remotely. Negotiate `connections.pair.v1` alongside protocol-1 inventory.
-- Persist bounded Controller jobs and root receipts with preparation revisions, idempotent delivery, expiry, restart recovery, timed confirmation and fingerprint-guarded compensation. Expose individual and uncertain outcomes without claiming atomic multi-server changes.
-- Coordinate GRE and FRP TCP/UDP creation on two selected Nodes, including the panel host or two remote servers. Keep engine installation, remote forwarding CRUD, Rathole key exchange and WSS outside this workflow.
-- Add responsive bilingual setup/review, per-server progress and recovery controls. Preserve Nettinx and Vazirmatn. Poll active browser jobs only; retain the existing inventory cadence.
-- Extend installer preservation, TLS/broker/Bash tests and real isolated GRE TCP/UDP checks. Document current-source packages; published v1.3.0 remains unchanged.
-
-### Included milestone — Phase 3 read-only Nodes and Agents
-
-- Add optional Controller enrollment and outbound inventory Agents without requiring a third server or an Agent on the panel host. Keep existing tunnel operations local.
-- Define independent protocol 1, stable node IDs, closed capability negotiation, structured failures and separate metadata/inventory revisions. No remote operation endpoint is added.
-- Pin the Controller authority before one-time enrollment, issue per-node mTLS identities, renew leaf certificates, preserve identities across updates and enforce revocation and certificate lifetime on every report/renewal, including reused TLS connections. Protect single-process state with file locks and atomic private writes.
-- Add checksum/protocol-verified optional Controller/Agent installation, hidden invitation entry and a separately allowlisted read-only root broker. Browser HTTP never permits plaintext Agent transport.
-- Add a lazy-loaded bilingual Nodes page, snapshot details, distinct connectivity/service status, collection timestamps, revocation confirmation and topology/recovery help. Preserve Nettinx colors and Vazirmatn.
-- Bound enrollment, reports and retries; keep inventory memory-only with no history or queue. Document local-package installation because published v1.3.0 does not contain this source feature.
-
-### Included milestone — Phase 2 installation and access
-
-- Add modular quick/custom setup with automatic public-IP discovery, IP/domain addresses, IPv6 URL formatting, selected/random ports and generated credentials printed once.
-- Add explicit HTTP alongside default HTTPS; align listener and cookie policy while retaining exact Origin/CSRF checks. Separate transport cookie names to avoid stale Secure-cookie conflicts. Explain HTTP transport on the bilingual login page and through accessible connection help.
-- Accept user passwords with at least eight Unicode characters and at most 72 UTF-8 bytes; keep hidden confirmation and bcrypt hashing, and prohibit password arguments.
-- Preserve existing configurations and certificates, default omitted protocols to HTTPS, validate incoming config before service stop, lock concurrent installs and reject version/checksum mismatches.
-- Preserve default installation of the older published v1.3.0 package; reject unsupported new setup flags before stopping services. Support explicit local-package installation for the updated source. Preinstall engines only when requested.
-- Require a matching release tag and remove asset clobbering from release automation. No new release or tag is published by these source changes.
-
-### Included milestone — Phase 1 interface corrections
-
-- Correct Radix state selectors for switches, checkboxes, tabs, overlays and orientation styling.
-- Adopt shadcn sidebar navigation, top-bar appearance controls, action tooltips and hover/focus/tap help.
-- Use Vazirmatn throughout the UI, localize display numbers and correct RTL alignment without reversing IP/port/code strings.
-- Redesign traffic usage into full-width settings, per-connection counters and a lazily loaded Area chart based on bounded samples fetched during the page visit. Separate actual engine names from accounting methods; never aggregate overlapping GRE/forward totals.
-- Expose optional forward/relay names in the main form and keep creation from dedicated HAProxy/Realm pages on that engine. Improve mobile form sizing and selection feedback.
-- Move maintained documentation to English and add the phase-gated Node/Agent/installation/capability roadmap.
-- This is an unreleased source change. HTTP installation was subsequently implemented in Phase 2 above; read-only Node/Agent inventory was subsequently implemented in Phase 3 above; remote mutations remain planned.
+Completed phase reviews and their verification evidence are preserved in the [archive](archive/README.md). This release consolidates those milestones; it does not add unrestricted remote edits or automatic quota cutoffs.
 
 ## v1.3.0 — Optional Go web panel
 

@@ -1,5 +1,7 @@
 # Phase 6 review
 
+> Historical implementation review. Describes its recorded milestone, not current installation instructions. Start with the [current guides](../README.md).
+
 This milestone delivers optional read-only remote traffic summaries and a more compact dashboard. It also restores a Persian quick-start README at the user's explicit request. Technical guides remain English. Application/package version stays 1.3.0 until a separately approved release; published assets have not been replaced.
 
 ## Delivered behavior
@@ -33,4 +35,4 @@ The full accounting workspace and its resets, labels, quotas and retained histor
 
 Public VPS connectivity, real systemd installation/upgrades/reboots, carrier behavior and provider firewalls still need deployment verification. No resource benchmark or throughput claim is made. Remote history/mutations, scheduled cycles and hard cutoff policy remain future milestones with separate acceptance criteria. A release or live deployment still requires the user's explicit approval.
 
-See [Remote traffic](REMOTE-TRAFFIC.md), [local accounting](TRAFFIC-ACCOUNTING.md), [architecture](ARCHITECTURE.md) and [roadmap](ROADMAP.md).
+See [Remote traffic](../REMOTE-TRAFFIC.md), [local accounting](../TRAFFIC-ACCOUNTING.md), [architecture](../ARCHITECTURE.md) and [roadmap](../ROADMAP.md).

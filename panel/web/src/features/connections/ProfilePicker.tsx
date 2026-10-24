@@ -1,6 +1,5 @@
 import { useContext } from "react";
 import { Choice } from "@/components/shared";
-import { HelpTip } from "@/components/help";
 import { LocaleContext, useT } from "@/lib/i18n";
 import type { Preset } from "@/lib/api";
 
@@ -19,10 +18,11 @@ export function ProfilePicker({
     locale = useContext(LocaleContext),
     selected = presets.find((p) => p.id === value);
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 sm:col-span-full">
       <Choice
         id="preset"
         label={t("connectionProfile")}
+        help={selected ? selected.help[locale] || selected.help.en : undefined}
         value={selected ? value : "custom"}
         onChange={(id) => onChange(presets.find((p) => p.id === id))}
         choices={[
@@ -34,14 +34,6 @@ export function ProfilePicker({
           })),
         ]}
       />
-      {selected && (
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          {t("profileApplied")}
-          <HelpTip label={t("help")}>
-            {selected.help[locale] || selected.help.en}
-          </HelpTip>
-        </span>
-      )}
     </div>
   );
 }

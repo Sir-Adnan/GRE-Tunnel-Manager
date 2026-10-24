@@ -44,7 +44,7 @@ The usual source policy is `masquerade`. Preserving client IP for a kernel forwa
 
 ## Load balancing
 
-Open **Load Balancing** inside HAProxy or Realm. Add destinations one at a time using numbered choices. Weights default to one; advanced input `203.0.113.20:443@2` selects weight two.
+Open **Load Balancing** inside HAProxy or Realm. Add destinations one at a time using numbered choices. Weights are relative shares, not priorities: a higher value directs more new connections toward that destination when the algorithm uses weights. They default to one; advanced input `203.0.113.20:443@2` selects weight two.
 
 | Engine | Supported behavior |
 | --- | --- |
@@ -96,4 +96,4 @@ Omit `sudo` when root; replace the example connection ID. Checks do not prove en
 
 ## Browser management
 
-Main-menu option 8 installs/manages the optional panel. It has Persian RTL and English LTR, staged forms, bulk actions and optional accounting. Tunnel engines can also be installed in advance. The current panel manages its own host; remote Nodes/Agents are planned in the [phase-gated roadmap](ROADMAP.md).
+Main-menu option 8 installs/manages the optional panel. It has Persian RTL and English LTR, staged forms, bulk actions and optional accounting. Tunnel engines can also be installed in advance. General tunnel editors manage the panel host. Optional [Nodes and Agents](NODES.md) add remote inventory, coordinated GRE/FRP setup and read-only traffic summaries.
