@@ -26,8 +26,9 @@ import { PageTitle, TextField, Choice } from "@/components/shared";
 import { HelpTip } from "@/components/help";
 import type { Inventory } from "@/lib/api";
 import { engineName } from "@/lib/format";
-import { useContext, useState } from "react";
+import { useContext } from "react";
 import { LocaleContext, useT } from "@/lib/i18n";
+import { usePanelRoute } from "@/lib/use-panel-route";
 import { useTraffic } from "./traffic/useTraffic";
 
 export function Traffic({
@@ -39,7 +40,12 @@ export function Traffic({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
-  const [section, setSection] = useState("usage");
+  const { params, updateParams } = usePanelRoute();
+  const section = ["details", "collection"].includes(params.get("tab") || "")
+    ? params.get("tab")!
+    : "usage";
+  const setSection = (tab: string) =>
+    updateParams({ tab: tab === "usage" ? "" : tab });
   const {
     metrics,
     enabled,

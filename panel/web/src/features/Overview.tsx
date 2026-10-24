@@ -8,14 +8,7 @@ import {
   Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Address, PageTitle, SectionLink } from "@/components/shared";
 import { ConnectionSummary } from "@/features/connections/ConnectionSummary";
@@ -92,28 +85,22 @@ export function Overview({
             <Address key={ip}>{ip!}</Address>
           ))}
       </div>
-      <div className="stats-grid">
+      <dl className="overview-metrics">
         {cards.map(({ label, value, extra, icon: Icon }) => (
-          <Card key={label}>
-            <CardHeader>
-              <CardDescription className="flex items-center gap-2">
-                <Icon className="size-4" />
-                {t(label)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="stat-value">
-                <bdi>{value}</bdi>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <span className="truncate text-xs text-muted-foreground">
-                <bdi>{extra}</bdi>
-              </span>
-            </CardFooter>
-          </Card>
+          <div key={label} className="overview-metric">
+            <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Icon className="size-4" />
+              {t(label)}
+            </dt>
+            <dd className="stat-value">
+              <bdi>{value}</bdi>
+            </dd>
+            <dd className="min-w-0 break-words text-xs text-muted-foreground">
+              <bdi>{extra}</bdi>
+            </dd>
+          </div>
         ))}
-      </div>
+      </dl>
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">

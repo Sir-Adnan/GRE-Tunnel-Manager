@@ -2,7 +2,7 @@
 
 This is a direction for future work, not a promise that every native engine feature is supported. The [capability matrix](ENGINE-CAPABILITIES.md) describes current adapters; the [changelog](CHANGELOG.md) records delivered work.
 
-## Available in v1.3.2
+## Available in v1.3.3
 
 - Terminal managers and a bilingual responsive web panel with compact forms, three setup presets per engine and configuration inspection/editing.
 - Local GRE, kernel forwarding, HAProxy, Realm, FRP and rathole management, including bounded routing and transport options.
@@ -11,6 +11,8 @@ This is a direction for future work, not a promise that every native engine feat
 - Versioned packages with embedded frontend and matching Bash helper; HTTP/HTTPS setup, upgrades and scoped removal.
 
 ## Priorities for the next iterations
+
+Version v1.3.3 adds the refactored panel workspace, HTTP-compatible copy controls and encrypted portable recovery on a fresh installation. Recovery does not yet merge with an occupied setup, schedule backups or migrate Controller/Agent identities.
 
 | Priority | Proposed work | Acceptance before shipping |
 | --- | --- | --- |

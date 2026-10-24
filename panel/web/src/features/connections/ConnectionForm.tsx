@@ -1,13 +1,7 @@
 import { useContext, useState } from "react";
-import { ArrowRight, ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Check, RadioTower } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldContent,
-  FieldDescription,
-} from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -17,20 +11,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TextField, Choice } from "@/components/shared";
-import { HelpTip, ActionButton } from "@/components/help";
-import { LocaleContext, useT } from "@/lib/i18n";
-import { endpoint } from "@/lib/api";
-import type { Connection, Inventory, Preset } from "@/lib/api";
-import { HealthCheckFields } from "./HealthCheckFields";
-import { AffinityFields } from "./AffinityFields";
-import { RoutingFields } from "./RoutingFields";
-import { EngineOptionFields } from "./EngineOptionFields";
-import { ProfilePicker } from "./ProfilePicker";
-import { creationOptions } from "@/lib/creation-defaults";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useDiscardChanges } from "@/lib/use-discard-changes";
+import { Address } from "@/components/shared";
+import { LocaleContext, useT } from "@/lib/i18n";
+import { engineName } from "@/lib/format";
+import type { Connection, Inventory } from "@/lib/api";
+import { useConnectionDraft } from "./useConnectionDraft";
+import { ConnectionBasics } from "./ConnectionBasics";
+import { ConnectionAdvanced } from "./ConnectionAdvanced";
+import { ConnectionReview } from "./ConnectionReview";
 
 type Props = {
   inventory: Inventory;
@@ -40,6 +31,7 @@ type Props = {
   onClose: () => void;
   onSubmit: (request: unknown) => Promise<void>;
 };
+
 export function ConnectionForm({
   inventory,
   engine,
@@ -48,84 +40,18 @@ export function ConnectionForm({
   onClose,
   onSubmit,
 }: Props) {
-  const t = useT();
-  const locale = useContext(LocaleContext);
-  const [value, setValue] = useState<Connection>(() =>
-    original
-      ? structuredClone(original)
-      : {
-          id: "",
-          name: "",
-          engine,
-          protocol: "tcp",
-          bind: ["nftables", "iptables"].includes(engine)
-            ? inventory.host.addresses.find((ip) => !ip.includes(":")) || ""
-            : "0.0.0.0",
-          ports: "",
-          strategy: "single",
-          enabled: true,
-          snat: "masquerade",
-          interface: "any",
-          targets: [{ ip: "", port: 443, weight: 1 }],
-          options: creationOptions(engine),
-          revision: "",
-        },
+  const t = useT(),
+    locale = useContext(LocaleContext);
+  const draft = useConnectionDraft({ inventory, engine, original });
+  const { value, installed } = draft;
+  const [section, setSection] = useState("connection");
+  const [review, setReview] = useState(false),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const { requestClose, confirmation } = useDiscardChanges(
+    draft.dirty && !busy,
+    onClose,
   );
-  const [advanced, setAdvanced] = useState(
-    Boolean(
-      original?.routing ||
-      (original?.options && Object.keys(original.options).length),
-    ),
-  );
-  const [preset, setPreset] = useState("custom");
-  const [advancedTab, setAdvancedTab] = useState("limits");
-  const [review, setReview] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const capability = inventory.capabilities.find(
-    (item) => item.id === value.engine,
-  )!;
-  const installed = inventory.components.find(
-    (item) => item.id === value.engine,
-  )?.installed;
-  function patch<K extends keyof Connection>(key: K, next: Connection[K]) {
-    setValue((current) => ({ ...current, [key]: next }));
-    if (["options", "protocol", "strategy", "routing"].includes(key))
-      setPreset("custom");
-    setReview(false);
-  }
-  function applyPreset(profile: Preset | undefined) {
-    setPreset(profile?.id || "custom");
-    if (!profile) return;
-    setValue((current) => ({
-      ...current,
-      protocol: profile.protocol || current.protocol,
-      strategy:
-        current.targets.length > 1
-          ? profile.strategy || current.strategy
-          : "single",
-      options: { ...current.options, ...profile.options },
-    }));
-    setReview(false);
-  }
-  function parseCombinedIP(index: number, input: string) {
-    const target = value.targets[index];
-    const match =
-      input.match(/^\[([^\]]+)\]:(\d+)$/) ||
-      input.match(/^(\d+\.\d+\.\d+\.\d+):(\d+)$/);
-    patch(
-      "targets",
-      value.targets.map((item, i) =>
-        i === index
-          ? {
-              ...target,
-              ip: match ? match[1] : input,
-              ...(match ? { port: Number(match[2]) } : {}),
-            }
-          : item,
-      ),
-    );
-  }
   async function submit() {
     setBusy(true);
     setError("");
@@ -139,527 +65,188 @@ export function ConnectionForm({
       });
       onClose();
     } catch (error) {
-      setError(String(error instanceof Error ? error.message : error));
+      setError(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent
-        closeLabel={t("close")}
-        scrollLayout="body"
-        className="dialog-shell sm:max-w-3xl"
-      >
-        <DialogHeader className="shrink-0 pe-7">
-          <DialogTitle>
-            {t(original ? "edit" : "newConnection")} ·{" "}
-            <span dir="ltr">
-              {value.engine === "haproxy"
-                ? "HAProxy"
-                : value.engine === "realm"
-                  ? "Realm"
-                  : value.engine}
-            </span>
-          </DialogTitle>
-          <DialogDescription>
-            {t(review ? "reviewDesc" : "emptyDesc")}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody key={review ? "review" : "form"}>
-          {error && (
-            <Alert>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {!installed && (
-            <Alert>
-              <AlertDescription>{t("needsInstall")}</AlertDescription>
-            </Alert>
-          )}
-          {review ? (
-            <div className="review-block">
-              <dl className="review-grid">
-                <dt>{t("name")}</dt>
-                <dd>{value.name || `${value.engine}-${value.ports}`}</dd>
-                <dt>{t("listener")}</dt>
-                <dd>
-                  <code dir="ltr">
-                    {endpoint(value.bind, value.ports)} /{" "}
-                    {value.protocol.toUpperCase()}
-                  </code>
-                </dd>
-                <dt>{t("destination")}</dt>
-                <dd className="flex flex-col gap-2">
-                  {value.targets.map((target, index) => (
-                    <code key={index} dir="ltr">
-                      {endpoint(target.ip, target.port)} · {t("weight")}{" "}
-                      {target.weight}
-                    </code>
-                  ))}
-                </dd>
-                <dt>{t("strategy")}</dt>
-                <dd>{t(value.strategy)}</dd>
-                <dt>{t("status")}</dt>
-                <dd>{t(value.enabled ? "configured" : "disabled")}</dd>
-              </dl>
-              {Object.keys(value.options).length > 0 && (
-                <details className="rounded-lg border p-3">
-                  <summary className="cursor-pointer font-medium">
-                    {t("advanced")}
-                  </summary>
-                  <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-                    {Object.entries(value.options).map(([key, option]) => (
-                      <div key={key} className="flex flex-col gap-1">
-                        <dt className="text-xs text-muted-foreground">
-                          {t(key)}
-                        </dt>
-                        <dd className="break-words">
-                          <bdi>{t(option)}</bdi>
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                </details>
-              )}
-              {value.routing && (
-                <div className="mt-4 flex flex-col gap-3 rounded-xl border p-4">
-                  <p className="font-medium">
-                    {t(`routeMode_${value.routing.mode}`)}
-                  </p>
-                  {value.routing.certificate && (
-                    <p>
-                      {t("certificateID")}:{" "}
-                      <bdi>{value.routing.certificate}</bdi>
-                    </p>
-                  )}
-                  {value.routing.rules.map((rule, i) => {
-                    const destination = value.targets[rule.target - 1];
-                    return (
-                      <p key={i} className="break-words text-sm" dir="ltr">
-                        {rule.host}
-                        {rule.prefix || ""} →{" "}
-                        {destination
-                          ? endpoint(destination.ip, destination.port)
-                          : t("invalid")}
-                      </p>
+    <>
+      <Dialog open onOpenChange={(open) => !open && !busy && requestClose()}>
+        <DialogContent
+          closeLabel={t("close")}
+          scrollLayout="body"
+          className="dialog-shell connection-editor sm:max-w-4xl"
+          onEscapeKeyDown={(event) => busy && event.preventDefault()}
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <span className="engine-icon">
+                <RadioTower className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle>
+                  {t(original ? "edit" : "newConnection")}
+                </DialogTitle>
+                <DialogDescription>
+                  <bdi>{engineName(value.engine)}</bdi> ·{" "}
+                  {inventory.host.hostname}
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {[
+                ...new Set(
+                  [
+                    inventory.host.public_ip,
+                    ...inventory.host.addresses,
+                  ].filter((ip): ip is string => Boolean(ip)),
+                ),
+              ]
+                .slice(0, 2)
+                .map((ip) => (
+                  <Address key={ip}>{ip}</Address>
+                ))}
+            </div>
+          </DialogHeader>
+          <DialogBody key={review ? "review" : "form"}>
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            {!installed && (
+              <Alert>
+                <AlertDescription>{t("needsInstall")}</AlertDescription>
+              </Alert>
+            )}
+            {review ? (
+              <ConnectionReview value={value} />
+            ) : (
+              <form
+                id="connection-form"
+                noValidate
+                onInput={(event) => {
+                  const input = event.target as HTMLInputElement;
+                  input.removeAttribute("aria-invalid");
+                  input
+                    .closest("[data-slot=field]")
+                    ?.removeAttribute("data-invalid");
+                }}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const invalid =
+                    event.currentTarget.querySelector<HTMLInputElement>(
+                      "input:invalid,select:invalid,textarea:invalid",
                     );
-                  })}
-                  <p className="text-xs text-muted-foreground">
-                    {t(
-                      value.routing.mode === "sni"
-                        ? "sniHelp"
-                        : "httpRoutingHelp",
-                    )}
-                  </p>
-                </div>
+                  if (invalid) {
+                    invalid.setAttribute("aria-invalid", "true");
+                    invalid
+                      .closest("[data-slot=field]")
+                      ?.setAttribute("data-invalid", "true");
+                    const advanced = invalid.closest("[data-advanced-section]");
+                    setSection(advanced ? "advanced" : "connection");
+                    if (advanced)
+                      (
+                        advanced
+                          .closest("[data-slot=tabs]")
+                          ?.querySelector(
+                            `[data-slot=tabs-trigger][data-advanced-tab="${advanced.getAttribute("data-advanced-section")}"]`,
+                          ) as HTMLButtonElement | null
+                      )?.click();
+                    setError(t("checkFields"));
+                    requestAnimationFrame(() => {
+                      invalid.focus();
+                      invalid.reportValidity();
+                    });
+                    return;
+                  }
+                  setError("");
+                  setReview(true);
+                }}
+              >
+                <Tabs
+                  dir={locale === "fa" ? "rtl" : "ltr"}
+                  value={section}
+                  onValueChange={setSection}
+                  className="gap-5"
+                >
+                  <TabsList variant="line" aria-label={t("connectionSections")}>
+                    <TabsTrigger value="connection">
+                      {t("connectionSetup")}
+                    </TabsTrigger>
+                    <TabsTrigger value="advanced">{t("advanced")}</TabsTrigger>
+                  </TabsList>
+                  <TabsContent
+                    forceMount
+                    value="connection"
+                    className="data-[state=inactive]:hidden"
+                  >
+                    <ConnectionBasics
+                      draft={draft}
+                      inventory={inventory}
+                      engines={engines}
+                      editing={Boolean(original)}
+                    />
+                  </TabsContent>
+                  <TabsContent
+                    forceMount
+                    value="advanced"
+                    className="data-[state=inactive]:hidden"
+                  >
+                    <ConnectionAdvanced key={value.engine} draft={draft} />
+                  </TabsContent>
+                </Tabs>
+              </form>
+            )}
+          </DialogBody>
+          <DialogFooter layout="summary" className="connection-editor-footer">
+            <div className="min-w-0 flex-1 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{value.protocol.toUpperCase()}</Badge>
+                <bdi className="truncate" dir="ltr">
+                  {value.ports || "—"}
+                </bdi>
+                <ArrowRight className="size-3 rtl:rotate-180" />
+                <span>
+                  {t("destinations")}: {value.targets.length}
+                </span>
+              </div>
+              <p className="mt-1">
+                {t(value.enabled ? "willStart" : "willSaveDisabled")}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => (review ? setReview(false) : requestClose())}
+              >
+                {t(review ? "back" : "cancel")}
+              </Button>
+              {review ? (
+                <Button disabled={busy || !installed} onClick={submit}>
+                  <Check data-icon="inline-start" />
+                  {t(busy ? "working" : "save")}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  form="connection-form"
+                  disabled={!installed}
+                >
+                  {t("review")}
+                  <ArrowRight
+                    data-icon="inline-end"
+                    className="rtl:rotate-180"
+                  />
+                </Button>
               )}
             </div>
-          ) : (
-            <form
-              id="connection-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setReview(true);
-              }}
-            >
-              <FieldGroup>
-                {!original && (!engines || engines.length > 1) && (
-                  <Choice
-                    id="engine"
-                    label={t("method")}
-                    value={value.engine}
-                    choices={inventory.capabilities
-                      .filter((cap) => !engines || engines.includes(cap.id))
-                      .map((cap) => ({
-                        value: cap.id,
-                        label:
-                          cap.id === "haproxy"
-                            ? "HAProxy"
-                            : cap.id === "realm"
-                              ? "Realm"
-                              : cap.id,
-                      }))}
-                    onChange={(next) => {
-                      const cap = inventory.capabilities.find(
-                        (item) => item.id === next,
-                      )!;
-                      setAdvancedTab("limits");
-                      setPreset("custom");
-                      setValue((current) => ({
-                        ...current,
-                        engine: next,
-                        protocol: cap.protocols.includes(current.protocol)
-                          ? current.protocol
-                          : cap.protocols[0],
-                        strategy: "single",
-                        targets: current.targets.slice(0, 1),
-                        options: creationOptions(next),
-                        routing: undefined,
-                        bind: ["iptables", "nftables"].includes(next)
-                          ? inventory.host.addresses.find(
-                              (ip) => !ip.includes(":"),
-                            ) || ""
-                          : "0.0.0.0",
-                      }));
-                    }}
-                  />
-                )}
-                <FieldGroup columns>
-                  <TextField
-                    id="connection-name"
-                    label={`${t("name")} · ${t("optional")}`}
-                    placeholder={`${value.engine}-${value.ports || "443"}`}
-                    help={t("autoName")}
-                    value={value.name}
-                    onChange={(event) => patch("name", event.target.value)}
-                    maxLength={40}
-                  />
-                  <TextField
-                    id="ports"
-                    label={t("localPorts")}
-                    help={t("portsHelp")}
-                    placeholder="443,8443,8000-8003"
-                    dir="ltr"
-                    value={value.ports}
-                    onChange={(event) => patch("ports", event.target.value)}
-                    required
-                    autoFocus
-                    maxLength={1024}
-                  />
-                  {capability.protocols.length > 1 && (
-                    <Choice
-                      id="protocol"
-                      label={t("protocol")}
-                      value={value.protocol}
-                      choices={capability.protocols.map((protocol) => ({
-                        value: protocol,
-                        label: t(protocol),
-                      }))}
-                      onChange={(next) => patch("protocol", next)}
-                    />
-                  )}
-                </FieldGroup>
-                {value.targets.map((target, index) => (
-                  <div key={index} className="destination-fields">
-                    <TextField
-                      id={`ip-${index}`}
-                      label={`${t("remoteIP")}${value.targets.length > 1 ? ` ${index + 1}` : ""}`}
-                      placeholder="198.51.100.20"
-                      dir="ltr"
-                      value={target.ip}
-                      onChange={(event) =>
-                        patch(
-                          "targets",
-                          value.targets.map((item, i) =>
-                            i === index
-                              ? { ...item, ip: event.target.value }
-                              : item,
-                          ),
-                        )
-                      }
-                      onBlur={(event) =>
-                        parseCombinedIP(index, event.target.value)
-                      }
-                      required
-                      maxLength={80}
-                    />
-                    <TextField
-                      id={`port-${index}`}
-                      label={t("remotePort")}
-                      type="number"
-                      min={1}
-                      max={65535}
-                      dir="ltr"
-                      value={target.port}
-                      onChange={(event) =>
-                        patch(
-                          "targets",
-                          value.targets.map((item, i) =>
-                            i === index
-                              ? { ...item, port: Number(event.target.value) }
-                              : item,
-                          ),
-                        )
-                      }
-                      required
-                    />
-                    {value.targets.length > 1 && (
-                      <>
-                        <TextField
-                          id={`weight-${index}`}
-                          label={t("weight")}
-                          help={t("weightHelp")}
-                          type="number"
-                          min={1}
-                          max={256}
-                          value={target.weight}
-                          onChange={(event) =>
-                            patch(
-                              "targets",
-                              value.targets.map((item, i) =>
-                                i === index
-                                  ? {
-                                      ...item,
-                                      weight: Number(event.target.value),
-                                    }
-                                  : item,
-                              ),
-                            )
-                          }
-                        />
-                        <ActionButton
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          label={t("delete")}
-                          onClick={() =>
-                            patch(
-                              "targets",
-                              value.targets.filter((_, i) => i !== index),
-                            )
-                          }
-                        >
-                          <Trash2 />
-                        </ActionButton>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {value.targets.length < 32 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="self-start"
-                    onClick={() => {
-                      const profile = (inventory.presets || []).find(
-                        (p) => p.id === preset && p.engine === value.engine,
-                      );
-                      const compatible =
-                        !profile?.max_targets ||
-                        value.targets.length + 1 <= profile.max_targets;
-                      setValue((current) => ({
-                        ...current,
-                        targets: [
-                          ...current.targets,
-                          { ip: "", port: current.targets[0].port, weight: 1 },
-                        ],
-                        strategy:
-                          current.strategy === "single"
-                            ? (compatible && profile?.strategy !== "single"
-                                ? profile?.strategy
-                                : undefined) || capability.strategies[1]
-                            : current.strategy,
-                      }));
-                      if (!compatible) setPreset("custom");
-                      setReview(false);
-                    }}
-                  >
-                    <Plus data-icon="inline-start" />
-                    {t("addTarget")}
-                  </Button>
-                )}
-                {value.targets.length > 1 && (
-                  <Choice
-                    id="strategy"
-                    label={t("strategy")}
-                    value={
-                      value.strategy === "single"
-                        ? capability.strategies[1]
-                        : value.strategy
-                    }
-                    choices={capability.strategies
-                      .filter((item) => item !== "single")
-                      .map((strategy) => ({
-                        value: strategy,
-                        label: t(strategy),
-                      }))}
-                    onChange={(next) => patch("strategy", next)}
-                  />
-                )}
-                <ProfilePicker
-                  presets={(inventory.presets || []).filter(
-                    (p) => p.engine === value.engine,
-                  )}
-                  value={preset}
-                  onChange={applyPreset}
-                  targetCount={value.targets.length}
-                />
-                <Field
-                  orientation="horizontal"
-                  className="rounded-lg border p-3"
-                >
-                  <FieldContent>
-                    <FieldLabel htmlFor="connection-enabled">
-                      {t("startAfterSave")}
-                    </FieldLabel>
-                    <FieldDescription>
-                      {t("startAfterSaveHelp")}
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch
-                    id="connection-enabled"
-                    checked={value.enabled}
-                    onCheckedChange={(next) => patch("enabled", next)}
-                  />
-                </Field>
-                <Button
-                  variant="ghost"
-                  type="button"
-                  className="justify-between"
-                  aria-expanded={advanced}
-                  onClick={() => setAdvanced(!advanced)}
-                >
-                  {t("advanced")}
-                  <ChevronDown data-icon="inline-end" />
-                </Button>
-                {advanced && (
-                  <FieldGroup>
-                    <Tabs
-                      dir={locale === "fa" ? "rtl" : "ltr"}
-                      value={
-                        capability.options.length ? advancedTab : "network"
-                      }
-                      onValueChange={setAdvancedTab}
-                      className="gap-4"
-                    >
-                      <TabsList
-                        className="w-full h-auto flex-wrap"
-                        aria-label={t("advanced")}
-                      >
-                        {capability.options.length > 0 && (
-                          <TabsTrigger value="limits">
-                            {t("limitsAndTimeouts")}
-                          </TabsTrigger>
-                        )}
-                        <TabsTrigger value="network">
-                          {t("networkOptions")}
-                        </TabsTrigger>
-                        {value.engine === "haproxy" && (
-                          <TabsTrigger value="routing">
-                            {t("routingAndAffinity")}
-                          </TabsTrigger>
-                        )}
-                      </TabsList>
-                      {value.engine === "haproxy" && (
-                        <TabsContent value="routing">
-                          <FieldGroup>
-                            {value.engine === "haproxy" && (
-                              <RoutingFields
-                                value={value}
-                                onChange={(next) => patch("routing", next)}
-                              />
-                            )}
-
-                            {value.engine === "haproxy" && (
-                              <AffinityFields
-                                options={value.options}
-                                onChange={(next) => patch("options", next)}
-                              />
-                            )}
-
-                            <HealthCheckFields
-                              options={value.options}
-                              onChange={(next) => patch("options", next)}
-                            />
-                          </FieldGroup>
-                        </TabsContent>
-                      )}
-                      <TabsContent value="network">
-                        <FieldGroup columns>
-                          <TextField
-                            id="bind"
-                            label={t("bind")}
-                            help={t("bindHelp")}
-                            dir="ltr"
-                            value={value.bind}
-                            onChange={(event) =>
-                              patch("bind", event.target.value)
-                            }
-                            required
-                          />
-                          {["nftables", "iptables"].includes(value.engine) && (
-                            <>
-                              <TextField
-                                id="interface"
-                                label={t("interface")}
-                                value={value.interface}
-                                onChange={(event) =>
-                                  patch("interface", event.target.value)
-                                }
-                                dir="ltr"
-                                required
-                                maxLength={15}
-                              />
-                              <Choice
-                                id="snat"
-                                label={t("sourcePolicy")}
-                                value={value.snat}
-                                choices={["masquerade", "preserve"].map(
-                                  (id) => ({
-                                    value: id,
-                                    label: t(id),
-                                  }),
-                                )}
-                                onChange={(next) => patch("snat", next)}
-                              />
-                            </>
-                          )}
-                          <EngineOptionFields
-                            capability={capability}
-                            options={value.options}
-                            section="network"
-                            onChange={(next) => patch("options", next)}
-                          />
-                        </FieldGroup>
-                      </TabsContent>
-                      <TabsContent value="limits">
-                        <FieldGroup columns>
-                          <EngineOptionFields
-                            capability={capability}
-                            options={value.options}
-                            section="limits"
-                            onChange={(next) => patch("options", next)}
-                          />
-                        </FieldGroup>
-                      </TabsContent>
-                    </Tabs>
-                    {capability.options.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {t("proxyGuide")}
-                        </span>
-                        <HelpTip label={t("proxyGuide")}>
-                          {t("proxyHelp")}
-                        </HelpTip>
-                      </div>
-                    )}
-                  </FieldGroup>
-                )}
-              </FieldGroup>
-            </form>
-          )}
-        </DialogBody>
-        <DialogFooter className="shrink-0">
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={() => (review ? setReview(false) : onClose())}
-          >
-            {t(review ? "back" : "cancel")}
-          </Button>
-          {review ? (
-            <Button disabled={busy || !installed} onClick={submit}>
-              {t(busy ? "working" : "save")}
-            </Button>
-          ) : (
-            <Button type="submit" form="connection-form" disabled={!installed}>
-              {t("review")}
-              <ArrowRight data-icon="inline-end" className="rtl:rotate-180" />
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {confirmation}
+    </>
   );
 }

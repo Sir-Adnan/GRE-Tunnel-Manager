@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageTitle, Choice, TextField } from "@/components/shared";
 import { HelpTip } from "@/components/help";
+import { usePanelRoute } from "@/lib/use-panel-route";
 import { api } from "@/lib/api";
 import type { Inventory, Metrics, TrafficArchive } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,6 +52,8 @@ export function TrafficWorkspace({
   const [query, setQuery] = useState(""),
     [engine, setEngine] = useState("all"),
     [chosen, setChosen] = useState("");
+  const { params, updateParams } = usePanelRoute();
+  const chosenID = params.get("resource") || chosen;
   const resources = [
     ...inventory.connections.map((c) => ({
       id: c.id,
@@ -87,7 +90,7 @@ export function TrafficWorkspace({
         .toLocaleLowerCase()
         .includes(query.toLocaleLowerCase()),
   );
-  const selected = filtered.find((r) => r.id === chosen) || filtered[0];
+  const selected = filtered.find((r) => r.id === chosenID) || filtered[0];
   const c = selected?.counter,
     p = selected?.policy;
   const usage = c ? cycleUsage(c) : { received: 0, sent: 0 },
@@ -210,6 +213,7 @@ export function TrafficWorkspace({
           onEngine={setEngine}
           onDetails={(id) => {
             setChosen(id);
+            updateParams({ resource: id });
             onDetails();
           }}
         />
@@ -255,6 +259,7 @@ export function TrafficWorkspace({
                         aria-pressed={selected?.id === r.id}
                         onClick={() => {
                           setChosen(r.id);
+                          updateParams({ resource: r.id });
                         }}
                         className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-start transition-colors hover:bg-accent ${selected?.id === r.id ? "border-primary bg-accent" : "border-border"}`}
                       >
@@ -299,6 +304,7 @@ export function TrafficWorkspace({
                 value={selected?.id || ""}
                 onChange={(id) => {
                   setChosen(id);
+                  updateParams({ resource: id });
                   setQuery("");
                   setEngine("all");
                 }}

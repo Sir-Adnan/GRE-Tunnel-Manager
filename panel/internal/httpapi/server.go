@@ -13,17 +13,18 @@ import (
 )
 
 type Server struct {
-	Auth   *auth.Store
-	Client control.Client
-	Jobs   *Jobs
-	Assets http.Handler
-	Demo   bool
-	Nodes  *nodes.Hub
-	gate   chan struct{}
+	Auth       *auth.Store
+	Client     control.Client
+	Jobs       *Jobs
+	Assets     http.Handler
+	Demo       bool
+	Nodes      *nodes.Hub
+	gate       chan struct{}
+	backupGate chan struct{}
 }
 
 func New(ctx context.Context, a *auth.Store, c control.Client, assets http.Handler, demo bool) *Server {
-	return &Server{Auth: a, Client: c, Jobs: NewJobs(ctx, c), Assets: assets, Demo: demo, gate: make(chan struct{}, 16)}
+	return &Server{Auth: a, Client: c, Jobs: NewJobs(ctx, c), Assets: assets, Demo: demo, gate: make(chan struct{}, 16), backupGate: make(chan struct{}, 1)}
 }
 func reply(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -34,11 +35,14 @@ func failure(w http.ResponseWriter, status int, message string) {
 	reply(w, status, map[string]string{"error": message})
 }
 func decode(w http.ResponseWriter, r *http.Request, data any) bool {
+	return decodeLimit(w, r, data, 131072)
+}
+func decodeLimit(w http.ResponseWriter, r *http.Request, data any, limit int64) bool {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		failure(w, 415, "use application/json")
 		return false
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 131072)
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if d.Decode(data) != nil {
@@ -113,6 +117,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case strings.HasPrefix(r.URL.Path, "/api/backups/"):
+		s.backupRoutes(w, r)
 	case r.URL.Path == "/api/configuration" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "configuration", Configuration: control.ConfigInput{ID: r.URL.Query().Get("id"), Revision: r.URL.Query().Get("revision")}})
 	case r.URL.Path == "/api/configuration/review" && r.Method == "POST":

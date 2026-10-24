@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optional Controller or outbound Agent. Writes require explicit --operations.
 set -euo pipefail
-NODE_VERSION=1.3.2
+NODE_VERSION=1.3.3
 NODE_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 node_install_main() {
@@ -66,7 +66,7 @@ node_install_main() {
     fi
     (cd "$tmp"; awk -v name="$member" '$2 == name {print}' SHA256SUMS > selected.sha256; [[ $(wc -l < selected.sha256) == 1 ]] && sha256sum -c selected.sha256)
     tar -xzf "$tmp/$member" -C "$tmp" gtm-panel gre.sh
-    [[ $("$tmp/gtm-panel" version) == "v$NODE_VERSION" && $("$tmp/gtm-panel" nodes protocol 2>/dev/null) == 1 ]] || { printf 'Package lacks Node protocol 1. Install a matching v1.3.2 Node package.\n' >&2; return 1; }
+    [[ $("$tmp/gtm-panel" version) == "v$NODE_VERSION" && $("$tmp/gtm-panel" nodes protocol 2>/dev/null) == 1 ]] || { printf 'Package lacks Node protocol 1. Install a matching v1.3.3 Node package.\n' >&2; return 1; }
     bash -n "$tmp/gre.sh"
     # Preserve an existing explicit opt-in across upgrades. Do not silently
     # remove the root recovery worker while it may own an unconfirmed lease.

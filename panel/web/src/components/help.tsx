@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,7 @@ export function HelpTip({
   children,
   label,
 }: {
-  children: string;
+  children: ReactNode;
   label?: string;
 }) {
   const t = useT();
@@ -54,10 +54,16 @@ export function HelpTip({
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>{children}</TooltipContent>
+        <TooltipContent
+          className="max-h-[min(60dvh,28rem,var(--radix-tooltip-content-available-height))] overflow-y-auto"
+          collisionPadding={16}
+        >
+          {children}
+        </TooltipContent>
       </Tooltip>
       <PopoverContent
-        className="max-w-[calc(100vw-2rem)] text-start text-sm leading-7"
+        className="max-h-[min(70dvh,32rem,var(--radix-popover-content-available-height))] max-w-[calc(100vw-2rem)] overflow-y-auto text-start text-sm leading-7"
+        collisionPadding={16}
         sideOffset={8}
       >
         {children}

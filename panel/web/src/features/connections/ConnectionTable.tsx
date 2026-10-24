@@ -8,6 +8,9 @@ import {
   Network,
   Route,
 } from "lucide-react";
+import { usePanelRoute } from "@/lib/use-panel-route";
+import { Choice } from "@/components/shared";
+import { ConnectionDetails } from "./ConnectionDetails";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,15 +54,24 @@ export function ConnectionTable({
   const t = useT();
   const locale = useContext(LocaleContext);
   const [config, setConfig] = useState<Connection>();
-  const [query, setQuery] = useState("");
+  const { params, updateParams } = usePanelRoute();
+  const query = params.get("q") || "";
+  const statusFilter = params.get("status") || "all";
+  const setQuery = (q: string) => updateParams({ q });
+  const details = connections.find((c) => c.id === params.get("connection"));
+  const closeDetails = () => updateParams({ connection: "", detail: "" });
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
-  const shown = connections.filter((row) =>
-    `${row.name} ${row.id} ${row.engine} ${row.ports} ${row.targets.map((target) => target.ip).join(" ")}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
+  const shown = connections.filter(
+    (row) =>
+      (statusFilter === "all" ||
+        (row.status || (row.enabled ? "configured" : "disabled")) ===
+          statusFilter) &&
+      `${row.name} ${row.id} ${row.engine} ${row.ports} ${row.targets.map((target) => target.ip).join(" ")}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
   );
   const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
     currentPage = Math.min(pageIndex, pageCount - 1);
@@ -69,6 +81,7 @@ export function ConnectionTable({
       row={row}
       busy={busy}
       onConfig={() => setConfig(row)}
+      onDetails={() => updateParams({ connection: row.id }, true)}
       onEdit={onEdit}
       onDelete={() => {
         setSelected([row.id]);
@@ -101,8 +114,8 @@ export function ConnectionTable({
   }
   return (
     <div className="@container flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full sm:w-72">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label={t("search")}
@@ -115,6 +128,24 @@ export function ConnectionTable({
             className="ps-9"
           />
         </div>
+        <div className="w-full sm:w-44">
+          <Choice
+            id="connection-status"
+            label={t("status")}
+            value={statusFilter}
+            onChange={(status) => {
+              updateParams({ status: status === "all" ? "" : status });
+              setPageIndex(0);
+            }}
+            choices={["all", "active", "configured", "disabled"].map((id) => ({
+              value: id,
+              label: t(id === "all" ? "allStatuses" : id),
+            }))}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {number(shown.length, locale)} {t("connections")}
+        </span>
         {picked.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">
@@ -149,7 +180,11 @@ export function ConnectionTable({
       </div>
 
       {shown.length === 0 ? (
-        <Blank onAdd={onAdd} filtered={query !== ""} />
+        <Blank
+          onAdd={onAdd}
+          onReset={() => updateParams({ q: "", status: "" })}
+          filtered={query !== "" || statusFilter !== "all"}
+        />
       ) : (
         <>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3 @3xl:hidden">
@@ -161,7 +196,7 @@ export function ConnectionTable({
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
                     <Checkbox
-                      aria-label={`${t("selectAll")} ${row.name}`}
+                      aria-label={`${t("selectConnection")} ${row.name}`}
                       checked={selected.includes(row.id)}
                       onCheckedChange={(v) =>
                         setSelected(
@@ -173,7 +208,15 @@ export function ConnectionTable({
                     />
 
                     <div className="min-w-0">
-                      <p className="break-words font-medium">{row.name}</p>
+                      <button
+                        type="button"
+                        className="connection-name"
+                        onClick={() =>
+                          updateParams({ connection: row.id }, true)
+                        }
+                      >
+                        {row.name}
+                      </button>
                       <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                         {glyph(row.engine)}
                         <bdi>{engineName(row.engine)}</bdi>
@@ -221,7 +264,7 @@ export function ConnectionTable({
                 <col style={{ width: 88 }} />
                 <col style={{ width: 190 }} />
                 <col style={{ width: 100 }} />
-                <col style={{ width: 196 }} />
+                <col style={{ width: 98 }} />
               </colgroup>
               <TableHeader>
                 <TableRow>
@@ -266,7 +309,7 @@ export function ConnectionTable({
                     <TableCell>
                       <Checkbox
                         checked={selected.includes(row.id)}
-                        aria-label={`${t("selectAll")} ${row.name}`}
+                        aria-label={`${t("selectConnection")} ${row.name}`}
                         onCheckedChange={(checked) =>
                           setSelected(
                             checked
@@ -283,9 +326,15 @@ export function ConnectionTable({
                           {glyph(row.engine)}
                         </span>
                         <div className="flex min-w-0 flex-col items-start gap-1">
-                          <span className="whitespace-normal font-medium [overflow-wrap:anywhere]">
+                          <button
+                            type="button"
+                            className="connection-name"
+                            onClick={() =>
+                              updateParams({ connection: row.id }, true)
+                            }
+                          >
                             {row.name}
-                          </span>
+                          </button>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <bdi>{engineName(row.engine)}</bdi>
                             <HelpTip
@@ -297,7 +346,10 @@ export function ConnectionTable({
                     </TableCell>
                     <TableCell>
                       <div className="flex min-w-0 flex-col items-start gap-1">
-                        <bdi dir="ltr" className="font-mono text-sm">
+                        <bdi
+                          dir="ltr"
+                          className="break-all whitespace-normal font-mono text-sm"
+                        >
                           {row.ports}
                         </bdi>
                         <span
@@ -353,6 +405,20 @@ export function ConnectionTable({
             </Button>
           </div>
         </div>
+      )}
+      {details && (
+        <ConnectionDetails
+          row={details}
+          onClose={closeDetails}
+          onEdit={() => {
+            closeDetails();
+            onEdit(details);
+          }}
+          onConfig={() => {
+            closeDetails();
+            setConfig(details);
+          }}
+        />
       )}
       {config && (
         <ConfigurationDialog

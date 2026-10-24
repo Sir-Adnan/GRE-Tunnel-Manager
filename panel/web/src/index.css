@@ -63,10 +63,10 @@
     @apply mx-auto w-full max-w-[1500px] flex-1 px-4 py-7 sm:px-7 lg:px-10 lg:py-10;
   }
   .page-stack {
-    @apply flex flex-col gap-7;
+    @apply flex min-w-0 flex-col gap-5 sm:gap-6;
   }
   .page-title {
-    @apply text-2xl font-semibold leading-relaxed tracking-tight sm:text-[30px];
+    @apply text-2xl font-semibold leading-relaxed tracking-tight sm:text-[28px];
   }
   .stats-grid {
     @apply grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4;
@@ -104,12 +104,6 @@
   .app-footer {
     @apply mx-4 flex items-center justify-between gap-3 border-t border-border py-5 text-[10px] tracking-wider text-muted-foreground sm:mx-7 lg:mx-10;
   }
-  .destination-fields {
-    @apply grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_130px];
-  }
-  .destination-fields:has(> :nth-child(3)) {
-    @apply sm:grid-cols-[minmax(0,1fr)_100px_80px_32px];
-  }
   .review-block {
     @apply flex flex-col gap-4 rounded-xl border border-border bg-muted/40 p-4;
   }
@@ -124,9 +118,6 @@
   }
   .code-block {
     @apply shrink-0 whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-4 text-xs leading-7 text-foreground;
-  }
-  .toast {
-    @apply fixed bottom-5 start-1/2 z-[80] flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-border bg-popover px-4 py-2 text-sm text-popover-foreground shadow-lg rtl:translate-x-1/2;
   }
   .operation-progress {
     @apply mb-5 flex items-center gap-3 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-secondary-foreground;
@@ -223,12 +214,6 @@
     max-width: calc(100% - 1rem);
     max-height: calc(100dvh - 1rem);
   }
-  .destination-fields:has(> :nth-child(3)) {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  }
-  .destination-fields:has(> :nth-child(3)) > :first-child {
-    grid-column: 1 / -1;
-  }
   .review-grid {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 0.5rem;
@@ -275,5 +260,92 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@layer components {
+  .overview-metrics {
+    @apply grid min-w-0 grid-cols-2 overflow-hidden rounded-xl border bg-card xl:grid-cols-4;
+  }
+  .overview-metric {
+    @apply flex min-w-0 flex-col gap-3 p-4 sm:p-5;
+    border-inline-end: 1px solid var(--border);
+  }
+  .overview-metric:nth-child(even) {
+    border-inline-end: 0;
+  }
+  .overview-metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+  .connection-name {
+    @apply max-w-full text-start font-medium underline-offset-4 hover:underline;
+    overflow-wrap: anywhere;
+  }
+  .connection-editor {
+    gap: 1rem;
+  }
+  .connection-path {
+    @apply grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,0.8fr)_auto_minmax(0,1.2fr)];
+  }
+  .connection-path-side {
+    @apply min-w-0 rounded-xl border p-4;
+  }
+  .connection-path-arrow {
+    @apply hidden size-4 self-center text-muted-foreground md:block;
+  }
+  .target-editor + .target-editor {
+    @apply border-t pt-4;
+  }
+  .target-address {
+    @apply grid min-w-0 grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-3;
+  }
+  .connection-editor-footer {
+    @apply gap-3;
+  }
+  .detail-grid {
+    @apply grid grid-cols-1 gap-5 sm:grid-cols-2;
+  }
+  .detail-grid > div {
+    @apply flex min-w-0 flex-col items-start gap-2;
+  }
+  .detail-grid dt {
+    @apply text-xs text-muted-foreground;
+  }
+  .detail-grid dd {
+    @apply min-w-0 text-sm;
+  }
+  [data-slot="dropdown-menu-item"] {
+    @apply min-h-9 gap-2 px-3;
+  }
+  [data-sonner-toast] {
+    font-family: var(--font-sans);
+  }
+  [data-sonner-toast] [data-close-button] {
+    width: 24px;
+    height: 24px;
+  }
+}
+@media (min-width: 1280px) {
+  .overview-metric:nth-child(even) {
+    border-inline-end: 1px solid var(--border);
+  }
+  .overview-metric:last-child {
+    border-inline-end: 0;
+  }
+  .overview-metric:nth-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+@media (max-width: 639px) {
+  .connection-editor-footer > :first-child {
+    flex-basis: 100%;
+  }
+  .connection-editor-footer > :last-child {
+    width: 100%;
+  }
+  .connection-editor-footer > :last-child > button {
+    flex: 1;
+  }
+  [data-slot="dropdown-menu-item"] {
+    min-height: 44px;
   }
 }

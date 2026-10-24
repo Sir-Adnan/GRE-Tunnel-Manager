@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ArrowUpRight, Copy, Network, Plus } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Network, Plus } from "lucide-react";
+import { useCopyText } from "@/lib/use-copy-text";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -114,35 +115,50 @@ export function Address({
   notify?: (message: string) => void;
 }) {
   const t = useT();
+  const { status, copy } = useCopyText(children);
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="max-w-full min-w-0 justify-start"
-      title={`${t("copy")}: ${children}`}
-      onClick={() =>
-        navigator.clipboard
-          .writeText(children)
-          .then(() => notify?.(t("copied")))
-          .catch(() => notify?.(children))
-      }
-    >
-      <Badge variant="outline">
-        {children.includes(":") ? "IPv6" : "IPv4"}
-      </Badge>
-      <code className="max-w-64 truncate text-xs" dir="ltr">
-        {children}
-      </code>
-      <Copy data-icon="inline-end" />
-    </Button>
+    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="max-w-full min-w-0 justify-start"
+        title={`${t("copy")}: ${children}`}
+        onClick={() =>
+          void copy().then((ok) => notify?.(t(ok ? "copied" : "copyFailed")))
+        }
+      >
+        <Badge variant="outline">
+          {children.includes(":") ? "IPv6" : "IPv4"}
+        </Badge>
+        <code className="max-w-64 truncate text-xs" dir="ltr">
+          {children}
+        </code>
+        {status === "copied" ? (
+          <Check data-icon="inline-end" />
+        ) : (
+          <Copy data-icon="inline-end" />
+        )}
+      </Button>
+      <span
+        role="status"
+        className={
+          status === "copyFailed" ? "text-xs text-muted-foreground" : "sr-only"
+        }
+      >
+        {status && t(status)}
+      </span>
+    </span>
   );
 }
 export function Blank({
   onAdd,
   filtered = false,
+  onReset,
 }: {
   onAdd: () => void;
   filtered?: boolean;
+  onReset?: () => void;
 }) {
   const t = useT();
   return (
@@ -152,12 +168,14 @@ export function Blank({
           <Network />
         </EmptyMedia>
         <EmptyTitle>{t(filtered ? "noMatch" : "emptyTitle")}</EmptyTitle>
-        <EmptyDescription>{t("emptyDesc")}</EmptyDescription>
+        <EmptyDescription>
+          {t(filtered ? "noMatchesHelp" : "emptyDesc")}
+        </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button onClick={onAdd}>
+        <Button onClick={filtered && onReset ? onReset : onAdd}>
           <Plus data-icon="inline-start" />
-          {t("newConnection")}
+          {t(filtered && onReset ? "clearFilters" : "newConnection")}
         </Button>
       </EmptyContent>
     </Empty>

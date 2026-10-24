@@ -7,26 +7,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import {
-  Sun,
-  Moon,
-  Monitor,
-  Check,
-  ChevronRight,
-  Globe2,
-  Loader2,
-  Plus,
-  RefreshCw,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
+import { PanelHeader } from "@/components/PanelHeader";
+import { usePanelRoute } from "@/lib/use-panel-route";
+import { ConnectionWorkspace } from "@/features/connections/ConnectionWorkspace";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -36,27 +22,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import { PanelSidebar } from "@/components/PanelSidebar";
-import { AccessStatus } from "@/components/AccessStatus";
-import { ActionButton, HelpTip } from "@/components/help";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Address, PageTitle } from "@/components/shared";
-import { ConnectionForm } from "@/features/connections/ConnectionForm";
-import { ConnectionTable } from "@/features/connections/ConnectionTable";
+const ConnectionForm = lazy(() =>
+  import("@/features/connections/ConnectionForm").then((module) => ({
+    default: module.ConnectionForm,
+  })),
+);
 import { Overview } from "@/features/Overview";
-import { Resources } from "@/features/Resources";
+const Resources = lazy(() =>
+  import("@/features/Resources").then((module) => ({
+    default: module.Resources,
+  })),
+);
 const Traffic = lazy(() =>
   import("@/features/Traffic").then((module) => ({ default: module.Traffic })),
 );
 const Nodes = lazy(() =>
   import("@/features/nodes/Nodes").then((module) => ({
     default: module.Nodes,
+  })),
+);
+const Backups = lazy(() =>
+  import("@/features/backups/Backups").then((module) => ({
+    default: module.Backups,
   })),
 );
 import { Components, Settings } from "@/features/Settings";
@@ -99,9 +89,8 @@ export default function App() {
   const [session, setSession] = useState<Session>();
   const [sessionError, setSessionError] = useState("");
   const [inventory, setInventory] = useState<Inventory>();
-  const [page, setPage] = useState("overview");
+  const { page, navigate } = usePanelRoute();
   const [form, setForm] = useState<{ engine: string; original?: Connection }>();
-  const [toast, setToast] = useState("");
   const [job, setJob] = useState<Job>();
   const [output, setOutput] = useState<{ title: string; text: string }>();
   const [systemDark, setSystemDark] = useState(
@@ -126,6 +115,7 @@ export default function App() {
   );
   const refresh = useCallback(async () => {
     setInventory(await api<Inventory>("inventory"));
+    setSessionError("");
   }, []);
   useEffect(() => {
     api<Session>("session")
@@ -167,19 +157,10 @@ export default function App() {
     if (!session?.authenticated || !preferences.refresh) return;
     const timer = window.setInterval(() => {
       if (!document.hidden && job?.state !== "running")
-        refresh().catch((error) => setToast(String(error)));
+        refresh().catch((error) => toast.error(String(error)));
     }, 30000);
     return () => clearInterval(timer);
   }, [session?.authenticated, preferences.refresh, refresh, job?.state]);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 4500);
-    return () => clearTimeout(timer);
-  }, [toast]);
-  function navigate(next: string) {
-    setPage(next);
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }
   const add = (
     engine = ["haproxy", "realm"].includes(page)
       ? page
@@ -192,8 +173,12 @@ export default function App() {
   async function run(request: unknown): Promise<void> {
     try {
       const completed = await operate(request, setJob);
-      await refresh();
-      setToast(t("completed"));
+      try {
+        await refresh();
+        toast.success(t("completed"));
+      } catch {
+        toast.warning(t("savedRefreshFailed"));
+      }
       const operation = (request as { action: string }).action;
       if (["logs", "plan", "doctor", "reverse-create"].includes(operation))
         setOutput({
@@ -257,91 +242,18 @@ export default function App() {
         <SidebarProvider>
           <PanelSidebar page={page} inventory={inventory} navigate={navigate} />
           <SidebarInset className="min-w-0">
-            <header className="topbar">
-              <div className="flex min-w-0 items-center gap-3">
-                <SidebarTrigger aria-label={t("toggleSidebar")} />
-                <span className="hidden text-sm text-muted-foreground sm:inline">
-                  Tunnel Manager
-                </span>
-                <ChevronRight className="hidden size-3.5 text-muted-foreground rtl:rotate-180 sm:block" />
-                <span className="truncate text-sm font-medium">
-                  {page === "haproxy"
-                    ? "HAProxy"
-                    : page === "realm"
-                      ? "Realm"
-                      : t(page)}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  aria-label={t("mode")}
-                  value={preferences.mode}
-                  onValueChange={(mode) =>
-                    mode &&
-                    setPreferences({
-                      ...preferences,
-                      mode: mode as Preferences["mode"],
-                    })
-                  }
-                >
-                  {[
-                    { id: "light", icon: Sun },
-                    { id: "dark", icon: Moon },
-                    { id: "system", icon: Monitor },
-                  ].map(({ id, icon: Icon }) => (
-                    <ToggleGroupItem
-                      key={id}
-                      value={id}
-                      aria-label={t(id)}
-                      title={t(id)}
-                    >
-                      <Icon />
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-
-                <span className="hidden md:block">
-                  {inventory?.host.addresses[0] && (
-                    <Address notify={setToast}>
-                      {inventory.host.addresses[0]}
-                    </Address>
-                  )}
-                </span>
-                <span className="hidden xl:inline-flex">
-                  <AccessStatus />
-                </span>
-                <ActionButton
-                  variant="ghost"
-                  size="icon"
-                  label={t("refresh")}
-                  disabled={job?.state === "running"}
-                  onClick={() =>
-                    page === "nodes"
-                      ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
-                      : void refresh().catch((error) => setToast(String(error)))
-                  }
-                >
-                  <RefreshCw />
-                </ActionButton>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label={t("language")}
-                  onClick={() =>
-                    setPreferences({
-                      ...preferences,
-                      locale: preferences.locale === "fa" ? "en" : "fa",
-                    })
-                  }
-                >
-                  <Globe2 data-icon="inline-start" />
-                  {preferences.locale === "fa" ? "EN" : "فا"}
-                </Button>
-              </div>
-            </header>
+            <PanelHeader
+              page={page}
+              inventory={inventory}
+              preferences={preferences}
+              setPreferences={setPreferences}
+              busy={job?.state === "running"}
+              refresh={() =>
+                page === "nodes"
+                  ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
+                  : void refresh().catch((error) => toast.error(String(error)))
+              }
+            />
             <div className="page-container">
               {session.demo && (
                 <Alert className="mb-5">
@@ -398,77 +310,40 @@ export default function App() {
                           "haproxy",
                           "realm",
                         ].includes(page) ? (
-                        <div className="page-stack">
-                          <PageTitle
-                            title={
-                              page === "haproxy"
-                                ? "HAProxy"
-                                : page === "realm"
-                                  ? "Realm"
-                                  : t(page)
-                            }
-                            description={t("subtitle")}
-                            action={
-                              <Button onClick={() => add()}>
-                                <Plus data-icon="inline-start" />
-                                {t("newConnection")}
-                              </Button>
-                            }
-                          />
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>{t("connections")}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <ConnectionTable
-                                connections={inventory.connections.filter(
-                                  (c) =>
-                                    page === "connections" ||
-                                    (page === "forwarding"
-                                      ? ["nftables", "iptables"].includes(
-                                          c.engine,
-                                        )
-                                      : c.engine === page),
-                                )}
-                                onAdd={() => add()}
-                                onEdit={edit}
-                                run={run}
-                              />
-                            </CardContent>
-                            <CardFooter>
-                              <Button
-                                variant="ghost"
-                                onClick={() =>
-                                  void run({ action: "plan" }).catch(() => {})
-                                }
-                              >
-                                {t("previewAll")}
-                                <ChevronRight
-                                  data-icon="inline-end"
-                                  className="rtl:rotate-180"
-                                />
-                              </Button>
-                              <HelpTip>{t("previewAllHelp")}</HelpTip>
-                            </CardFooter>
-                          </Card>
-                        </div>
-                      ) : page === "gre" || page === "reverse" ? (
-                        <Resources
+                        <ConnectionWorkspace
+                          page={page}
                           inventory={inventory}
-                          engine={page}
+                          add={() => add()}
+                          edit={edit}
                           run={run}
                         />
+                      ) : page === "gre" || page === "reverse" ? (
+                        <Suspense
+                          fallback={<Skeleton className="h-60 w-full" />}
+                        >
+                          <Resources
+                            inventory={inventory}
+                            engine={page}
+                            run={run}
+                          />
+                        </Suspense>
                       ) : page === "traffic" ? (
                         <Traffic inventory={inventory} run={run} />
                       ) : page === "components" ? (
                         <Components inventory={inventory} run={run} />
+                      ) : page === "backups" ? (
+                        <Suspense
+                          fallback={<Skeleton className="h-60 w-full" />}
+                        >
+                          <Backups inventory={inventory} refreshed={refresh} />
+                        </Suspense>
                       ) : (
                         <Settings
                           preferences={preferences}
                           setPreferences={setPreferences}
                           logout={() =>
                             void logout().catch((error) =>
-                              setToast(String(error)),
+                              toast.error(String(error)),
                             )
                           }
                         />
@@ -480,27 +355,35 @@ export default function App() {
             <footer className="app-footer">
               <span>TUNNEL MANAGER</span>
               <span>
-                {inventory?.host.hostname} · v{inventory?.version || "1.3.2"}
+                {inventory?.host.hostname} · v{inventory?.version || "1.3.3"}
               </span>
             </footer>
           </SidebarInset>
           <MobileNavigation page={page} navigate={navigate} />
         </SidebarProvider>
         {form && inventory && (
-          <ConnectionForm
-            inventory={inventory}
-            engines={
-              page === "haproxy" || page === "realm"
-                ? [page]
-                : page === "forwarding"
-                  ? ["nftables", "iptables"]
-                  : undefined
+          <Suspense
+            fallback={
+              <div className="operation-progress" role="status">
+                {t("working")}
+              </div>
             }
-            engine={form.engine}
-            original={form.original}
-            onClose={() => setForm(undefined)}
-            onSubmit={run}
-          />
+          >
+            <ConnectionForm
+              inventory={inventory}
+              engines={
+                page === "haproxy" || page === "realm"
+                  ? [page]
+                  : page === "forwarding"
+                    ? ["nftables", "iptables"]
+                    : undefined
+              }
+              engine={form.engine}
+              original={form.original}
+              onClose={() => setForm(undefined)}
+              onSubmit={run}
+            />
+          </Suspense>
         )}
         <Dialog
           open={Boolean(output)}
@@ -526,20 +409,14 @@ export default function App() {
         applyToDocument
       >
         {content}
-        {toast && (
-          <div className="toast" role="status">
-            <Check className="size-4" />
-            <span>{toast}</span>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("close")}
-              onClick={() => setToast("")}
-            >
-              <X />
-            </Button>
-          </div>
-        )}
+        <Toaster
+          theme={experience.mode === "light" ? "light" : "dark"}
+          dir={preferences.locale === "fa" ? "rtl" : "ltr"}
+          position="bottom-center"
+          closeButton
+          offset={24}
+          mobileOffset={{ bottom: 96, left: 16, right: 16 }}
+        />
       </ExperienceScope>
     </LocaleContext.Provider>
   );

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Copy, Download, Code2 } from "lucide-react";
+import { Download, Code2 } from "lucide-react";
+import { CopyButton } from "@/components/CopyButton";
 import { api } from "@/lib/api";
+import { useDiscardChanges } from "@/lib/use-discard-changes";
 import { useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -47,8 +49,7 @@ export function ConfigurationDialog({
   const [tab, setTab] = useState("view"),
     [json, setJSON] = useState(""),
     [native, setNative] = useState("");
-  const [busy, setBusy] = useState(false),
-    [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [review, setReview] = useState<{
     format: string;
     text: string;
@@ -94,6 +95,14 @@ export function ConfigurationDialog({
       setBusy(false);
     }
   }
+  const { requestClose, confirmation } = useDiscardChanges(
+    Boolean(
+      view &&
+      !busy &&
+      (json !== (view.editor || "") || native !== (view.files[0]?.text || "")),
+    ),
+    onClose,
+  );
   function download() {
     const url = URL.createObjectURL(
       new Blob([displayed], { type: "text/plain;charset=utf-8" }),
@@ -108,164 +117,169 @@ export function ConfigurationDialog({
     URL.revokeObjectURL(url);
   }
   return (
-    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent
-        closeLabel={t("close")}
-        scrollLayout="body"
-        className="dialog-shell sm:max-w-4xl"
-      >
-        <DialogHeader className="shrink-0 pe-6">
-          <DialogTitle className="flex flex-wrap items-center gap-2">
-            <Code2 className="size-4" />
-            {t("configuration")} · <bdi>{resource.name || resource.id}</bdi>
-          </DialogTitle>
-          <DialogDescription>{t("configDescription")}</DialogDescription>
-        </DialogHeader>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {!view && !error && <Skeleton className="h-64 w-full" />}
-        {view && (
-          <DialogBody>
-            {view.saved_state === "different" && (
-              <Alert>
-                <AlertDescription>{t("configDriftHelp")}</AlertDescription>
-              </Alert>
-            )}
-            {view.files.some((f) => f.kind === "redacted") && (
-              <Alert>
-                <AlertDescription>{t("configRedactedHelp")}</AlertDescription>
-              </Alert>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{t(`config_${view.saved_state}`)}</Badge>
-              <HelpTip label={t("help")}>{t("configHelp")}</HelpTip>
-              <bdi className="min-w-0 break-all text-xs text-muted-foreground">
-                {view.files[0]?.path}
-              </bdi>
-            </div>
-            <Tabs
-              value={tab}
-              dir={locale === "fa" ? "rtl" : "ltr"}
-              onValueChange={(v) => {
-                setTab(v);
-                setReview(undefined);
-                setError("");
-              }}
-            >
-              <TabsList className="max-w-full flex-wrap">
-                <TabsTrigger value="view">{t("viewConfig")}</TabsTrigger>
-                {view.editor && (
-                  <TabsTrigger value="json">{t("managedEditor")}</TabsTrigger>
-                )}
-                {view.native_editable && (
-                  <TabsTrigger value="native">{t("nativeEditor")}</TabsTrigger>
-                )}
-              </TabsList>
-              <TabsContent value="view">
-                <pre
-                  dir="ltr"
-                  className="max-h-[48dvh] overflow-auto rounded-lg border bg-background p-4 text-start text-xs leading-6"
-                >
-                  <code>{displayed}</code>
-                </pre>
-              </TabsContent>
-              {["json", "native"].map((mode) => (
-                <TabsContent key={mode} value={mode}>
-                  <textarea
-                    aria-label={t("configText")}
-                    dir="ltr"
-                    spellCheck={false}
-                    maxLength={65536}
-                    disabled={busy}
-                    value={mode === "json" ? json : native}
-                    onChange={(e) => {
-                      if (mode === "json") setJSON(e.target.value);
-                      else setNative(e.target.value);
-                      setReview(undefined);
-                      setCopied(false);
-                    }}
-                    className="h-[40dvh] min-h-48 w-full resize-y rounded-lg border bg-background p-4 font-mono text-start text-xs leading-6"
-                  />
-                </TabsContent>
-              ))}
-            </Tabs>
-            {tab !== "view" && (
-              <p className="text-xs leading-6 text-muted-foreground">
-                {t(tab === "native" ? "nativeEditorHelp" : "managedEditorHelp")}
-              </p>
-            )}
-            {review && (
-              <section className="flex flex-col gap-2">
-                <h3 className="font-medium">{t("configReviewed")}</h3>
-                <pre
-                  dir="ltr"
-                  className="max-h-48 overflow-auto rounded-lg border bg-background p-3 text-start text-xs leading-6"
-                >
-                  <code>{review.view.files[0]?.text}</code>
-                </pre>
-                <p className="text-xs leading-6 text-muted-foreground">
-                  {t("configApplyHelp")}
-                </p>
-              </section>
-            )}
-          </DialogBody>
-        )}
-        <DialogFooter className="shrink-0 flex-wrap">
-          <Button
-            variant="outline"
-            disabled={!view || busy}
-            onClick={() => {
-              void navigator.clipboard
-                ?.writeText(displayed)
-                .then(() => setCopied(true))
-                .catch(() => setCopied(false));
-            }}
-          >
-            <Copy data-icon="inline-start" />
-            {t(copied ? "copied" : "copyConfig")}
-          </Button>
-          <Button variant="outline" disabled={!view || busy} onClick={download}>
-            <Download data-icon="inline-start" />
-            {t("downloadConfig")}
-          </Button>
-          {tab !== "view" && (
-            <Button
-              disabled={busy || !view}
-              onClick={() =>
-                void (async () => {
-                  if (!review) {
-                    await check();
-                    return;
-                  }
-                  setBusy(true);
-                  setError("");
-                  try {
-                    await run({
-                      action: "configuration-apply",
-                      configuration: {
-                        id: resource.id,
-                        revision: resource.revision,
-                        format: review.format,
-                        text: review.text,
-                      },
-                    });
-                    onClose();
-                  } catch (e) {
-                    setError(String(e));
-                  } finally {
-                    setBusy(false);
-                  }
-                })()
-              }
-            >
-              {t(busy ? "working" : review ? "save" : "review")}
-            </Button>
+    <>
+      <Dialog open onOpenChange={(open) => !open && !busy && requestClose()}>
+        <DialogContent
+          closeLabel={t("close")}
+          scrollLayout="body"
+          className="dialog-shell sm:max-w-4xl"
+        >
+          <DialogHeader className="shrink-0 pe-6">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              <Code2 className="size-4" />
+              {t("configuration")} · <bdi>{resource.name || resource.id}</bdi>
+            </DialogTitle>
+            <DialogDescription>{t("configDescription")}</DialogDescription>
+          </DialogHeader>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          {!view && !error && <Skeleton className="h-64 w-full" />}
+          {view && (
+            <DialogBody>
+              {view.saved_state === "different" && (
+                <Alert>
+                  <AlertDescription>{t("configDriftHelp")}</AlertDescription>
+                </Alert>
+              )}
+              {view.files.some((f) => f.kind === "redacted") && (
+                <Alert>
+                  <AlertDescription>{t("configRedactedHelp")}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">
+                  {t(`config_${view.saved_state}`)}
+                </Badge>
+                <HelpTip label={t("help")}>{t("configHelp")}</HelpTip>
+                <bdi className="min-w-0 break-all text-xs text-muted-foreground">
+                  {view.files[0]?.path}
+                </bdi>
+              </div>
+              <Tabs
+                value={tab}
+                dir={locale === "fa" ? "rtl" : "ltr"}
+                onValueChange={(v) => {
+                  setTab(v);
+                  setReview(undefined);
+                  setError("");
+                }}
+              >
+                <TabsList className="max-w-full flex-wrap">
+                  <TabsTrigger value="view">{t("viewConfig")}</TabsTrigger>
+                  {view.editor && (
+                    <TabsTrigger value="json">{t("managedEditor")}</TabsTrigger>
+                  )}
+                  {view.native_editable && (
+                    <TabsTrigger value="native">
+                      {t("nativeEditor")}
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+                <TabsContent value="view">
+                  <pre
+                    dir="ltr"
+                    className="max-h-[48dvh] overflow-auto rounded-lg border bg-background p-4 text-start text-xs leading-6"
+                  >
+                    <code>{displayed}</code>
+                  </pre>
+                </TabsContent>
+                {["json", "native"].map((mode) => (
+                  <TabsContent key={mode} value={mode}>
+                    <textarea
+                      aria-label={t("configText")}
+                      dir="ltr"
+                      spellCheck={false}
+                      maxLength={65536}
+                      disabled={busy}
+                      value={mode === "json" ? json : native}
+                      onChange={(e) => {
+                        if (mode === "json") setJSON(e.target.value);
+                        else setNative(e.target.value);
+                        setReview(undefined);
+                      }}
+                      className="h-[40dvh] min-h-48 w-full resize-y rounded-lg border bg-background p-4 font-mono text-start text-xs leading-6"
+                    />
+                  </TabsContent>
+                ))}
+              </Tabs>
+              {tab !== "view" && (
+                <p className="text-xs leading-6 text-muted-foreground">
+                  {t(
+                    tab === "native" ? "nativeEditorHelp" : "managedEditorHelp",
+                  )}
+                </p>
+              )}
+              {review && (
+                <section className="flex flex-col gap-2">
+                  <h3 className="font-medium">{t("configReviewed")}</h3>
+                  <pre
+                    dir="ltr"
+                    className="max-h-48 overflow-auto rounded-lg border bg-background p-3 text-start text-xs leading-6"
+                  >
+                    <code>{review.view.files[0]?.text}</code>
+                  </pre>
+                  <p className="text-xs leading-6 text-muted-foreground">
+                    {t("configApplyHelp")}
+                  </p>
+                </section>
+              )}
+            </DialogBody>
+          )}
+          <DialogFooter className="shrink-0 flex-wrap">
+            <CopyButton
+              variant="outline"
+              disabled={!view || busy}
+              text={displayed}
+              label={t("copyConfig")}
+            />
+            <Button
+              variant="outline"
+              disabled={!view || busy}
+              onClick={download}
+            >
+              <Download data-icon="inline-start" />
+              {t("downloadConfig")}
+            </Button>
+            {tab !== "view" && (
+              <Button
+                disabled={busy || !view}
+                onClick={() =>
+                  void (async () => {
+                    if (!review) {
+                      await check();
+                      return;
+                    }
+                    setBusy(true);
+                    setError("");
+                    try {
+                      await run({
+                        action: "configuration-apply",
+                        configuration: {
+                          id: resource.id,
+                          revision: resource.revision,
+                          format: review.format,
+                          text: review.text,
+                        },
+                      });
+                      onClose();
+                    } catch (e) {
+                      setError(String(e));
+                    } finally {
+                      setBusy(false);
+                    }
+                  })()
+                }
+              >
+                {t(busy ? "working" : review ? "save" : "review")}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {confirmation}
+    </>
   );
 }

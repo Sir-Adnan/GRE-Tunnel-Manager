@@ -188,8 +188,9 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
 export async function operate(
   request: unknown,
   changed?: (job: Job) => void,
+  path: "operations" | "backups/restore" = "operations",
 ): Promise<Job> {
-  let job = await api<Job>("operations", request);
+  let job = await api<Job>(path, request);
   changed?.(job);
   while (job.state === "running") {
     await new Promise((resolve) => setTimeout(resolve, 1000));

@@ -30,11 +30,15 @@ type Reply struct {
 }
 
 func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/control" || r.Method != "POST" {
+	if (r.URL.Path != "/control" && r.URL.Path != "/backup") || r.Method != "POST" {
 		http.NotFound(w, r)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 131072)
+	limit := int64(131072)
+	if r.URL.Path == "/backup" {
+		limit = 32 * 1024 * 1024
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	var request Request
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -45,6 +49,11 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
 		http.Error(w, "one request required", 400)
+		return
+	}
+	backupAction := oneOf(request.Action, "backup-export", "backup-review", "backup-restore")
+	if backupAction != (r.URL.Path == "/backup") {
+		http.Error(w, "invalid broker endpoint", 400)
 		return
 	}
 	trafficAllowed := b.AgentTraffic && (request.Action == "metrics" || request.Action == "metrics-configure")
@@ -221,7 +230,11 @@ func (c *UnixClient) Do(ctx context.Context, request Request) (json.RawMessage, 
 	reader, writer := io.Pipe()
 	go func() { e := json.NewEncoder(writer).Encode(request); writer.CloseWithError(e) }()
 	defer reader.Close()
-	req, e := http.NewRequestWithContext(ctx, "POST", "http://broker/control", reader)
+	path := "/control"
+	if oneOf(request.Action, "backup-export", "backup-review", "backup-restore") {
+		path = "/backup"
+	}
+	req, e := http.NewRequestWithContext(ctx, "POST", "http://broker"+path, reader)
 	if e != nil {
 		return nil, e
 	}
@@ -235,7 +248,11 @@ func (c *UnixClient) Do(ctx context.Context, request Request) (json.RawMessage, 
 		return nil, fmt.Errorf("broker returned %d", response.StatusCode)
 	}
 	var reply Reply
-	if e = json.NewDecoder(io.LimitReader(response.Body, 1048576)).Decode(&reply); e != nil {
+	limit := int64(1048576)
+	if path == "/backup" {
+		limit = 32 * 1024 * 1024
+	}
+	if e = json.NewDecoder(io.LimitReader(response.Body, limit)).Decode(&reply); e != nil {
 		return nil, e
 	}
 	if reply.Error != "" {

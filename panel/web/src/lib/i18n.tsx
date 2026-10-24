@@ -2,13 +2,174 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  startAtBoot: [
+    "Start & enable at boot",
+    "روشن کردن و اجرای خودکار پس از راه‌اندازی",
+  ],
+  backups: ["Backup & restore", "بکاپ و بازیابی"],
+  backupsIntro: [
+    "Keep a recovery copy. Move your setup when you need to.",
+    "نسخهٔ پشتیبان بگیرید و تنظیمات را به سرور جدید منتقل کنید.",
+  ],
+  backupCreate: ["Create backup", "ساخت بکاپ"],
+  backupRestore: ["Restore backup", "بازیابی بکاپ"],
+  backupCreateHelp: [
+    "Download an encrypted copy of this server’s managed setup.",
+    "نسخهٔ رمزگذاری‌شدهٔ تنظیمات همین سرور را دانلود کنید.",
+  ],
+  backupPassword: ["Backup password", "رمز بکاپ"],
+  backupConfirmPassword: ["Confirm password", "تکرار رمز"],
+  backupPasswordMismatch: [
+    "The passwords do not match.",
+    "رمزها یکسان نیستند.",
+  ],
+  backupPasswordKeep: [
+    "Use at least 8 characters. Keep the password separately; it cannot be recovered.",
+    "حداقل 8 نویسه وارد کنید. رمز را جدا نگه دارید؛ امکان بازیابی آن وجود ندارد.",
+  ],
+  backupIncludeTraffic: ["Include traffic records", "همراه با سوابق مصرف"],
+  backupTrafficHelp: [
+    "Includes saved totals, cycles, labels and policies. Live kernel counters are not copied. Collection stays paused after restore.",
+    "مجموع مصرف، دوره‌ها، نام‌ها و سقف‌های ذخیره‌شده منتقل می‌شوند. شمارندهٔ زندهٔ سیستم منتقل نمی‌شود و ثبت مصرف پس از بازیابی خاموش می‌ماند.",
+  ],
+  backupDownload: ["Download backup", "دانلود بکاپ"],
+  backupDownloaded: [
+    "Encrypted backup downloaded",
+    "بکاپ رمزگذاری‌شده دانلود شد",
+  ],
+  backupScope: ["What’s in your backup", "محتوای بکاپ شما"],
+  backupScopeConnections: [
+    "Managed forwards, HAProxy, Realm, GRE and reverse tunnel settings, with their names.",
+    "تنظیمات فورواردها، HAProxy، Realm، GRE و تونل‌های معکوس، همراه با نام‌ها.",
+  ],
+  backupScopeSecrets: [
+    "Reverse tunnel tokens and Noise keys, protected by your backup password.",
+    "توکن تونل‌های معکوس و کلیدهای Noise، محافظت‌شده با رمز بکاپ.",
+  ],
+  backupScopeTraffic: [
+    "Traffic totals and history, when selected.",
+    "مجموع و تاریخچهٔ مصرف، در صورت انتخاب شما.",
+  ],
+  backupLocalOnly: [
+    "This server only. Save the file off the server.",
+    "فقط همین سرور؛ فایل را خارج از سرور نگه دارید.",
+  ],
+  backupLimits: ["Backup scope and limits", "محدودهٔ بکاپ"],
+  backupExcluded: [
+    "This is a managed-configuration backup, not an OS image. It excludes panel login, sessions, Node identities and pairing journals, external certificates, binaries, host firewall policy, tuning and legacy scripts. Back up each Node separately. Re-enroll Nodes after moving the panel. Use HTTPS or a trusted SSH port forward when sending the backup password.",
+    "این بکاپ تنظیمات مدیریت‌شده است، نه تصویر کامل سیستم‌عامل. حساب پنل، نشست‌ها، هویت نودها و عملیات جفت‌سازی، گواهی‌های خارجی، فایل موتورها، قوانین عمومی فایروال، تنظیمات سیستم و اسکریپت‌های قدیمی منتقل نمی‌شوند. از هر نود جدا بکاپ بگیرید و پس از انتقال پنل، نودها را دوباره متصل کنید. برای ارسال رمز بکاپ از HTTPS یا دسترسی امن از طریق SSH استفاده کنید.",
+  ],
+  backupRestoreHelp: [
+    "Choose a backup, check its contents, then adjust addresses for this server. Restore requires an empty managed installation.",
+    "بکاپ را انتخاب کنید، محتوایش را ببینید و در صورت نیاز آی‌پی‌ها را تغییر دهید. برای بازیابی، تنظیمات مدیریت‌شدهٔ سرور مقصد باید خالی باشد.",
+  ],
+  backupFile: ["Recovery file · up to 28 MiB", "فایل بکاپ؛ تا 28 MiB"],
+  backupFileLarge: [
+    "Choose a recovery file no larger than 28 MiB.",
+    "فایلی انتخاب کنید که حجم آن بیشتر از 28 MiB نباشد.",
+  ],
+  backupInvalidFile: [
+    "This file could not be read. Choose a Tunnel Manager backup.",
+    "فایل خوانده نشد. بکاپ Tunnel Manager را انتخاب کنید.",
+  ],
+  backupInspect: ["Open backup", "باز کردن بکاپ"],
+  backupSource: ["Backup source", "سرور مبدأ بکاپ"],
+  backupDestination: ["Restore to", "سرور مقصد بازیابی"],
+  backupPaused: [
+    "Restored resources stay paused",
+    "اتصال‌ها پس از بازیابی متوقف می‌مانند",
+  ],
+  backupMigration: ["Address & interface changes", "تغییر آی‌پی و رابط شبکه"],
+  backupMappingHelp: [
+    "Leave blank to keep a value. A replacement affects every matching address in the backup, including peer and destination addresses. Keep IPv4 as IPv4 and IPv6 as IPv6. Changes do not update the other server.",
+    "کادر خالی یعنی حفظ مقدار قبلی. مقدار جدید جایگزین تمام موارد همان آی‌پی در بکاپ می‌شود؛ از جمله آی‌پی همتا و مقصد. خانوادهٔ IPv4 یا IPv6 را تغییر ندهید. تنظیمات سرور مقابل خودکار تغییر نمی‌کند.",
+  ],
+  backupKeepValue: ["Keep original", "حفظ مقدار قبلی"],
+  backupContents: ["Resources", "اتصال‌های داخل بکاپ"],
+  backupCertificates: [
+    "Copy these external certificates to the new server before starting the affected tunnels:",
+    "پیش از روشن کردن تونل‌های مربوط، این گواهی‌های خارجی را روی سرور جدید قرار دهید:",
+  ],
+  recoveryExisting: [
+    "This server already has managed connections or tunnels. Restore to a fresh installation; existing resources will not be overwritten.",
+    "این سرور از قبل اتصال یا تونل دارد. بازیابی را روی نصب خالی انجام دهید؛ تنظیمات موجود بازنویسی نمی‌شوند.",
+  ],
+  recoveryTrafficExisting: [
+    "Traffic records already exist here. Turn off “Include traffic records” to keep them, or use an empty ledger on a fresh installation.",
+    "این سرور سوابق مصرف دارد. گزینهٔ «همراه با سوابق مصرف» را خاموش کنید تا حفظ شوند، یا روی نصب تازه با سوابق خالی بازیابی کنید.",
+  ],
+  backupReview: ["Check changes", "بررسی تغییرات"],
+  backupRestoreAction: ["Restore paused setup", "بازیابی بدون روشن کردن"],
+  backupConfirmRestore: [
+    "Restore on this server?",
+    "بکاپ روی این سرور بازیابی شود؟",
+  ],
+  backupConfirmHelp: [
+    "The reviewed settings will be saved locally. No imported tunnel or traffic collection will start automatically.",
+    "تنظیمات بررسی‌شده روی همین سرور ذخیره می‌شوند. هیچ تونلی یا ثبت مصرفی خودکار روشن نمی‌شود.",
+  ],
+  backupRestored: ["Your setup is restored", "تنظیمات بازیابی شد"],
+  backupNextSteps: [
+    "Install any missing engines, check local IPs and interfaces, and copy external certificates. Start GRE and reverse services from their menus, enable the forwards you need, then turn traffic collection back on. Update the peer server if the public IP changed.",
+    "موتورهای لازم را نصب کنید، آی‌پی و رابط شبکه را بررسی کنید و گواهی‌های خارجی را منتقل کنید. سپس سرویس‌های GRE و معکوس را از منوی خودشان روشن کنید، فورواردهای لازم را فعال کنید و ثبت مصرف را دوباره روشن کنید. اگر آی‌پی عمومی عوض شده، تنظیمات سرور مقابل را هم تغییر دهید.",
+  ],
+  backupChooseAnother: ["Choose another backup", "انتخاب بکاپ دیگر"],
+  recoveryTrafficUnavailable: [
+    "Connections were restored, but traffic storage is unavailable. Keep the backup for a later accounting recovery.",
+    "اتصال‌ها بازیابی شدند، اما ذخیره‌سازی مصرف در دسترس نیست. بکاپ را برای بازیابی بعدی سوابق نگه دارید.",
+  ],
+  recoveryTrafficSaveFailed: [
+    "Connections were restored, but traffic records could not be saved. Keep the backup and inspect storage permissions before retrying accounting recovery.",
+    "اتصال‌ها بازیابی شدند، اما سوابق مصرف ذخیره نشدند. بکاپ را نگه دارید و دسترسی ذخیره‌سازی را بررسی کنید.",
+  ],
+  currentServer: ["Current server", "سرور فعلی"],
+  notifications: ["Notifications", "اعلان‌ها"],
+  noMatchesHelp: [
+    "Try another search or clear the filters.",
+    "عبارت دیگری جست‌وجو کنید یا فیلترها را پاک کنید.",
+  ],
+  clearFilters: ["Clear filters", "پاک کردن فیلترها"],
+  localServerScope: [
+    "Runs on the panel server",
+    "روی سرور همین پنل اجرا می‌شود",
+  ],
+  connectionSections: ["Connection editor", "بخش‌های تنظیم اتصال"],
+  connectionSetup: ["Connection", "تنظیم اتصال"],
+  listenerSide: ["Entrance", "ورودی"],
+  removeDestination: ["Remove destination", "حذف مقصد"],
+  moreActions: ["More actions for", "عملیات بیشتر برای"],
+  connectionDetails: ["Connection details", "جزئیات اتصال"],
+  connectionOverview: ["Summary", "خلاصه"],
+  selectConnection: ["Select", "انتخاب اتصال"],
+  allStatuses: ["All statuses", "همهٔ وضعیت‌ها"],
+  discardChanges: ["Discard changes?", "تغییرات کنار گذاشته شوند؟"],
+  discardChangesHelp: [
+    "Your changes have not been saved. Keep editing or discard this draft.",
+    "تغییرات هنوز ذخیره نشده‌اند. می‌توانید ویرایش را ادامه دهید یا تغییرات را کنار بگذارید.",
+  ],
+  keepEditing: ["Keep editing", "ادامهٔ ویرایش"],
+  discard: ["Discard changes", "کنار گذاشتن تغییرات"],
+  checkFields: [
+    "Check the highlighted field before continuing.",
+    "برای ادامه، فیلد مشخص‌شده را اصلاح کنید.",
+  ],
+  willStart: ["Starts after saving", "پس از ذخیره اجرا می‌شود"],
+  willSaveDisabled: ["Saves without starting", "ذخیره می‌شود و اجرا نمی‌شود"],
+  savedRefreshFailed: [
+    "Saved. The server list could not refresh; refresh before making another change.",
+    "ذخیره شد، اما فهرست سرور به‌روز نشد. پیش از تغییر بعدی، فهرست را به‌روز کنید.",
+  ],
+  connectionStateHelp: [
+    "Active means the local service is running. Configured means it is saved and enabled; this does not confirm destination reachability.",
+    "وضعیت فعال یعنی سرویس محلی در حال اجراست. تنظیم‌شده یعنی اتصال ذخیره و روشن است؛ این وضعیت، دسترسی به مقصد را تضمین نمی‌کند.",
+  ],
   maxconnHelp: [
     "Maximum concurrent connections for this HAProxy service, not a speed limit or a guarantee. New setups allow up to 100000; actual capacity depends on RAM, file descriptors and the destination. Lower it for small servers.",
     "سقف اتصال هم‌زمان همین سرویس است؛ سقف سرعت یا تضمین ظرفیت نیست. اتصال جدید تا 100000 اجازه دارد؛ ظرفیت واقعی به رم، تعداد فایل‌های باز و مقصد بستگی دارد. برای سرور کوچک می‌توانید کمترش کنید.",
   ],
   previewAllHelp: [
-    "Read-only preview of enabled local connections. Nothing is applied. Use the code icon on each row to inspect or edit one connection.",
-    "پیش‌نمایش فقط‌خواندنی اتصال‌های فعال همین سرور است؛ چیزی اعمال نمی‌شود. برای مشاهده یا ویرایش یک اتصال از آیکون کانفیگ همان ردیف استفاده کنید.",
+    "Read-only preview of enabled local connections. Nothing is applied. Use More actions on a connection to inspect or edit its configuration.",
+    "پیش‌نمایش فقط‌خواندنی اتصال‌های فعال همین سرور است؛ چیزی اعمال نمی‌شود. برای مشاهده یا ویرایش کانفیگ یک اتصال، منوی عملیات بیشتر همان ردیف را باز کنید.",
   ],
   previewAll: ["Preview all configurations", "پیش‌نمایش همهٔ کانفیگ‌ها"],
   viewUsage: ["View usage details", "مشاهدهٔ جزئیات مصرف"],
@@ -22,6 +183,10 @@ const words = {
   copyManually: [
     "Select and copy the text manually.",
     "متن را انتخاب و دستی کپی کنید.",
+  ],
+  copyFailed: [
+    "Your browser blocked copying. Select the text and copy it manually.",
+    "مرورگر اجازهٔ کپی نداد. متن را انتخاب و دستی کپی کنید.",
   ],
   command: ["Command", "دستور"],
   copyCommand: ["Copy command", "کپی دستور"],
@@ -680,8 +845,8 @@ const words = {
     "ارتباط مرورگر HTTP است. کد اتصال را از مسیر خصوصی مطمئن یا HTTPS دریافت کنید؛ ارتباط خود ایجنت همیشه رمزگذاری شده است.",
   ],
   agentPackageNotice: [
-    "Use a matching v1.3.2 Agent package. For offline packages, add --package-dir; see the guide.",
-    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.2 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
+    "Use a matching v1.3.3 Agent package. For offline packages, add --package-dir; see the guide.",
+    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.3 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
   ],
   manualCopyHelp: [
     "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
@@ -716,8 +881,8 @@ const words = {
     "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
   ],
   nodeReleaseHelp: [
-    "These features are included in v1.3.2. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
-    "این قابلیت‌ها در نسخهٔ 1.3.2 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
+    "These features are included in v1.3.3. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
+    "این قابلیت‌ها در نسخهٔ 1.3.3 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",

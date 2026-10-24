@@ -29,11 +29,13 @@ go build -trimpath -ldflags='-s -w' -o bin/gtm-panel ./cmd/gtm-panel
 
 The demo is loopback-only, uses **demo / demo-panel-12345**, labels simulated state and cannot execute system commands. On Windows, name the executable `gtm-panel.exe`; use Linux for race tests if no C toolchain is available locally. Browser checks cover both locales, color modes and mobile/desktop widths; see [Interface conventions](INTERFACE.md).
 
+For workspace changes, check direct hash links and browser back/forward, URL-backed search/status filters, inspection-to-traffic links and the current-server popover. Exercise create/edit/review with multiple destinations, an invalid field in a hidden advanced tab, keep/discard and untouched close. Test copied IPv4/IPv6 and configuration text on HTTP as well as secure contexts. A simulated inventory-refresh failure after a successful mutation must show a warning rather than encourage resubmitting the mutation. Keep simulated CRUD separate from real-server networking checks.
+
 ## Shell and networking checks
 
 ```bash
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,pair_api,api,panel,menus}.sh panel-install.sh node-install.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,pair_api,recovery,api,panel,menus}.sh panel-install.sh node-install.sh
 sudo bash tests/linux_namespace.sh
 git diff --check
 ```
@@ -50,6 +52,7 @@ The suite creates private parent/child namespaces and veth paths. It checks real
 - Installer tests redirect system paths and fake accounts/services. They cover version/checksum rejection, lock/config failures and upgrade preservation. Never run host-wide installation fixtures on an ordinary development host.
 - Go tests cover real local TLS enrollment, identity separation, revocation/renewal, protocol negotiation, reconnect and bounded reports. Paired operations need stale revision, repeated delivery, restart, expiry and fingerprint-preserving rollback coverage.
 - Accounting tests cover cycle baselines, restart/reset, missing counters and revision-checked actions. GRE and forward counters can overlap and must not become a combined total.
+- Recovery tests exercise authenticated encryption, tampering/wrong passwords, fresh-target/stale-review checks, paused publication and rollback, preserved IDs/keys/accounting, and real Bash round-trips for FRP/rathole. In the browser, download/upload a Demo backup, inspect migration changes, check the occupied-target blocker, then restore into an empty Demo fixture. Test both locales, mobile widths and reduced motion. Demo export does not invent secrets for simulated GRE/reverse resources; real adapter coverage is in Linux fixtures.
 - Before changing a component pin, verify the tagged upstream configuration/CLI and actual archive. A recognized version alone does not establish feature availability or peer compatibility.
 
 Keep LF endings, bounded data contracts and checked operations. Do not source user configuration, introduce runtime module downloads or save UI-filtered state. New-connection defaults must not rewrite existing absent-key semantics.

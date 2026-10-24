@@ -2,6 +2,8 @@
 
 Form layout: `DialogBody` owns modal scrolling and the containing block for hidden absolute form controls; `FieldGroup columns` owns responsive form columns. `EngineOptionFields` groups typed adapter options without changing their schema. The traffic list delegates writes to the existing captured-target `TrafficActions` flow. See [Interface conventions](INTERFACE.md).
 
+Portable recovery separates its authenticated envelope (`control/backup_crypto.go`), typed validation/migration and orchestration (`backup.go`), recognized adapter decoding (`backup_resources.go`) and paused publication (`src/recovery.sh`). Dedicated authenticated `/api/backups/*` routes use a single-request size gate and forward only fixed actions to the local `/backup` broker endpoint. They do not expand the Node operation vocabulary. The lazy frontend separates creation, restore orchestration, migration fields and scope/help; see [Backup and restore](BACKUP-RESTORE.md).
+
 `model/creation_defaults.json` is embedded by Go and imported by Vite. Only create merges these defaults, with explicit values taking precedence. Reads, updates, configuration import and reconciliation retain legacy absent-key behavior. New terminal forms write matching explicit values. No Node protocol or broker action is added.
 
 Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`. Runtime does not download/source modules. Sourcing the release defines functions/constants only; execution is guarded by `BASH_SOURCE[0] == $0`.
@@ -26,6 +28,7 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | tuning | Explicit global sysctl profiles, before/applied journal, drift-aware restore |
 | cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
 | links / reverse_api / pair_api / api | Noninteractive owned-resource operations shared with the Go panel |
+| recovery | Typed, paused recovery with full staging, target-revision checks and checked file rollback; no imported executable units |
 | panel | Optional panel lifecycle and engine preinstallation menus |
 | menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
 | legacy | Compatible GRE, Simple GRE, performance and old utilities |
@@ -107,5 +110,7 @@ Traffic collection remains in `metrics.go`; cycle baselines, customer policies, 
 `nodes/traffic.go` defines a separate bounded traffic-protocol-1 sideband over the existing active mTLS identity. Inventory and pair capability negotiation remain unchanged. Agents explicitly installed with `--traffic` read compact summaries from an accounting-enabled private broker; collection remains paused until enabled through the local root CLI. The broker uses the existing metrics engine and its own root ledger. The Controller retains one memory-only snapshot per identity, rechecks revocation after body decoding and does not persist or sum histories. Authenticated browser reads fetch one Node only. Node detail tabs mount/poll the read-only component only when selected and visible. See [Remote traffic summaries](REMOTE-TRAFFIC.md).
 
 The overview uses `connections/ConnectionSummary.tsx`, a bounded five-row presentation separate from the full CRUD table. Container queries select a compact desktop row or two-row mobile composition. Data direction stays localized while IP/port values are isolated inline; destination disclosures share one component. No management selection or network state is copied into the overview.
+
+The browser workspace uses allowlisted hash routes independent of Go API paths. `PanelHeader` owns shell controls; `ConnectionWorkspace` owns method-scoped lists. Connection draft state, basic fields, engine settings and review are separate modules; local resource setup lives in `features/resources`. Common discard protection and clipboard behavior remain outside engine forms. Secondary actions use accessible menus and public mutation contracts are unchanged. Editor/resource bundles load on demand; notifications are bundled frontend code, not a resident server service.
 
 Configuration inspection/import is isolated in `control/configuration*.go`. Only closed IDs and revisions cross the public API. Native edits must round-trip through the same typed adapter; apply reuses the full-state Bash transaction. Reverse projections use a strict generated grammar and mask secrets. Local inventory embeds the static model profile catalog; remote Node snapshots omit UI catalog data.

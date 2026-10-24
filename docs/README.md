@@ -11,6 +11,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | [Nodes and Agents](NODES.md) | Local-only operation, Controller setup and enrollment |
 | [Connect two servers](PAIRED-CONNECTIONS.md) | Coordinated GRE/FRP setup and failure recovery |
 | [Operations](OPERATIONS.md) | Validation, backups, restoration and deployment checks |
+| [Backup and restore](BACKUP-RESTORE.md) | Encrypted portable recovery, fresh-server migration and optional accounting |
 | [Panel removal](PANEL-REMOVAL.md) | Removing the panel while retaining tunnels |
 
 ## Connections and traffic

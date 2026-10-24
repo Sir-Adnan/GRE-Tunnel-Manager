@@ -38,6 +38,8 @@ New relay forms default to listening on all IPv4 addresses. Review exposes this 
 
 ## Restore or investigate a failure
 
+For a reinstall or a move to another server, use the panel's encrypted [Backup & restore](BACKUP-RESTORE.md) workflow. It includes recognized GRE/reverse definitions and optional accounting. The terminal restore points below have a narrower scope.
+
 Use **Tools → Restore Backup**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
 
 ```bash
@@ -62,7 +64,7 @@ The installer pins rathole 0.5.0 release archives with SHA-256, supports x86_64 
 
 Local files: `/etc/gre-manager/gtm-rathole-ROLE-NAME.toml` and `/etc/systemd/system/gtm-rathole-ROLE-NAME.service`. Review status with `--doctor` or `journalctl -u gtm-rathole-entrance-NAME`. A running process does not prove successful peer authentication, target reachability or packet transfer. The preset has schema validation and startup checks; rathole 0.5.0 has no separate native offline config verifier in this adapter.
 
-**List / remove** stops/disables only the selected local service and removes its owned config/unit. A stop failure retains files for recovery. Removal on one host does not remove its peer. Recreate with a new key to rotate credentials and coordinate the destination; automatic editing/hot reload is not offered yet. FRP/rathole configs are outside TSV restore points: back them up separately with restrictive permissions.
+**List / remove** stops/disables only the selected local service and removes its owned config/unit. A stop failure retains files for recovery. Removal on one host does not remove its peer. Recreate with a new key to rotate credentials and coordinate the destination; automatic editing/hot reload is not offered yet. FRP/rathole configs remain outside TSV restore points; the encrypted [portable backup](BACKUP-RESTORE.md) includes recognized generated reverse definitions and their secrets.
 
 ## Remove a GRE link
 

@@ -76,6 +76,9 @@ gtm_api() {
     local operation=${1:-} component
     shift || return 2
     case $operation in
+        recovery-revision) (($#==0)) && gtm_recovery_revision;;
+        recovery-render) (($#==1)) && gtm_recovery_render "$1";;
+        recovery-import) (($#==0)) && gtm_recovery_import;;
         resource-rename) (($#==2)) || return 2
             local display_name
             IFS= read -r display_name || return 2

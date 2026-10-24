@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.3 — Refined workspaces and encrypted portable recovery
+
+- Add an optional local-server Backup & restore workspace with encrypted downloads, source/destination review, IP/interface migration, explicit conflict checks and paused recovery on a fresh installation. Preserve managed forwarding/GRE/reverse definitions, reverse secrets, display names, allocation counters and optional traffic records; keep panel/Node identities and external host resources separate.
+- Stage and validate typed recovery records behind the local broker and shared Bash lock. Reject stale reviews, unknown schemas and occupied targets; report partial accounting persistence. Share the GRE unit renderer between normal creation and recovery.
+- Add a persistent-start action for managed GRE/reverse services so restored resources can be explicitly started and enabled for boot from the panel.
+- Keep long inline help within the available viewport, with scrollable popovers and compact mobile backup guidance.
+
+- Redesign the connection workspace around entrance/destination panels, separate basic/advanced tabs, optional names, a route summary and review before save. Split draft state, common fields, engine settings and review into separate modules; retain saved configuration semantics.
+- Add shareable hash routes with browser history, URL-backed connection search/status/detail state and direct links to selected traffic details. Keep embedded-server/API paths unchanged.
+- Replace crowded row actions with direct edit and a labeled menu. Add per-connection summary/destination inspection, separate server/paired-connection tabs and a compact dashboard metrics band. Move the whole-server configuration preview to the page toolbar.
+- Introduce a shared server-information header, typed notifications above mobile navigation, and discard protection for changed connection, GRE/reverse and configuration drafts. Lazy-load editors and resource setup; no server-side service or build-tool requirement is added.
+- Fix address, configuration, command, enrollment-code and reverse-token copy buttons on HTTP pages. Prefer the Clipboard API, fall back to a user-initiated selection copy inside the active dialog, restore focus/selection and report success or a manual-copy instruction without exposing secrets in notifications.
+
 ## v1.3.2 — Compact forms, simpler setup and refreshed documentation
 
 - Fix nested modal scrolling and hidden Radix form controls escaping the scroll body. Keep headings/actions visible and use compact responsive field groups.

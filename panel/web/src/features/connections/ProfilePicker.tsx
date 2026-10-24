@@ -18,7 +18,7 @@ export function ProfilePicker({
     locale = useContext(LocaleContext),
     selected = presets.find((p) => p.id === value);
   return (
-    <div className="flex flex-col gap-2 sm:col-span-full">
+    <div className="flex flex-col gap-2">
       <Choice
         id="preset"
         label={t("connectionProfile")}

@@ -1,6 +1,7 @@
 import { useContext } from "react";
 import {
   Activity,
+  Archive,
   ArrowRight,
   Gauge,
   Layers3,
@@ -55,6 +56,7 @@ const groups = [
     title: "preferences",
     items: [
       { id: "components", icon: Server },
+      { id: "backups", icon: Archive },
       { id: "settings", icon: Settings2 },
     ],
   },
@@ -143,7 +145,7 @@ export function PanelSidebar({
               <bdi>{inventory?.host.hostname || "Server"}</bdi>
             </p>
             <p className="text-xs text-muted-foreground">
-              <bdi>v{inventory?.version || "1.3.2"}</bdi>
+              <bdi>v{inventory?.version || "1.3.3"}</bdi>
             </p>
           </div>
           <span className="group-data-[collapsible=icon]:hidden">

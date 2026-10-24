@@ -58,7 +58,7 @@ curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager
 
 راهنماهای فنی به انگلیسی نوشته شده‌اند:
 
-- راه‌اندازی و نگهداری: [راهنمای کاربری](docs/USER-GUIDE.md) و [پشتیبان‌گیری و بازیابی](docs/OPERATIONS.md)
+- راه‌اندازی و نگهداری: [راهنمای کاربری](docs/USER-GUIDE.md) و [پشتیبان‌گیری و بازیابی](docs/BACKUP-RESTORE.md)
 - تنظیم اتصال: [پریست‌ها](docs/CONNECTION-PROFILES.md)، [هاپروکسی](docs/HAPROXY.md) و [ویرایش کانفیگ](docs/CONFIGURATION-EDITOR.md)
 - مدیریت مصرف: [ثبت ترافیک](docs/TRAFFIC-ACCOUNTING.md)، ریست، برچسب، تاریخچه و سقف اطلاع‌رسانی مصرف
 - به‌روزرسانی: [نصب و ارتقای پنل](docs/WEB-PANEL.md#existing-installations-and-recovery) و [تغییرات نسخه‌ها](docs/CHANGELOG.md)

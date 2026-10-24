@@ -59,7 +59,7 @@ Agents support inventory, coordinated GRE/FRP setup and optional read-only traff
 
 ## Guides
 
-- **Start and operate:** [User guide](docs/USER-GUIDE.md) · [Backups and recovery](docs/OPERATIONS.md)
+- **Start and operate:** [User guide](docs/USER-GUIDE.md) · [Backup and restore](docs/BACKUP-RESTORE.md)
 - **Configure:** [Setup presets](docs/CONNECTION-PROFILES.md) · [HAProxy](docs/HAPROXY.md) · [Configuration editor](docs/CONFIGURATION-EDITOR.md)
 - **Track usage:** [Traffic accounting](docs/TRAFFIC-ACCOUNTING.md) — resets, labels, history and advisory quotas
 - **Maintain:** [Upgrade](docs/WEB-PANEL.md#existing-installations-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)

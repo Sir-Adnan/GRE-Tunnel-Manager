@@ -119,16 +119,21 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
 function DialogFooter({
   className,
   showCloseButton = false,
+  layout = "actions",
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean;
+  layout?: "actions" | "summary";
 }) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "-mx-4 -mb-4 flex shrink-0 gap-2 rounded-b-xl border-t bg-muted/50 p-4",
+        layout === "summary"
+          ? "flex-row flex-wrap items-center justify-between"
+          : "flex-col-reverse sm:flex-row sm:justify-end",
         className,
       )}
       {...props}

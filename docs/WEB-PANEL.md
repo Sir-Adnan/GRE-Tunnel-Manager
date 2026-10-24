@@ -2,6 +2,8 @@
 
 Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
 
+Version **v1.3.3** adds **Backup & restore** for password-protected recovery downloads and migration to a fresh server, with optional traffic records and explicit address/interface replacement. Imported resources stay paused. See [Backup and restore](BACKUP-RESTORE.md) for scope, external certificates, Node identities and recovery steps.
+
 ## Installation and login
 
 On Debian/Ubuntu with systemd:
@@ -48,7 +50,7 @@ Explicit HTTP works on an IP without a certificate, but browser login and manage
 
 ### Existing installations and recovery
 
-Run the current installer again to upgrade to the matching **v1.3.2** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+Run the current installer again to upgrade to the matching **v1.3.3** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
 
 Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. Failures after replacement are not a host-wide atomic transaction: inspect logs and restore the previous matched package when needed. Keep private backups of configuration and Node identities.
 
@@ -76,9 +78,11 @@ An interrupted first setup can leave TLS files; inspect and move only those owne
 
 The [capability matrix](ENGINE-CAPABILITIES.md) defines supported versions and limits. Adapters do not expose every native engine option. General editors act on the panel host; remote writes are limited to [coordinated GRE/FRP creation](PAIRED-CONNECTIONS.md).
 
-Forms keep common inputs visible and advanced controls in tabs. Names are optional. **Start after saving** decides whether the connection runs immediately. **Relative share** controls weighted distribution, not priority or a bandwidth guarantee. [Setup presets](CONNECTION-PROFILES.md) initialize settings without changing existing records automatically.
+Connection forms start with entrance ports and destinations, side by side on desktop and stacked on mobile. Names are optional; advanced engine settings have a separate tab. The footer summarizes the route and whether it will start after saving. Review precedes every apply. Changed connection, GRE/reverse and configuration drafts ask before closing; drafts are not stored in the browser. **Relative share** controls weighted distribution, not priority or a bandwidth guarantee. [Setup presets](CONNECTION-PROFILES.md) initialize settings without changing existing records automatically.
 
-**Preview all configurations** renders enabled local connections without applying anything. Use a row's configuration icon to inspect/edit that record. The [configuration editor](CONFIGURATION-EDITOR.md) supports managed JSON and a restricted native-text subset, with revision checks, validation and review. GRE/reverse file views are read-only; reverse secrets are masked. Arbitrary paths, commands and unrestricted overrides are not exposed.
+Select a connection name to inspect its summary and copy destination endpoints. Edit stays directly accessible; the **More actions** menu contains configuration, supported logs, start/stop and deletion. The toolbar's **Preview all configurations** renders enabled local connections without applying anything. The [configuration editor](CONFIGURATION-EDITOR.md) supports managed JSON and a restricted native-text subset, with revision checks, validation and review. GRE/reverse file views are read-only; reverse secrets are masked. Arbitrary paths, commands and unrestricted overrides are not exposed.
+
+Page addresses such as `#/haproxy` can be bookmarked. Search/status filters, selected connection details and traffic tabs are retained in the URL. Browser back/forward works between pages. The header's server button shows the local host, protocol and separately copyable IPv4/IPv6 addresses. These remain local operations; remote management is limited to the capabilities described below.
 
 ## Traffic usage
 
@@ -90,7 +94,7 @@ Bytes are network-layer usage, not provider billing. GRE and forwarding counters
 
 ## Multiple servers
 
-The panel host is already a local Node and needs no Agent. **Nodes → Add server** opens setup guidance when the Controller is disabled. Enable its dedicated TLS listener, allow its port and refresh, then create an invitation for the other server's outbound Agent. Browser HTTP and Agent TLS are independent. See [Nodes](NODES.md), [paired connections](PAIRED-CONNECTIONS.md) and [remote traffic](REMOTE-TRAFFIC.md).
+The panel host is already a local Node and needs no Agent. Nodes has separate server inventory and **Connect two servers** tabs. **Add server** opens setup guidance when the Controller is disabled. Enable its dedicated TLS listener, allow its port and refresh, then create an invitation for the other server's outbound Agent. Browser HTTP and Agent TLS are independent. See [Nodes](NODES.md), [paired connections](PAIRED-CONNECTIONS.md) and [remote traffic](REMOTE-TRAFFIC.md).
 
 ## Security and runtime
 

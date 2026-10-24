@@ -89,6 +89,7 @@ type Inventory struct {
 	Demo           bool                  `json:"demo"`
 }
 type Request struct {
+	Backup          BackupInput      `json:"backup,omitzero"`
 	Configuration   ConfigInput      `json:"configuration,omitzero"`
 	NodeTask        *NodeTask        `json:"node_task,omitempty"`
 	Action          string           `json:"action"`
@@ -242,10 +243,12 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.2"}, nil
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.3"}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {
+	case "backup-export", "backup-review", "backup-restore":
+		return m.backup(ctx, r.Action, r.Backup)
 	case "configuration":
 		return m.Configuration(ctx, r.Configuration)
 	case "configuration-review", "configuration-apply":
@@ -362,6 +365,9 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		}
 		if r.Action == "logs" {
 			return m.Runner.Run(ctx, "journalctl", []string{"-u", r.Service, "-n", "100", "--no-pager", "--output=short-iso"}, "")
+		}
+		if r.Verb == "enable" && (greID.MatchString(r.Service) || reverseID.MatchString(r.Service)) {
+			return m.Runner.Run(ctx, "systemctl", []string{"enable", "--now", r.Service}, "")
 		}
 		if !oneOf(r.Verb, "start", "stop", "restart") {
 			return nil, errors.New("invalid service action")

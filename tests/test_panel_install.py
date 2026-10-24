@@ -66,7 +66,7 @@ stop) [[ ! -f "$TEST_ROOT/fail-stop" ]];; *) exit 0;; esac""")
         executable = """#!/bin/bash
 set -euo pipefail
 case "$1" in
-version) printf '%s\\n' "${TEST_BINARY_VERSION:-v1.3.2}";;
+version) printf '%s\\n' "${TEST_BINARY_VERSION:-v1.3.3}";;
 setup-version) printf '%s\\n' "$TEST_SETUP_VERSION";;
 uninstall-version) printf '%s\\n' "${TEST_UNINSTALL_VERSION:-1}";;
 uninstall-prepare)
@@ -87,7 +87,7 @@ address)
 esac
 """
         arch = {'x86_64':'amd64', 'aarch64':'arm64'}[platform.machine()]
-        archive = self.packages / f'gtm-panel-v1.3.2-linux-{arch}.tar.gz'
+        archive = self.packages / f'gtm-panel-v1.3.3-linux-{arch}.tar.gz'
         with tarfile.open(archive, 'w:gz') as tar:
             for name, body in [('gtm-panel', executable), ('gre.sh', '#!/bin/bash\nexit 0\n')]:
                 data = body.encode()

@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
-import { Copy, HelpCircle, Link2, Plus, RefreshCw } from "lucide-react";
+import { HelpCircle, Link2, Plus, RefreshCw } from "lucide-react";
+import { CopyButton } from "@/components/CopyButton";
 import { api } from "@/lib/api";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
@@ -8,13 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogBody,
@@ -22,6 +16,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { usePanelRoute } from "@/lib/use-panel-route";
 import { FieldGroup } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ActionButton, HelpTip } from "@/components/help";
@@ -37,6 +33,8 @@ import { PairedConnections } from "./PairedConnections";
 export function Nodes() {
   const t = useT();
   const locale = useContext(LocaleContext);
+  const { params, updateParams } = usePanelRoute();
+  const section = params.get("tab") === "pairs" ? "pairs" : "servers";
   const [list, setList] = useState<Listing>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,7 +44,6 @@ export function Nodes() {
   const [details, setDetails] = useState<Node>();
   const [revoking, setRevoking] = useState<Node>();
   const [help, setHelp] = useState(false);
-  const [copied, setCopied] = useState(false);
   const refresh = useCallback(async () => {
     const value = await api<Listing>("nodes");
     setList(value);
@@ -94,7 +91,6 @@ export function Nodes() {
     setAdding(false);
     setInvitation(undefined);
     setName("");
-    setCopied(false);
   };
   return (
     <div className="page-stack">
@@ -132,17 +128,16 @@ export function Nodes() {
         </Alert>
       )}
       {list && !list.enabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("controllerRequired")}</CardTitle>
-            <CardDescription>{t("controllerRequiredHelp")}</CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button variant="outline" onClick={() => setHelp(true)}>
-              {t("setupGuide")}
-            </Button>
-          </CardFooter>
-        </Card>
+        <Alert>
+          <AlertDescription>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>{t("controllerRequiredHelp")}</span>
+              <Button variant="outline" size="sm" onClick={() => setHelp(true)}>
+                {t("setupGuide")}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
       {list?.enabled && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -157,18 +152,37 @@ export function Nodes() {
         </div>
       )}
       {!list && !error && <Skeleton className="h-60 w-full" />}
-      <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
-        {list?.nodes.map((node) => (
-          <NodeCard
-            key={node.id}
-            node={node}
-            busy={busy}
-            onDetails={() => setDetails(node)}
-            onRevoke={() => setRevoking(node)}
-          />
-        ))}
-      </div>
-      {list?.enabled && <PairedConnections nodes={list.nodes} />}
+      <Tabs
+        dir={locale === "fa" ? "rtl" : "ltr"}
+        value={list?.enabled ? section : "servers"}
+        onValueChange={(tab) =>
+          updateParams({ tab: tab === "servers" ? "" : tab })
+        }
+        className="gap-5"
+      >
+        <TabsList variant="line" aria-label={t("nodes")}>
+          <TabsTrigger value="servers">{t("nodes")}</TabsTrigger>
+          <TabsTrigger value="pairs" disabled={!list?.enabled}>
+            {t("pairedConnections")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="servers">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            {list?.nodes.map((node) => (
+              <NodeCard
+                key={node.id}
+                node={node}
+                busy={busy}
+                onDetails={() => setDetails(node)}
+                onRevoke={() => setRevoking(node)}
+              />
+            ))}
+          </div>
+        </TabsContent>
+        <TabsContent value="pairs">
+          {list?.enabled && <PairedConnections nodes={list.nodes} />}
+        </TabsContent>
+      </Tabs>
       <Dialog
         open={adding}
         onOpenChange={(open) => !open && !busy && closeAdd()}
@@ -245,18 +259,11 @@ export function Nodes() {
                   className="w-full min-w-0 rounded-md border bg-background p-3 font-mono text-xs"
                   onFocus={(e) => e.target.select()}
                 />
-                <Button
+                <CopyButton
                   variant="outline"
-                  onClick={() => {
-                    void navigator.clipboard
-                      ?.writeText(invitation.code)
-                      .then(() => setCopied(true))
-                      .catch(() => setCopied(false));
-                  }}
-                >
-                  <Copy data-icon="inline-start" />
-                  {t(copied ? "copied" : "copy")}
-                </Button>
+                  text={invitation.code}
+                  label={t("copy")}
+                />
                 <p className="text-xs leading-6 text-muted-foreground">
                   {t("manualCopyHelp")}
                 </p>

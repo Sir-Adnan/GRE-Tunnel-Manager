@@ -1,5 +1,7 @@
 # Server Artifacts
 
+Portable `.gtm-backup` files are encrypted downloads stored by the operator, not persistent server-side archives. Recovery stages known files in a private `/run/gre-manager/recovery.*` directory and publishes only manager-owned state/configuration/unit paths. It neither copies imported executable units nor enables services. Staging files are removed after a checked return; a machine interruption can leave private staging files for inspection. See [Backup and restore](BACKUP-RESTORE.md).
+
 Header server information is cached only in process memory. It creates no files or background tasks. Interactive sessions may make one bounded HTTPS public-IP/provider lookup; Tools → Refresh Server Info explicitly refreshes it. Preview/demo and noninteractive output do not make this request. See [TERMINAL-UI.md](TERMINAL-UI.md).
 
 ## v1 managed resources
@@ -32,7 +34,7 @@ Config/state is root-owned with mode 600, containing directory 700. Temporary ge
 
 Kernel resources: iptables `GTM_PRE`, `GTM_POST`, `GTM_FWD`, `GTM_MSS` and their parent jumps; nftables `table inet gre_manager` including per-target branch chains. Disabling/deleting the final record empties owned chains/table rather than flushing host rules. Existing conntrack flows may live until their normal expiration; the manager does not flush the host conntrack table.
 
-The nftables table also owns a forward-hook MSS chain at priority -150, scoped to original-direction managed TCP DNAT flows. FRP/rathole secrets are outside TSV snapshots and need a separate restricted backup. Their local deletion does not contact or delete the peer on another server.
+The nftables table also owns a forward-hook MSS chain at priority -150, scoped to original-direction managed TCP DNAT flows. FRP/rathole secrets remain outside TSV snapshots; the encrypted portable recovery file includes recognized reverse definitions and keys. Their local deletion does not contact or delete the peer on another server.
 
 IPv4 forwarding is enabled when required and re-enabled by the boot runner. IPv6 forwarding must be deliberately configured by the operator, including RA behavior where relevant. Global forwarding settings are not automatically reverted on deletion.
 
