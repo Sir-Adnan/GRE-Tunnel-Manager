@@ -16,6 +16,16 @@ func (r demoConfigRunner) Run(_ context.Context, _ string, args []string, input 
 		return "", fmt.Errorf("invalid demo operation")
 	}
 	switch args[2] {
+	case "recovery-revision":
+		var rows []string
+		for _, c := range r.connections {
+			v, e := c.Rows(c.ID)
+			if e != nil {
+				return "", e
+			}
+			rows = append(rows, v...)
+		}
+		return model.Revision(strings.Join(rows, "\n")), nil
 	case "state":
 		var rows []string
 		for _, c := range r.connections {
@@ -53,18 +63,30 @@ func (r demoConfigRunner) Run(_ context.Context, _ string, args []string, input 
 		var b strings.Builder
 		fmt.Fprintln(&b, "# DEMO: illustrative output; production uses the Bash renderer")
 		if c.Engine == "haproxy" {
-			fmt.Fprintf(&b, "global\n    maxconn %s\ndefaults\n    mode tcp\n    retries %s\n    timeout connect %ss\n    timeout client %ss\n    timeout server %ss\nfrontend entrance\n    bind %s\n    default_backend destinations\nbackend destinations\n    balance %s\n", value("maxconn"), value("retries"), value("connect"), value("idle"), value("idle"), net.JoinHostPort(c.Bind, c.Ports), map[string]string{"single": "roundrobin", "failover": "roundrobin", "roundrobin": "roundrobin", "leastconn": "leastconn", "source": "source"}[c.Strategy])
-			for i, t := range c.Targets {
-				fmt.Fprintf(&b, "    server s%d %s weight %d check inter %ss fall %s rise %s\n", i+1, endpoint(t.IP, t.Port), t.Weight, value("check_interval"), value("check_fall"), value("check_rise"))
-			}
+			demoHAConfig(&b, c, value)
 		} else if c.Engine == "realm" {
 			fmt.Fprintf(&b, "[log]\nlevel = %q\n[network]\ntcp_timeout = %s\nudp_timeout = %s\n[[endpoints]]\nlisten = %q\nremote = %q\n", value("log"), value("tcp_timeout"), value("udp_timeout"), net.JoinHostPort(c.Bind, c.Ports), endpoint(c.Targets[0].IP, c.Targets[0].Port))
 		} else {
 			fmt.Fprintf(&b, "# %s owned %s forwarding\n# %s:%s -> %s\n", c.Engine, c.Protocol, c.Bind, c.Ports, endpoint(c.Targets[0].IP, c.Targets[0].Port))
+			if c.SNAT == "masquerade" {
+				fmt.Fprintln(&b, "# Source policy: masquerade")
+			}
 			if c.Engine == "nftables" {
 				fmt.Fprintln(&b, "table inet gre_manager {\n    # Named owned DNAT rules are rendered on Linux\n}")
+				for _, proto := range []string{"tcp", "udp"} {
+					if c.Protocol != proto && c.Protocol != "both" {
+						continue
+					}
+					fmt.Fprintf(&b, "add rule inet gre_manager pre ip daddr %s %s dport %s counter dnat ip to %s comment \"gtm-%s\"\n", c.Bind, proto, c.Ports, endpoint(c.Targets[0].IP, c.Targets[0].Port), c.ID)
+				}
 			} else {
 				fmt.Fprintln(&b, "*nat\n# Owned GTM chains are rendered on Linux\nCOMMIT")
+				for _, proto := range []string{"tcp", "udp"} {
+					if c.Protocol != proto && c.Protocol != "both" {
+						continue
+					}
+					fmt.Fprintf(&b, "-A GTM_PRE -d %s -p %s --dport %s -m comment --comment gtm-%s -j DNAT --to-destination %s\n", c.Bind, proto, c.Ports, c.ID, endpoint(c.Targets[0].IP, c.Targets[0].Port))
+				}
 			}
 		}
 		return b.String(), nil

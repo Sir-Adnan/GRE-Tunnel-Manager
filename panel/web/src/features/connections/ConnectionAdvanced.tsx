@@ -58,6 +58,7 @@ export function ConnectionAdvanced({ draft }: { draft: ConnectionDraft }) {
             )}
 
             <HealthCheckFields
+              requireChecks={value.strategy === "failover"}
               options={value.options}
               onChange={(next) => patch("options", next)}
             />

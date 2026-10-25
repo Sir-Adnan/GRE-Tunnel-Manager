@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"math"
 	"slices"
@@ -19,11 +20,12 @@ const maxTrafficPoints = 288
 const maxTrafficCycles = 12
 const maxTrafficBytes = uint64(9007199254740991) // exact in browser JSON numbers
 
-// Quotas are advisory. No asynchronous process may silently change the network.
+// Existing policies remain advisory. Blocking requires an explicit opt-in.
 type TrafficPolicy struct {
-	Label     string `json:"label"`
-	Limit     uint64 `json:"limit"`
-	Direction string `json:"direction"` // total, received, sent
+	Label       string `json:"label"`
+	Limit       uint64 `json:"limit"`
+	Direction   string `json:"direction"` // total, received, sent
+	StopOnLimit bool   `json:"stop_on_limit,omitempty"`
 }
 type TrafficPoint struct {
 	Time       time.Time `json:"time"`
@@ -78,7 +80,7 @@ func trafficID(id string) bool {
 	return model.IDPattern.MatchString(id) || (ServiceOK(id) && !strings.HasPrefix(id, "gtm-F"))
 }
 func validTrafficPolicy(p TrafficPolicy) bool {
-	if !utf8.ValidString(p.Label) || utf8.RuneCountInString(p.Label) > 80 || p.Limit > maxTrafficBytes || !oneOf(p.Direction, "total", "received", "sent") {
+	if !utf8.ValidString(p.Label) || utf8.RuneCountInString(p.Label) > 80 || p.Limit > maxTrafficBytes || (p.StopOnLimit && p.Limit == 0) || !oneOf(p.Direction, "total", "received", "sent") {
 		return false
 	}
 	for _, r := range p.Label {
@@ -92,6 +94,7 @@ func cloneMetrics(v MetricsView) MetricsView {
 	next := v
 	next.Settings.IDs = append([]string{}, v.Settings.IDs...)
 	next.Counters = maps.Clone(v.Counters)
+	next.Blocked = maps.Clone(v.Blocked)
 	next.Policies = maps.Clone(v.Policies)
 	next.History = make(map[string][]TrafficPoint, len(v.History))
 	for id, points := range v.History {
@@ -104,8 +107,13 @@ func cloneMetrics(v MetricsView) MetricsView {
 	return next
 }
 func (m *Metrics) validateLedger() error {
-	if len(m.view.Counters) > maxTrafficResources || len(m.view.Policies) > maxTrafficResources || len(m.view.History) > maxTrafficResources || len(m.view.Cycles) > maxTrafficResources {
+	if len(m.view.Blocked) > maxTrafficResources || len(m.view.Counters) > maxTrafficResources || len(m.view.Policies) > maxTrafficResources || len(m.view.History) > maxTrafficResources || len(m.view.Cycles) > maxTrafficResources {
 		return errors.New("traffic ledger resource limit exceeded")
+	}
+	for id := range m.view.Blocked {
+		if !trafficID(id) {
+			return errors.New("invalid traffic blocker identity")
+		}
 	}
 	if m.view.Policies == nil {
 		m.view.Policies = map[string]TrafficPolicy{}
@@ -194,14 +202,19 @@ func (m *Metrics) Change(ctx context.Context, action string, change TrafficChang
 	if action == "metrics-policy" && !validTrafficPolicy(change.Policy) {
 		return MetricsView{}, errors.New("invalid traffic label, quota or direction")
 	}
+	if action == "metrics-policy" && change.Policy.StopOnLimit && (!available || !m.view.Settings.Enabled || !wanted(m.view.Settings.IDs, change.ID)) {
+		return MetricsView{}, errors.New("enable traffic collection for this resource before enabling automatic pause")
+	}
 	old := cloneMetrics(m.view)
 	rollback := func(e error) (MetricsView, error) { m.view = old; return MetricsView{}, e }
 	// Capture in-flight bytes BEFORE moving the baseline, never zero kernel counters.
-	if action == "metrics-reset" && m.view.Settings.Enabled {
+	if (action == "metrics-reset" || action == "metrics-policy") && m.view.Settings.Enabled {
 		if e := m.collect(ctx); e != nil {
 			return rollback(e)
 		}
 		m.sampleInterfaces(inventory, false)
+		// Keep successfully collected bytes even if publishing the policy fails.
+		old = cloneMetrics(m.view)
 	}
 	if !known && len(m.view.Counters) >= maxTrafficResources {
 		return rollback(errors.New("archive limit reached; forget removed resources first"))
@@ -213,6 +226,18 @@ func (m *Metrics) Change(ctx context.Context, action string, change TrafficChang
 	}
 	if e := m.save(); e != nil {
 		return rollback(e)
+	}
+	if m.view.Settings.Enabled {
+		if e := m.reconcile(ctx, inventory); e != nil {
+			m.view = old
+			m.signature = ""
+			restoreFile := m.save()
+			restoreRules := m.reconcile(ctx, inventory)
+			return MetricsView{}, errors.Join(e, restoreFile, restoreRules)
+		}
+	}
+	if e := m.save(); e != nil {
+		return MetricsView{}, fmt.Errorf("traffic policy applied but final ledger persistence failed: %w", e)
 	}
 	return cloneMetrics(m.view), nil
 }

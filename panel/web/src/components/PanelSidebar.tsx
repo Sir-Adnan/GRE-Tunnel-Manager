@@ -121,7 +121,9 @@ export function PanelSidebar({
                               : undefined
                           }
                         />
-                        <span>{"label" in item ? item.label : t(item.id)}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {"label" in item ? item.label : t(item.id)}
+                        </span>
                       </SidebarMenuButton>
                       {item.id === "connections" && inventory && (
                         <SidebarMenuBadge>
@@ -145,7 +147,7 @@ export function PanelSidebar({
               <bdi>{inventory?.host.hostname || "Server"}</bdi>
             </p>
             <p className="text-xs text-muted-foreground">
-              <bdi>v{inventory?.version || "1.3.3"}</bdi>
+              <bdi>v{inventory?.version || "1.3.4"}</bdi>
             </p>
           </div>
           <span className="group-data-[collapsible=icon]:hidden">

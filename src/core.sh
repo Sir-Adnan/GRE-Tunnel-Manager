@@ -1,10 +1,10 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.3.3
+GTM_VERSION=1.3.4
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
 gtm_uint() {
-    [[ $1 =~ ^[0-9]{1,6}$ ]] || return 1
+    [[ $1 =~ ^[0-9]{1,7}$ ]] || return 1
     (( 10#$1 >= $2 && 10#$1 <= $3 ))
 }
 

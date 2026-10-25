@@ -11,16 +11,16 @@ gtm_haproxy_defaults() {
 
 gtm_haproxy_values_validate() {
     gtm_uint "$H_CONNECT" 1 300 && gtm_uint "$H_IDLE" 10 604800 && gtm_uint "$H_QUEUE" 1 3600 &&
-        gtm_uint "$H_MAXCONN" 1 100000 && gtm_uint "$H_SERVER_MAXCONN" 0 100000 &&
+        gtm_uint "$H_MAXCONN" 0 1000000 && gtm_uint "$H_SERVER_MAXCONN" 0 1000000 &&
         gtm_uint "$H_CHECK_INTERVAL" 1 300 && gtm_uint "$H_CHECK_TIMEOUT" 1 300 &&
         gtm_uint "$H_CHECK_FALL" 1 20 && gtm_uint "$H_CHECK_RISE" 1 20 &&
         gtm_uint "$H_CHECK_PORT" 0 65535 && gtm_uint "$H_SLOWSTART" 0 3600 &&
         [[ $H_PROXY =~ ^(off|v1|v2)$ && $H_LOG =~ ^(connections|errors|off)$ ]] &&
-        [[ $H_CHECK_MODE =~ ^(tcp|http)$ && $H_CHECK_PATH =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ &&
+        [[ $H_CHECK_MODE =~ ^(off|tcp|http)$ && $H_CHECK_PATH =~ ^/[a-zA-Z0-9/_.~-]{0,127}$ &&
             $H_CHECK_HOST =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$ ]] &&
         gtm_uint "$H_CHECK_STATUS" 200 599 &&
-        { [[ $H_CHECK_MODE == tcp ]] || ((10#$H_CHECK_PORT > 0)); } &&
-        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 100000 && gtm_uint "$H_STICK_EXPIRE" 30 86400 &&
+        { [[ $H_CHECK_MODE != http ]] || ((10#$H_CHECK_PORT > 0)); } &&
+        [[ $H_STICK == off || $H_STICK == source ]] && gtm_uint "$H_STICK_SIZE" 1024 1000000 && gtm_uint "$H_STICK_EXPIRE" 30 86400 &&
         gtm_uint "$H_FIN" 0 300 && gtm_uint "$H_TUNNEL" 0 604800 && gtm_uint "$H_RETRIES" 0 5
 }
 
@@ -31,7 +31,7 @@ gtm_haproxy_options_validate() {
     [[ -n $options && $options != ';'* && $options != *';' && $options != *';;'* ]] || return 1
     gtm_haproxy_defaults
     IFS=';' read -r -a pairs <<< "$options"
-    ((${#pairs[@]} <= 23)) || return 1
+    ((${#pairs[@]} <= 32)) || return 1
     for pair in "${pairs[@]}"; do
         [[ $pair == *=* ]] || return 1
         key=${pair%%=*}; value=${pair#*=}
@@ -78,7 +78,8 @@ gtm_haproxy_render() {
     case $algorithm in single|failover) algorithm=roundrobin;; esac
     printf 'global\n'
     [[ $H_LOG == off ]] || printf '    log stdout format raw local0\n'
-    printf '    maxconn %d\n    user nobody\n    group nogroup\n' "$((10#$H_MAXCONN))"
+    ((10#$H_MAXCONN == 0)) || printf '    maxconn %d\n' "$((10#$H_MAXCONN))"
+    printf '    user nobody\n    group nogroup\n'
     printf '    stats socket %s mode 600 level user\n    stats timeout 3s\n' "$(gtm_haproxy_socket "$R_ID")"
     printf 'defaults\n    mode %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf http || printf tcp)"
     [[ $H_LOG == off ]] || printf '    log global\n    option %s\n' "$([[ $H_ROUTE_MODE == http || $H_ROUTE_MODE == https ]] && printf httplog || printf tcplog)"
@@ -107,8 +108,11 @@ gtm_haproxy_servers() {
     for target in "${targets[@]}"; do
         gtm_endpoint "$target" || return 1; ((index+=1))
         ((selected==0 || index==10#$selected)) || continue
-        printf '    server target%d %s weight %d check inter %ds fall %d rise %d' "$index" "$(gtm_address "$EP_IP" "$EP_PORT")" "$EP_WEIGHT" "$((10#$H_CHECK_INTERVAL))" "$((10#$H_CHECK_FALL))" "$((10#$H_CHECK_RISE))"
-        ((10#$H_CHECK_PORT == 0)) || printf ' port %d' "$((10#$H_CHECK_PORT))"
+        printf '    server target%d %s weight %d' "$index" "$(gtm_address "$EP_IP" "$EP_PORT")" "$EP_WEIGHT"
+        if [[ $H_CHECK_MODE != off ]]; then
+            printf ' check inter %ds fall %d rise %d' "$((10#$H_CHECK_INTERVAL))" "$((10#$H_CHECK_FALL))" "$((10#$H_CHECK_RISE))"
+            ((10#$H_CHECK_PORT == 0)) || printf ' port %d' "$((10#$H_CHECK_PORT))"
+        fi
         ((10#$H_SERVER_MAXCONN == 0)) || printf ' maxconn %d' "$((10#$H_SERVER_MAXCONN))"
         ((10#$H_SLOWSTART == 0)) || printf ' slowstart %ds' "$((10#$H_SLOWSTART))"
         case $H_PROXY in v1) printf ' send-proxy';; v2) printf ' send-proxy-v2';; esac
@@ -120,6 +124,9 @@ gtm_haproxy_servers() {
 gtm_haproxy_unit() {
     local bin=$1 config=$2 id=$3
     local limit=$((2*10#$H_MAXCONN+2048))
+    # An omitted maxconn delegates sizing to HAProxy and the inherited service
+    # descriptor budget. Do not replace that budget with a small artificial cap.
+    ((10#$H_MAXCONN != 0)) || limit=1048576
     cat <<EOF
 # GTM HAProxy master-worker v1
 [Unit]
@@ -233,7 +240,7 @@ gtm_haproxy_settings() {
                     gtm_default 'Check port [0 = service port]' H_CHECK_PORT "$H_CHECK_PORT" || return
                 fi
                 gtm_default 'Check interval [1-300s]' H_CHECK_INTERVAL "$H_CHECK_INTERVAL" && gtm_default 'Check timeout [1-300s]' H_CHECK_TIMEOUT "$H_CHECK_TIMEOUT" && gtm_default 'Failed checks before down [1-20]' H_CHECK_FALL "$H_CHECK_FALL" && gtm_default 'Successful checks before up [1-20]' H_CHECK_RISE "$H_CHECK_RISE" || return;;
-            5) gtm_default 'Connection cap [1-100000; measure RAM/FD usage]' H_MAXCONN "$H_MAXCONN" && gtm_default 'Per-target cap [0 = unlimited]' H_SERVER_MAXCONN "$H_SERVER_MAXCONN" && gtm_default 'Slow start [0-3600s]' H_SLOWSTART "$H_SLOWSTART" || return;;
+            5) gtm_default 'Connection cap [0 = automatic; up to 1000000]' H_MAXCONN "$H_MAXCONN" && gtm_default 'Per-target cap [0 = no explicit cap]' H_SERVER_MAXCONN "$H_SERVER_MAXCONN" && gtm_default 'Slow start [0-3600s]' H_SLOWSTART "$H_SLOWSTART" || return;;
             6)
                 printf '  PROXY adds a header. Enable it on the destination first; otherwise traffic breaks.\n  It passes client metadata; it does not preserve the network source address.\n'
                 gtm_choose 'PROXY protocol' "$H_PROXY" Off off 'Version 1' v1 'Version 2' v2 || continue
@@ -244,7 +251,7 @@ gtm_haproxy_settings() {
             9)
                 gtm_choose 'Client affinity' "$H_STICK" Off off 'Remember source IP (memory)' source || continue
                 H_STICK=$GTM_REPLY
-                [[ $H_STICK == off ]] || { gtm_default 'Maximum stored IPs [1024-100000]' H_STICK_SIZE "$H_STICK_SIZE" && gtm_default 'Idle expiry [30-86400s]' H_STICK_EXPIRE "$H_STICK_EXPIRE"; } || return;;
+                [[ $H_STICK == off ]] || { gtm_default 'Maximum stored IPs [1024-1000000]' H_STICK_SIZE "$H_STICK_SIZE" && gtm_default 'Idle expiry [30-86400s]' H_STICK_EXPIRE "$H_STICK_EXPIRE"; } || return;;
             8) break;; 0) return;; *) continue;;
         esac
     done

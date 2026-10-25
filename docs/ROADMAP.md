@@ -2,15 +2,18 @@
 
 This is a direction for future work, not a promise that every native engine feature is supported. The [capability matrix](ENGINE-CAPABILITIES.md) describes current adapters; the [changelog](CHANGELOG.md) records delivered work.
 
-## Available in v1.3.3
+## Available in v1.3.4
 
 - Terminal managers and a bilingual responsive web panel with compact forms, three setup presets per engine and configuration inspection/editing.
 - Local GRE, kernel forwarding, HAProxy, Realm, FRP and rathole management, including bounded routing and transport options.
 - Optional Nodes/Agents, coordinated GRE/FRP creation and read-only remote traffic summaries.
-- Local traffic cycles, labels, reset, advisory quotas, optional history and CSV export.
+- Local traffic cycles, labels, reset, numeric quotas with optional sampled traffic pauses, bounded history and CSV export.
+- Visible-only dashboard CPU, memory and default-route network rates with pause/cadence controls.
 - Versioned packages with embedded frontend and matching Bash helper; HTTP/HTTPS setup, upgrades and scoped removal.
 
 ## Priorities for the next iterations
+
+Version v1.3.4 adds compact direct-action connection lists, expanded typed native edits, reviewed HAProxy/Realm/managed-JSON imports, automatic HAProxy sizing, local FRP KCP and explicit engine maintenance. These do not expose every upstream directive or expand the existing Node operation protocol. See [Engine capabilities](ENGINE-CAPABILITIES.md) and [Engine maintenance](ENGINE-MAINTENANCE.md).
 
 Version v1.3.3 adds the refactored panel workspace, HTTP-compatible copy controls and encrypted portable recovery on a fresh installation. Recovery does not yet merge with an occupied setup, schedule backups or migrate Controller/Agent identities.
 
@@ -22,7 +25,7 @@ Version v1.3.3 adds the refactored panel workspace, HTTP-compatible copy control
 | 4 | Remote configuration/accounting actions | Separate typed capabilities, explicit opt-in, revisions, expiry, identity isolation and partial-failure recovery |
 | 5 | Scheduled local traffic cycles | Explicit timezone/retention policy, restart-safe scheduling and confirmed reset semantics |
 
-Automatic quota cutoffs need a defined connection-stop policy and counter-failure behavior. Current quotas remain advisory. Remote history, customer accounts, unrestricted HAProxy ACLs, Realm native TLS/WSS and arbitrary host firewall editing are not delivered features.
+Explicit opt-in local quota pauses now use sampled detection and scoped kernel drop guards. Byte-exact kernel quota objects, reboot-independent enforcement and remote quota edits remain future work. Existing quotas stay advisory until opted in. Remote history, customer accounts, unrestricted HAProxy ACLs, Realm native TLS/WSS and arbitrary host firewall editing are not delivered features.
 
 ## Candidate methods
 

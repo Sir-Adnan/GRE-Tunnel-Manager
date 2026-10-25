@@ -20,6 +20,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | --- | --- |
 | [Setup presets](CONNECTION-PROFILES.md) | Three starting presets per engine and their tradeoffs |
 | [Engine capabilities](ENGINE-CAPABILITIES.md) | Supported versions, adapter scope and validation |
+| [Engine maintenance](ENGINE-MAINTENANCE.md) | Manual official version checks, verified updates and binary recovery |
 | [HAProxy](HAPROXY.md) · [Routing](HAPROXY-ROUTING.md) | TCP settings, affinity, checks, TLS/SNI/HTTP |
 | [Realm profiles](REALM-PROFILES.md) | WS, MPTCP and IPv6-only options |
 | [Configuration editor](CONFIGURATION-EDITOR.md) | Inspection, supported edits and review/apply |
@@ -31,3 +32,5 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 [Architecture](ARCHITECTURE.md) · [Server artifacts](ARTIFACTS.md) · [Development](DEVELOPMENT.md) · [Interface conventions](INTERFACE.md) · [Terminal interface](TERMINAL-UI.md) · [Releasing](RELEASING.md)
 
 [Changelog](CHANGELOG.md) records shipped changes. [Roadmap](ROADMAP.md) separates current scope from proposed work. Earlier implementation reports live in the [review archive](archive/README.md); they are historical evidence, not installation instructions.
+
+- [Kernel and userspace](KERNEL-AND-USERSPACE.md): packet paths, accounting, quotas and lightweight dashboard telemetry.

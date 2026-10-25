@@ -82,3 +82,69 @@ func TestNativeReviewRoundTripsRealRealmAndHAProxy(t *testing.T) {
 		}
 	}
 }
+
+func TestRealNativeHAEditsTargetsAndOptionalCeilings(t *testing.T) {
+	c := model.Connection{ID: "F000001", Name: "Native values", Engine: "haproxy", Protocol: "tcp", Bind: "192.0.2.10", Ports: "4900", Strategy: "single", SNAT: "masquerade", Interface: "any", Targets: []model.Target{{IP: "198.51.100.20", Port: 443, Weight: 1}}, Options: map[string]string{"maxconn": "20000"}}
+	rows, _ := c.Rows(c.ID)
+	cs, _, _ := model.ParseState(rows[0])
+	c = cs[0]
+	m := &Manager{Runner: nativeConfigRunner{demoConfigRunner{connections: cs}}, ConfigDir: t.TempDir()}
+	ctx := context.Background()
+	in := ConfigInput{ID: c.ID, Revision: c.Revision, Format: "native"}
+	v, e := m.Configuration(ctx, in)
+	if e != nil {
+		t.Fatal(e)
+	}
+	text := strings.ReplaceAll(v.Files[0].Text, "198.51.100.20:443", "198.51.100.21:8443")
+	text = strings.ReplaceAll(text, "    maxconn 20000\n", "")
+	in.Text = text
+	next, view, e := m.ReviewConfiguration(ctx, in)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if next.Options["maxconn"] != "0" || next.Targets[0].Port != 8443 || strings.Contains(view.Files[0].Text, "maxconn") {
+		t.Fatal(next, view)
+	}
+	path := filepath.Join(t.TempDir(), "ha.cfg")
+	os.WriteFile(path, []byte(view.Files[0].Text), 0600)
+	if bin, e := exec.LookPath("haproxy"); e == nil {
+		if out, e := exec.Command(bin, "-c", "-f", path).CombinedOutput(); e != nil {
+			t.Fatal(e, string(out))
+		}
+	}
+}
+
+func TestRealKernelNativeEditsRoundTripAllCompanionRules(t *testing.T) {
+	for _, engine := range []string{"iptables", "nftables"} {
+		for _, family := range []string{"4", "6"} {
+			bind, target, changed := "192.0.2.10", "198.51.100.20", "198.51.100.21"
+			if family == "6" {
+				bind, target, changed = "2001:db8::10", "2001:db8::20", "2001:db8::21"
+			}
+			c := model.Connection{ID: "F000001", Name: "Native kernel", Engine: engine, Protocol: "both", Bind: bind, Ports: "4900", Strategy: "single", SNAT: "masquerade", Interface: "any", Targets: []model.Target{{IP: target, Port: 443, Weight: 1}}, Options: map[string]string{}}
+			rows, _ := c.Rows(c.ID)
+			cs, _, _ := model.ParseState(rows[0])
+			c = cs[0]
+			m := &Manager{Runner: nativeConfigRunner{demoConfigRunner{connections: cs}}, ConfigDir: t.TempDir()}
+			ctx := context.Background()
+			in := ConfigInput{ID: c.ID, Revision: c.Revision, Format: "native"}
+			v, e := m.Configuration(ctx, in)
+			if e != nil || !v.NativeEditable {
+				t.Fatal(engine, e)
+			}
+			in.Text = strings.ReplaceAll(v.Files[0].Text, target, changed)
+			next, _, e := m.ReviewConfiguration(ctx, in)
+			if e != nil || next.Targets[0].IP != changed {
+				t.Fatal(engine, family, e)
+			}
+			in.Text = strings.Replace(v.Files[0].Text, target, changed, 1)
+			if _, _, e := m.ReviewConfiguration(ctx, in); e == nil {
+				t.Fatal("inconsistent companion rules accepted")
+			}
+			in.Text = v.Files[0].Text + "\nflush ruleset\n"
+			if _, _, e := m.ReviewConfiguration(ctx, in); e == nil {
+				t.Fatal("unowned firewall mutation accepted")
+			}
+		}
+	}
+}

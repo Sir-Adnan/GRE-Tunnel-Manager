@@ -63,7 +63,7 @@ gtm_pair_frp_check() {
     gtm_frp_validate && gtm_need sha256sum || return 1
     if [[ $P_ROLE == entrance ]]; then
         gtm_local_address "$P_HOST" && gtm_port_available tcp "$P_HOST" "$P_CONTROL" && gtm_port_available "$P_PROTO" "$P_HOST" "$P_PUBLIC" || return 1
-        [[ $P_TRANSPORT != quic ]] || gtm_port_available udp "$P_HOST" "$P_CONTROL" || return 1
+        [[ $P_TRANSPORT != quic && $P_TRANSPORT != kcp ]] || gtm_port_available udp "$P_HOST" "$P_CONTROL" || return 1
         bin=$(command -v frps) || return 1
     else bin=$(command -v frpc) || return 1; fi
     tmp=$(mktemp "$GTM_RUN_DIR/pair-frp.XXXXXX") || return 1

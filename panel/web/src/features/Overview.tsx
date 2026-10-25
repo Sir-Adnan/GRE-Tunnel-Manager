@@ -1,18 +1,12 @@
 import { useContext } from "react";
-import {
-  Activity,
-  ArrowUpRight,
-  Clock3,
-  Layers3,
-  MemoryStick,
-  Plus,
-} from "lucide-react";
+import { Activity, ArrowUpRight, Clock3, Layers3, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Address, PageTitle, SectionLink } from "@/components/shared";
 import { ConnectionSummary } from "@/features/connections/ConnectionSummary";
-import { number, trafficBytes, uptime } from "@/lib/format";
+import { number, uptime } from "@/lib/format";
+import { LiveTelemetry } from "./overview/LiveTelemetry";
 import { LocaleContext } from "@/lib/i18n";
 import type { Connection, Inventory } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -31,7 +25,6 @@ export function Overview({
   const t = useT();
   const locale = useContext(LocaleContext);
   const h = inventory.host;
-  const used = h.memory_total - h.memory_available;
   const online =
     inventory.connections.filter((c) => c.status === "active").length +
     inventory.resources.filter((r) => r.status === "active").length;
@@ -47,14 +40,6 @@ export function Overview({
       value: number(online, locale),
       extra: "HAProxy · Realm · GRE · Reverse",
       icon: Activity,
-    },
-    {
-      label: "memory",
-      value: h.memory_total
-        ? `${number(Math.round((used / h.memory_total) * 100), locale)}${locale === "fa" ? "٪" : "%"}`
-        : "—",
-      extra: `${trafficBytes(used, locale)} / ${trafficBytes(h.memory_total, locale)}`,
-      icon: MemoryStick,
     },
     {
       label: "uptime",
@@ -95,12 +80,13 @@ export function Overview({
             <dd className="stat-value">
               <bdi>{value}</bdi>
             </dd>
-            <dd className="min-w-0 break-words text-xs text-muted-foreground">
+            <dd className="hidden min-w-0 break-words text-xs text-muted-foreground sm:block">
               <bdi>{extra}</bdi>
             </dd>
           </div>
         ))}
       </dl>
+      <LiveTelemetry />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3">

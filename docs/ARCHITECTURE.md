@@ -20,6 +20,7 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | state | TSV records, conflicts, snapshots, apply/recovery |
 | firewall | Owned iptables chains and native nftables table |
 | relays | Optional component installation and Realm/HAProxy services |
+| components | Fixed engine package policies, checked maintenance and staged pinned-binary publication/recovery |
 | transports | FRP, transports and WSS TLS gateway |
 | rathole | Pinned optional installer, Noise NK reverse connections, scoped services/removal |
 | catalog | Offline capability guide and reverse-engine selection |
@@ -114,3 +115,11 @@ The overview uses `connections/ConnectionSummary.tsx`, a bounded five-row presen
 The browser workspace uses allowlisted hash routes independent of Go API paths. `PanelHeader` owns shell controls; `ConnectionWorkspace` owns method-scoped lists. Connection draft state, basic fields, engine settings and review are separate modules; local resource setup lives in `features/resources`. Common discard protection and clipboard behavior remain outside engine forms. Secondary actions use accessible menus and public mutation contracts are unchanged. Editor/resource bundles load on demand; notifications are bundled frontend code, not a resident server service.
 
 Configuration inspection/import is isolated in `control/configuration*.go`. Only closed IDs and revisions cross the public API. Native edits must round-trip through the same typed adapter; apply reuses the full-state Bash transaction. Reverse projections use a strict generated grammar and mask secrets. Local inventory embeds the static model profile catalog; remote Node snapshots omit UI catalog data.
+
+`configuration_import.go` handles additive reviewed batches, with separate closed HAProxy/Realm decoders. It binds input and activation choice to a full server generation; `create-reviewed` rechecks that generation under the Bash lock before allocation. Kernel native edits extract typed single-destination data and must match the entire regenerated excerpt; raw rules never reach execution. `engine_releases.go` performs manual fixed-source metadata checks; `components.sh` owns maintenance with no Node-operation expansion. See [Engine maintenance](ENGINE-MAINTENANCE.md).
+
+## Runtime statistics and quota control
+
+`control/host_telemetry.go` owns bounded, on-demand procfs sampling and a shared two-second cache, separately from inventory and the optional traffic ledger. `features/overview` owns polling/presentation; only a mounted visible dashboard polls, with aborts and no overlapping requests.
+
+`traffic_quota.go` evaluates opt-in current-cycle quotas. The existing locked metrics reconciler adds per-resource kernel drops to the accounting table; ledger edits reconcile guards immediately. Collection selection cannot silently withdraw protection. Portable recovery disables automatic pause. See [Kernel and userspace](KERNEL-AND-USERSPACE.md) and [Traffic accounting](TRAFFIC-ACCOUNTING.md) for scope and operational limits.

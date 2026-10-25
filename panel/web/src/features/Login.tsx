@@ -168,7 +168,7 @@ export function Login({
         </Card>
       </div>
       <footer className="login-bottom">
-        TUNNEL MANAGER <span>v1.3.3</span>
+        TUNNEL MANAGER <span>v1.3.4</span>
       </footer>
     </div>
   );

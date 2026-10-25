@@ -50,7 +50,7 @@ func TestReverseRecoveryDecodersRoundTripRealBash(t *testing.T) {
 	m := recoveryManager(t)
 	for _, engine := range []string{"frp", "rathole"} {
 		for _, role := range []string{"entrance", "destination"} {
-			for _, transport := range []string{"tcp", "websocket", "quic", "wss"} {
+			for _, transport := range []string{"tcp", "websocket", "quic", "kcp", "wss"} {
 				if engine == "rathole" && transport != "tcp" {
 					continue
 				}

@@ -115,7 +115,7 @@ func TestDemoBackupRecoveryPreservesSettingsAndRefusesOverwrite(t *testing.T) {
 	d := NewDemo()
 	original := d.inventory.Connections[0]
 	d.metrics.Counters[original.ID] = Traffic{Received: 1000, Sent: 200, LastReceived: 1000}
-	d.metrics.Policies[original.ID] = TrafficPolicy{Label: "Customer", Limit: 9000, Direction: "total"}
+	d.metrics.Policies[original.ID] = TrafficPolicy{Label: "Customer", Limit: 9000, Direction: "total", StopOnLimit: true}
 	in := BackupInput{Password: "recovery-password", IncludeTraffic: true}
 	data, e := d.Do(ctx, Request{Action: "backup-export", Backup: in})
 	if e != nil {
@@ -150,7 +150,7 @@ func TestDemoBackupRecoveryPreservesSettingsAndRefusesOverwrite(t *testing.T) {
 	if c.ID != original.ID || c.Name != original.Name || c.Enabled {
 		t.Fatal(c)
 	}
-	if d.metrics.Settings.Enabled || d.metrics.Counters[c.ID].Received != 1000 || d.metrics.Policies[c.ID].Label != "Customer" {
+	if d.metrics.Policies[c.ID].StopOnLimit || len(d.metrics.Blocked) > 0 || d.metrics.Settings.Enabled || d.metrics.Counters[c.ID].Received != 1000 || d.metrics.Policies[c.ID].Label != "Customer" {
 		t.Fatal("accounting lost")
 	}
 }

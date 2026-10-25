@@ -36,6 +36,7 @@ type Traffic struct {
 	BaselineSent     uint64    `json:"baseline_sent,omitempty"`
 }
 type MetricsView struct {
+	Blocked  map[string]bool           `json:"blocked,omitempty"`
 	Settings MetricsSettings           `json:"settings"`
 	Counters map[string]Traffic        `json:"counters"`
 	Since    time.Time                 `json:"since"`
@@ -140,6 +141,9 @@ func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory In
 	if len(expectedRevision) > 0 && expectedRevision[0] != m.view.Revision {
 		return MetricsView{}, errors.New("traffic settings changed; refresh before saving")
 	}
+	if !quotaSelectionsValid(m.view, s, inventory) {
+		return MetricsView{}, errors.New("turn off automatic pause policies before disabling collection or excluding their resources")
+	}
 	if s.Enabled {
 		if e := m.checkCapacity(s, inventory); e != nil {
 			return MetricsView{}, e
@@ -180,9 +184,20 @@ func (m *Metrics) Configure(ctx context.Context, s MetricsSettings, inventory In
 	return cloneMetrics(m.view), nil
 }
 func MetricsRules(inventory Inventory, s MetricsSettings) string {
+	return metricsRules(inventory, s, nil)
+}
+func metricsRules(inventory Inventory, s MetricsSettings, blocked map[string]bool) string {
 	var definitions, input, output, forward strings.Builder
+	// Drop before accounting so blocked retransmits do not inflate usage. A
+	// filter-hook drop also stops established DNAT flows without deleting conntrack.
+	write := func(dst *strings.Builder, match, id, direction string) {
+		if blocked[id] {
+			fmt.Fprintf(dst, "%sdrop\n", match)
+		}
+		fmt.Fprintf(dst, "%scounter name %s_%s\n", match, id, direction)
+	}
 	counter := func(id string) { fmt.Fprintf(&definitions, "counter %s_rx {}\ncounter %s_tx {}\n", id, id) }
-	match := func(bind string, port string, protocol string, interfaceName string) (string, string) {
+	match := func(bind string, port string, protocol string, ipv6Only bool) (string, string) {
 		family := "ip"
 		if strings.Contains(bind, ":") {
 			family = "ip6"
@@ -191,6 +206,12 @@ func MetricsRules(inventory Inventory, s MetricsSettings) string {
 		if protocol == "both" {
 			proto = "meta l4proto { tcp, udp }"
 		}
+		if bind == "0.0.0.0" {
+			proto = "meta nfproto ipv4 " + proto
+		}
+		if bind == "::" && ipv6Only {
+			proto = "meta nfproto ipv6 " + proto
+		}
 		incoming, outgoing := proto+" ", proto+" "
 		if bind != "0.0.0.0" && bind != "::" {
 			incoming += family + " daddr " + bind + " "
@@ -198,11 +219,10 @@ func MetricsRules(inventory Inventory, s MetricsSettings) string {
 		}
 		incoming += "th dport " + port + " "
 		outgoing += "th sport " + port + " "
-		_ = interfaceName
 		return incoming, outgoing
 	}
 	for _, c := range inventory.Connections {
-		if !c.Enabled || !wanted(s.IDs, c.ID) {
+		if (!c.Enabled && !blocked[c.ID]) || !wanted(s.IDs, c.ID) {
 			continue
 		}
 		counter(c.ID)
@@ -221,25 +241,32 @@ func MetricsRules(inventory Inventory, s MetricsSettings) string {
 				entrance = "iifname \"" + c.Interface + "\" "
 				exit = "oifname \"" + c.Interface + "\" "
 			}
-			fmt.Fprintf(&forward, "%s%sct direction original counter name %s_rx\n%s%sct direction reply counter name %s_tx\n", base, entrance, c.ID, base, exit, c.ID)
+			write(&forward, base+entrance+"ct direction original ", c.ID, "rx")
+			write(&forward, base+exit+"ct direction reply ", c.ID, "tx")
 		} else {
-			a, b := match(c.Bind, c.Ports, c.Protocol, c.Interface)
-			fmt.Fprintf(&input, "%scounter name %s_rx\n", a, c.ID)
-			fmt.Fprintf(&output, "%scounter name %s_tx\n", b, c.ID)
+			a, b := match(c.Bind, c.Ports, c.Protocol, c.Options["ipv6_only"] == "true")
+			write(&input, a, c.ID, "rx")
+			write(&output, b, c.ID, "tx")
 		}
 	}
 	// Reverse public listeners can be measured per public port on the entrance.
 	// Destination/control multiplexing is intentionally not guessed from TCP bytes.
 	for _, r := range inventory.Resources {
+		if r.Engine == "gre" && blocked[r.ID] && wanted(s.IDs, r.ID) && modelInterface(r.Interface) {
+			// GRE traffic may be locally terminated or routed through the host.
+			fmt.Fprintf(&input, "iifname \"%s\" drop\n", r.Interface)
+			fmt.Fprintf(&output, "oifname \"%s\" drop\n", r.Interface)
+			fmt.Fprintf(&forward, "iifname \"%s\" drop\noifname \"%s\" drop\n", r.Interface, r.Interface)
+		}
 		if r.Role != "entrance" || r.Port < 1 || !wanted(s.IDs, r.ID) {
 			continue
 		}
 		counter(r.ID)
-		a, b := match(r.Bind, strconv.Itoa(r.Port), r.Protocol, "any")
-		fmt.Fprintf(&input, "%scounter name %s_rx\n", a, r.ID)
-		fmt.Fprintf(&output, "%scounter name %s_tx\n", b, r.ID)
+		a, b := match(r.Bind, strconv.Itoa(r.Port), r.Protocol, false)
+		write(&input, a, r.ID, "rx")
+		write(&output, b, r.ID, "tx")
 	}
-	if definitions.Len() == 0 {
+	if definitions.Len() == 0 && input.Len() == 0 && forward.Len() == 0 {
 		return ""
 	}
 	return fmt.Sprintf("table inet %s {\n%s chain input { type filter hook input priority 300; policy accept;\n%s }\nchain output { type filter hook output priority 300; policy accept;\n%s }\nchain forward { type filter hook forward priority 300; policy accept;\n%s }\n}\n", metricsTable, definitions.String(), input.String(), output.String(), forward.String())
@@ -247,7 +274,7 @@ func MetricsRules(inventory Inventory, s MetricsSettings) string {
 func (m *Metrics) reconcile(ctx context.Context, inventory Inventory) error {
 	rules := ""
 	if m.view.Settings.Enabled {
-		rules = MetricsRules(inventory, m.view.Settings)
+		rules = metricsRules(inventory, m.view.Settings, quotaBlocks(m.view))
 	}
 	m.nftActive = rules != ""
 	signature := rules
@@ -282,6 +309,14 @@ func (m *Metrics) reconcile(ctx context.Context, inventory Inventory) error {
 		}
 	}
 	m.signature = signature
+	m.view.Blocked = map[string]bool{}
+	if m.view.Settings.Enabled {
+		for id := range quotaBlocks(m.view) {
+			if wanted(m.view.Settings.IDs, id) && trafficAvailable(inventory, id) {
+				m.view.Blocked[id] = true
+			}
+		}
+	}
 	if signature == "" {
 		m.signature = "disabled"
 	}
@@ -365,9 +400,19 @@ func (m *Metrics) Tick(ctx context.Context, inventory Inventory) error {
 		return e
 	}
 	m.sampleInterfaces(inventory, false)
+	// The first collection above discovers crossings; the second can capture
+	// traffic received during reconciliation. Apply a newly reached guard now.
+	if e := m.reconcile(ctx, inventory); e != nil {
+		m.view.Error = e.Error()
+		return e
+	}
 	m.view.Error = ""
 	m.recordHistory(time.Now().UTC())
-	return m.save()
+	if e := m.save(); e != nil {
+		m.view.Error = "traffic rules sampled but ledger persistence failed"
+		return e
+	}
+	return nil
 }
 func (m *Metrics) sampleInterfaces(inventory Inventory, baseline bool) {
 	for _, r := range inventory.Resources {

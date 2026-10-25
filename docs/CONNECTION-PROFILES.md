@@ -2,9 +2,9 @@
 
 There are three setup presets per engine (21 total). Presets fill a draft; nothing changes until review and save. Existing connections retain their saved settings. Other supported transports, algorithms and limits remain in advanced controls.
 
-New HAProxy connections explicitly use `maxconn=100000`, `server_maxconn=0` and `log=off`. New Realm connections use `log=off`. The browser and Go API share `model/creation_defaults.json`; new terminal forms write matching options. Explicit operator values win. Existing records retain saved values and absent-key semantics.
+New HAProxy connections explicitly use `maxconn=0`, `server_maxconn=0`, `check_mode=off` and `log=off`: automatic sizing, no per-target cap, no active checks and no traffic logs. New Realm connections use `log=off`. The browser and Go API share `model/creation_defaults.json`; terminal forms write matching options. Explicit operator values win. Existing records retain saved values and absent-key semantics.
 
-A 100000 ceiling permits connections; it does not guarantee capacity. The managed HAProxy service descriptor budget is `2 * maxconn + 2048`. Real capacity also depends on RAM, CPU, bandwidth, available source ports and destinations. Reduce the cap for small servers. This neither allocates 100000 active sessions nor changes host tuning. Maximizing every timeout, queue and retry count can increase latency and resource retention; unspecified options retain the compatible baseline. Engine logging choices do not disable panel security audits or service startup errors.
+Zero omits both HAProxy `maxconn` directives. HAProxy derives its limit from the service's file-descriptor budget (1048576 for automatic mode); this is not unlimited capacity or a memory reservation. An explicit cap uses a service budget of `2 * maxconn + 2048`. Capacity still depends on RAM, CPU, source ports, bandwidth and destinations. Finite connect/inactivity timeouts remain intentional: unlimited waits can retain broken sessions indefinitely. Engine logging choices do not disable panel security audits or startup errors.
 
 The catalog is `panel/internal/model/presets.json`, embedded in the Go panel and exposed with local inventory. It supplies both language labels and bounded form values. It is not fetched remotely. Agents omit this UI catalog from inventory reports so presentation changes do not enlarge remote snapshots or affect their revisions.
 
@@ -16,9 +16,9 @@ The catalog is `panel/internal/model/presets.json`, embedded in the Go panel and
 | Long-lived | Opaque TCP, 24-hour client/server/tunnel idle window |
 | IP affinity | Long-lived TCP plus a bounded 16384-entry source-IP table with 1-hour expiry |
 
-All three use a 100000 ceiling, no per-target cap and logs off. Primary/backup remains in the balancing selector; lower connection limits remain in advanced controls. No TLS termination or PROXY header is added automatically.
+All three use automatic connection sizing, no per-target cap and logs off. Explicit caps remain available in advanced controls. No TLS termination or PROXY header is added automatically.
 
-These profiles use bounded TCP checks, two connect retries and 30-second client/server half-close timeouts. They retain explicit PROXY/readiness/TLS-routing fields rather than silently removing them; review any existing advanced settings. They do not enable TLS termination or a PROXY header automatically. A single target stays `single`; multi-target profiles choose the documented algorithm.
+These profiles use TCP checks, two connect retries and 30-second client/server half-close timeouts. Selecting a preset replaces engine options and clears optional routing, so an old PROXY/HTTP-check/TLS choice cannot leak into a plain VPN preset. Review before saving. **Simple defaults** resets those options; **Custom settings** keeps the current draft for manual adjustment. Source addresses, names and destinations remain unchanged. A single target stays `single`; multi-target profiles choose the documented algorithm.
 
 The new optional `fin` (0–300 seconds), `tunnel` (0–604800 seconds) and `retries` (0–5) adapter keys keep old defaults when absent: omitted FIN/tunnel overrides and three retries. New preset defaults apply only when selected. A nonzero tunnel timeout can supersede client/server idle windows for tunneled streams. Zero means preserve the native inherited/default behavior for the timeout override, not an unlimited timeout request.
 
@@ -37,7 +37,7 @@ Profiles do not change host-wide TCP/UDP conntrack timeouts, routes, forwarding 
 ## GRE and reverse
 
 - **GRE:** MTU 1430, 1400 or 1280. Select compatible values at both peers and verify the real path. This does not discover PMTU, encrypt GRE or guarantee fewer drops.
-- **FRP:** TCP with multiplexing, QUIC and WSS are the three presets. TCP without multiplexing and WebSocket remain in transport controls. Apply compatible choices at both peers. QUIC needs a UDP path; WSS needs operator certificates. Multiplexing shares the outer transport; its effect under loss depends on the route.
+- **FRP:** TCP with multiplexing, QUIC and WSS are the three presets. TCP without multiplexing, WebSocket and local KCP remain in transport controls. Apply compatible choices at both peers. QUIC/KCP need a UDP path; KCP may consume extra bandwidth and is not universally faster. WSS needs operator certificates. KCP is not added to the existing Node pairing protocol.
 - **rathole:** TCP, UDP or both over authenticated Noise/TCP. The UDP service still has a TCP outer transport; it is not native UDP/QUIC. Tokens/keys, peer addresses and ports remain explicit and are not replaced by profile selection.
 
 Use the question-mark help for each profile's tradeoffs. Native feature/version gates and normal preflight still apply. A profile is not a way to enable unsupported engine options.

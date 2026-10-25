@@ -61,10 +61,17 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}
+	if request.Action == "host-telemetry" {
+		// This read has its own cache lock and no configuration/system operations.
+		// A long network transaction must not queue dashboard sample requests.
+		result, e := b.Manager.Execute(r.Context(), request)
+		writeControlReply(w, result, e)
+		return
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	operationContext := r.Context()
-	if request.Action != "inventory" && request.Action != "metrics" && request.Action != "metrics-history" && request.Action != "capabilities" && request.Action != "configuration" && request.Action != "configuration-review" {
+	if request.Action != "host-telemetry" && request.Action != "inventory" && request.Action != "metrics" && request.Action != "metrics-history" && request.Action != "capabilities" && request.Action != "configuration" && request.Action != "configuration-review" && request.Action != "configuration-import-review" && request.Action != "engine-releases" {
 		// A browser disconnect/public-service restart must not kill an in-flight
 		// network transaction. The broker owns its independent bounded lifetime.
 		var cancel context.CancelFunc
@@ -85,6 +92,9 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if auditError := audit(request, auditedError); auditError != nil {
 		log.Printf("panel audit write failed: %v", auditError)
 	}
+	writeControlReply(w, result, e)
+}
+func writeControlReply(w http.ResponseWriter, result any, e error) {
 	reply := Reply{}
 	if e != nil {
 		reply.Error = e.Error()

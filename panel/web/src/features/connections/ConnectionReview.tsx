@@ -24,6 +24,20 @@ export function ConnectionReview({ value }: { value: Connection }) {
         </dd>
         <dt>{t("strategy")}</dt>
         <dd>{t(value.strategy)}</dd>
+        {value.engine === "haproxy" && (
+          <>
+            <dt>{t("healthProbe")}</dt>
+            <dd>
+              {t(
+                value.options.check_mode === "off"
+                  ? "off"
+                  : value.options.check_mode === "http"
+                    ? "httpReadiness"
+                    : "tcpConnect",
+              )}
+            </dd>
+          </>
+        )}
         <dt>{t("status")}</dt>
         <dd>{t(value.enabled ? "willStart" : "willSaveDisabled")}</dd>
       </dl>

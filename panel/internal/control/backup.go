@@ -509,6 +509,12 @@ func (m *Manager) RestoreBackup(ctx context.Context, in BackupInput) (any, error
 		old := cloneMetrics(m.Metrics.view)
 		next := cloneMetrics(*d.Traffic)
 		next.Settings.Enabled = false
+		next.Blocked = nil
+		// Recovery never activates a traffic blocker on a different host.
+		for id, p := range next.Policies {
+			p.StopOnLimit = false
+			next.Policies[id] = p
+		}
 		next.Error = ""
 		next.Revision = old.Revision + 1
 		for id, c := range next.Counters {

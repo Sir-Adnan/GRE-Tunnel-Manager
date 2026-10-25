@@ -43,6 +43,11 @@ export function useConnectionDraft({
     setValue((current) => ({
       ...current,
       [key]: next,
+      ...(key === "strategy" &&
+      next === "failover" &&
+      current.options.check_mode === "off"
+        ? { options: { ...current.options, check_mode: "tcp" } }
+        : {}),
       ...(key === "targets" &&
       current.targets.length > 1 &&
       (next as Connection["targets"]).length === 1
@@ -62,7 +67,22 @@ export function useConnectionDraft({
         current.targets.length > 1
           ? profile.strategy || current.strategy
           : "single",
-      options: { ...current.options, ...profile.options },
+      options: { ...creationOptions(current.engine), ...profile.options },
+      routing: undefined,
+    }));
+  }
+  function resetDefaults() {
+    setPreset("defaults");
+    setValue((current) => ({
+      ...current,
+      options: creationOptions(current.engine),
+      routing: undefined,
+      strategy:
+        current.targets.length === 1
+          ? "single"
+          : current.engine === "haproxy"
+            ? "leastconn"
+            : capability.strategies[1],
     }));
   }
   function parseCombinedIP(index: number, input: string) {
@@ -128,6 +148,7 @@ export function useConnectionDraft({
     patch,
     preset,
     applyPreset,
+    resetDefaults,
     parseCombinedIP,
     changeEngine,
     addTarget,

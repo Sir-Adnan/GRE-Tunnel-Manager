@@ -74,6 +74,7 @@ export function Choice({
   choices,
   id,
   help,
+  labelHidden = false,
 }: {
   label: string;
   value: string;
@@ -81,10 +82,11 @@ export function Choice({
   choices: { value: string; label: string; disabled?: boolean }[];
   id: string;
   help?: string;
+  labelHidden?: boolean;
 }) {
   return (
     <Field>
-      <div className="flex items-center gap-1">
+      <div className={labelHidden ? "sr-only" : "flex items-center gap-1"}>
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
       </div>

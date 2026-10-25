@@ -71,16 +71,16 @@ var HAOptions = []Option{
 	{Key: "tunnel", Min: 0, Max: 604800, Default: "0"},
 	{Key: "retries", Min: 0, Max: 5, Default: "3"},
 	{Key: "stick", Default: "off", Choices: []string{"off", "source"}},
-	{Key: "stick_size", Min: 1024, Max: 100000, Default: "16384"},
+	{Key: "stick_size", Min: 1024, Max: 1000000, Default: "16384"},
 	{Key: "stick_expire", Min: 30, Max: 86400, Default: "1800"},
 	{Key: "connect", Min: 1, Max: 300, Default: "5"}, {Key: "idle", Min: 10, Max: 604800, Default: "3600"},
-	{Key: "queue", Min: 1, Max: 3600, Default: "30"}, {Key: "maxconn", Min: 1, Max: 100000, Default: "16384"},
-	{Key: "server_maxconn", Min: 0, Max: 100000, Default: "0"}, {Key: "check_interval", Min: 1, Max: 300, Default: "3"},
+	{Key: "queue", Min: 1, Max: 3600, Default: "30"}, {Key: "maxconn", Min: 0, Max: 1000000, Default: "16384"},
+	{Key: "server_maxconn", Min: 0, Max: 1000000, Default: "0"}, {Key: "check_interval", Min: 1, Max: 300, Default: "3"},
 	{Key: "check_timeout", Min: 1, Max: 300, Default: "5"}, {Key: "check_fall", Min: 1, Max: 20, Default: "3"},
 	{Key: "check_rise", Min: 1, Max: 20, Default: "2"}, {Key: "check_port", Min: 0, Max: 65535, Default: "0"},
 	{Key: "slowstart", Min: 0, Max: 3600, Default: "0"}, {Key: "proxy", Default: "off", Choices: []string{"off", "v1", "v2"}},
 	{Key: "log", Default: "connections", Choices: []string{"connections", "errors", "off"}},
-	{Key: "check_mode", Default: "tcp", Choices: []string{"tcp", "http"}},
+	{Key: "check_mode", Default: "tcp", Choices: []string{"off", "tcp", "http"}},
 	{Key: "check_path", Default: "/health", Format: "http_path"},
 	{Key: "check_host", Default: "localhost", Format: "http_host"},
 	{Key: "check_status", Min: 200, Max: 599, Default: "200"},
@@ -98,7 +98,7 @@ func Capabilities() []Capability {
 var safeName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_. -]{0,39}$`)
 var safeInterface = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,14}$`)
 var IDPattern = regexp.MustCompile(`^F[0-9]{6}$`)
-var number = regexp.MustCompile(`^[0-9]{1,6}$`)
+var number = regexp.MustCompile(`^[0-9]{1,7}$`)
 var healthPath = regexp.MustCompile(`^/[a-zA-Z0-9/_.~-]{0,127}$`)
 var healthHost = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?$`)
 
@@ -277,6 +277,9 @@ func (c Connection) Rows(id string) ([]string, error) {
 				return nil, errors.New("HTTP readiness port must differ from traffic destination ports")
 			}
 		}
+	}
+	if c.Engine == "haproxy" && c.Options["check_mode"] == "off" && c.Strategy == "failover" {
+		return nil, errors.New("failover requires TCP or HTTP health checks")
 	}
 	if c.Engine == "realm" {
 		if c.Options["ipv6_only"] == "true" && bind.Is4() {

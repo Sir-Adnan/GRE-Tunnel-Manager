@@ -26,6 +26,7 @@ import { useT } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
 import { EngineDetails } from "./EngineDetails";
+import { EngineUpdates } from "./engines/EngineUpdates";
 
 export type Preferences = {
   locale: Locale;
@@ -192,6 +193,7 @@ export function Components({
           </Button>
         }
       />
+      <EngineUpdates run={run} />
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {inventory.components.map((component) => (
           <Card key={component.id}>

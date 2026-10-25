@@ -112,6 +112,7 @@ export type Job = {
   error?: string;
 };
 export type Metrics = {
+  blocked?: Record<string, boolean>;
   settings: {
     enabled: boolean;
     interval: number;
@@ -144,9 +145,21 @@ export type Metrics = {
   >;
 };
 export type TrafficPolicy = {
+  stop_on_limit?: boolean;
   label: string;
   limit: number;
   direction: "total" | "received" | "sent";
+};
+export type HostTelemetry = {
+  time: string;
+  window_seconds: number;
+  cpu_percent: number | null;
+  memory_total: number;
+  memory_available: number;
+  received_per_second: number | null;
+  sent_per_second: number | null;
+  interfaces: string[];
+  error?: string;
 };
 export type TrafficArchive = {
   id: string;
@@ -165,9 +178,14 @@ export type TrafficArchive = {
   }[];
 };
 let csrf = "";
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+export async function api<T>(
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await fetch(`/api/${path}`, {
     credentials: "same-origin",
+    signal,
     headers:
       body === undefined
         ? {}

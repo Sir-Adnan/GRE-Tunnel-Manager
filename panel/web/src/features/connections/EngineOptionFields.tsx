@@ -40,6 +40,25 @@ export function EngineOptionFields({
   onChange: (options: Record<string, string>) => void;
 }) {
   const t = useT();
+  function set(key: string, value: string) {
+    const next = { ...options };
+    if (value === "") {
+      if (
+        capability.id === "haproxy" &&
+        [
+          "maxconn",
+          "server_maxconn",
+          "fin",
+          "tunnel",
+          "slowstart",
+          "check_port",
+        ].includes(key)
+      )
+        next[key] = "0";
+      else delete next[key];
+    } else next[key] = value;
+    onChange(next);
+  }
   return capability.options
     .filter(
       (o) =>
@@ -52,6 +71,11 @@ export function EngineOptionFields({
           key={option.key}
           id={`option-${option.key}`}
           label={t(option.key)}
+          help={
+            t(`${option.key}Help`) === `${option.key}Help`
+              ? t("optionChoiceHelp")
+              : t(`${option.key}Help`)
+          }
           value={options[option.key] ?? option.default}
           choices={option.choices.map((id) => ({ value: id, label: t(id) }))}
           onChange={(next) => onChange({ ...options, [option.key]: next })}
@@ -61,16 +85,25 @@ export function EngineOptionFields({
           key={option.key}
           id={`option-${option.key}`}
           label={t(option.key)}
-          help={option.key === "maxconn" ? t("maxconnHelp") : undefined}
+          help={
+            option.key === "maxconn"
+              ? t("maxconnHelp")
+              : t("optionalEngineValueHelp")
+          }
           type={option.format ? "text" : "number"}
           min={option.min}
           max={option.max}
           dir="ltr"
-          value={options[option.key] ?? option.default}
-          onChange={(e) =>
-            onChange({ ...options, [option.key]: e.target.value })
+          value={
+            options[option.key] === "0" && option.key === "maxconn"
+              ? ""
+              : (options[option.key] ??
+                (option.key === "maxconn" ? option.default : ""))
           }
-          required
+          placeholder={
+            option.key === "maxconn" ? t("engineAutomatic") : option.default
+          }
+          onChange={(e) => set(option.key, e.target.value)}
         />
       ),
     );

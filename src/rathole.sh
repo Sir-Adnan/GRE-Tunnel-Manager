@@ -26,7 +26,7 @@ gtm_rathole_download() {
     if ! { curl --proto '=https' --tlsv1.2 -fL --connect-timeout 15 --max-time 180 "https://github.com/rathole-org/rathole/releases/download/v0.5.0/$archive" -o "$tmp/archive.zip" &&
         printf '%s  %s\n' "$sha" "$tmp/archive.zip" | sha256sum -c - &&
         unzip -p "$tmp/archive.zip" rathole > "$tmp/rathole" && chmod 700 "$tmp/rathole" &&
-        "$tmp/rathole" --version >/dev/null && install -m 755 "$tmp/rathole" /usr/local/bin/rathole; }; then
+        "$tmp/rathole" --version >/dev/null && gtm_component_publish "$tmp" rathole; }; then
         rm -rf "$tmp"; return 1
     fi
     rm -rf "$tmp"

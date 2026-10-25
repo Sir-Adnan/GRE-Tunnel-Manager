@@ -35,8 +35,9 @@ For workspace changes, check direct hash links and browser back/forward, URL-bac
 
 ```bash
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,pair_api,recovery,api,panel,menus}.sh panel-install.sh node-install.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,components,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,pair_api,recovery,api,panel,menus}.sh panel-install.sh node-install.sh
 sudo bash tests/linux_namespace.sh
+sudo bash tests/component_publish_namespace.sh
 git diff --check
 ```
 
@@ -54,6 +55,7 @@ The suite creates private parent/child namespaces and veth paths. It checks real
 - Accounting tests cover cycle baselines, restart/reset, missing counters and revision-checked actions. GRE and forward counters can overlap and must not become a combined total.
 - Recovery tests exercise authenticated encryption, tampering/wrong passwords, fresh-target/stale-review checks, paused publication and rollback, preserved IDs/keys/accounting, and real Bash round-trips for FRP/rathole. In the browser, download/upload a Demo backup, inspect migration changes, check the occupied-target blocker, then restore into an empty Demo fixture. Test both locales, mobile widths and reduced motion. Demo export does not invent secrets for simulated GRE/reverse resources; real adapter coverage is in Linux fixtures.
 - Before changing a component pin, verify the tagged upstream configuration/CLI and actual archive. A recognized version alone does not establish feature availability or peer compatibility.
+- Engine maintenance tests use a private mount namespace to shadow `/usr/local/bin` with temporary fixture files. Verify full staging, retained previous binaries and rollback after the second FRP publication fails; no downloaded test binary is executed. Imported configurations need unknown/lossy syntax, stale-review and complete-state-preservation coverage, plus real native renderer round trips.
 
 Keep LF endings, bounded data contracts and checked operations. Do not source user configuration, introduce runtime module downloads or save UI-filtered state. New-connection defaults must not rewrite existing absent-key semantics.
 
@@ -62,3 +64,9 @@ Keep LF endings, bounded data contracts and checked operations. Do not source us
 Technical guides are English; [README.fa.md](../README.fa.md) is the Persian quick start. Keep user-facing guides about current behavior, move completed implementation reports to the [archive](archive/README.md), and record changes in the changelog.
 
 Use MAJOR.MINOR.PATCH for application releases; state schemas and Node protocols are versioned independently. Historical v13.x tags keep their original numbers. Follow [Releasing](RELEASING.md) for matched versions, packages and publication. Local tests do not establish public-network reachability, reboot recovery or sustained capacity; see [Operations](OPERATIONS.md#deployment-checks-still-requiring-real-hosts).
+
+## Telemetry and quota regressions
+
+`control/host_telemetry_test.go` checks aggregate CPU deltas without guest double-counting, cache cadence, default-route deduplication, IPv6-only routes, missing files and counter/idle-gap resets. `traffic_quota_test.go` checks explicit opt-in, cycle reset, persistence, bidirectional scoped rules and collection-selection guards. Linux root runs additionally execute `TestQuotaKernelStopsEstablishedRelayAndResumes` in a new private network namespace; normal unprivileged runs skip that test. CI compiles its test executable and runs this one isolated fixture with sudo.
+
+Browser checks should cover numeric quota/progress at 320–1920px in both locales/modes, policy-switch prerequisites, policy save/reopen, reset/resume help, dashboard polling pause/resume and no live requests after leaving the dashboard. Simulated UI counters must not be reported as real traffic tests.

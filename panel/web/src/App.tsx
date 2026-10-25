@@ -11,6 +11,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PanelHeader } from "@/components/PanelHeader";
+import { PanelFooter } from "@/components/PanelFooter";
 import { usePanelRoute } from "@/lib/use-panel-route";
 import { ConnectionWorkspace } from "@/features/connections/ConnectionWorkspace";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -352,12 +353,7 @@ export default function App() {
                 />
               )}
             </div>
-            <footer className="app-footer">
-              <span>TUNNEL MANAGER</span>
-              <span>
-                {inventory?.host.hostname} · v{inventory?.version || "1.3.3"}
-              </span>
-            </footer>
+            <PanelFooter inventory={inventory} navigate={navigate} />
           </SidebarInset>
           <MobileNavigation page={page} navigate={navigate} />
         </SidebarProvider>

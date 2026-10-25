@@ -49,7 +49,7 @@ curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager
 
 Quick setup detects the IP, chooses a free port and prints the address and generated login once. Allow that TCP port in the server/provider firewall. HTTPS is the default; verify the initial certificate fingerprint over SSH. Custom ports, domains and explicit HTTP are supported in the [installation guide](docs/WEB-PANEL.md#quick-and-custom-setup).
 
-The panel provides Persian/English layouts, mobile and desktop views, configuration inspection/editing, setup presets and optional per-connection traffic tracking. Its prebuilt Go executable includes the interface: **no Node.js, Python, compiler or database server is needed on managed servers**. Tunnel traffic runs independently of the panel.
+The panel provides Persian/English layouts, mobile and desktop views, configuration inspection/editing and reviewed imports, setup presets, live server readings and optional per-connection traffic tracking. Its prebuilt Go executable includes the interface: **no Node.js, Python, compiler or database server is needed on managed servers**. Tunnel traffic runs independently of the panel.
 
 ### Manage more than one server
 
@@ -61,7 +61,9 @@ Agents support inventory, coordinated GRE/FRP setup and optional read-only traff
 
 - **Start and operate:** [User guide](docs/USER-GUIDE.md) · [Backup and restore](docs/BACKUP-RESTORE.md)
 - **Configure:** [Setup presets](docs/CONNECTION-PROFILES.md) · [HAProxy](docs/HAPROXY.md) · [Configuration editor](docs/CONFIGURATION-EDITOR.md)
-- **Track usage:** [Traffic accounting](docs/TRAFFIC-ACCOUNTING.md) — resets, labels, history and advisory quotas
-- **Maintain:** [Upgrade](docs/WEB-PANEL.md#existing-installations-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)
+- **Track usage:** [Traffic accounting](docs/TRAFFIC-ACCOUNTING.md) — resets, labels, history and optional quota pauses
+- **Maintain:** [Engine updates](docs/ENGINE-MAINTENANCE.md) · [Upgrade](docs/WEB-PANEL.md#existing-installations-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)
+
+Quota pauses are opt-in and sampled; traffic can exceed the limit between checks.
 
 Open the required ports/protocols before applying. Test a spare port before replacing an active service. Forwarding restore points do not include GRE/reverse peer configurations. The original scripts remain in the [legacy archive](legacy/README.md).

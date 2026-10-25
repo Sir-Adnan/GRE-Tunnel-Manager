@@ -65,6 +65,7 @@ export function ConfigurationDialog({
           setView(v);
           setJSON(v.editor || "");
           setNative(v.files[0]?.text || "");
+          setTab(v.native_editable ? "native" : v.editor ? "json" : "view");
         }
       })
       .catch((e) => {
@@ -200,7 +201,7 @@ export function ConfigurationDialog({
                         else setNative(e.target.value);
                         setReview(undefined);
                       }}
-                      className="h-[40dvh] min-h-48 w-full resize-y rounded-lg border bg-background p-4 font-mono text-start text-xs leading-6"
+                      className="config-editor"
                     />
                   </TabsContent>
                 ))}

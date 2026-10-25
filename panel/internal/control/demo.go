@@ -22,7 +22,7 @@ type Demo struct {
 }
 
 func NewDemo() *Demo {
-	d := &Demo{counter: 4, inventory: Inventory{Presets: model.Presets(), Version: "1.3.3", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
+	d := &Demo{counter: 4, inventory: Inventory{Presets: model.Presets(), Version: "1.3.4", Demo: true, Host: Host{Hostname: "edge-01", OS: "Ubuntu 24.04 LTS", Addresses: []string{"203.0.113.10", "2001:db8::10"}, Uptime: "72h0m", MemoryTotal: 1073741824, MemoryAvailable: 805306368, Load: "0.03 0.02 0.01"}, Capabilities: model.Capabilities(), Resources: []Resource{}, Components: []Component{{ID: "nftables", Installed: true}, {ID: "iptables", Installed: true}, {ID: "haproxy", Installed: true}, {ID: "realm", Installed: true}, {ID: "frp", Installed: false}, {ID: "rathole", Installed: false}}}}
 	d.inventory.EngineProfiles = model.EngineProfiles()
 	for index := range d.inventory.Components {
 		c := &d.inventory.Components[index]
@@ -44,6 +44,53 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	defer d.mu.Unlock()
 	var result any = "Demo operation completed. No server settings were changed."
 	switch r.Action {
+	case "host-telemetry":
+		return json.Marshal(demoTelemetry())
+	case "engine-releases":
+		var releases []EngineRelease
+		for _, c := range d.inventory.Components {
+			r := EngineRelease{ID: c.ID, Installed: c.Version, Version: c.Version, Supported: c.Version, Source: "distribution", URL: "https://www.netfilter.org/"}
+			if p, ok := pinnedEngines[c.ID]; ok {
+				r.Source = "upstream"
+				r.Version = p.version
+				r.Supported = p.version
+				r.URL = "https://github.com/" + p.repo + "/releases"
+			}
+			r.Revision = releaseRevision(r)
+			releases = append(releases, r)
+		}
+		return json.Marshal(releases)
+	case "engine-update":
+		return nil, errors.New("Demo engine updates are simulated; no system package is changed")
+	case "configuration-import-review", "configuration-import-apply":
+		manager := &Manager{Runner: demoConfigRunner{connections: d.inventory.Connections}}
+		if r.Action == "configuration-import-review" {
+			v, e := manager.importConfiguration(ctx, r.Import, false)
+			if e != nil {
+				return nil, e
+			}
+			return json.Marshal(v)
+		}
+		value, e := manager.importConfiguration(ctx, r.Import, false)
+		if e != nil {
+			return nil, e
+		}
+		v := value.(ImportView)
+		if r.Import.Review != v.Review {
+			return nil, errors.New("configuration or server changed; review the import again")
+		}
+		for _, c := range v.Connections {
+			d.counter++
+			c.ID = fmt.Sprintf("F%06d", d.counter)
+			rows, _ := c.Rows(c.ID)
+			c.Revision = model.Revision(rows[0])
+			c.Status = "disabled"
+			if c.Enabled {
+				c.Status = "configured"
+			}
+			d.inventory.Connections = append(d.inventory.Connections, c)
+		}
+		return json.Marshal(map[string]any{"ok": true, "count": len(v.Connections)})
 	case "backup-export", "backup-review", "backup-restore":
 		return d.backup(ctx, r)
 	case "configuration", "configuration-review", "configuration-apply":
@@ -110,6 +157,9 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		if e := metricsValid(r.Metrics); e != nil {
 			return nil, e
 		}
+		if !quotaSelectionsValid(d.metrics, r.Metrics, d.inventory) {
+			return nil, errors.New("turn off automatic pause policies before excluding their resources")
+		}
 		d.metrics.Settings = r.Metrics
 		d.metrics.Revision++
 		result = map[string]any{"ok": true, "revision": d.metrics.Revision}
@@ -130,12 +180,16 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		if r.Action == "metrics-policy" && !validTrafficPolicy(r.Traffic.Policy) {
 			return nil, errors.New("invalid policy")
 		}
+		if r.Action == "metrics-policy" && r.Traffic.Policy.StopOnLimit && (!available || !m.view.Settings.Enabled || !wanted(m.view.Settings.IDs, r.Traffic.ID)) {
+			return nil, errors.New("enable collection for this resource first")
+		}
 		m.applyTrafficChange(r.Action, r.Traffic, time.Now().UTC())
 		if e := m.validateLedger(); e != nil {
 			return nil, e
 		}
 
 		m.view.Revision++
+		m.view.Blocked = quotaBlocks(m.view)
 		d.metrics = m.view
 		result = map[string]any{"ok": true, "revision": d.metrics.Revision}
 	case "create":

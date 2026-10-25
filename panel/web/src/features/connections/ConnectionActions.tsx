@@ -44,7 +44,20 @@ export function ConnectionActions({
   const t = useT();
   const locale = useContext(LocaleContext);
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div
+      className="flex flex-wrap items-center justify-end gap-1"
+      role="group"
+      aria-label={`${t("actions")} ${row.name}`}
+    >
+      <ActionButton
+        variant="ghost"
+        size="icon"
+        label={`${t(row.enabled ? "disable" : "enable")} ${row.name}`}
+        disabled={busy}
+        onClick={onToggle}
+      >
+        {row.enabled ? <Square /> : <Play />}
+      </ActionButton>
       <ActionButton
         variant="ghost"
         size="icon"
@@ -53,6 +66,15 @@ export function ConnectionActions({
         onClick={() => onEdit(row)}
       >
         <Pencil />
+      </ActionButton>
+      <ActionButton
+        variant="ghost"
+        size="icon"
+        label={`${t("viewConfig")} ${row.name}`}
+        disabled={busy}
+        onClick={onConfig}
+      >
+        <Code2 />
       </ActionButton>
       <DropdownMenu dir={locale === "fa" ? "rtl" : "ltr"}>
         <DropdownMenuTrigger asChild>
@@ -71,10 +93,6 @@ export function ConnectionActions({
               <Info />
               {t("connectionDetails")}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onConfig}>
-              <Code2 />
-              {t("viewConfig")}
-            </DropdownMenuItem>
             {["realm", "haproxy"].includes(row.engine) && (
               <DropdownMenuItem
                 onSelect={() =>
@@ -87,10 +105,6 @@ export function ConnectionActions({
                 {t("logs")}
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onSelect={onToggle}>
-              {row.enabled ? <Square /> : <Play />}
-              {t(row.enabled ? "disable" : "enable")}
-            </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

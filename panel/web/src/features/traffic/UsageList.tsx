@@ -1,7 +1,6 @@
 import { useContext, useState } from "react";
 import { ArrowUpRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FieldGroup } from "@/components/ui/field";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -17,7 +16,8 @@ import { ActionButton, HelpTip } from "@/components/help";
 import type { Inventory, Metrics, TrafficPolicy } from "@/lib/api";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes } from "@/lib/format";
-import { cycleUsage, quotaUsage } from "./accounting";
+import { cycleUsage } from "./accounting";
+import { QuotaStatus } from "./QuotaStatus";
 import { TrafficActions } from "./TrafficActions";
 
 type UsageRow = {
@@ -77,6 +77,11 @@ export function UsageList(p: {
         disabled={p.busy}
         run={p.run}
         refresh={p.refresh}
+        canAutoPause={Boolean(
+          p.metrics?.settings.enabled &&
+          (!p.metrics.settings.ids.length ||
+            p.metrics.settings.ids.includes(row.id)),
+        )}
       />
     </div>
   );
@@ -97,18 +102,13 @@ export function UsageList(p: {
       </span>
     </div>
   );
-  const quota = (row: UsageRow) =>
-    row.policy?.limit ? (
-      <Badge variant="outline">
-        {t(
-          quotaUsage(row.counter, row.policy).reached
-            ? "quotaReached"
-            : "withinQuota",
-        )}
-      </Badge>
-    ) : (
-      <span className="text-xs text-muted-foreground">{t("noQuota")}</span>
-    );
+  const quota = (row: UsageRow) => (
+    <QuotaStatus
+      counter={row.counter}
+      policy={row.policy}
+      blocked={p.metrics?.blocked?.[row.id]}
+    />
+  );
   return (
     <Card className="@container min-w-0">
       <CardHeader>

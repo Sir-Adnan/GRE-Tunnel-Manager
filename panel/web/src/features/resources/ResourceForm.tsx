@@ -400,12 +400,14 @@ export function ResourceForm({
                           <Choice
                             id="reverse-transport"
                             label={t("transport")}
+                            help={t("transportHelp")}
                             value={reverse.transport}
                             choices={[
                               { value: "tcp", label: "TCP" },
                               { value: "websocket", label: "WebSocket" },
                               { value: "wss", label: "WSS · TLS gateway" },
                               { value: "quic", label: "QUIC" },
+                              { value: "kcp", label: "KCP" },
                             ]}
                             onChange={(value) => change("transport", value)}
                           />

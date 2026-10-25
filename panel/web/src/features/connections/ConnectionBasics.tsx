@@ -209,6 +209,7 @@ export function ConnectionBasics({
               <Choice
                 id="strategy"
                 label={t("strategy")}
+                help={t("strategyHelp")}
                 value={
                   value.strategy === "single"
                     ? capability.strategies[1]
@@ -239,6 +240,7 @@ export function ConnectionBasics({
           )}
           value={draft.preset}
           onChange={draft.applyPreset}
+          onReset={draft.resetDefaults}
           targetCount={value.targets.length}
         />
       </FieldGroup>

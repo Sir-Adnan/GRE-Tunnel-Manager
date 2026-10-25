@@ -314,7 +314,7 @@ if command -v frpc >/dev/null && command -v frps >/dev/null; then
     P_INTERNAL=27001; P_GATEWAY_CERT="$test_dir/tls.pem"; P_TLS_CA="$test_dir/tls.crt"
     openssl req -x509 -newkey rsa:2048 -nodes -keyout "$test_dir/tls.key" -out "$P_TLS_CA" -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1 -days 1 > "$test_dir/cert.log" 2>&1
     cat "$P_TLS_CA" "$test_dir/tls.key" > "$P_GATEWAY_CERT"
-    for P_TRANSPORT in tcp websocket wss quic; do
+    for P_TRANSPORT in tcp websocket wss quic kcp; do
         for P_ROLE in entrance destination; do
             gtm_frp_render > "$test_dir/frp.toml"
             if [[ $P_ROLE == entrance ]]; then frps verify -c "$test_dir/frp.toml"; else frpc verify -c "$test_dir/frp.toml"; fi
@@ -330,7 +330,14 @@ if command -v frpc >/dev/null && command -v frps >/dev/null; then
         fi
         sleep 0.2
         frpc -c "$test_dir/frpc.toml" > "$test_dir/frpc.log" 2>&1 & frpc_pid=$!
-        sleep 0.7
+        # Registration is asynchronous; KCP/TLS can need more than a fixed 0.7s.
+        ready=0
+        for ((attempt=0;attempt<50;attempt++)); do
+            if [[ -n $(ss -Hltn "sport = :$P_PUBLIC") ]]; then ready=1; break; fi
+            kill -0 "$frpc_pid" "$frps_pid" || break
+            sleep 0.1
+        done
+        ((ready==1)) || { printf 'FRP %s did not expose its public TCP port.\n' "$P_TRANSPORT" >&2; exit 1; }
         python3 tests/packet_probe.py client 127.0.0.1 28443 tcp
         kill "$frpc_pid" "$frps_pid"; wait "$frpc_pid" "$frps_pid" || true
         frpc_pid=''; frps_pid=''

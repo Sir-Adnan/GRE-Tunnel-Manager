@@ -8,7 +8,7 @@ The manager controls HAProxy Community as an optional local TCP relay. It does n
 | --- | --- |
 | Targets | 1–32 validated literal IPv4/IPv6 endpoints, independent target ports, weights 1–256 |
 | Balancing | Single, weighted round robin, leastconn, consistent source hash, primary plus ordered backup targets |
-| Health | TCP connect or plain HTTP readiness on a separate port; interval/timeout, fall/rise, bounded path/Host/exact status |
+| Health | Off, TCP connect or plain HTTP readiness on a separate port; failover requires checks |
 | Timeouts | Separate connect, client/server inactivity and queue waits |
 | Limits | Global/frontend maxconn, optional per-server maxconn; unit FD budget derived from maxconn |
 | Recovery | Optional slow start; connect retries/redispatch; no automatic replay of established application sessions |
@@ -29,15 +29,17 @@ For normal setup choose **Add Tunnel**: local port(s), remote IP and remote port
 
 Version-1 records retain their 12 fields and load the baseline defaults. An advanced HAProxy save writes version 2 with the same first 12 fields (`version=2`) and a 13th field of semicolon-separated `key=value` options. Only the HAProxy engine accepts version 2. Missing optional keys use defaults; duplicate/unknown keys, empty values, control characters, out-of-range integers and raw config snippets are rejected. No data is sourced or evaluated.
 
-New setups explicitly set `maxconn=100000`, `server_maxconn=0` and `log=off`; explicit operator values override them. Existing records retain their saved values. The table documents absent-key compatibility defaults. See [Setup presets](CONNECTION-PROFILES.md).
+New setups explicitly set `maxconn=0`, `server_maxconn=0`, `check_mode=off` and `log=off`. Zero omits both global/frontend caps and delegates sizing to HAProxy within a service FD budget of 1048576. The limit is not a guarantee or an unlimited resource pool. Existing records retain saved values and absent-key behavior. See [Setup presets](CONNECTION-PROFILES.md).
+
+Older manager releases can reject the new zero-cap, check-off or expanded-limit option values even though the record remains v2. Keep a pre-change snapshot and restore compatible settings before downgrading the manager. This does not change the TCP protocol spoken to existing VPN destinations.
 
 | Key | Legacy absent-key default | Allowed values |
 | --- | --- | --- |
 | connect | 5 | 1–300 seconds |
 | idle | 3600 | 10–604800 seconds of inactivity, not a total session lifetime |
 | queue | 30 | 1–3600 seconds |
-| maxconn | 16384 | 1–100000; resource limit, not a capacity claim |
-| server_maxconn | 0 | 0–100000; 0 disables this per-target cap |
+| maxconn | 16384 | 0–1000000; 0 omits the directive; an explicit cap is not a capacity guarantee |
+| server_maxconn | 0 | 0–1000000; 0 omits the per-target cap |
 | check_interval | 3 | 1–300 seconds |
 | check_timeout | 5 | 1–300 seconds |
 | check_fall / check_rise | 3 / 2 | 1–20 |
@@ -45,7 +47,7 @@ New setups explicitly set `maxconn=100000`, `server_maxconn=0` and `log=off`; ex
 | slowstart | 0 | 0–3600 seconds; 0 disables it |
 | proxy | off | off / v1 / v2 |
 | log | connections | connections / errors / off |
-| check_mode | tcp | tcp / http; HTTP requires a nonzero check_port different from every destination traffic port |
+| check_mode | tcp | off / tcp / http; failover requires checks; HTTP requires a separate nonzero check_port |
 | check_path | /health | Leading `/`, then up to 127 ASCII letters/digits or `/_.~-`; no query, whitespace or config interpolation |
 | check_host | localhost | 1–253 ASCII letters/digits/dots/dashes; begins and ends with a letter/digit; no arbitrary headers |
 | check_status | 200 | Exact HTTP status 200–599 |
@@ -94,7 +96,7 @@ Routing forms show the selected mode, certificate reference and resolved route d
 
 ## Remember client IP (optional)
 
-The new `stick=source` option enables a bounded in-memory HAProxy stick table for the default destination pool when it has multiple targets. `stick_size` is 1024–100000 entries (default 16384); `stick_expire` is 30–86400 idle seconds (default 1800). The default is `stick=off`. The table uses IPv6 keys with native address conversion so IPv4 and IPv6 clients are covered. Fixed-destination routing backends do not allocate duplicate tables.
+The `stick=source` option enables an in-memory HAProxy stick table for a multi-target default pool. `stick_size` is 1024–1000000 entries (default 16384); `stick_expire` is 30–86400 idle seconds (default 1800). The default is off. IPv6 table keys cover IPv4 and IPv6 clients. Fixed-destination routing backends do not allocate duplicate tables. Larger tables consume memory; do not maximize them without a workload need.
 
 This remembers a client-to-target association rather than merely hashing the source. Healthy-target selection and native redispatch still apply. Users behind the same NAT/proxy IP share an association; no untrusted forwarded-IP header is read. Memory use scales with the chosen table size and number of enabled connections. Tables reset on reload/restart: this implementation does not configure peers, disk persistence, per-IP rate policing or a replicated table. Established VPN sessions are not moved between servers.
 

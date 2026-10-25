@@ -2,7 +2,7 @@
 
 Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
 
-Version **v1.3.3** adds **Backup & restore** for password-protected recovery downloads and migration to a fresh server, with optional traffic records and explicit address/interface replacement. Imported resources stay paused. See [Backup and restore](BACKUP-RESTORE.md) for scope, external certificates, Node identities and recovery steps.
+Version **v1.3.4** adds live CPU/memory/network readings, optional traffic-quota pauses, reviewed configuration imports and manual engine maintenance. Encrypted portable recovery remains available; restored resources stay paused. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
 
 ## Installation and login
 
@@ -50,7 +50,7 @@ Explicit HTTP works on an IP without a certificate, but browser login and manage
 
 ### Existing installations and recovery
 
-Run the current installer again to upgrade to the matching **v1.3.3** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+Run the current installer again to upgrade to the matching **v1.3.4** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
 
 Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. Failures after replacement are not a host-wide atomic transaction: inspect logs and restore the previous matched package when needed. Keep private backups of configuration and Node identities.
 
@@ -88,9 +88,13 @@ Page addresses such as `#/haproxy` can be bookmarked. Search/status filters, sel
 
 Collection and retained history are off by default. Tabs separate **All connections**, **Details & history** and **Traffic collection**. The list has search, method filters, 20-row pages and per-row actions for labels/quotas, reset, supported manual stop or forgetting deleted-resource accounting. Missing samples display as unavailable.
 
-Collection adds only owned `inet gtm_panel_metrics` counters and periodic sampling, including for iptables/relay ports. GRE uses interface counters. Disabling removes the accounting table and pauses sampling while retaining totals. Disable collection before stopping the panel if you want those kernel counters removed.
+Collection adds only owned `inet gtm_panel_metrics` counters and periodic sampling, including for iptables/relay ports. GRE uses interface counters. Disabling removes the accounting table and pauses sampling while retaining totals; existing automatic-pause policies must be turned off first. Disable collection before stopping the panel if you want those kernel counters removed.
 
-Bytes are network-layer usage, not provider billing. GRE and forwarding counters may overlap and are never summed. Quotas are advisory and do not stop traffic automatically. History is bounded; remote summaries are read-only. See [Traffic accounting](TRAFFIC-ACCOUNTING.md) for coverage, lost-sample limits, reset semantics and CSV export.
+Bytes are network-layer usage, not provider billing. GRE and forwarding counters may overlap and are never summed. Quotas are advisory by default; an explicit automatic-pause option installs scoped kernel drop rules at the next successful sample after a crossing. This is not an exact byte limiter. History is bounded; remote summaries are read-only. See [Traffic accounting](TRAFFIC-ACCOUNTING.md) for coverage, lost-sample limits, reset semantics and CSV export.
+
+## Configurations and engines
+
+Configuration actions now open supported text editors directly. Use **Import** to convert a pasted/file HAProxy TCP configuration, simple Realm TOML or managed JSON into reviewed connections; it saves without starting unless explicitly enabled. See [Configuration editor](CONFIGURATION-EDITOR.md). **Tunnel engines → Check versions** separates current, official and verified/distribution versions and offers explicit local updates; see [Engine maintenance](ENGINE-MAINTENANCE.md).
 
 ## Multiple servers
 
@@ -103,3 +107,11 @@ The public service runs as restricted `grepanel`; privileged typed operations us
 Sessions are memory-only, expire after four hours and use HttpOnly/SameSite cookies plus Secure on HTTPS. Writes require exact Origin and CSRF checks. Requests, login attempts and jobs are bounded. Restarting the public process clears sessions/jobs; a broker operation can still finish, so refresh actual state after reconnecting.
 
 Production runs two Go processes plus the selected tunnel engines. Node/Vite/TypeScript are build tools. A memory-limit setting is not a fixed RSS guarantee; no throughput, CPU or RAM benchmark is claimed. For implementation details, see [Architecture](ARCHITECTURE.md), [Server artifacts](ARTIFACTS.md) and [Interface conventions](INTERFACE.md).
+
+## Live dashboard activity
+
+The dashboard adds CPU utilization across all cores, used/available memory, and receive/send rates. The authenticated read-only `/api/host/telemetry` action reads bounded `/proc/stat`, `/proc/meminfo`, `/proc/net/dev` and default-route files directly; it does not invoke shell commands or scan services. CPU excludes duplicate guest accounting and treats idle/iowait as idle. RAM uses `MemAvailable`, including reclaimable cache.
+
+Network rates use the deduplicated interfaces having IPv4/IPv6 default routes, not a sum of GRE and physical interfaces. Their names are visible. This is host interface traffic, not per-tunnel traffic or a complete policy-routing/link-bond accounting model. Traffic through other policy routes is not included. Rate values require two valid samples. Route/counter changes or gaps longer than 30 seconds restart the baseline rather than displaying a spike or zero.
+
+The visible dashboard requests a sample every 5 seconds; choose 15 seconds or pause it. Hidden/unmounted dashboards stop requests. All tabs share a two-second server cache. No new agent, daemon, database, disk history, Prometheus or packet capture is installed. These samples are independent of optional per-connection accounting. Demo readings are simulated. See [Kernel and userspace](KERNEL-AND-USERSPACE.md) for the execution split.

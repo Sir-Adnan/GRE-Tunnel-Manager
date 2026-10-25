@@ -49,7 +49,8 @@ gtm_haproxy_frontend() {
         cert="$GTM_CONFIG_DIR/certificates/$H_CERT.pem"
         printf ' ssl crt %s ssl-min-ver TLSv1.2 alpn http/1.1' "$cert"
     fi
-    printf '\n    maxconn %d\n' "$((10#$H_MAXCONN))"
+    printf '\n'
+    ((10#$H_MAXCONN == 0)) || printf '    maxconn %d\n' "$((10#$H_MAXCONN))"
     if [[ $H_ROUTE_MODE == sni ]]; then
         printf '    tcp-request inspect-delay 5s\n    tcp-request content accept if { req.ssl_hello_type 1 }\n'
     fi

@@ -4,7 +4,7 @@ gtm_frp_validate() {
     [[ $P_ROLE == entrance || $P_ROLE == destination ]] && gtm_name "$P_NAME" && gtm_ip "$P_HOST" && gtm_ip "$P_LOCAL_IP" || return 1
     gtm_port "$P_CONTROL" && gtm_port "$P_PUBLIC" && gtm_port "$P_LOCAL_PORT" || return 1
     (( 10#$P_CONTROL != 10#$P_PUBLIC )) || return 1
-    [[ $P_TRANSPORT =~ ^(tcp|websocket|wss|quic)$ && $P_PROTO =~ ^(tcp|udp)$ && $P_MUX =~ ^(true|false)$ ]] || return 1
+    [[ $P_TRANSPORT =~ ^(tcp|websocket|wss|quic|kcp)$ && $P_PROTO =~ ^(tcp|udp)$ && $P_MUX =~ ^(true|false)$ ]] || return 1
     [[ $P_TOKEN =~ ^[a-zA-Z0-9_-]{24,128}$ && $P_GROUP =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || return 1
     if [[ $P_TRANSPORT == wss ]]; then
         if [[ $P_ROLE == entrance ]]; then
@@ -21,6 +21,7 @@ gtm_frp_render() {
         if [[ $P_TRANSPORT == wss ]]; then printf 'bindAddr = "127.0.0.1"\nbindPort = %d\n' "$((10#${P_INTERNAL:-7001}))"
         else printf 'bindAddr = "%s"\nbindPort = %d\n' "$P_HOST" "$((10#$P_CONTROL))"; fi
         [[ $P_TRANSPORT != quic ]] || printf 'quicBindPort = %d\n' "$((10#$P_CONTROL))"
+        [[ $P_TRANSPORT != kcp ]] || printf 'kcpBindPort = %d\n' "$((10#$P_CONTROL))"
         printf 'proxyBindAddr = "%s"\nallowPorts = [{ single = %d }]\n' "$P_HOST" "$((10#$P_PUBLIC))"
         printf 'auth.method = "token"\nauth.token = "%s"\ntransport.tls.force = %s\ntransport.tcpMux = %s\n' "$P_TOKEN" "$([[ $P_TRANSPORT == wss ]] && echo false || echo true)" "$P_MUX"
     else
@@ -54,7 +55,7 @@ gtm_frp_menu() {
     gtm_ask_port 'Tunnel control port (same on both servers)' 7000 || return; P_CONTROL=$GTM_REPLY
     gtm_step 2 3 'Server & connection'
     gtm_ask_ip 'Public server IP' '' || return; P_HOST=$GTM_REPLY
-    gtm_choose Transport tcp TCP tcp WebSocket websocket WSS wss QUIC quic || return; P_TRANSPORT=$GTM_REPLY
+    gtm_choose Transport tcp TCP tcp WebSocket websocket WSS wss QUIC quic KCP kcp || return; P_TRANSPORT=$GTM_REPLY
     gtm_choose 'TCP multiplexing' true Enabled true Disabled false || return; P_MUX=$GTM_REPLY
     P_LOCAL_IP=127.0.0.1; P_LOCAL_PORT=$P_PUBLIC; P_PROTO=tcp; P_GROUP=default
     printf '  Use the SAME token on both sides (24-128 letters/digits/_/-).\n'
@@ -92,7 +93,7 @@ gtm_frp_menu() {
     id="gtm-frp-$P_ROLE-$P_NAME"
     if [[ $P_ROLE == entrance ]]; then
         if ! { gtm_local_address "$P_HOST" && gtm_port_available tcp "$P_HOST" "$P_CONTROL" && gtm_port_available both "$P_HOST" "$P_PUBLIC"; }; then gtm_unlock; return 1; fi
-        if [[ $P_TRANSPORT == quic ]] && ! gtm_port_available udp "$P_HOST" "$P_CONTROL"; then gtm_unlock; return 1; fi
+        if [[ $P_TRANSPORT == quic || $P_TRANSPORT == kcp ]] && ! gtm_port_available udp "$P_HOST" "$P_CONTROL"; then gtm_unlock; return 1; fi
         if [[ $P_TRANSPORT == wss ]] && ! gtm_port_available tcp 127.0.0.1 "$P_INTERNAL"; then gtm_unlock; return 1; fi
     fi
     file="$GTM_CONFIG_DIR/$id.toml"; unit="$GTM_SERVICE_DIR/$id.service"

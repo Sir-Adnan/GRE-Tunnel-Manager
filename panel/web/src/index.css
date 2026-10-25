@@ -102,7 +102,7 @@
       var(--card);
   }
   .app-footer {
-    @apply mx-4 flex items-center justify-between gap-3 border-t border-border py-5 text-[10px] tracking-wider text-muted-foreground sm:mx-7 lg:mx-10;
+    @apply mx-4 flex items-center justify-between gap-3 border-t border-border py-3 text-xs text-muted-foreground sm:mx-7 lg:mx-10;
   }
   .review-block {
     @apply flex flex-col gap-4 rounded-xl border border-border bg-muted/40 p-4;
@@ -264,20 +264,17 @@
 }
 @layer components {
   .overview-metrics {
-    @apply grid min-w-0 grid-cols-2 overflow-hidden rounded-xl border bg-card xl:grid-cols-4;
+    @apply grid min-w-0 grid-cols-3 overflow-hidden rounded-xl border bg-card;
   }
   .overview-metric {
-    @apply flex min-w-0 flex-col gap-3 p-4 sm:p-5;
+    @apply flex min-w-0 flex-col gap-2 p-3 sm:p-5;
     border-inline-end: 1px solid var(--border);
   }
-  .overview-metric:nth-child(even) {
+  .overview-metric:last-child {
     border-inline-end: 0;
   }
-  .overview-metric:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--border);
-  }
   .connection-name {
-    @apply max-w-full text-start font-medium underline-offset-4 hover:underline;
+    @apply block max-w-full text-start font-medium underline-offset-4 hover:underline;
     overflow-wrap: anywhere;
   }
   .connection-editor {
@@ -297,6 +294,11 @@
   }
   .target-address {
     @apply grid min-w-0 grid-cols-[minmax(0,1fr)_5.5rem] items-start gap-3;
+  }
+  .config-editor {
+    @apply min-h-56 w-full resize-y rounded-lg border border-input bg-background p-3 text-start font-mono text-xs leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    height: clamp(16rem, 42dvh, 34rem);
+    tab-size: 4;
   }
   .connection-editor-footer {
     @apply gap-3;
@@ -322,17 +324,6 @@
   [data-sonner-toast] [data-close-button] {
     width: 24px;
     height: 24px;
-  }
-}
-@media (min-width: 1280px) {
-  .overview-metric:nth-child(even) {
-    border-inline-end: 1px solid var(--border);
-  }
-  .overview-metric:last-child {
-    border-inline-end: 0;
-  }
-  .overview-metric:nth-child(-n + 2) {
-    border-bottom: 0;
   }
 }
 @media (max-width: 639px) {

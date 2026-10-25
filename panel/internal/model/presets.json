@@ -16,7 +16,7 @@
       "connect": "5",
       "idle": "3600",
       "queue": "15",
-      "maxconn": "100000",
+      "maxconn": "0",
       "server_maxconn": "0",
       "check_interval": "3",
       "check_timeout": "3",
@@ -29,7 +29,13 @@
       "stick_expire": "1800",
       "fin": "30",
       "tunnel": "0",
-      "retries": "2"
+      "retries": "2",
+      "proxy": "off",
+      "check_mode": "tcp",
+      "check_port": "0",
+      "check_path": "/health",
+      "check_host": "localhost",
+      "check_status": "200"
     }
   },
   {
@@ -49,7 +55,7 @@
       "connect": "5",
       "idle": "86400",
       "queue": "10",
-      "maxconn": "100000",
+      "maxconn": "0",
       "server_maxconn": "0",
       "check_interval": "3",
       "check_timeout": "3",
@@ -62,7 +68,13 @@
       "stick_expire": "1800",
       "fin": "30",
       "tunnel": "86400",
-      "retries": "2"
+      "retries": "2",
+      "proxy": "off",
+      "check_mode": "tcp",
+      "check_port": "0",
+      "check_path": "/health",
+      "check_host": "localhost",
+      "check_status": "200"
     }
   },
   {
@@ -82,7 +94,7 @@
       "connect": "5",
       "idle": "86400",
       "queue": "15",
-      "maxconn": "100000",
+      "maxconn": "0",
       "server_maxconn": "0",
       "check_interval": "3",
       "check_timeout": "3",
@@ -95,7 +107,13 @@
       "stick_expire": "3600",
       "fin": "30",
       "tunnel": "86400",
-      "retries": "2"
+      "retries": "2",
+      "proxy": "off",
+      "check_mode": "tcp",
+      "check_port": "0",
+      "check_path": "/health",
+      "check_host": "localhost",
+      "check_status": "200"
     }
   },
   {

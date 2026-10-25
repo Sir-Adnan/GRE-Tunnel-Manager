@@ -11,8 +11,12 @@ export function AffinityFields({
 }) {
   const t = useT(),
     enabled = options.stick === "source";
-  const set = (key: string, value: string) =>
-    onChange({ ...options, [key]: value });
+  const set = (key: string, value: string) => {
+    const next = { ...options };
+    if (value === "") delete next[key];
+    else next[key] = value;
+    onChange(next);
+  };
   return (
     <FieldSet className="rounded-xl border p-4">
       <FieldLegend className="inline-flex items-center gap-1">
@@ -31,16 +35,16 @@ export function AffinityFields({
           onChange={(v) => set("stick", v)}
         />
         {enabled && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <FieldGroup columns>
             <TextField
               id="option-stick_size"
               label={t("stick_size")}
               type="number"
               min={1024}
-              max={100000}
-              value={options.stick_size || "16384"}
+              max={1000000}
+              value={options.stick_size ?? ""}
+              placeholder="16384"
               onChange={(e) => set("stick_size", e.target.value)}
-              required
             />
             <TextField
               id="option-stick_expire"
@@ -48,11 +52,11 @@ export function AffinityFields({
               type="number"
               min={30}
               max={86400}
-              value={options.stick_expire || "1800"}
+              value={options.stick_expire ?? ""}
+              placeholder="1800"
               onChange={(e) => set("stick_expire", e.target.value)}
-              required
             />
-          </div>
+          </FieldGroup>
         )}
       </FieldGroup>
     </FieldSet>

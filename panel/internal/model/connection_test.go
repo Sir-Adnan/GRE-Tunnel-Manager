@@ -38,7 +38,7 @@ func TestHTTPHealthClosedFieldsAndSeparatePort(t *testing.T) {
 		t.Fatal(e, parsed)
 	}
 	for key, values := range map[string][]string{
-		"check_mode": {"https", "off"}, "check_port": {"0", "443", "65536"},
+		"check_mode": {"https", "exec"}, "check_port": {"0", "443", "65536"},
 		"check_path": {"health", "/x?secret=y", "/${PORT}", "/x\nbackend evil", "/x;log=off", "/x#comment", "/" + strings.Repeat("a", 128)},
 		"check_host": {"a\r\nb", "a b", "$(id)", "${HOST}", "x;log=off"}, "check_status": {"199", "600", "2xx"},
 	} {
@@ -88,7 +88,7 @@ func TestRoundTripOptionsAndIPv6(t *testing.T) {
 	}
 }
 func TestCapabilitiesFailClosed(t *testing.T) {
-	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "100001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "example.org" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine = "nftables" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
+	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "1000001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "example.org" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine = "nftables" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
 	for i, modify := range cases {
 		c := example()
 		modify(&c)

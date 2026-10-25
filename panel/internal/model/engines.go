@@ -16,7 +16,7 @@ func EngineProfiles() []EngineProfile {
 		{ID: "realm", VersionPolicy: "Pinned 2.9.6; extended profiles require exact version", Validation: "schema", Features: []string{"tcp_udp", "weighted_balancing", "network_timeouts", "proxy_both", "ws_profile", "mptcp_profile"}, Limitations: []string{"no_active_checks", "no_native_tls", "local_management"}},
 		{ID: "nftables", VersionPolicy: "Distribution package; kernel/native preflight required", Validation: "native", Features: []string{"kernel_dnat", "weighted_random", "incremental_balancing", "source_hash", "source_policy", "mss_clamp"}, Limitations: []string{"no_active_checks", "owned_rules_only", "local_management"}},
 		{ID: "iptables", VersionPolicy: "Distribution package; kernel/native preflight required", Validation: "native", Features: []string{"kernel_dnat", "weighted_random", "source_policy", "mss_clamp"}, Limitations: []string{"no_active_checks", "owned_rules_only", "local_management"}},
-		{ID: "frp", VersionPolicy: "Pinned 0.71.1; frpc and frps versions must match", Validation: "native", Features: []string{"reverse", "tcp_udp", "ws_quic", "wss_gateway", "leased_pair"}, Limitations: []string{"pair_subset"}},
+		{ID: "frp", VersionPolicy: "Pinned 0.71.1; frpc and frps versions must match", Validation: "native", Features: []string{"reverse", "tcp_udp", "ws_quic", "kcp_transport", "wss_gateway", "leased_pair"}, Limitations: []string{"pair_subset"}},
 		{ID: "rathole", VersionPolicy: "Pinned 0.5.0", Validation: "schema_startup", Features: []string{"reverse", "tcp_udp", "noise_nk"}, Limitations: []string{"local_management", "no_other_transports"}},
 	}
 }

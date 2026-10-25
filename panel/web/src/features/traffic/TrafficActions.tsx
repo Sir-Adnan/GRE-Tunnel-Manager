@@ -18,6 +18,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Choice, TextField } from "@/components/shared";
+import {
+  Field,
+  FieldContent,
+  FieldLabel,
+  FieldDescription,
+} from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
+import { HelpTip } from "@/components/help";
 import type { Connection, TrafficPolicy } from "@/lib/api";
 import { LocaleContext, useT } from "@/lib/i18n";
 
@@ -41,6 +49,7 @@ export function TrafficActions({
   run,
   refresh,
   compact = false,
+  canAutoPause = false,
 }: {
   id: string;
   name: string;
@@ -52,6 +61,7 @@ export function TrafficActions({
   run: (r: unknown) => Promise<void>;
   refresh: () => Promise<void>;
   compact?: boolean;
+  canAutoPause?: boolean;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -245,6 +255,8 @@ export function TrafficActions({
                 setDraft({
                   ...draft,
                   limit: Math.round(Number(e.target.value) * 1024 ** 3),
+                  stop_on_limit:
+                    Number(e.target.value) > 0 && draft.stop_on_limit,
                 });
               }}
             />
@@ -263,6 +275,35 @@ export function TrafficActions({
                 label: t(v),
               }))}
             />
+            <Field orientation="horizontal">
+              <FieldContent>
+                <div className="flex items-center gap-1">
+                  <FieldLabel htmlFor="quota-auto-pause">
+                    {t("autoPause")}
+                  </FieldLabel>
+                  <HelpTip>{t("autoPauseHelp")}</HelpTip>
+                </div>
+                {(!canAutoPause || !draft.limit) && (
+                  <FieldDescription>
+                    {t(
+                      !draft.limit
+                        ? "autoPauseNeedsLimit"
+                        : "autoPauseNeedsCollection",
+                    )}
+                  </FieldDescription>
+                )}
+              </FieldContent>
+              <Switch
+                id="quota-auto-pause"
+                checked={Boolean(draft.stop_on_limit)}
+                disabled={
+                  (!canAutoPause || !draft.limit) && !draft.stop_on_limit
+                }
+                onCheckedChange={(stop_on_limit) =>
+                  setDraft({ ...draft, stop_on_limit })
+                }
+              />
+            </Field>
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}

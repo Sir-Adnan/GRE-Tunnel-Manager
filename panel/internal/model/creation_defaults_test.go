@@ -15,7 +15,7 @@ func TestCreationDefaultsAreExplicitAndDoNotMigrateSavedRecords(t *testing.T) {
 		t.Fatal("legacy absent options must stay v1")
 	}
 	created := c.WithCreationDefaults()
-	if c.Options != nil || created.Options["maxconn"] != "100000" || created.Options["log"] != "off" || len(created.Options) != 3 {
+	if c.Options != nil || created.Options["maxconn"] != "0" || created.Options["log"] != "off" || created.Options["check_mode"] != "off" || len(created.Options) != 4 {
 		t.Fatalf("unexpected creation defaults: %#v", created.Options)
 	}
 	rows, err := created.Rows(c.ID)
@@ -23,7 +23,7 @@ func TestCreationDefaultsAreExplicitAndDoNotMigrateSavedRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 	parsed, _, err := ParseState(rows[0])
-	if err != nil || parsed[0].Options["maxconn"] != "100000" || parsed[0].Options["log"] != "off" {
+	if err != nil || parsed[0].Options["maxconn"] != "0" || parsed[0].Options["log"] != "off" {
 		t.Fatalf("creation defaults lost: %v", err)
 	}
 	// An operator's cap, log and protocol choices take precedence; maps never alias.

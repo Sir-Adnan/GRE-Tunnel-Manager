@@ -55,3 +55,5 @@ Lifetime traffic totals and cycle baselines survive optional accounting recovery
 - Limits are 128 forward records, 512 GRE/reverse resources, 20 MiB decrypted data and 28 MiB per recovery file. Normal API request limits remain unchanged; only dedicated recovery routes accept larger bodies.
 
 Backups are downloaded on demand. No scheduled task, additional daemon, remote upload or ongoing sampling is enabled by this feature.
+
+Restoring optional traffic data preserves customer labels, quotas and cycle totals, but clears applied-block status and disables automatic quota pauses. Enable collection and opt into protection again after checking the new host and routes.

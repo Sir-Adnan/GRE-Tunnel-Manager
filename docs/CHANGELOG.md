@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.4 — Traffic controls, live telemetry and clearer configuration workflows
+
+- Show numeric cycle quotas, progress and applied traffic-pause state consistently on desktop/mobile accounting views.
+- Add explicit opt-in quota pauses using owned nftables drops for both directions, including established flows; cycle reset/limit edits release guards. Detection remains sampled. Existing policies stay advisory; portable restore disables pauses.
+- Add on-demand dashboard CPU, memory and default-route network rates with visible-only 5/15-second polling, a shared cache and no extra daemon or disk history.
+- Document which dataplanes run in Linux and which rely on resident userspace engines.
+
+- Repair mobile connection identity wrapping and destination disclosures. Restore direct start/stop and configuration actions beside edit; compact search/filter placement, balance desktop columns, collapse mobile appearance controls and add useful footer shortcuts without changing Nettinx colors.
+- Open supported configuration text editors directly. Fix real HAProxy `targetN` server edits, consistent repeated caps, target additions/removals and optional directive removal. Add strict single-destination iptables/nftables text edits with full companion-rule round trips; never execute submitted firewall text.
+- Add reviewed, additive imports from pasted/uploaded HAProxy TCP configurations, simple Realm TOML and managed JSON objects/arrays for all four forwarding engines. Show replaced process settings, reject unknown/lossy syntax and changed reviews, preserve unrelated state under the shared lock, and save paused unless explicitly activated.
+- Default new HAProxy connections to automatic native connection sizing, no per-server cap, traffic logs off and active checks off. Preserve saved/legacy defaults. Allow explicit caps and affinity tables up to 1000000; retain finite connection/inactivity timeouts. Presets explicitly enable TCP checks and reset stale advanced options.
+- Add manual official release checks and confirmed engine maintenance. Keep verified binary pins separate from latest upstream releases; use reviewed distribution candidates for system packages and retain old pinned binaries for recovery.
+- Recognize the official capitalized Realm version/build-feature output in inventory and staged-binary verification.
+- Add local FRP KCP transport, UDP listener checks, native verification and backup round trips. Existing Node pairing retains its TCP/WS/QUIC capability contract.
+
 ## v1.3.3 — Refined workspaces and encrypted portable recovery
 
 - Add an optional local-server Backup & restore workspace with encrypted downloads, source/destination review, IP/interface migration, explicit conflict checks and paused recovery on a fresh installation. Preserve managed forwarding/GRE/reverse definitions, reverse secrets, display names, allocation counters and optional traffic records; keep panel/Node identities and external host resources separate.

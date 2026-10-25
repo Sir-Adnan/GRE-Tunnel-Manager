@@ -63,9 +63,10 @@ export function Traffic({
     loading,
     dirty,
     invalid,
+    protectionConflict,
     refresh,
     save,
-  } = useTraffic(run);
+  } = useTraffic(run, inventory);
   const resources = [
     ...inventory.connections.map((c) => ({
       id: c.id,
@@ -144,7 +145,13 @@ export function Traffic({
           </TabsContent>
         )}
         <TabsContent value="collection">
-          {" "}
+          {protectionConflict && (
+            <Alert>
+              <AlertDescription>
+                {t("autoPauseCollectionGuard")}
+              </AlertDescription>
+            </Alert>
+          )}{" "}
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">

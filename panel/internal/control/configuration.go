@@ -152,7 +152,7 @@ func (m *Manager) connectionView(ctx context.Context, c model.Connection) (Confi
 			return ConfigView{}, err
 		}
 	}
-	return ConfigView{ID: c.ID, Revision: c.Revision, Engine: c.Engine, Files: []ConfigFile{{Name: c.ID + ".conf", Path: path, Text: text, Kind: "generated"}}, Editor: string(b), NativeEditable: c.Engine == "haproxy" || c.Engine == "realm", SavedState: state}, nil
+	return ConfigView{ID: c.ID, Revision: c.Revision, Engine: c.Engine, Files: []ConfigFile{{Name: c.ID + ".conf", Path: path, Text: text, Kind: "generated"}}, Editor: string(b), NativeEditable: c.Engine == "haproxy" || c.Engine == "realm" || len(c.Targets) == 1, SavedState: state}, nil
 }
 func (m *Manager) ReviewConfiguration(ctx context.Context, in ConfigInput) (model.Connection, ConfigView, error) {
 	original, e := m.configConnection(ctx, in)
@@ -261,7 +261,7 @@ var scalar = regexp.MustCompile(`^("[a-zA-Z0-9_ .:/\[\]+=\-]*"|true|false|[0-9]+
 var tableName = regexp.MustCompile(`^\[(server|client)(\.(transport(\.(tcp|noise))?|services\."[a-zA-Z0-9_-]+"))?\]$`)
 
 func redactReverse(raw string) (string, error) {
-	allowed := strings.Fields("log.to bindAddr bindPort quicBindPort proxyBindAddr allowPorts auth.method auth.token transport.tls.force transport.tcpMux serverAddr serverPort transport.protocol transport.tls.enable transport.tls.trustedCaFile name type localIP localPort remotePort loadBalancer.group loadBalancer.groupKey healthCheck.type healthCheck.timeoutSeconds healthCheck.maxFailed healthCheck.intervalSeconds bind_addr remote_addr retry_interval nodelay keepalive_secs keepalive_interval pattern local_private_key remote_public_key token local_addr")
+	allowed := strings.Fields("log.to bindAddr bindPort quicBindPort kcpBindPort proxyBindAddr allowPorts auth.method auth.token transport.tls.force transport.tcpMux serverAddr serverPort transport.protocol transport.tls.enable transport.tls.trustedCaFile name type localIP localPort remotePort loadBalancer.group loadBalancer.groupKey healthCheck.type healthCheck.timeoutSeconds healthCheck.maxFailed healthCheck.intervalSeconds bind_addr remote_addr retry_interval nodelay keepalive_secs keepalive_interval pattern local_private_key remote_public_key token local_addr")
 	secret := map[string]bool{"auth.token": true, "loadBalancer.groupKey": true, "token": true, "local_private_key": true}
 	var lines []string
 	for _, line := range strings.Split(raw, "\n") {

@@ -32,7 +32,7 @@ func parseEngineVersion(id, output string) string {
 			return ""
 		}
 	case "realm":
-		if !strings.HasPrefix(text, "realm ") {
+		if !strings.HasPrefix(strings.ToLower(text), "realm ") {
 			return ""
 		}
 	case "iptables":

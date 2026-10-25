@@ -27,6 +27,7 @@ import { engineName, trafficBytes, number } from "@/lib/format";
 import { archiveSamples } from "./history";
 import { UsageList } from "./UsageList";
 import { TrafficActions } from "./TrafficActions";
+import { QuotaStatus } from "./QuotaStatus";
 import { cycleUsage, quotaUsage, csvCell } from "./accounting";
 const TrafficChart = lazy(() => import("./TrafficChart"));
 
@@ -93,8 +94,7 @@ export function TrafficWorkspace({
   const selected = filtered.find((r) => r.id === chosenID) || filtered[0];
   const c = selected?.counter,
     p = selected?.policy;
-  const usage = c ? cycleUsage(c) : { received: 0, sent: 0 },
-    quota = quotaUsage(c, p);
+  const usage = c ? cycleUsage(c) : { received: 0, sent: 0 };
   const connection = inventory.connections.find((r) => r.id === selected?.id);
   const [archive, setArchive] = useState<TrafficArchive>();
   const [archiveError, setArchiveError] = useState("");
@@ -138,6 +138,8 @@ export function TrafficWorkspace({
         "Sent bytes (cycle)",
         "Quota bytes",
         "Quota direction",
+        "Automatic pause",
+        "Traffic blocked",
         "Cycle start",
         "Last sample",
       ],
@@ -155,6 +157,8 @@ export function TrafficWorkspace({
           v.sent,
           r.policy?.limit || 0,
           r.policy?.direction || "total",
+          r.policy?.stop_on_limit ? "yes" : "no",
+          metrics?.blocked?.[r.id] ? "yes" : "no",
           r.counter?.cycle_start || metrics?.since || "",
           r.counter?.updated || "",
         ];
@@ -367,50 +371,20 @@ export function TrafficWorkspace({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-1 text-sm font-medium">
                         {t("cycleQuota")}
-                        <HelpTip>{t("quotaHelp")}</HelpTip>
+                        <HelpTip>
+                          {t(
+                            p?.stop_on_limit
+                              ? "autoPauseHelp"
+                              : "advisoryQuota",
+                          )}
+                        </HelpTip>
                       </span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          quota.reached ? "border-destructive/40" : undefined
-                        }
-                      >
-                        {t(
-                          quota.reached
-                            ? "quotaReached"
-                            : p?.limit
-                              ? "withinQuota"
-                              : "noQuota",
-                        )}
-                      </Badge>
                     </div>
-                    {Boolean(p?.limit) && (
-                      <>
-                        <div
-                          className="h-2 overflow-hidden rounded-full bg-muted"
-                          role="progressbar"
-                          aria-label={t("cycleQuota")}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={Math.round(quota.percent)}
-                        >
-                          <div
-                            className="h-full rounded-full bg-primary"
-                            style={{ width: `${quota.percent}%` }}
-                          />
-                        </div>
-                        <p className="text-sm tabular-nums">
-                          <bdi>
-                            {trafficBytes(quota.used, locale)} /{" "}
-                            {trafficBytes(p!.limit, locale)}
-                          </bdi>{" "}
-                          · {t(p!.direction)}
-                        </p>
-                      </>
-                    )}
-                    <p className="text-xs leading-6 text-muted-foreground">
-                      {t("advisoryQuota")}
-                    </p>
+                    <QuotaStatus
+                      counter={c}
+                      policy={p}
+                      blocked={metrics?.blocked?.[selected.id]}
+                    />
                   </div>
                   <dl className="grid gap-4 text-sm sm:grid-cols-2">
                     {[
@@ -451,6 +425,11 @@ export function TrafficWorkspace({
                   disabled={busy}
                   run={run}
                   refresh={refresh}
+                  canAutoPause={Boolean(
+                    metrics?.settings.enabled &&
+                    (!metrics.settings.ids.length ||
+                      metrics.settings.ids.includes(selected.id)),
+                  )}
                 />
               </Card>
               <Card>

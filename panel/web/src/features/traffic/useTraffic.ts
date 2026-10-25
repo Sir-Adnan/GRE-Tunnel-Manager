@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Metrics } from "@/lib/api";
+import type { Metrics, Inventory } from "@/lib/api";
 
 /** Owns drafts, API results and persisted accounting independently of presentation. */
-export function useTraffic(run: (request: unknown) => Promise<void>) {
+export function useTraffic(
+  run: (request: unknown) => Promise<void>,
+  inventory: Inventory,
+) {
   const [metrics, setMetrics] = useState<Metrics>();
   const [enabled, setEnabled] = useState(false);
   const [interval, setInterval] = useState(60);
@@ -64,7 +67,18 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
       [...requestedIDs].sort().join() !==
         [...(metrics.settings.ids || [])].sort().join()),
   );
+  const available = new Set([
+    ...inventory.connections.map((c) => c.id),
+    ...inventory.resources.map((r) => r.id),
+  ]);
+  const protectionConflict = Object.entries(metrics?.policies || {}).some(
+    ([id, p]) =>
+      p.stop_on_limit &&
+      available.has(id) &&
+      (!enabled || (!all && !ids.includes(id))),
+  );
   const invalid =
+    protectionConflict ||
     !Number.isInteger(interval) ||
     interval < 15 ||
     interval > 3600 ||
@@ -120,6 +134,7 @@ export function useTraffic(run: (request: unknown) => Promise<void>) {
     loading,
     dirty,
     invalid,
+    protectionConflict,
     refresh,
     save,
   };

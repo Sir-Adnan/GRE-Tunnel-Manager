@@ -89,6 +89,8 @@ type Inventory struct {
 	Demo           bool                  `json:"demo"`
 }
 type Request struct {
+	EngineRevision  string           `json:"engine_revision,omitempty"`
+	Import          ImportInput      `json:"import,omitzero"`
 	Backup          BackupInput      `json:"backup,omitzero"`
 	Configuration   ConfigInput      `json:"configuration,omitzero"`
 	NodeTask        *NodeTask        `json:"node_task,omitempty"`
@@ -106,6 +108,8 @@ type Request struct {
 	ResourceName    ResourceName     `json:"resource_name"`
 }
 type Manager struct {
+	telemetry hostSampler
+	releases  releaseCache
 	probes    componentProbe
 	Runner    Runner
 	ConfigDir string
@@ -243,10 +247,18 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.3"}, nil
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.4"}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {
+	case "host-telemetry":
+		return m.telemetry.Sample(), nil
+	case "engine-releases":
+		return m.engineReleases(ctx), nil
+	case "engine-update":
+		return m.updateEngine(ctx, r)
+	case "configuration-import-review", "configuration-import-apply":
+		return m.importConfiguration(ctx, r.Import, r.Action == "configuration-import-apply")
 	case "backup-export", "backup-review", "backup-restore":
 		return m.backup(ctx, r.Action, r.Backup)
 	case "configuration":
@@ -448,7 +460,7 @@ func (r Reverse) Input() (string, error) {
 		return "", errors.New("control and public ports must differ")
 	}
 	if r.Engine == "frp" {
-		if !oneOf(r.Transport, "tcp", "websocket", "wss", "quic") || r.Protocol == "both" || !instanceName.MatchString(r.Group) {
+		if !oneOf(r.Transport, "tcp", "websocket", "wss", "quic", "kcp") || r.Protocol == "both" || !instanceName.MatchString(r.Group) {
 			return "", errors.New("invalid FRP transport, protocol or group")
 		}
 		if r.Transport == "wss" && (!safePath.MatchString(r.Certificate) || r.Internal < 1 || r.Internal > 65535) {

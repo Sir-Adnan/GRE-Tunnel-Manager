@@ -1,13 +1,5 @@
 import { useContext } from "react";
-import {
-  ChevronRight,
-  Globe2,
-  Moon,
-  Monitor,
-  RefreshCw,
-  Server,
-  Sun,
-} from "lucide-react";
+import { ChevronRight, Globe2, RefreshCw, Server } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { AppearanceControl } from "@/components/AppearanceControl";
 import { ActionButton } from "@/components/help";
 import { Address } from "@/components/shared";
 import { AccessStatus } from "@/components/AccessStatus";
@@ -104,35 +96,10 @@ export function PanelHeader({
             </div>
           </PopoverContent>
         </Popover>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          aria-label={t("mode")}
-          value={preferences.mode}
-          onValueChange={(mode) =>
-            mode &&
-            setPreferences({
-              ...preferences,
-              mode: mode as Preferences["mode"],
-            })
-          }
-        >
-          {[
-            { id: "light", icon: Sun },
-            { id: "dark", icon: Moon },
-            { id: "system", icon: Monitor },
-          ].map(({ id, icon: Icon }) => (
-            <ToggleGroupItem
-              key={id}
-              value={id}
-              aria-label={t(id)}
-              title={t(id)}
-            >
-              <Icon />
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+        <AppearanceControl
+          preferences={preferences}
+          onChange={setPreferences}
+        />
         <ActionButton
           variant="ghost"
           size="icon"

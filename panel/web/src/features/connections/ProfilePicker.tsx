@@ -8,11 +8,13 @@ export function ProfilePicker({
   value,
   onChange,
   targetCount = 1,
+  onReset,
 }: {
   presets: Preset[];
   value: string;
   onChange: (p: Preset | undefined) => void;
   targetCount?: number;
+  onReset?: () => void;
 }) {
   const t = useT(),
     locale = useContext(LocaleContext),
@@ -23,10 +25,23 @@ export function ProfilePicker({
         id="preset"
         label={t("connectionProfile")}
         help={selected ? selected.help[locale] || selected.help.en : undefined}
-        value={selected ? value : "custom"}
-        onChange={(id) => onChange(presets.find((p) => p.id === id))}
+        value={
+          selected
+            ? value
+            : value === "defaults" && onReset
+              ? "defaults"
+              : "custom"
+        }
+        onChange={(id) =>
+          id === "defaults" && onReset
+            ? onReset()
+            : onChange(presets.find((p) => p.id === id))
+        }
         choices={[
           { value: "custom", label: t("customProfile") },
+          ...(onReset
+            ? [{ value: "defaults", label: t("engineDefaults") }]
+            : []),
           ...presets.map((p) => ({
             value: p.id,
             label: p.label[locale] || p.label.en,

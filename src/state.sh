@@ -18,6 +18,7 @@ gtm_record_validate() {
     [[ $R_ENABLED =~ ^[01]$ && $R_SNAT =~ ^(masquerade|preserve)$ ]] || return 1
     [[ $R_ENGINE =~ ^(iptables|nftables|realm|haproxy)$ && $R_PROTO =~ ^(tcp|udp|both)$ ]] || return 1
     [[ $R_STRATEGY =~ ^(single|random|roundrobin|leastconn|source|failover)$ ]] || return 1
+    [[ $R_ENGINE != haproxy || $R_STRATEGY != failover || $H_CHECK_MODE != off ]] || return 1
     [[ $R_TARGETS != ,* && $R_TARGETS != *, && $R_TARGETS != *,,* ]] || return 1
     [[ $R_BIND == *:* ]] && family=6
     bind_key=$(gtm_ip_key "$R_BIND") || return 1

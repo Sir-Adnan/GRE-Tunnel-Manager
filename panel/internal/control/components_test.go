@@ -13,6 +13,7 @@ func TestVersionParsingAndCompatibility(t *testing.T) {
 		{"haproxy", "HAProxy version 2.8.5-1ubuntu3 2024/04/01\nStatus: stable", "2.8.5-1ubuntu3", "native_required"},
 		{"haproxy", "HAProxy version 2.0.1", "2.0.1", "unsupported"},
 		{"realm", "realm 2.9.6", "2.9.6", "pinned"}, {"realm", "realm 2.9.5", "2.9.5", "unverified"},
+		{"realm", "Realm 2.9.6 [brutal][batched-udp][proxy][balance][transport][multi-thread]", "2.9.6", "pinned"},
 		{"realm", "realm 3.0.0", "3.0.0", "unsupported"}, {"realm", "unrelated 2.9.6", "", "unknown"},
 		{"frp", "0.71.1\n", "0.71.1", "pinned"}, {"frp", "error 0.71.1", "", "unknown"},
 		{"rathole", "rathole\nBuild Version: 0.5.0\n", "0.5.0", "pinned"},

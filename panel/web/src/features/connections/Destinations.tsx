@@ -72,9 +72,9 @@ export function Destinations({ connection }: { connection: Connection }) {
           <PopoverTrigger asChild>
             <Button
               type="button"
-              variant="ghost"
+              variant="endpoint"
               size="sm"
-              className="h-auto max-w-full flex-wrap justify-start gap-2 px-0 py-1 hover:bg-transparent"
+              className="h-auto max-w-full px-0 py-1"
               aria-label={`${t("viewDestinations")} · ${connection.name}`}
             >
               <bdi

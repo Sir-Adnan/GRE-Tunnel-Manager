@@ -43,7 +43,7 @@ gtm_pair_frp_parse() {
     IFS= read -r extra && return 1
     fields=${line//[^$'\t']/}; ((${#fields}==15)) || return 1
     IFS=$'\t' read -r engine name role host control public local_ip local_port proto transport mux token group key cert internal <<< "$line"
-    [[ $engine == frp && $name =~ ^[a-zA-Z0-9_-]{1,32}$ && $transport =~ ^(tcp|websocket|quic)$ && $key == - && $cert == - && $internal == 0 ]] || return 1
+    [[ $engine == frp && $name =~ ^[a-zA-Z0-9_-]{1,32}$ && $transport =~ ^(tcp|websocket|quic|kcp)$ && $key == - && $cert == - && $internal == 0 ]] || return 1
     P_NAME=$name; P_ROLE=$role; P_HOST=$host; P_CONTROL=$control; P_PUBLIC=$public
     P_LOCAL_IP=$local_ip; P_LOCAL_PORT=$local_port; P_PROTO=$proto; P_TRANSPORT=$transport
     P_MUX=$mux; P_TOKEN=$token; P_GROUP=$group
@@ -59,7 +59,7 @@ gtm_frp_create() {
     [[ ! -e $file && ! -L $file && ! -e $unit && ! -L $unit ]] || { gtm_error 'Reverse instance already exists.'; return 1; }
     if [[ $P_ROLE == entrance ]]; then
         gtm_local_address "$P_HOST" && gtm_port_available tcp "$P_HOST" "$P_CONTROL" && gtm_port_available "$P_PROTO" "$P_HOST" "$P_PUBLIC" || return 1
-        [[ $P_TRANSPORT != quic ]] || gtm_port_available udp "$P_HOST" "$P_CONTROL" || return 1
+        [[ $P_TRANSPORT != quic && $P_TRANSPORT != kcp ]] || gtm_port_available udp "$P_HOST" "$P_CONTROL" || return 1
         [[ $P_TRANSPORT != wss ]] || gtm_port_available tcp 127.0.0.1 "$P_INTERNAL" || return 1
         bin=$(command -v frps) || return 1
     else bin=$(command -v frpc) || return 1; fi

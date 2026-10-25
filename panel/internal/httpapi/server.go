@@ -117,6 +117,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/api/host/telemetry" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "host-telemetry"})
+	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "engine-releases"})
+	case r.URL.Path == "/api/configuration/import/review" && r.Method == "POST":
+		var input control.ImportInput
+		if !decode(w, r, &input) {
+			return
+		}
+		s.forward(w, r, control.Request{Action: "configuration-import-review", Import: input})
 	case strings.HasPrefix(r.URL.Path, "/api/backups/"):
 		s.backupRoutes(w, r)
 	case r.URL.Path == "/api/configuration" && r.Method == "GET":
@@ -166,7 +176,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 func allowed(action string) bool {
 	switch action {
-	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "configuration-apply":
+	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "configuration-apply", "configuration-import-apply", "engine-update":
 		return true
 	}
 	return false

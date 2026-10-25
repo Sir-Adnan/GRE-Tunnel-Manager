@@ -21,7 +21,9 @@ Hash routes (`#/haproxy`, `#/traffic?tab=details&resource=F000001`) support dire
 
 `PanelHeader` owns local-server identity, separately copyable addresses and appearance/language controls. Connection management is local; this header must not imply that arbitrary remote operations are available. Nodes separate the server inventory from coordinated connection setup.
 
-`ConnectionWorkspace` owns list scope. `ConnectionTable` owns selection and revision-bearing actions; connection names open a read-only detail dialog and direct edit remains visible. Secondary actions use labeled Radix menus. The whole-server preview belongs in the toolbar, not a large list footer. Do not replace actual runtime status with optimistic health claims.
+`ConnectionWorkspace` owns list scope. `ConnectionTable` owns selection and revision-bearing actions; names open a read-only detail dialog. Keep start/stop, edit and configuration directly visible; details/logs/delete use a labeled menu. Mobile identity and engine metadata are distinct stacked elements. Balance desktop column widths instead of giving every spare pixel to the name. Search/status filters share a compact row when they fit. The whole-server preview belongs in the toolbar. Do not replace actual runtime status with optimistic health claims.
+
+Configuration imports separate file/text entry from parsed resource review. Show replaced process settings, activation state and generated output before saving. Any draft edit invalidates review. Engine maintenance displays installed, upstream and verified/candidate versions separately; checking is read-only, updating requires its own confirmation. Collapse appearance controls to a single popover trigger on mobile; keep the desktop segmented control and footer recovery/engine shortcuts accessible.
 
 `useConnectionDraft` retains a private copy of the opened record. `ConnectionBasics`, `ConnectionAdvanced` and `ConnectionReview` render distinct stages. Required ports precede optional names; desktop entrance/destination panels stack on mobile. Tabs retain their controls so hidden invalid fields are revealed and focused before review. Network validation and mutations remain authoritative on the server.
 
@@ -42,3 +44,5 @@ Copy actions share `lib/clipboard.ts`: prefer the Clipboard API, then attempt a 
 Check actual geometry, not just document overflow: no excess outer modal scroll, visible actions and a reachable final input. Test both locales, light/dark, narrow mobile and wide desktop. Exercise selection, switches, presets, review/apply and traffic actions in the loopback demo. Missing samples remain unavailable; never substitute zero or sum overlapping GRE/forward counters.
 
 See [Development](DEVELOPMENT.md) for automated checks and [Releasing](RELEASING.md) for publication gates.
+
+Dashboard activity uses one compact four-metric region with Latin values and directional network labels. A pause control and 5/15-second cadence keep polling explicit. Unavailable readings use a dash, never a fabricated zero. Quota presentation shares `QuotaStatus` between mobile rows, desktop cells and details; show the numeric cap, current usage/direction and the last successfully applied blocking status. Automatic pause is opt-in with sampling, scope and resume help.

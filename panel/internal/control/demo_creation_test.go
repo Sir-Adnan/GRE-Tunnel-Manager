@@ -21,7 +21,7 @@ func TestDemoCreatedAndDisabledRecordsHaveInspectableRevisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	c = d.inventory.Connections[len(d.inventory.Connections)-1]
-	if c.Options["maxconn"] != "100000" || c.Options["log"] != "off" {
+	if c.Options["maxconn"] != "0" || c.Options["log"] != "off" {
 		t.Fatal(c.Options)
 	}
 	inspect := func(c model.Connection) {

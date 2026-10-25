@@ -85,7 +85,7 @@ class AdvancedTests(unittest.TestCase):
                          'option dontlog-normal','mode 600 level user']:
             self.assertIn(expected,result.stdout)
         for bad in ['idle=0','idle=999999999999999999','idle=3600;idle=7200','proxy=accept-proxy',
-                    'log=off\nfrontend injected','maxconn=$(id)','unknown=1','connect=1;', 'maxconn=0000000']:
+                    'log=off\nfrontend injected','maxconn=$(id)','unknown=1','connect=1;', 'maxconn=00000000']:
             result=bash('gtm_record_validate '+shlex.quote(record(engine='haproxy',version='2')+'\t'+bad))
             self.assertNotEqual(result.returncode,0,bad)
         result=bash('IFS= read -r row\ngtm_record_validate "$row"',record(version='2')+'\tidle=3600\n')

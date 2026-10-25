@@ -176,6 +176,12 @@ func recoveryReverse(id, raw, gateway string) (Reverse, error) {
 			if get("quicBindPort") != "" {
 				r.Transport = "quic"
 			}
+			if get("kcpBindPort") != "" {
+				if r.Transport == "quic" {
+					return r, errors.New("mixed UDP transports cannot be restored")
+				}
+				r.Transport = "kcp"
+			}
 			if get("transport.tls.force") == "false" {
 				r.Transport = "wss"
 				r.Internal = r.Control

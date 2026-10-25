@@ -1,7 +1,8 @@
 # Optional, explicitly selected services. The manager itself is not resident.
 gtm_install_component() {
-    local component=$1 arch archive url sha tmp member
-    case $component in
+    local component=$1 mode=${2:-install} arch archive url sha tmp member candidate_version
+    [[ $mode == install || $mode == update ]] || return 1
+    if [[ $mode == install ]]; then case $component in
         iptables) command -v iptables >/dev/null 2>&1 && return 0 ;;
         nftables) command -v nft >/dev/null 2>&1 && return 0 ;;
         haproxy) command -v haproxy >/dev/null 2>&1 && command -v socat >/dev/null 2>&1 && return 0 ;;
@@ -15,7 +16,7 @@ gtm_install_component() {
         frp) command -v frpc >/dev/null 2>&1 && command -v frps >/dev/null 2>&1 && return 0 ;;
         rathole) if command -v rathole >/dev/null 2>&1; then gtm_rathole_binary; return $?; fi ;;
         *) return 1 ;;
-    esac
+    esac; fi
     gtm_root || return 1
     printf '\nInstall optional component: %s\n' "$component"
     gtm_confirm || return 1
@@ -45,10 +46,10 @@ gtm_install_component() {
     if ! printf '%s  %s\n' "$sha" "$tmp/archive.tar.gz" | sha256sum -c -; then rm -rf "$tmp"; return 1; fi
     tar -xzf "$tmp/archive.tar.gz" -C "$tmp" || { rm -rf "$tmp"; return 1; }
     if [[ $component == realm ]]; then
-        install -m 755 "$tmp/realm" /usr/local/bin/realm || { rm -rf "$tmp"; return 1; }
+        candidate_version=$("$tmp/realm" --version) && [[ $candidate_version =~ ^[Rr]ealm[[:space:]]+2\.9\.6([[:space:]]|$) ]] && gtm_component_publish "$tmp" realm || { rm -rf "$tmp"; return 1; }
     else
         member=${archive%.tar.gz}
-        install -m 755 "$tmp/$member/frpc" /usr/local/bin/frpc && install -m 755 "$tmp/$member/frps" /usr/local/bin/frps || { rm -rf "$tmp"; return 1; }
+        [[ $("$tmp/$member/frpc" --version) == 0.71.1 && $("$tmp/$member/frps" --version) == 0.71.1 ]] && gtm_component_publish "$tmp/$member" frpc frps || { rm -rf "$tmp"; return 1; }
     fi
     rm -rf "$tmp"
 }
@@ -64,7 +65,8 @@ gtm_install_packages() (
         fi
     fi
     trap 'if ((owned)); then rm -f "$policy"; fi' EXIT
-    apt-get update && apt-get install -y "$@" || exit 1
+    if [[ ${GTM_PACKAGE_REFRESH:-1} != 0 ]]; then apt-get update || exit 1; fi
+    apt-get install -y "$@" || exit 1
     if ((had_haproxy==0)); then
         for package in "$@"; do
             [[ $package != haproxy ]] || systemctl disable --now haproxy.service || exit 1

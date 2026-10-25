@@ -115,7 +115,7 @@ export function ConnectionTable({
   return (
     <div className="@container flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="relative w-full sm:w-72">
+        <div className="relative min-w-0 flex-1 basis-24 sm:max-w-80">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label={t("search")}
@@ -128,10 +128,11 @@ export function ConnectionTable({
             className="ps-9"
           />
         </div>
-        <div className="w-full sm:w-44">
+        <div className="w-32 shrink-0 sm:w-44">
           <Choice
             id="connection-status"
             label={t("status")}
+            labelHidden
             value={statusFilter}
             onChange={(status) => {
               updateParams({ status: status === "all" ? "" : status });
@@ -143,7 +144,7 @@ export function ConnectionTable({
             }))}
           />
         </div>
-        <span className="text-xs text-muted-foreground">
+        <span className="basis-full text-xs text-muted-foreground sm:basis-auto">
           {number(shown.length, locale)} {t("connections")}
         </span>
         {picked.length > 0 && (
@@ -207,7 +208,7 @@ export function ConnectionTable({
                       }
                     />
 
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 flex-col items-start gap-1">
                       <button
                         type="button"
                         className="connection-name"
@@ -217,7 +218,7 @@ export function ConnectionTable({
                       >
                         {row.name}
                       </button>
-                      <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
                         {glyph(row.engine)}
                         <bdi>{engineName(row.engine)}</bdi>
                       </span>
@@ -260,11 +261,11 @@ export function ConnectionTable({
             <Table className="table-fixed">
               <colgroup>
                 <col style={{ width: 36 }} />
+                <col style={{ width: "29%" }} />
+                <col style={{ width: "12%" }} />
                 <col />
-                <col style={{ width: 88 }} />
-                <col style={{ width: 190 }} />
                 <col style={{ width: 100 }} />
-                <col style={{ width: 98 }} />
+                <col style={{ width: 184 }} />
               </colgroup>
               <TableHeader>
                 <TableRow>

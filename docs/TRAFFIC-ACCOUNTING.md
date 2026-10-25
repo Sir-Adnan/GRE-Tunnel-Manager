@@ -2,14 +2,14 @@
 
 The full accounting workspace is optional and local to the panel server. Other Nodes can opt into [read-only summaries](REMOTE-TRAFFIC.md). The workspace separates **All connections**, **Details & history**, and **Traffic collection**. Collection and retained history are off by default. Tunnels work independently of the panel.
 
-The all-connections tab presents 20 rows per page with search/method filters, cycle received/sent/total, advisory quota status and a per-row menu. Use that menu for reset, customer/quota settings or stopping a supported active forward; open the arrow action for details/history. Missing samples display as unavailable. The list does not sum overlapping GRE and forward totals or add automatic quota enforcement. Mobile layouts use compact rows instead of a wide table.
+The all-connections tab presents 20 rows per page with search/method filters, cycle received/sent/total, the numeric quota and progress, and a per-row menu. Use that menu for reset, customer/quota settings or stopping a supported active forward; open the arrow action for details/history. Missing samples display as unavailable. The list does not sum overlapping GRE and forward totals. Automatic traffic pause is a separate opt-in policy. Mobile layouts use compact rows instead of a wide table.
 
 ## Track a port or customer
 
 1. Create a forward with a dedicated entrance port. A batch of ports creates independent connection IDs, so each port can have its own accounting.
 2. In **Traffic collection**, enable collection, choose all supported connections or a subset, and save. The interval is 15–3600 seconds; 60 seconds is the default. Port accounting requires nftables even when the forwarding engine is HAProxy, Realm or iptables.
 3. In **All connections**, find the connection by name, entrance port or customer label, optionally filtering by engine. Open its row action or **Details & history**.
-4. Open **Customer & quota**. Enter an optional customer/reference label, quota in GiB and the counted direction: received, sent or their sum. Zero means unlimited.
+4. Open **Customer & quota**. Enter an optional customer/reference label, quota in GiB and the counted direction: received, sent or their sum. Zero means no quota. To pause traffic at the quota, enable **Pause traffic at quota** after enabling collection for this resource.
 5. Export the filtered list as CSV when needed. Values are quoted and leading spreadsheet formulas are neutralized. The export contains recorded byte values as well as resource IDs and cycle timestamps.
 
 A customer label is a reference, not a user account. Multiple users sharing the same entrance port cannot be separated by these network counters. Use separate ports/connections when attribution matters. There is no customer billing portal or invoice calculation.
@@ -22,9 +22,17 @@ Resets and policy edits use a ledger revision. An old dialog or repeated request
 
 When collection is paused, a reset uses the last recorded totals; unmeasured traffic cannot be recovered. Reusing a deleted GRE/reverse technical ID can associate it with the old accounting key: export and **Forget archived usage** before creating a replacement with that ID if a separate ledger is required.
 
-## Quotas and manual controls
+## Quotas and automatic pause
 
-Quotas are **advisory**, evaluated against the current cycle. The panel displays progress and a quota-reached badge. It does not automatically stop tunnels or modify firewall policy in the background.
+Existing quotas remain **advisory** unless **Pause traffic at quota** is explicitly enabled. Lists and details show the actual quota, cycle usage and counted direction. Collection must be enabled for that resource and the quota must be positive.
+
+At the next successful broker sample after the selected received/sent/total quota is reached, the accounting reconciler installs scoped nftables **drop** rules in its existing `inet gtm_panel_metrics` table. Both directions are blocked, including established DNAT connections. HAProxy/Realm sockets, supported reverse public entrance ports and GRE input/output/forward interface paths are covered. Other host ports, the host firewall ruleset and conntrack table are preserved. Services remain configured/running; this pauses traffic rather than disabling a service or deleting a tunnel. The UI marks a resource paused only after successful rule application.
+
+**Resume** by resetting that resource's cycle, raising its quota above current usage, or turning its automatic-pause option off. These changes reconcile immediately. Resetting does not require re-creating the tunnel. Collection cannot be disabled, nor can a protected existing resource be excluded, while its automatic-pause policy is active: turn that policy off first. Deleted resources can still be forgotten.
+
+This is a **sampled operational cutoff, not a precise byte quota**. The configured 15–3600 second interval, queued broker work and reconciliation delays can allow an overrun. The broker must be running to detect new crossings. Existing drop rules continue in the kernel if the panel stops, but rules do not survive a reboot until the broker re-applies them. Failed reads/applications are reported rather than shown as successful protection. Counter reload/crash gaps still apply. External hardware/software flow offload can bypass ordinary forwarding hooks and is outside this guarantee. GRE interface received bytes can include packets subsequently blocked by the guard.
+
+A GRE pause affects every port using that GRE interface. Avoid enabling it on the only route used to administer the server. Reverse destination/control multiplexing is not assigned per customer. Policies belong to the local panel server; remote Node summaries remain read-only. Portable restore retains labels/limits but turns automatic pause off so recovery cannot unexpectedly block a new host.
 
 For a forwarding connection, **Disable** uses the existing revision-checked network operation and requires confirmation. It may close relay connections. Existing kernel DNAT connections can remain until their normal conntrack expiry; disabling is not a hard byte cutoff. No host conntrack flush is performed. Enable/delete the connection from its dedicated engine page. GRE/reverse service lifecycle remains in its own manager to avoid accidentally interrupting a management route from the accounting page.
 
@@ -48,3 +56,5 @@ The browser fetches a compact summary and only the selected resource's history. 
 - All system-generated display numbers use Latin digits in both languages; Persian labels and RTL layout remain available.
 
 The root-owned ledger is `/var/lib/gre-manager-panel/metrics.json`. Keep backups private: customer references and accounting history can be sensitive. Panel removal deletes this ledger and only the separate `inet gtm_panel_metrics` table, while preserving tunnel/forwarding configuration.
+
+Automatic-pause policies require a manager version that understands `stop_on_limit`. Turn them off before downgrading; older releases treat quotas as advisory and can replace the table without its guard rules. This change does not extend the remote Node operation protocol.

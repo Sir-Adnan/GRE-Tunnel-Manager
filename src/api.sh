@@ -1,13 +1,16 @@
 # Noninteractive control boundary. Input is validated TSV data, never shell code.
 # The privileged local broker is the only web-panel caller; the CLI can use it too.
 gtm_api_rows() {
-    local line id component result=1 count=0
+    local line id component result=1 count=0 expected=${1:-} actual
     local -a incoming=()
     while IFS= read -r line || [[ -n $line ]]; do
         ((count+=1)); ((count<=32)) && gtm_record_validate "$line" && [[ $R_ID == F000000 ]] || return 1
         incoming+=("$line")
     done
     ((count>0)) && gtm_prepare && gtm_lock || return 1
+    if [[ -n $expected ]]; then
+        actual=$(gtm_recovery_revision) && [[ $actual == "$expected" ]] || { gtm_error 'Server configuration changed; review the import again.'; gtm_unlock; return 1; }
+    fi
     if ! gtm_load_records; then gtm_unlock; return 1; fi
     for line in "${incoming[@]}"; do
         gtm_record_validate "$line" || { gtm_unlock; return 1; }
@@ -76,6 +79,8 @@ gtm_api() {
     local operation=${1:-} component
     shift || return 2
     case $operation in
+        component-policy) gtm_component_policy "$@";;
+        component-update) { (($#==2)) || { (($#==3)) && [[ $1 == frp ]]; }; } && gtm_component_update "$@";;
         recovery-revision) (($#==0)) && gtm_recovery_revision;;
         recovery-render) (($#==1)) && gtm_recovery_render "$1";;
         recovery-import) (($#==0)) && gtm_recovery_import;;
@@ -87,6 +92,10 @@ gtm_api() {
         pair-check-gre|pair-apply-gre|pair-check-frp|pair-apply-frp|pair-verify|pair-delete) gtm_pair_api "$operation" "$@";;
         state) (($#==0)) && gtm_load_records && { ((${#GTM_RECORDS[@]}==0)) || printf '%s\n' "${GTM_RECORDS[@]}"; };;
         create) (($#==0)) && gtm_api_rows;;
+        create-reviewed) (($#==0)) || return 2
+            local expected
+            IFS= read -r expected && [[ $expected =~ ^[a-f0-9]{64}$ ]] || return 2
+            gtm_api_rows "$expected";;
         update|enable|disable|delete) (($#==0)) && gtm_api_change "$operation";;
         plan) (($#==0)) && gtm_plan;;
         config-render) (($#==0)) && gtm_config_render;;

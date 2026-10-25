@@ -29,6 +29,7 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/gtm-gateway-*.conf` | WSS HAProxy gateway config; references operator-owned certificate |
 | `/etc/systemd/system/gtm-gateway-*.service` | WSS TLS gateway tied to entrance lifecycle |
 | `/usr/local/bin/{realm,frpc,frps,rathole}` | Optional pinned downloads, SHA-256 verified; retained after connection removal |
+| `/etc/gre-manager/engine-backups/update.*` | Private previous-binary copies retained by explicit engine installation/maintenance; not a live tunnel config or portable panel backup |
 
 Config/state is root-owned with mode 600, containing directory 700. Temporary generation/download files use `/run/gre-manager` and private permissions. The manager does not delete operator certificates, unrelated services or optional binaries when deleting a connection. Backups are retained until the operator removes them.
 
@@ -151,3 +152,5 @@ Explicit `node-install.sh --agent --traffic` adds `--agent-traffic` to the priva
 ## Configuration viewer/editor
 
 Inspection creates no server artifact and accepts no arbitrary path. HAProxy/Realm previews are rendered from saved records; bounded fixed-path reads only compare the saved managed file. GRE views project recognized IP commands; FRP/rathole saved TOML is projected with secret values masked. Forward edits persist in the existing TSV/snapshot/generated-file lifecycle through the same locked update operation. There is no parallel native override file, extra service or new credential store.
+
+The optional `inet gtm_panel_metrics` table can also contain explicitly enabled quota drop guards for selected public ports/GRE interfaces. These rules share the table's lifecycle; uninstalling the panel removes them. The local metrics ledger persists policy opt-in and last applied block status. Restored portable backups disable the opt-in. Live host telemetry is memory-only and creates no files or systemd units.

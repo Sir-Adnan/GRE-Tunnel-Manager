@@ -74,6 +74,11 @@ func (d *Demo) backup(_ context.Context, r Request) (json.RawMessage, error) {
 	if r.Backup.IncludeTraffic && doc.Traffic != nil {
 		d.metrics = cloneMetrics(*doc.Traffic)
 		d.metrics.Settings.Enabled = false
+		d.metrics.Blocked = nil
+		for id, p := range d.metrics.Policies {
+			p.StopOnLimit = false
+			d.metrics.Policies[id] = p
+		}
 		d.metrics.Revision++
 		for id, c := range d.metrics.Counters {
 			c.LastReceived = 0

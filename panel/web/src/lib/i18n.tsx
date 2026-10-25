@@ -2,6 +2,159 @@ import { createContext, useContext } from "react";
 export type Locale = "en" | "fa";
 export const LocaleContext = createContext<Locale>("en");
 const words = {
+  serverLive: ["Server activity", "وضعیت لحظه‌ای سرور"],
+  live: ["Live", "زنده"],
+  serverLiveHelp: [
+    "CPU, memory and network rates come from Linux counters. Rates are averages between samples, not tunnel totals. Only default-route interfaces are counted to avoid adding inner and outer tunnel traffic together. Updates stop when this page is hidden or closed; no history is written to disk.",
+    "مصرف پردازنده، رم و سرعت شبکه از شمارنده‌های لینوکس خوانده می‌شود. سرعت‌ها میانگین بین دو نمونه‌اند و مصرف کل تونل نیستند. فقط رابط‌های مسیر پیش‌فرض شمرده می‌شوند تا ترافیک داخلی و بیرونی تونل با هم جمع نشود. با پنهان یا بسته شدن صفحه، به‌روزرسانی متوقف می‌شود و تاریخچه‌ای روی دیسک ذخیره نمی‌شود.",
+  ],
+  cpuUsage: ["CPU", "پردازنده"],
+  allCPUCores: ["Across all cores", "مجموع همهٔ هسته‌ها"],
+  networkReceive: ["Receive rate", "سرعت دریافت"],
+  networkSend: ["Send rate", "سرعت ارسال"],
+  defaultRouteInterfaces: ["Network interfaces:", "رابط‌های شبکه:"],
+  pauseLive: ["Pause", "توقف نمایش زنده"],
+  resumeLive: ["Resume", "ادامهٔ نمایش زنده"],
+  livePaused: ["Paused", "متوقف"],
+  liveUnavailable: ["Unavailable", "در دسترس نیست"],
+  livePartial: [
+    "Some host counters are unavailable. Available readings are still shown.",
+    "بعضی شمارنده‌های سرور در دسترس نیستند. مقدارهای موجود همچنان نمایش داده می‌شوند.",
+  ],
+  liveInterval: [
+    "Switch between 5 and 15 second updates",
+    "تغییر فاصلهٔ به‌روزرسانی بین 5 و 15 ثانیه",
+  ],
+  autoPause: ["Pause traffic at quota", "توقف ترافیک پس از رسیدن به سقف"],
+  autoPauseCollectionGuard: [
+    "Some connections have automatic quota pauses. Keep them selected with collection enabled, or turn off their pause option in Customer & quota before saving these changes.",
+    "برای بعضی اتصال‌ها توقف خودکار فعال است. ثبت مصرف و انتخاب آن‌ها را روشن نگه دارید؛ یا قبل از ذخیرهٔ این تغییرات، گزینهٔ توقف خودکارشان را از بخش مشتری و سقف مصرف خاموش کنید.",
+  ],
+  autoPauseHelp: [
+    "At the next successful traffic sample, block both directions for this port or GRE interface using owned nftables rules, including established flows. Services stay configured. Sampling and reconciliation can be delayed, so usage may exceed the quota. Reset usage, raise the quota or turn this option off to resume. Do not use this on your only management route.",
+    "در نمونه‌برداری موفق بعدی، ترافیک هر دو جهت این پورت یا رابط GRE با قانون اختصاصی nftables متوقف می‌شود؛ اتصال‌های باز هم مسدود می‌شوند. تنظیمات سرویس باقی می‌ماند. ممکن است نمونه‌برداری یا اعمال قانون تأخیر داشته باشد و مصرف از سقف بیشتر شود. برای ادامه، مصرف را صفر کنید، سقف را افزایش دهید یا این گزینه را خاموش کنید. این گزینه را برای تنها مسیر مدیریت سرور روشن نکنید.",
+  ],
+  autoPauseNeedsCollection: [
+    "Enable traffic collection for this resource first.",
+    "ابتدا ثبت مصرف این اتصال را روشن کنید.",
+  ],
+  autoPauseNeedsLimit: [
+    "Enter a quota greater than zero first.",
+    "ابتدا سقفی بیشتر از صفر وارد کنید.",
+  ],
+  quotaPaused: ["Traffic paused", "ترافیک متوقف شده"],
+  importShort: ["Import", "وارد کردن"],
+  importSeparateServices: [
+    "Each frontend becomes a separate managed service. A global connection cap applies separately to each service, not to their combined total.",
+    "هر ورودی به یک سرویس جدا تبدیل می‌شود. سقف اتصال سراسری برای هر سرویس جداگانه اعمال می‌شود و سقف مجموع همهٔ سرویس‌ها نیست.",
+  ],
+  strategyHelp: [
+    "Least connections sends new connections to the least busy target. Source affinity keeps a source IP on a consistent target. Primary + backup uses health checks; selecting it turns TCP checks on. A higher relative share sends more new traffic to that destination; it is not a priority.",
+    "حالت کمترین اتصال، اتصال جدید را به مقصد خلوت‌تر می‌فرستد. حفظ IP، مقصد یک آی‌پی را ثابت‌تر نگه می‌دارد. حالت اصلی و پشتیبان به بررسی سلامت نیاز دارد و با انتخابش بررسی TCP روشن می‌شود. سهم بیشتر یعنی ترافیک جدید بیشتر به آن مقصد می‌رود؛ اولویت نیست.",
+  ],
+  engineDefaults: ["Simple defaults", "پیش‌فرض ساده"],
+  feature_kcp_transport: ["Local KCP transport", "انتقال KCP محلی"],
+  transportHelp: [
+    "TCP is a simple starting point. WS carries the connection over WebSocket; WSS adds a certificate-backed TLS gateway. QUIC and KCP need a working UDP path; KCP may use more bandwidth and is not always faster. KCP is available for local FRP setup; paired Nodes keep their existing TCP/WS/QUIC contract.",
+    "حالت TCP شروع ساده‌ای است. حالت WS اتصال را روی WebSocket منتقل می‌کند و WSS یک ورودی TLS با گواهی اضافه می‌کند. برای QUIC و KCP مسیر UDP لازم است؛ KCP ممکن است پهنای باند بیشتری مصرف کند و همیشه سریع‌تر نیست. فعلاً KCP در ساخت محلی FRP در دسترس است؛ اتصال هماهنگ نودها همچنان TCP، WS و QUIC را پشتیبانی می‌کند.",
+  ],
+  importConfiguration: ["Import configuration", "وارد کردن کانفیگ"],
+  importConfigurationHelp: [
+    "Paste a configuration or choose a file. Review the connections before saving.",
+    "متن کانفیگ را وارد کنید یا فایل را انتخاب کنید؛ پیش از ذخیره، اتصال‌ها را بررسی کنید.",
+  ],
+  configFormat: ["Format", "قالب"],
+  configFile: ["Configuration file · optional", "فایل کانفیگ · اختیاری"],
+  configFileTooLarge: [
+    "Choose a file smaller than 64 KiB.",
+    "فایلی با اندازهٔ کمتر از 64 KiB انتخاب کنید.",
+  ],
+  importScopeHelp: [
+    "HAProxy imports plain TCP frontends/backends, including timeouts, weights and IP affinity. Realm imports scalar network settings and simple endpoints. All four forwarders accept a managed JSON array. Unknown directives are rejected; host firewall dumps and executable hooks are not imported.",
+    "برای HAProxy می‌توانید ورودی‌ها و مقصدهای TCP، مهلت‌ها، سهم مقصد و حفظ IP را وارد کنید. برای Realm تنظیمات شبکه و مقصدهای ساده پشتیبانی می‌شود. هر چهار فوروارد هم آرایهٔ JSON پنل را می‌پذیرند. دستور ناشناخته خطا می‌دهد؛ فایل کامل فایروال سرور و دستور اجرایی وارد نمی‌شود.",
+  ],
+  importActivateHelp: [
+    "Off saves every imported connection without starting it. Turn on only when listener addresses and ports belong to this server and the engines are installed.",
+    "اگر خاموش باشد، اتصال‌ها ذخیره می‌شوند و اجرا نمی‌شوند. فقط وقتی روشنش کنید که آی‌پی و پورت ورودی روی همین سرور باشد و موتورهای لازم نصب باشند.",
+  ],
+  importStarts: [
+    "Saving will apply and start these connections. Existing connections are preserved.",
+    "با ذخیره، این اتصال‌ها اعمال و اجرا می‌شوند. اتصال‌های موجود حفظ می‌شوند.",
+  ],
+  importPaused: [
+    "These connections will be saved without starting. Enable them when you are ready.",
+    "این اتصال‌ها بدون اجرا ذخیره می‌شوند. هر وقت آماده بودید آن‌ها را روشن کنید.",
+  ],
+  importReplacedSettings: [
+    "Process settings managed by the panel",
+    "تنظیمات اجرا که پنل مدیریت می‌کند",
+  ],
+  importSave: ["Save imported connections", "ذخیرهٔ اتصال‌ها"],
+  engineAutomatic: ["Automatic", "خودکار"],
+  optionalEngineValueHelp: [
+    "Optional. Leave blank to use the adapter default shown in the field. Zero omits optional limits where supported; this does not mean unlimited capacity.",
+    "اختیاری است؛ اگر خالی بماند، مقدار پیش‌فرضی که در کادر می‌بینید استفاده می‌شود. برای محدودیت‌های اختیاری، عدد صفر تنظیم مربوطه را حذف می‌کند؛ ظرفیت سرور نامحدود نمی‌شود.",
+  ],
+  optionChoiceHelp: [
+    "Keep the default unless the application at the other end needs this setting. Review the generated configuration before saving.",
+    "اگر برنامهٔ سمت مقابل به این گزینه نیاز ندارد، پیش‌فرض را نگه دارید. پیش از ذخیره، کانفیگ نهایی را بررسی کنید.",
+  ],
+  send_proxyHelp: [
+    "Send the original client address to the destination using a PROXY header. The destination must explicitly accept the selected PROXY version; ordinary VPN listeners usually do not.",
+    "آی‌پی اصلی کاربر را با هدر PROXY به مقصد می‌فرستد. مقصد باید نسخهٔ انتخاب‌شده را بپذیرد؛ بیشتر ورودی‌های معمول VPN بدون تنظیم جداگانه این هدر را نمی‌پذیرند.",
+  ],
+  send_proxy_versionHelp: [
+    "Version 1 uses a text header; version 2 uses a binary header. Choose the version accepted by the destination. This does not encrypt traffic.",
+    "نسخهٔ 1 هدر متنی و نسخهٔ 2 هدر باینری دارد. نسخه‌ای را انتخاب کنید که مقصد می‌پذیرد. این گزینه ترافیک را رمزگذاری نمی‌کند.",
+  ],
+  accept_proxyHelp: [
+    "Require a PROXY header from the upstream proxy. Enable only on a trusted entrance used by that proxy; normal direct clients will fail to connect.",
+    "از پروکسی قبلی هدر PROXY می‌خواهد. فقط روی ورودی قابل‌اعتماد مخصوص همان پروکسی روشن کنید؛ اتصال مستقیم کاربر عادی در این حالت برقرار نمی‌شود.",
+  ],
+  logHelp: [
+    "Off disables engine traffic logs. Errors keeps failures where supported; connection/debug logs add work and may contain client addresses. Panel security auditing remains separate.",
+    "حالت خاموش، لاگ ترافیک موتور را غیرفعال می‌کند. ثبت خطا فقط مشکل‌ها را نگه می‌دارد؛ لاگ اتصال و اشکال‌زدایی پردازش بیشتری دارد و ممکن است آی‌پی کاربران را ثبت کند. گزارش امنیتی پنل جداست.",
+  ],
+  send_mptcpHelp: [
+    "Use MPTCP for outgoing TCP connections. Both the kernel and the remote endpoint must support it; it does not automatically create additional network paths.",
+    "برای اتصال TCP خروجی از MPTCP استفاده می‌کند. کرنل و مقصد باید پشتیبانی کنند؛ این گزینه به‌تنهایی مسیر اینترنت جدیدی ایجاد نمی‌کند.",
+  ],
+  accept_mptcpHelp: [
+    "Accept incoming MPTCP when supported by the server kernel and client. This is a TCP option, not a UDP transport.",
+    "در صورت پشتیبانی کرنل و کاربر، MPTCP ورودی را می‌پذیرد. این قابلیت برای TCP است و انتقال UDP نیست.",
+  ],
+  listen_transportHelp: [
+    "Plain accepts ordinary TCP. WebSocket requires a matching peer and the configured host/path. Both ends must agree.",
+    "حالت ساده، TCP معمولی را می‌پذیرد. برای WebSocket باید سمت مقابل و میزبان و مسیر هماهنگ باشند.",
+  ],
+  remote_transportHelp: [
+    "Plain connects with ordinary TCP. WebSocket connects to a matching WebSocket listener. This does not add TLS.",
+    "حالت ساده با TCP معمولی وصل می‌شود. حالت WebSocket به ورودی WebSocket سازگار وصل می‌شود و به‌تنهایی TLS اضافه نمی‌کند.",
+  ],
+  ipv6_onlyHelp: [
+    "Restrict an IPv6 listener to IPv6 clients. Use an IPv6 bind address; this does not enable IPv6 on the operating system.",
+    "ورودی IPv6 را به کاربر IPv6 محدود می‌کند. باید آی‌پی ورودی IPv6 باشد؛ این گزینه IPv6 سیستم‌عامل را فعال نمی‌کند.",
+  ],
+  engineMaintenance: ["Versions & updates", "نسخه‌ها و به‌روزرسانی"],
+  engineMaintenanceHelp: [
+    "Check only when needed; results are cached for 5 minutes. Binary engines use official GitHub releases and only verified, checksum-pinned versions can be installed. System packages use your distribution's existing package metadata. Newer upstream releases may need an adapter update first.",
+    "بررسی با درخواست شما انجام می‌شود و نتیجه تا 5 دقیقه نگه داشته می‌شود. نسخهٔ رسمی موتورهای باینری از گیت‌هاب خوانده می‌شود، اما نصب فقط برای نسخهٔ بررسی‌شده با هش ثابت مجاز است. بسته‌های سیستم از اطلاعات مخزن فعلی توزیع استفاده می‌کنند. ممکن است نسخهٔ جدید بالادستی ابتدا به سازگاری در پنل نیاز داشته باشد.",
+  ],
+  checkEngineUpdates: ["Check versions", "بررسی نسخه‌ها"],
+  updateEngine: ["Update engine", "به‌روزرسانی موتور"],
+  officialRelease: ["Official releases", "نسخهٔ رسمی"],
+  distributionCandidate: ["Repository candidate", "نسخهٔ مخزن"],
+  latestRelease: ["Latest stable", "آخرین نسخهٔ پایدار"],
+  verifiedVersion: ["Verified by this manager", "نسخهٔ سازگار با پنل"],
+  officialSource: ["Official source", "منبع رسمی"],
+  engineCheckFailed: [
+    "The official source could not be checked. Try again later.",
+    "بررسی منبع رسمی انجام نشد؛ کمی بعد دوباره تلاش کنید.",
+  ],
+  engineUpdateConfirm: [
+    "Update this engine on the current server. Back up first. Package scripts may affect running services; existing binary processes may need an explicit restart later. Configurations are preserved, but peer compatibility and reconnecting clients must be checked.",
+    "موتور همین سرور به‌روز می‌شود؛ ابتدا بکاپ بگیرید. نصب بسته ممکن است روی سرویس فعال اثر بگذارد؛ سرویس‌های باینری ممکن است بعداً به راه‌اندازی مجدد نیاز داشته باشند. تنظیمات حفظ می‌شوند، اما سازگاری دو سمت و اتصال دوبارهٔ کاربران را بررسی کنید.",
+  ],
   startAtBoot: [
     "Start & enable at boot",
     "روشن کردن و اجرای خودکار پس از راه‌اندازی",
@@ -164,8 +317,8 @@ const words = {
     "وضعیت فعال یعنی سرویس محلی در حال اجراست. تنظیم‌شده یعنی اتصال ذخیره و روشن است؛ این وضعیت، دسترسی به مقصد را تضمین نمی‌کند.",
   ],
   maxconnHelp: [
-    "Maximum concurrent connections for this HAProxy service, not a speed limit or a guarantee. New setups allow up to 100000; actual capacity depends on RAM, file descriptors and the destination. Lower it for small servers.",
-    "سقف اتصال هم‌زمان همین سرویس است؛ سقف سرعت یا تضمین ظرفیت نیست. اتصال جدید تا 100000 اجازه دارد؛ ظرفیت واقعی به رم، تعداد فایل‌های باز و مقصد بستگی دارد. برای سرور کوچک می‌توانید کمترش کنید.",
+    "Leave blank or use 0 to omit maxconn and let HAProxy size it from the service file-descriptor budget. An explicit limit can be 1–1000000. Actual capacity still depends on RAM, sockets, traffic and the destination; automatic does not mean unlimited.",
+    "اگر خالی باشد یا صفر بگذارید، maxconn نوشته نمی‌شود و HAProxy بر اساس سقف فایل‌های باز سرویس تصمیم می‌گیرد. سقف دلخواه می‌تواند بین 1 تا 1000000 باشد. ظرفیت واقعی به رم، سوکت‌ها، ترافیک و مقصد بستگی دارد؛ خودکار یعنی نامحدود نیست.",
   ],
   previewAllHelp: [
     "Read-only preview of enabled local connections. Nothing is applied. Use More actions on a connection to inspect or edit its configuration.",
@@ -258,8 +411,8 @@ const words = {
     "پیش‌نمایش فوروارد از تنظیمات ذخیره‌شده ساخته می‌شود، حتی اگر اتصال خاموش باشد؛ خروجی زندهٔ فایروال نیست. پیش‌نمایش تک‌اتصال را به‌جای قوانین کامل سرور اجرا نکنید. اطلاعات محرمانهٔ تونل معکوس مخفی می‌شود. فایل GRE و تونل معکوس در این ویرایشگر فقط قابل مشاهده‌اند.",
   ],
   nativeEditorHelp: [
-    "Edit existing supported timeout, connection-limit, balancing and target values. Both sides of a shared timeout and repeated target definitions must agree. New or unsupported native structures require the JSON editor or form. Comments/formatting are not persisted; the manager regenerates canonical files.",
-    "مقادیر موجودِ مهلت‌ها، سقف اتصال، توزیع و مقصدها را ویرایش کنید. مهلت‌های مشترک و تعریف‌های تکراری مقصد باید هماهنگ باشند. برای افزودن ساختار، از JSON یا فرم استفاده کنید. مدیر فایل را دوباره تولید می‌کند؛ قالب‌بندی و نظرهای دلخواه ذخیره نمی‌شوند.",
+    "Edit supported engine values, then review. HAProxy allows optional caps and target changes; shared timeout values must agree. Single-destination firewall edits must update every companion rule consistently. Unknown directives are rejected. The manager regenerates the file; comments and formatting are not saved.",
+    "مقادیر پشتیبانی‌شده را ویرایش و سپس بازبینی کنید. در HAProxy می‌توانید سقف اختیاری و مقصدها را تغییر دهید؛ مهلت‌های مشترک باید هماهنگ باشند. در فایروال تک‌مقصدی، همهٔ قوانین مرتبط را هماهنگ تغییر دهید. دستور ناشناخته خطا می‌دهد. فایل دوباره ساخته می‌شود و قالب‌بندی و توضیح‌های دلخواه ذخیره نمی‌شوند.",
   ],
   managedEditorHelp: [
     "Edit the supported manager fields. The engine and technical identity stay fixed. Keep one local port; use the creation form for a port batch. Saved files are regenerated from this source of truth.",
@@ -279,7 +432,7 @@ const words = {
   config_generated: ["Generated preview", "پیش‌نمایش تولیدشده"],
   config_saved: ["Saved managed file", "فایل ذخیره‌شدهٔ مدیر"],
   connectionProfile: ["Setup preset", "پریست راه‌اندازی"],
-  customProfile: ["Default / custom", "پیش‌فرض یا دلخواه"],
+  customProfile: ["Custom settings", "تنظیم دلخواه"],
   profileApplied: ["Preset selected", "پریست انتخاب شد"],
   fin: [
     "Half-close timeout · seconds; 0 keeps default",
@@ -440,8 +593,8 @@ const words = {
   historyWeek: ["7 days · up to 288 samples", "7 روز · حداکثر 288 نمونه"],
   historyMonth: ["30 days · up to 288 samples", "30 روز · حداکثر 288 نمونه"],
   ledgerDescription: [
-    "Independent billing cycles, customer labels and advisory quotas. Network byte counters, not an invoice.",
-    "دوره‌های مستقل مصرف، برچسب مشتری و سقف هشدار. آمار بایت‌های شبکه است، نه صورتحساب دقیق.",
+    "Independent usage cycles, customer labels and optional quota pauses. Network byte counters, not an invoice.",
+    "دوره‌های مستقل مصرف، برچسب مشتری و توقف اختیاری در سقف مصرف. این آمار بایت‌های شبکه است، نه صورتحساب دقیق.",
   ],
   exportCSV: ["Export CSV", "خروجی CSV"],
   localAccounting: [
@@ -460,8 +613,8 @@ const words = {
   withinQuota: ["Within quota", "زیر سقف مصرف"],
   noQuota: ["No quota", "بدون سقف"],
   advisoryQuota: [
-    "Alert only. No automatic cutoff. Samples may be delayed; disable the connection manually when needed.",
-    "فقط هشدار؛ توقف خودکار ندارد. نمونه‌ها ممکن است تأخیر داشته باشند؛ در صورت نیاز اتصال را دستی غیرفعال کنید.",
+    "Alert only. Turn on ‘Pause traffic at quota’ in Customer & quota if you want automatic blocking.",
+    "فقط هشدار می‌دهد. برای توقف خودکار، در بخش مشتری و سقف مصرف، گزینهٔ توقف ترافیک را روشن کنید.",
   ],
   cycleStarted: ["Cycle started", "شروع دوره"],
   lifetimeUsage: ["Lifetime recorded", "مصرف ثبت‌شدهٔ کل"],
@@ -845,8 +998,8 @@ const words = {
     "ارتباط مرورگر HTTP است. کد اتصال را از مسیر خصوصی مطمئن یا HTTPS دریافت کنید؛ ارتباط خود ایجنت همیشه رمزگذاری شده است.",
   ],
   agentPackageNotice: [
-    "Use a matching v1.3.3 Agent package. For offline packages, add --package-dir; see the guide.",
-    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.3 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
+    "Use a matching v1.3.4 Agent package. For offline packages, add --package-dir; see the guide.",
+    "برای ایجنت از بستهٔ هماهنگ نسخهٔ 1.3.4 استفاده کنید. برای نصب آفلاین، گزینهٔ ‎--package-dir را اضافه کنید؛ راهنما را ببینید.",
   ],
   manualCopyHelp: [
     "Run the installer on the other server, then paste this code at its hidden prompt. If clipboard access is unavailable, select and copy the code manually.",
@@ -881,8 +1034,8 @@ const words = {
     "گزارش‌ها حدود هر دقیقه می‌رسند. پس از قطع ارتباط تلاش مجدد انجام می‌شود و تونل‌ها مستقل می‌مانند. سرویس ایجنت و بروکر فقط‌خواندنی، DNS، ساعت و دسترسی پورت کنترل را بررسی کنید. گواهی در زمان اتصال خودکار تمدید می‌شود؛ پس از انقضای سی‌روزه یا لغو دسترسی، هویت و کد جدید لازم است. با راه‌اندازی مجدد پنل، اطلاعات موقت تا گزارش بعدی خالی می‌شود.",
   ],
   nodeReleaseHelp: [
-    "These features are included in v1.3.3. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
-    "این قابلیت‌ها در نسخهٔ 1.3.3 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
+    "These features are included in v1.3.4. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.",
+    "این قابلیت‌ها در نسخهٔ 1.3.4 هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.",
   ],
   nodeRefreshHelp: [
     "Refresh to fetch the latest received inventory.",
@@ -978,8 +1131,8 @@ const words = {
   debug: ["Debug", "اشکال‌زدایی"],
   trace: ["Trace", "جزئیات کامل"],
   proxyHelp: [
-    "Enable PROXY headers only when both neighboring applications expect them. This can break ordinary VPN listeners.",
-    "هدر PROXY را فقط وقتی فعال کنید که برنامهٔ سمت مقابل آن را پشتیبانی کند؛ در غیر این صورت اتصال VPN مختل می‌شود.",
+    "Off sends the original stream unchanged. V1 adds a text header; V2 adds a binary header carrying the client address. The destination must explicitly accept that version. This is usually off for Reality, Xray and ordinary VPN listeners; enabling it without matching receiver settings breaks the connection.",
+    "حالت خاموش، جریان را بدون هدر اضافه می‌فرستد. نسخهٔ 1 هدر متنی و نسخهٔ 2 هدر باینری حاوی آی‌پی کاربر می‌فرستد. مقصد باید همان نسخه را بپذیرد. برای ورودی معمول Reality، Xray و VPN معمولاً خاموش بماند؛ روشن کردن بدون تنظیم مقصد باعث قطع اتصال می‌شود.",
   ],
   overview: ["Overview", "نمای کلی"],
   connections: ["Connections", "اتصال‌ها"],
@@ -989,9 +1142,9 @@ const words = {
   traffic: ["Traffic usage", "مصرف ترافیک"],
   settings: ["Settings", "تنظیمات"],
   components: ["Tunnel engines", "موتورهای تونل"],
-  workspace: ["WORKSPACE", "فضای مدیریت"],
-  infrastructure: ["INFRASTRUCTURE", "زیرساخت"],
-  preferences: ["PREFERENCES", "تنظیمات"],
+  workspace: ["Workspace", "فضای مدیریت"],
+  infrastructure: ["Infrastructure", "زیرساخت"],
+  preferences: ["Preferences", "تنظیمات"],
   newConnection: ["New connection", "اتصال جدید"],
   add: ["Add tunnel", "ساخت تونل"],
   refresh: ["Refresh", "به‌روزرسانی"],

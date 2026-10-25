@@ -18,7 +18,7 @@ class Phase5ManagementTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('stick-table type ipv6 size 2048 expire 120s', result.stdout)
         self.assertIn('stick on src', result.stdout)
-        for options in ['stick=source;stick_size=999999', 'stick=source;stick_expire=0', 'stick=source;stick_size=1', 'stick=shell']:
+        for options in ['stick=source;stick_size=1000001', 'stick=source;stick_expire=0', 'stick=source;stick_size=1', 'stick=shell']:
             result = bash('IFS= read -r row\ngtm_record_validate "$row"', row+'\t'+options+'\n')
             self.assertNotEqual(result.returncode, 0, options)
     def test_routing_v4_roundtrip_and_injection_rejection(self):
