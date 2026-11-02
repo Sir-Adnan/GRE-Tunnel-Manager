@@ -1,0 +1,101 @@
+/* Dialogs and the connection editor. Touch sizes follow the 44 px minimum on phones. */
+@layer components {
+  .dialog-shell {
+    @apply flex max-h-[calc(100dvh-2rem)] min-w-0 flex-col overflow-hidden;
+    box-shadow: var(--elevation-3);
+  }
+  .connection-editor {
+    gap: 1rem;
+  }
+  .form-steps {
+    @apply flex flex-wrap items-center gap-2 text-xs text-muted-foreground;
+  }
+  .form-steps li {
+    @apply flex items-center gap-2;
+  }
+  .form-steps li + li::before {
+    content: "";
+    @apply me-1 h-px w-6 bg-border;
+  }
+  .form-steps li[data-state="current"] {
+    @apply font-medium text-foreground;
+  }
+  .form-step-index {
+    @apply flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums [&_svg]:size-3;
+  }
+  .form-steps li[data-state="current"] .form-step-index {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+  .form-steps li[data-state="done"] .form-step-index {
+    @apply border-success text-success-text;
+  }
+  .connection-path {
+    @apply grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,0.8fr)_auto_minmax(0,1.2fr)];
+  }
+  .connection-path-side {
+    @apply min-w-0 rounded-xl border p-4;
+    background: color-mix(in srgb, var(--muted) 35%, transparent);
+  }
+  .connection-path-side legend svg {
+    color: var(--primary-text);
+  }
+  .connection-path-arrow {
+    @apply hidden size-4 self-center text-muted-foreground md:block;
+  }
+  .target-editor + .target-editor {
+    @apply border-t pt-4;
+  }
+  .target-address {
+    @apply grid min-w-0 grid-cols-[minmax(0,1fr)_6rem] items-start gap-3;
+  }
+  .config-editor {
+    @apply min-h-56 w-full resize-y rounded-lg border border-input bg-background p-3 text-start font-mono text-xs leading-6 outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    height: clamp(16rem, 42dvh, 34rem);
+    tab-size: 4;
+  }
+  .connection-editor-footer {
+    @apply gap-3;
+  }
+  [data-slot="input"],
+  [data-slot="native-select"],
+  textarea {
+    transition:
+      border-color 140ms ease,
+      box-shadow 140ms ease;
+  }
+}
+@media (max-width: 639px) {
+  [data-slot="input"],
+  [data-slot="native-select"] {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  [data-slot="button"][data-size="default"],
+  [data-slot="button"][data-size="lg"],
+  [data-slot="button"][data-size="icon"] {
+    min-height: 44px;
+  }
+  [data-slot="button"][data-size="icon"] {
+    min-width: 44px;
+  }
+  .dialog-shell {
+    max-width: calc(100% - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+  .review-grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.5rem;
+  }
+  .review-grid dd {
+    margin-bottom: 0.75rem;
+  }
+  .connection-editor-footer > :first-child {
+    flex-basis: 100%;
+  }
+  .connection-editor-footer > :last-child {
+    width: 100%;
+  }
+  .connection-editor-footer > :last-child > button {
+    flex: 1;
+  }
+}

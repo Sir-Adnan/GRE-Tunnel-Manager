@@ -88,7 +88,7 @@ func TestRoundTripOptionsAndIPv6(t *testing.T) {
 	}
 }
 func TestCapabilitiesFailClosed(t *testing.T) {
-	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "1000001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "example.org" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine = "nftables" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
+	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "1000001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "example.org" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine, c.Bind = "nftables", "::" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
 	for i, modify := range cases {
 		c := example()
 		modify(&c)
@@ -109,5 +109,22 @@ func TestBatchAllocatesOneRowPerPort(t *testing.T) {
 	}
 	if _, e := c.Rows("F000001"); e == nil {
 		t.Fatal("multiport edit accepted")
+	}
+}
+
+// Servers with additional IPs need kernel forwards on every local address.
+func TestKernelForwardAcceptsAllLocalAddressesWithinOneFamily(t *testing.T) {
+	for _, item := range []struct{ bind, target string }{{"0.0.0.0", "198.51.100.20"}, {"::", "2001:db8::20"}} {
+		c := example()
+		c.Engine, c.Bind, c.Targets = "nftables", item.bind, []Target{{IP: item.target, Port: 443, Weight: 1}}
+		rows, e := c.Rows("F000000")
+		if e != nil || len(rows) != 1 || !strings.Contains(rows[0], "\t"+item.bind+"\t") {
+			t.Fatal(item, rows, e)
+		}
+	}
+	c := example()
+	c.Engine, c.Bind = "iptables", "::"
+	if _, e := c.Rows("F000000"); e == nil {
+		t.Fatal("kernel wildcard must keep the destination address family")
 	}
 }

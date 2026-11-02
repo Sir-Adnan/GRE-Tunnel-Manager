@@ -16,7 +16,7 @@ This is a Bash tunnel/forwarding manager with an optional Go web panel. Read the
 - Mutations must lock, reload complete state, check revisions and preserve unrelated records. A filtered UI list is never the state to save.
 - Modify only owned resources through existing backup/recovery paths. Report partial failures. Never flush the host firewall or conntrack table.
 - Keep public HTTP unprivileged; privileged work uses allowlisted local broker/Bash operations. Do not add arbitrary command or file endpoints.
-- Keep common setup short, defaults clear and advanced options optional. Preserve the selected Nettinx palette, bilingual Persian RTL/English LTR UI, Latin display digits and reduced-motion support. See [Interface conventions](docs/INTERFACE.md).
+- Keep common setup short, defaults clear and advanced options optional. Signal is the user-selected default preset; keep the Nettinx palette exact and selectable, and keep every project preset at WCAG AA. Preserve the bilingual Persian RTL/English LTR UI, Latin display digits and reduced-motion support. See [Interface conventions](docs/INTERFACE.md).
 
 ## Verify and document
 

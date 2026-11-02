@@ -23,7 +23,8 @@ import { FieldGroup } from "@/components/ui/field";
 import { Logo, TextField } from "@/components/shared";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/api";
-import type { Preferences } from "@/features/Settings";
+import { panelVersion } from "@/lib/version";
+import type { Preferences } from "@/lib/preferences";
 export function Login({
   t,
   setSession,
@@ -168,7 +169,7 @@ export function Login({
         </Card>
       </div>
       <footer className="login-bottom">
-        TUNNEL MANAGER <span>v1.3.4</span>
+        TUNNEL MANAGER <span>v{panelVersion}</span>
       </footer>
     </div>
   );

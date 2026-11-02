@@ -76,6 +76,9 @@ gtm_preflight_checks() {
         gtm_need ip && gtm_local_address "$R_BIND" || return 1
         if [[ $R_ENGINE == haproxy || $R_ENGINE == realm ]]; then gtm_relay_loop_check || return 1; fi
         if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
+            # An all-addresses DNAT to one of this host's own addresses on the
+            # same port would capture its own target; reuse the relay check.
+            if gtm_wildcard "$R_BIND"; then gtm_relay_loop_check || return 1; fi
             [[ $R_IFACE == any ]] || ip link show dev "$R_IFACE" >/dev/null || return 1
             if [[ $R_BIND == *:* ]] && [[ $(sysctl -n net.ipv6.conf.all.forwarding) != 1 ]]; then
                 gtm_error 'IPv6 forwarding is disabled; configure forwarding and Router Advertisements first.'; return 1

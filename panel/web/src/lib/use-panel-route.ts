@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { parseRoute, routeURL } from "./navigation";
 
 function subscribe(changed: () => void) {
@@ -10,10 +10,21 @@ const snapshot = () => window.location.hash;
 export function usePanelRoute() {
   const hash = useSyncExternalStore(subscribe, snapshot, () => "");
   const route = parseRoute(hash);
-  const navigate = useCallback((page: string) => {
-    window.location.hash = routeURL(page).slice(1);
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, []);
+  // Old engine links and unknown pages are rewritten in place, so the address bar shows the real page.
+  const canonical = routeURL(route.page, route.params);
+  useEffect(() => {
+    if (hash && hash !== canonical)
+      window.history.replaceState(null, "", canonical);
+  }, [hash, canonical]);
+  const navigate = useCallback(
+    (page: string, params?: Record<string, string>) => {
+      window.location.hash = routeURL(page, new URLSearchParams(params)).slice(
+        1,
+      );
+      window.scrollTo({ top: 0, behavior: "instant" });
+    },
+    [],
+  );
   const updateParams = useCallback(
     (patch: Record<string, string>, push = false) => {
       const current = parseRoute(window.location.hash);

@@ -51,6 +51,8 @@ Quick setup detects the IP, chooses a free port and prints the address and gener
 
 The panel provides Persian/English layouts, mobile and desktop views, configuration inspection/editing and reviewed imports, setup presets, live server readings and optional per-connection traffic tracking. Its prebuilt Go executable includes the interface: **no Node.js, Python, compiler or database server is needed on managed servers**. Tunnel traffic runs independently of the panel.
 
+HAProxy, Realm and port forwards share one filtered **Connections** page, the overview lists anything that needs attention, and **Ctrl K** jumps to pages, connections and creation forms. **Signal** (dark) is the default look; Graphite, Aurora, Nettinx and Neutral are one click away.
+
 ### Manage more than one server
 
 Run the panel on an entrance, destination or separate server. Its own host is already a local Node; other servers can join through optional outbound Agents. A third server is not required.

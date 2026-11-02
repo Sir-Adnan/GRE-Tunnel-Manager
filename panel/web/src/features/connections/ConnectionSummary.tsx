@@ -1,6 +1,7 @@
-import { Pencil, Workflow, Network, Route } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { ActionButton } from "@/components/help";
-import { Blank, Status } from "@/components/shared";
+import { Blank, EngineGlyph, Status } from "@/components/shared";
+import { connectionStatus } from "@/lib/connection-filters";
 import { engineName } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type { Connection } from "@/lib/api";
@@ -23,12 +24,6 @@ export function ConnectionSummary({
     <div className="@container min-w-0" data-connection-summary>
       <ul className="divide-y divide-border" aria-label={t("recent")}>
         {connections.slice(0, 5).map((row) => {
-          const Icon =
-            row.engine === "haproxy"
-              ? Workflow
-              : row.engine === "realm"
-                ? Network
-                : Route;
           return (
             <li
               key={row.id}
@@ -36,7 +31,7 @@ export function ConnectionSummary({
             >
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="engine-icon" aria-hidden>
-                  <Icon className="size-4" />
+                  <EngineGlyph engine={row.engine} />
                 </span>
                 <div className="min-w-0">
                   <p className="font-medium [overflow-wrap:anywhere]">
@@ -48,11 +43,7 @@ export function ConnectionSummary({
                 </div>
               </div>
               <div className="flex items-center gap-1 @2xl:col-start-3 @2xl:row-start-1">
-                <Status
-                  value={
-                    row.status || (row.enabled ? "configured" : "disabled")
-                  }
-                />
+                <Status value={connectionStatus(row)} />
                 <ActionButton
                   variant="ghost"
                   size="icon"

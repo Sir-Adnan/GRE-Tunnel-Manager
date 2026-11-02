@@ -1,13 +1,5 @@
 import { useContext, useState } from "react";
-import {
-  Play,
-  Search,
-  Square,
-  Trash2,
-  Workflow,
-  Network,
-  Route,
-} from "lucide-react";
+import { Search } from "lucide-react";
 import { usePanelRoute } from "@/lib/use-panel-route";
 import { Choice } from "@/components/shared";
 import { ConnectionDetails } from "./ConnectionDetails";
@@ -33,9 +25,16 @@ import {
 import { HelpTip } from "@/components/help";
 import { engineName, number } from "@/lib/format";
 import { LocaleContext } from "@/lib/i18n";
-import { Blank, Status } from "@/components/shared";
+import { Blank, EngineGlyph, Status } from "@/components/shared";
 import { Destinations } from "./Destinations";
 import { ConnectionActions } from "./ConnectionActions";
+import { SelectionBar } from "./SelectionBar";
+import {
+  connectionStatus,
+  filterConnections,
+  statusFilter,
+  statusFilters,
+} from "@/lib/connection-filters";
 import { ConfigurationDialog } from "../configuration/ConfigurationDialog";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -56,7 +55,7 @@ export function ConnectionTable({
   const [config, setConfig] = useState<Connection>();
   const { params, updateParams } = usePanelRoute();
   const query = params.get("q") || "";
-  const statusFilter = params.get("status") || "all";
+  const status = statusFilter(params.get("status"));
   const setQuery = (q: string) => updateParams({ q });
   const details = connections.find((c) => c.id === params.get("connection"));
   const closeDetails = () => updateParams({ connection: "", detail: "" });
@@ -64,15 +63,7 @@ export function ConnectionTable({
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
-  const shown = connections.filter(
-    (row) =>
-      (statusFilter === "all" ||
-        (row.status || (row.enabled ? "configured" : "disabled")) ===
-          statusFilter) &&
-      `${row.name} ${row.id} ${row.engine} ${row.ports} ${row.targets.map((target) => target.ip).join(" ")}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-  );
+  const shown = filterConnections(connections, { status, query });
   const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
     currentPage = Math.min(pageIndex, pageCount - 1);
   const visible = shown.slice(currentPage * 20, (currentPage + 1) * 20);
@@ -93,11 +84,6 @@ export function ConnectionTable({
       run={run}
     />
   );
-  const glyph = (engine: string) => {
-    const Icon =
-      engine === "haproxy" ? Workflow : engine === "realm" ? Network : Route;
-    return <Icon className="size-4" />;
-  };
   const picked = connections.filter((row) => selected.includes(row.id));
   async function action(operation: string, rows = picked) {
     setBusy(true);
@@ -115,7 +101,7 @@ export function ConnectionTable({
   return (
     <div className="@container flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-0 flex-1 basis-24 sm:max-w-80">
+        <div className="relative min-w-0 flex-1 basis-full sm:basis-40 sm:max-w-80">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label={t("search")}
@@ -128,63 +114,32 @@ export function ConnectionTable({
             className="ps-9"
           />
         </div>
-        <div className="w-32 shrink-0 sm:w-44">
+        <div className="min-w-0 flex-1 sm:w-44 sm:flex-none">
           <Choice
             id="connection-status"
             label={t("status")}
             labelHidden
-            value={statusFilter}
+            value={status}
             onChange={(status) => {
               updateParams({ status: status === "all" ? "" : status });
               setPageIndex(0);
             }}
-            choices={["all", "active", "configured", "disabled"].map((id) => ({
+            choices={statusFilters.map((id) => ({
               value: id,
               label: t(id === "all" ? "allStatuses" : id),
             }))}
           />
         </div>
-        <span className="basis-full text-xs text-muted-foreground sm:basis-auto">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {number(shown.length, locale)} {t("connections")}
         </span>
-        {picked.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {number(picked.length, locale)}
-            </span>
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => void action("enable").catch(() => {})}
-            >
-              <Play data-icon="inline-start" />
-              {t("enable")}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => void action("disable").catch(() => {})}
-            >
-              <Square data-icon="inline-start" />
-              {t("disable")}
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={() => setDeleting(true)}
-            >
-              <Trash2 data-icon="inline-start" />
-              {t("delete")}
-            </Button>
-          </div>
-        )}
       </div>
 
       {shown.length === 0 ? (
         <Blank
           onAdd={onAdd}
           onReset={() => updateParams({ q: "", status: "" })}
-          filtered={query !== "" || statusFilter !== "all"}
+          filtered={query !== "" || status !== "all"}
         />
       ) : (
         <>
@@ -219,16 +174,12 @@ export function ConnectionTable({
                         {row.name}
                       </button>
                       <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {glyph(row.engine)}
+                        <EngineGlyph engine={row.engine} />
                         <bdi>{engineName(row.engine)}</bdi>
                       </span>
                     </div>
                   </div>
-                  <Status
-                    value={
-                      row.status || (row.enabled ? "configured" : "disabled")
-                    }
-                  />
+                  <Status value={connectionStatus(row)} />
                 </div>
                 <dl className="grid min-w-0 grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)] gap-3 text-sm">
                   <div className="flex min-w-0 flex-col gap-1">
@@ -264,8 +215,8 @@ export function ConnectionTable({
                 <col style={{ width: "29%" }} />
                 <col style={{ width: "12%" }} />
                 <col />
-                <col style={{ width: 100 }} />
-                <col style={{ width: 184 }} />
+                <col style={{ width: 112 }} />
+                <col style={{ width: 148 }} />
               </colgroup>
               <TableHeader>
                 <TableRow>
@@ -324,7 +275,7 @@ export function ConnectionTable({
                     <TableCell>
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="engine-icon" aria-hidden>
-                          {glyph(row.engine)}
+                          <EngineGlyph engine={row.engine} />
                         </span>
                         <div className="flex min-w-0 flex-col items-start gap-1">
                           <button
@@ -365,12 +316,7 @@ export function ConnectionTable({
                       <Destinations connection={row} />
                     </TableCell>
                     <TableCell>
-                      <Status
-                        value={
-                          row.status ||
-                          (row.enabled ? "configured" : "disabled")
-                        }
-                      />
+                      <Status value={connectionStatus(row)} />
                     </TableCell>
                     <TableCell>{actions(row)}</TableCell>
                   </TableRow>
@@ -380,6 +326,14 @@ export function ConnectionTable({
           </div>
         </>
       )}
+      <SelectionBar
+        count={picked.length}
+        busy={busy}
+        onEnable={() => void action("enable").catch(() => {})}
+        onDisable={() => void action("disable").catch(() => {})}
+        onDelete={() => setDeleting(true)}
+        onClear={() => setSelected([])}
+      />
       {pageCount > 1 && (
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground">

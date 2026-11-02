@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/use-poll";
 import type { Metrics, Inventory } from "@/lib/api";
 
 /** Owns drafts, API results and persisted accounting independently of presentation. */
@@ -9,7 +10,7 @@ export function useTraffic(
 ) {
   const [metrics, setMetrics] = useState<Metrics>();
   const [enabled, setEnabled] = useState(false);
-  const [interval, setInterval] = useState(60);
+  const [interval, setSampleInterval] = useState(60);
   const [retention, setRetention] = useState(0);
   const [ids, setIDs] = useState<string[]>([]);
   const [all, setAll] = useState(true);
@@ -20,7 +21,7 @@ export function useTraffic(
     setMetrics(value);
     if (syncDraft) {
       setEnabled(value.settings.enabled);
-      setInterval(value.settings.interval);
+      setSampleInterval(value.settings.interval);
       setRetention(value.settings.retention_hours || 0);
       setIDs(value.settings.ids || []);
       setAll(!value.settings.ids?.length);
@@ -37,27 +38,21 @@ export function useTraffic(
       live = false;
     };
   }, []);
-  useEffect(() => {
-    if (!metrics?.settings.enabled) return;
-    let live = true;
-    const timer = window.setInterval(
-      () => {
-        if (document.hidden) return;
-        api<Metrics>("metrics")
-          .then((value) => {
-            if (live) accept(value);
-          })
-          .catch((e) => {
-            if (live) setError(String(e));
-          });
-      },
-      Math.max(30, metrics.settings.interval) * 1000,
-    );
-    return () => {
-      live = false;
-      window.clearInterval(timer);
-    };
-  }, [metrics?.settings.enabled, metrics?.settings.interval]);
+  usePoll(
+    async (signal) => {
+      try {
+        const value = await api<Metrics>("metrics", undefined, signal);
+        if (!signal.aborted) accept(value);
+      } catch (e) {
+        if (!signal.aborted) setError(String(e));
+      }
+    },
+    {
+      seconds: Math.max(30, metrics?.settings.interval ?? 0),
+      enabled: Boolean(metrics?.settings.enabled),
+      immediate: false,
+    },
+  );
   const requestedIDs = all ? [] : ids;
   const dirty = Boolean(
     metrics &&
@@ -122,7 +117,7 @@ export function useTraffic(
     enabled,
     setEnabled,
     interval,
-    setInterval,
+    setSampleInterval,
     retention,
     setRetention,
     ids,

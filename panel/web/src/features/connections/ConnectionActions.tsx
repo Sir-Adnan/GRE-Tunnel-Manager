@@ -1,7 +1,5 @@
 import {
   Pencil,
-  Play,
-  Square,
   Trash2,
   FileText,
   Code2,
@@ -11,6 +9,12 @@ import {
 import { useContext } from "react";
 import { LocaleContext } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -22,6 +26,8 @@ import {
 import { ActionButton } from "@/components/help";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+
+/** Row actions: an explicit on/off switch, edit, and everything else in one menu. */
 export function ConnectionActions({
   row,
   busy,
@@ -43,21 +49,27 @@ export function ConnectionActions({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
+  const toggle = `${t(row.enabled ? "disable" : "enable")} ${row.name}`;
   return (
     <div
-      className="flex flex-wrap items-center justify-end gap-1"
+      className="row-actions"
       role="group"
       aria-label={`${t("actions")} ${row.name}`}
     >
-      <ActionButton
-        variant="ghost"
-        size="icon"
-        label={`${t(row.enabled ? "disable" : "enable")} ${row.name}`}
-        disabled={busy}
-        onClick={onToggle}
-      >
-        {row.enabled ? <Square /> : <Play />}
-      </ActionButton>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex min-h-9 items-center px-1.5">
+            <Switch
+              size="sm"
+              aria-label={toggle}
+              checked={row.enabled}
+              disabled={busy}
+              onCheckedChange={onToggle}
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{toggle}</TooltipContent>
+      </Tooltip>
       <ActionButton
         variant="ghost"
         size="icon"
@@ -66,15 +78,6 @@ export function ConnectionActions({
         onClick={() => onEdit(row)}
       >
         <Pencil />
-      </ActionButton>
-      <ActionButton
-        variant="ghost"
-        size="icon"
-        label={`${t("viewConfig")} ${row.name}`}
-        disabled={busy}
-        onClick={onConfig}
-      >
-        <Code2 />
       </ActionButton>
       <DropdownMenu dir={locale === "fa" ? "rtl" : "ltr"}>
         <DropdownMenuTrigger asChild>
@@ -87,11 +90,15 @@ export function ConnectionActions({
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
+        <DropdownMenuContent align="end" className="min-w-52">
           <DropdownMenuGroup>
             <DropdownMenuItem onSelect={onDetails}>
               <Info />
               {t("connectionDetails")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onConfig}>
+              <Code2 />
+              {t("viewConfig")}
             </DropdownMenuItem>
             {["realm", "haproxy"].includes(row.engine) && (
               <DropdownMenuItem

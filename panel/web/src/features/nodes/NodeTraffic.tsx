@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/use-poll";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes } from "@/lib/format";
 import { ActionButton, HelpTip } from "@/components/help";
@@ -56,18 +57,9 @@ export function NodeTraffic({ node }: { node: Node }) {
   useEffect(() => {
     const controller = new AbortController();
     lifetime.current = controller;
-    const reload = () => {
-      if (!document.hidden) void refresh(controller.signal);
-    };
-    reload();
-    const timer = window.setInterval(reload, 60000);
-    document.addEventListener("visibilitychange", reload);
-    return () => {
-      controller.abort();
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", reload);
-    };
+    return () => controller.abort();
   }, [refresh]);
+  usePoll(refresh, { seconds: 60, restartOn: node.id });
   const summary = view?.node_id === node.id ? view.summary : undefined;
   const date = (s?: string) =>
     s && Date.parse(s) > 0

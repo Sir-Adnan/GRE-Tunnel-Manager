@@ -12,7 +12,7 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/preferences.tsv` | Historical appearance preferences; ignored by v1.2.2+, retained if already present |
 | `/etc/gre-manager/manager.lock` | Exclusive mutation lock |
 | `/etc/gre-manager/id-counter` | Monotonic connection ID allocation, retained across deletion/restore |
-| `/etc/gre-manager/backups/*.tsv` | Forwarding restore points; sensitive topology data |
+| `/etc/gre-manager/backups/*.tsv` | Forwarding restore points; sensitive topology data. The newest `GTM_RESTORE_POINTS` (default 100) automatic `YYYYMMDDTHHMMSS-PID-N.tsv` files are kept; other names are never pruned |
 | `/etc/gre-manager/backups/legacy-*.sh` | Raw backup before legacy group deletion; executable root data, not a modern restore point |
 | `/etc/gre-manager/generated/F*.conf` | Per-connection Realm/HAProxy config |
 | `/run/gre-manager/haproxy/F*.sock` | HAProxy read-only Unix stats sockets, mode 600 inside mode-700 directory |
@@ -97,7 +97,7 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 | `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths |
 | `/etc/gre-manager-panel/server.{crt,key}` | Initial IP/domain-SAN self-signed certificate/key for HTTPS; key mode 640, root:grepanel |
 | `gre-manager-panel.service` | Public HTTP/HTTPS process as grepanel; explicit optional installation, enabled at boot |
-| `gre-manager-panel-broker.service` | Private root broker with grepanel group; stops when no longer required |
+| `gre-manager-panel-broker.service` | Private root broker with grepanel group; enabled at boot independently of the public panel, so traffic sampling and opt-in quota pauses continue while the panel is stopped |
 | `/run/gre-manager-panel-install.lock` | Root-owned installer lock; prevents concurrent panel installation |
 | `/run/gre-manager-panel/broker.sock` | Group-protected local socket, mode 660 inside mode-750 runtime directory |
 | `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |

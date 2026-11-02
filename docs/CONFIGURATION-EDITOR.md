@@ -1,6 +1,6 @@
 # Configuration viewer and editor
 
-Open the configuration action beside a connection's edit button, or **View configuration** on a GRE/reverse resource. Supported editors open directly in their editable tab. The panel operates on local manager-owned resources, not arbitrary file paths or remote Node files. This guide describes v1.3.4; see the changelog for earlier releases.
+Open the configuration action beside a connection's edit button, or **View configuration** on a GRE/reverse resource. Supported editors open directly in their editable tab. The panel operates on local manager-owned resources, not arbitrary file paths or remote Node files. This guide describes v1.3.5; see the changelog for earlier releases.
 
 ## What is displayed
 

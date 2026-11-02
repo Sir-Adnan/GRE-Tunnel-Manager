@@ -26,7 +26,7 @@ export function LiveTelemetry() {
   const t = useT(),
     locale = useContext(LocaleContext);
   const [enabled, setEnabled] = useState(true);
-  const [interval, setInterval] = useState(5);
+  const [interval, setSampleInterval] = useState(5);
   const { sample, error } = useHostTelemetry(enabled, interval);
   const stale = error;
   const ready = !stale;
@@ -97,7 +97,7 @@ export function LiveTelemetry() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setInterval(interval === 5 ? 15 : 5)}
+              onClick={() => setSampleInterval(interval === 5 ? 15 : 5)}
               aria-label={t("liveInterval")}
             >
               <bdi>{interval}s</bdi>

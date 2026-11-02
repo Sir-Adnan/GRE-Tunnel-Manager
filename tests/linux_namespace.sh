@@ -44,7 +44,7 @@ done
 GTM_RECORDS=()
 gtm_nft_render > "$test_dir/rules.nft"
 nft -f "$test_dir/rules.nft"
-! nft list table inet gre_manager | grep -q 'gtm-F000001'
+if nft list table inet gre_manager | grep -q 'gtm-F000001'; then printf 'Unexpected success: %s\n' 'nft list table inet gre_manager  grep -q gtm-F000001' >&2; exit 1; fi
 
 # Real request/reply paths, without touching host interfaces or /run/netns.
 unshare -n sleep 120 & client_ns=$!
@@ -108,6 +108,43 @@ cmp "$test_dir/before-preflight" "$test_dir/after-syntax-preflight"
 nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
 GTM_RECORDS=()
 gtm_nft_render | nft -f -
+if nft list table inet gre_manager >/dev/null 2>&1; then printf 'Owned table survived without records\n' >&2; exit 1; fi
+
+# Additional IPs: an all-addresses kernel forward accepts on every local IP,
+# while an explicit bind still matches only its own address.
+ip addr add 192.0.2.11/24 dev tm_in
+GTM_RECORDS=($'F000004\tAll addresses\tnftables\tboth\t0.0.0.0\t28446\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1'
+             $'F000005\tOne address\tnftables\ttcp\t192.0.2.11\t28447\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
+gtm_preflight
+gtm_nft_render | nft -f -
+for address in 192.0.2.10 192.0.2.11; do
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client "$address" 28446
+done
+nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.11 28447 tcp
+if nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28447 tcp 2>/dev/null; then
+    printf 'An explicit bind forwarded another local address\n' >&2; exit 1
+fi
+# Removing balanced targets must not leave stale per-target chains behind.
+GTM_RECORDS=($'F000006\tBalanced\tnftables\ttcp\t0.0.0.0\t28448\trandom\t1\tmasquerade\tany\t203.0.113.20:28001@1,203.0.113.21:28001@1\t1')
+gtm_nft_render | nft -f -
+nft list chains inet gre_manager | grep -q b_F000006_tcp_1
+GTM_RECORDS=($'F000006\tBalanced\tnftables\ttcp\t0.0.0.0\t28448\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1')
+gtm_nft_render | nft -f -
+if nft list chains inet gre_manager | grep -q b_F000006; then printf 'Stale balancing chain kept\n' >&2; exit 1; fi
+if command -v iptables-restore >/dev/null; then
+    GTM_RECORDS=($'F000007\tAll addresses\tiptables\ttcp\t0.0.0.0\t28449\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
+    gtm_preflight
+    gtm_iptables_apply 4
+    for address in 192.0.2.10 192.0.2.11; do
+        nsenter -t "$client_ns" -n python3 tests/packet_probe.py client "$address" 28449 tcp
+    done
+    GTM_RECORDS=()
+    gtm_iptables_apply 4
+fi
+GTM_RECORDS=()
+gtm_nft_render | nft -f -
+ip addr del 192.0.2.11/24 dev tm_in
+printf 'PASS: all-address kernel forwards work on additional IPs; explicit binds stay scoped.\n'
 
 # Real GRE encapsulation using the retained key/address/MTU contracts.
 ip tunnel add gre10 mode gre local 203.0.113.1 remote 203.0.113.20 key 10
@@ -142,7 +179,7 @@ if command -v iptables-restore >/dev/null; then
     [[ $(iptables -t nat -S GTM_PRE | grep -c -- '-j DNAT') == 4 ]]
     GTM_RECORDS=()
     gtm_iptables_apply 4
-    ! iptables -t nat -S GTM_PRE | grep -q -- '-j DNAT'
+    if iptables -t nat -S GTM_PRE | grep -q -- '-j DNAT'; then printf 'Owned iptables DNAT kept\n' >&2; exit 1; fi
     GTM_RECORDS=($'F000003\tPacket test\tiptables\tboth\t192.0.2.10\t28444\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
     gtm_preflight
     gtm_iptables_apply 4
@@ -397,7 +434,7 @@ if command -v iptables >/dev/null; then
         iptables -A TEST_MANUAL -j RETURN
         nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28556
         gtm_legacy_cleanup_all
-        ! iptables -t nat -S PREROUTING | grep -q -- '--dport 28556'
+        if iptables -t nat -S PREROUTING | grep -q -- '--dport 28556'; then printf 'Unexpected success: %s\n' 'iptables -t nat -S PREROUTING  grep -q -- --dport 28556' >&2; exit 1; fi
         iptables -C TEST_MANUAL -j RETURN
         [[ ! -e $FW_SCRIPT && ! -e $FW_SERVICE ]]
         ip tunnel add gre_simp mode gre local 203.0.113.1 remote 203.0.113.20 ttl 255
@@ -412,7 +449,7 @@ ip link set gre_simp up
 EOF
         gtm_simple_unit > "$GTM_SIMPLE_UNIT"
         gtm_simple_cleanup
-        ! ip link show dev gre_simp >/dev/null 2>&1
+        if ip link show dev gre_simp >/dev/null 2>&1; then printf 'Unexpected success: %s\n' 'ip link show dev gre_simp /dev/null 21' >&2; exit 1; fi
         [[ ! -e $GTM_SIMPLE_SCRIPT && ! -e $GTM_SIMPLE_UNIT ]]
         iptables -C TEST_MANUAL -j RETURN
         printf 'PASS: real legacy duplicate cleanup and Simple GRE removal preserve unrelated rules.\n'
@@ -497,11 +534,11 @@ fi
     python3 tests/packet_probe.py client 10.0.240.1 28001
     gtm_pair_api pair-verify gre-tun-240 "$fingerprint"
     printf '# edited by operator\n' >> "$GTM_SERVICE_DIR/gre-tun-240.service"
-    ! gtm_pair_api pair-delete gre-tun-240 "$fingerprint"
+    if gtm_pair_api pair-delete gre-tun-240 "$fingerprint"; then printf 'Unexpected success: %s\n' 'gtm_pair_api pair-delete gre-tun-240 fingerprint' >&2; exit 1; fi
     ip link show gre-out-240 >/dev/null
     sed -i '$d' "$GTM_SERVICE_DIR/gre-tun-240.service"
     gtm_pair_api pair-delete gre-tun-240 "$fingerprint"
-    ! ip link show gre-out-240 >/dev/null 2>&1
+    if ip link show gre-out-240 >/dev/null 2>&1; then printf 'Unexpected success: %s\n' 'ip link show gre-out-240 /dev/null 21' >&2; exit 1; fi
     nsenter -t "$backend_ns" -n ip link del dev gre240
     printf 'PASS: paired GRE carries TCP/UDP and fingerprint recovery preserves operator changes.\n'
 )

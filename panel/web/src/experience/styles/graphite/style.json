@@ -1,0 +1,21 @@
+{
+  "id": "graphite",
+  "name": "Graphite",
+  "description": "Calm neutral surfaces with one indigo accent; quiet and focused for long sessions, in the spirit of Linear.",
+  "styleVersion": "1.0.0",
+  "surfaces": ["admin"],
+  "modes": ["light", "dark"],
+  "tokens": "./tokens.css",
+  "fonts": [
+    { "family": "Inter", "source": "self-hosted @fontsource-variable/inter" },
+    {
+      "family": "Vazirmatn",
+      "source": "self-hosted @fontsource-variable/vazirmatn"
+    },
+    {
+      "family": "JetBrains Mono",
+      "source": "self-hosted @fontsource-variable/jetbrains-mono"
+    }
+  ],
+  "source": { "kind": "original", "license": "Project-owned" }
+}

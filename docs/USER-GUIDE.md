@@ -38,7 +38,7 @@ Up to 32 ports are accepted in one setup. Choose whether all map to the entered 
 
 HAProxy and Realm default to all local IPv4 addresses. **Optional settings → Listen address** can choose a specific address or all IPv6 addresses; actual IPv6 behavior also depends on the OS.
 
-Kernel forwarding requires a specific local address. The terminal suggests one from routing information without sending a discovery packet; it asks when no suitable route exists. A cloud-NAT address may be private. Review the address before applying.
+Kernel forwarding (iptables/nftables) also defaults to all local addresses of the destination family: `0.0.0.0`, or `::` for an IPv6 destination. On a server with additional IPs, clients can connect through any of them. **Optional settings → Listen address** (terminal) or **Advanced → Listen IP** (panel) can limit the forward to one assigned IP. The panel suggests this server's addresses. An all-addresses forward reserves its port and protocol on every IP, so the port must be free on all of them. Additional IPs on a separate interface or gateway may also need policy routing for replies. A cloud-NAT address may be private; review the address before applying.
 
 The usual source policy is `masquerade`. Preserving client IP for a kernel forward requires a valid destination return route. HAProxy/Realm create a new outgoing connection. HAProxy PROXY metadata requires compatible configuration in the receiving application and does not change the outgoing packet's network source address.
 

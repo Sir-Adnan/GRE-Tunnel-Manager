@@ -295,12 +295,17 @@ func parseHAImport(text string) ([]model.Connection, []string, error) {
 		strategy := "roundrobin"
 		var consistency map[string]string
 		checks := -1
-		hasTable,hasStick:=false,false
-		seenBackend:=map[string]bool{}
+		hasTable, hasStick := false, false
+		seenBackend := map[string]bool{}
 		common := maps.Clone(c.Options)
 		for _, line := range back.lines {
 			f := strings.Fields(line)
-			if f[0]!="server" {if seenBackend[f[0]]{return nil,nil,fmt.Errorf("duplicate backend directive: %s",f[0])};seenBackend[f[0]]=true}
+			if f[0] != "server" {
+				if seenBackend[f[0]] {
+					return nil, nil, fmt.Errorf("duplicate backend directive: %s", f[0])
+				}
+				seenBackend[f[0]] = true
+			}
 			switch {
 			case len(f) == 2 && f[0] == "balance":
 				if !oneOf(f[1], "roundrobin", "leastconn", "source") {
@@ -308,7 +313,8 @@ func parseHAImport(text string) ([]model.Connection, []string, error) {
 				}
 				strategy = f[1]
 			case line == "mode tcp", line == "hash-type consistent":
-			case line == "stick on src":hasStick=true
+			case line == "stick on src":
+				hasStick = true
 			case len(f) == 7 && f[0] == "stick-table" && f[1] == "type" && oneOf(f[2], "ip", "ipv6") && f[3] == "size" && f[5] == "expire":
 				size := f[4]
 				multiplier := 1
@@ -325,7 +331,7 @@ func parseHAImport(text string) ([]model.Connection, []string, error) {
 					return nil, nil, e
 				}
 				c.Options["stick"] = "source"
-				hasTable=true
+				hasTable = true
 				c.Options["stick_size"] = strconv.Itoa(n * multiplier)
 				c.Options["stick_expire"] = expiry
 			case f[0] == "server":
@@ -362,7 +368,9 @@ func parseHAImport(text string) ([]model.Connection, []string, error) {
 				return nil, nil, fmt.Errorf("unsupported backend directive: %s", line)
 			}
 		}
-		if hasTable!=hasStick{return nil,nil,errors.New("source affinity requires both stick-table and stick on src")}
+		if hasTable != hasStick {
+			return nil, nil, errors.New("source affinity requires both stick-table and stick on src")
+		}
 		if checks == 0 {
 			c.Options["check_mode"] = "off"
 		}

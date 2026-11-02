@@ -1,5 +1,6 @@
 import { useContext, useState } from "react";
-import { ArrowRight, Check, RadioTower } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import { EngineGlyph } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,7 +15,6 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
-import { Address } from "@/components/shared";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { engineName } from "@/lib/format";
 import type { Connection, Inventory } from "@/lib/api";
@@ -81,8 +81,8 @@ export function ConnectionForm({
         >
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <span className="engine-icon">
-                <RadioTower className="size-4" />
+              <span className="engine-icon is-primary">
+                <EngineGlyph engine={value.engine} />
               </span>
               <div className="min-w-0">
                 <DialogTitle>
@@ -94,20 +94,29 @@ export function ConnectionForm({
                 </DialogDescription>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-1">
-              {[
-                ...new Set(
-                  [
-                    inventory.host.public_ip,
-                    ...inventory.host.addresses,
-                  ].filter((ip): ip is string => Boolean(ip)),
-                ),
-              ]
-                .slice(0, 2)
-                .map((ip) => (
-                  <Address key={ip}>{ip}</Address>
-                ))}
-            </div>
+            <ol className="form-steps" aria-label={t("connectionSections")}>
+              {["connectionSetup", "review"].map((step, index) => {
+                const current = review ? 1 : 0;
+                return (
+                  <li
+                    key={step}
+                    aria-current={index === current ? "step" : undefined}
+                    data-state={
+                      index < current
+                        ? "done"
+                        : index === current
+                          ? "current"
+                          : "next"
+                    }
+                  >
+                    <span className="form-step-index">
+                      {index < current ? <Check /> : index + 1}
+                    </span>
+                    {t(step)}
+                  </li>
+                );
+              })}
+            </ol>
           </DialogHeader>
           <DialogBody key={review ? "review" : "form"}>
             {error && (

@@ -20,20 +20,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Choice, PageTitle } from "@/components/shared";
-import { styleGallery } from "@/experience/gallery";
-import { registry } from "@/experience/registry.generated";
+import { ThemePicker } from "@/components/ThemePicker";
 import { useT } from "@/lib/i18n";
-import type { Locale } from "@/lib/i18n";
+import type { Locale, Preferences } from "@/lib/preferences";
 import type { Inventory } from "@/lib/api";
 import { EngineDetails } from "./EngineDetails";
 import { EngineUpdates } from "./engines/EngineUpdates";
 
-export type Preferences = {
-  locale: Locale;
-  style: string;
-  mode: "light" | "dark" | "system";
-  refresh: boolean;
-};
 export function Settings({
   preferences,
   setPreferences,
@@ -44,14 +37,27 @@ export function Settings({
   logout: () => void;
 }) {
   const t = useT();
-  const groups = styleGallery(registry, {
-    surface: "admin",
-    packId: "tunnel-admin",
-    locale: preferences.locale,
-  });
   return (
     <div className="page-stack">
       <PageTitle title={t("settings")} description={t("appearanceDesc")} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("style")}</CardTitle>
+          <CardDescription>{t("styleHelp")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemePicker
+            value={preferences.style}
+            locale={preferences.locale}
+            onChange={(style) => setPreferences({ ...preferences, style })}
+          />
+        </CardContent>
+        <CardFooter>
+          <p className="text-xs leading-6 text-muted-foreground">
+            {t("exactTheme")}
+          </p>
+        </CardFooter>
+      </Card>
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -71,20 +77,6 @@ export function Settings({
                   { value: "fa", label: "فارسی" },
                   { value: "en", label: "English" },
                 ]}
-              />
-              <Choice
-                id="visual-style"
-                label={t("style")}
-                value={preferences.style}
-                onChange={(value) =>
-                  setPreferences({ ...preferences, style: value })
-                }
-                choices={groups.flatMap((group) =>
-                  group.items.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                )}
               />
               <Field>
                 <FieldLabel>{t("mode")}</FieldLabel>
@@ -124,11 +116,6 @@ export function Settings({
               </Field>
             </FieldGroup>
           </CardContent>
-          <CardFooter>
-            <p className="text-xs leading-6 text-muted-foreground">
-              {t("exactTheme")}
-            </p>
-          </CardFooter>
         </Card>
         <Card>
           <CardHeader>

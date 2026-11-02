@@ -21,7 +21,8 @@ gtm_record_validate() {
     [[ $R_ENGINE != haproxy || $R_STRATEGY != failover || $H_CHECK_MODE != off ]] || return 1
     [[ $R_TARGETS != ,* && $R_TARGETS != *, && $R_TARGETS != *,,* ]] || return 1
     [[ $R_BIND == *:* ]] && family=6
-    bind_key=$(gtm_ip_key "$R_BIND") || return 1
+    gtm_key_of "$R_BIND" || return 1
+    bind_key=$GTM_KEY
     local -a targets
     IFS=, read -r -a targets <<< "$R_TARGETS"
     (( ${#targets[@]} >= 1 && ${#targets[@]} <= 32 )) || return 1
@@ -30,13 +31,14 @@ gtm_record_validate() {
         if [[ $R_ENGINE == haproxy && $H_CHECK_MODE == http ]] && ((10#$EP_PORT == 10#$H_CHECK_PORT)); then
             gtm_error 'HTTP readiness needs a port different from every traffic destination port.'; return 1
         fi
-        key="$(gtm_ip_key "$EP_IP"):$EP_PORT"
+        gtm_key_of "$EP_IP" || return 1
+        key="$GTM_KEY:$EP_PORT"
         [[ ! ${seen_targets[$key]+set} ]] || return 1
         seen_targets[$key]=1
         # A forward back to its own listener loops or hijacks the relay's socket.
         [[ $key != "$bind_key:$((10#$R_PORT))" ]] || return 1
         if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
-            [[ $bind_key != 0.0.0.0 && $bind_key != 00000000000000000000000000000000 ]] || return 1
+            # An unspecified kernel bind matches every local address of its family.
             if (( family == 6 )); then [[ $EP_IP == *:* ]] || return 1; else [[ $EP_IP != *:* ]] || return 1; fi
         fi
         ((count+=1))
@@ -57,23 +59,23 @@ gtm_load_records() {
     # unreadable file, directory or dangling link as an empty desired state.
     if [[ ! -e $source && ! -L $source && $# == 0 ]]; then return 0; fi
     [[ -f $source && -r $source ]] || { gtm_error "State file is missing, unreadable or not a regular file: $source"; return 1; }
-    local -A ids=()
-    local bind port iface id bind_key other_key
+    local -A ids=() listeners=()
+    local port iface id bind_key entry O_ID O_PROTO O_KEY O_ENGINE O_IFACE
     while IFS= read -r line || [[ -n $line ]]; do
         [[ -z $line || $line == '#'* ]] && continue
         gtm_record_validate "$line" || { gtm_error "Invalid connection record in $source"; return 1; }
-        id=$R_ID; bind=$R_BIND; port=$((10#$R_PORT)); iface=$R_IFACE
-        bind_key=$(gtm_ip_key "$bind") || return 1
+        id=$R_ID; port=$((10#$R_PORT)); iface=$R_IFACE
         [[ ! ${ids[$id]+set} ]] || { gtm_error "Duplicate ID: $id"; return 1; }; ids[$id]=1
+        GTM_RECORDS+=("$line")
+        [[ $R_ENABLED == 1 ]] || continue
+        gtm_key_of "$R_BIND" || return 1
+        bind_key=$GTM_KEY
         # Reject ambiguous listeners across engines, wildcard binds and interfaces.
-        for other in "${GTM_RECORDS[@]}"; do
-            local O_ID O_NAME O_ENGINE O_PROTO O_BIND O_PORT O_STRATEGY O_ENABLED O_SNAT O_IFACE O_TARGETS O_VERSION
-            IFS=$'\t' read -r O_ID O_NAME O_ENGINE O_PROTO O_BIND O_PORT O_STRATEGY O_ENABLED O_SNAT O_IFACE O_TARGETS O_VERSION <<< "$other"
-            [[ $R_ENABLED == 1 && $O_ENABLED == 1 ]] || continue
-            (( port == 10#$O_PORT )) || continue
+        # Enabled listeners are indexed by port, so loading stays linear.
+        for entry in ${listeners[$port]-}; do
+            IFS=/ read -r O_ID O_PROTO O_KEY O_ENGINE O_IFACE <<< "$entry"
             [[ $R_PROTO == both || $O_PROTO == both || $R_PROTO == "$O_PROTO" ]] || continue
-            other_key=$(gtm_ip_key "$O_BIND") || return 1
-            [[ $bind_key == "$other_key" || $bind_key == 0.0.0.0 || $other_key == 0.0.0.0 || $bind_key == 00000000000000000000000000000000 || $other_key == 00000000000000000000000000000000 ]] || continue
+            [[ $bind_key == "$O_KEY" ]] || gtm_wildcard_key "$bind_key" || gtm_wildcard_key "$O_KEY" || continue
             # Relays bind sockets, not entrance interfaces. Only kernel rules can
             # safely distinguish identical listeners on two explicit interfaces.
             if [[ $R_ENGINE =~ ^(iptables|nftables)$ && $O_ENGINE =~ ^(iptables|nftables)$ ]]; then
@@ -81,7 +83,7 @@ gtm_load_records() {
             fi
             gtm_error "Listener conflicts: $id and $O_ID"; return 1
         done
-        GTM_RECORDS+=("$line")
+        listeners[$port]+="${listeners[$port]:+ }$id/$R_PROTO/$bind_key/$R_ENGINE/$iface"
     done < "$source"
 }
 
@@ -169,6 +171,24 @@ EOF
     systemctl daemon-reload && systemctl enable gre-manager-forwarding.service || return 1
 }
 
+# Keep the newest automatic forwarding restore points. Only exact generated names
+# are considered; cleanup/tuning/legacy backups and manual files are never touched.
+# GTM_RESTORE_POINTS=0 keeps every restore point.
+gtm_prune_restore_points() {
+    local keep=${GTM_RESTORE_POINTS:-100} file index
+    local -a points=()
+    gtm_uint "$keep" 0 100000 || { gtm_error 'GTM_RESTORE_POINTS must be 0-100000.'; return 1; }
+    ((10#$keep > 0)) || return 0
+    for file in "$GTM_CONFIG_DIR"/backups/*.tsv; do
+        [[ -f $file && ! -L $file && ${file##*/} =~ ^[0-9]{8}T[0-9]{6}-[0-9]+-[0-9]+\.tsv$ ]] || continue
+        points+=("$file")
+    done
+    # Names start with a UTC timestamp, so glob order is chronological.
+    for ((index=0; index < ${#points[@]} - 10#$keep; index++)); do
+        rm -f -- "${points[$index]}" || return 1
+    done
+}
+
 # Caller holds the manager lock. Restore only owned resources on failure.
 gtm_commit() {
     local backup candidate recovery=0
@@ -182,6 +202,7 @@ gtm_commit() {
     chmod 600 "$candidate" "$backup" && mv "$candidate" "$GTM_STATE" || { rm -f "$candidate"; return 1; }
     if gtm_install_runner && gtm_kernel_apply && gtm_relays_apply; then
         printf 'Saved and applied. Restore point: %s\n' "${backup##*/}"
+        gtm_prune_restore_points || printf 'Warning: old restore points could not be pruned.\n' >&2
         return 0
     fi
     gtm_error 'Apply failed. Restoring the previous managed configuration.'

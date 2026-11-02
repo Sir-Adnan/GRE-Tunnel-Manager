@@ -160,7 +160,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &request) {
 			return
 		}
-		if !allowed(request.Action) {
+		if !control.PublicOperation(request.Action) {
 			failure(w, 400, "unknown operation")
 			return
 		}
@@ -173,13 +173,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		failure(w, 404, "not found")
 	}
-}
-func allowed(action string) bool {
-	switch action {
-	case "create", "update", "enable", "disable", "delete", "plan", "doctor", "install", "gre-create", "gre-delete", "reverse-create", "reverse-delete", "service", "logs", "metrics-configure", "metrics-reset", "metrics-policy", "metrics-forget", "resource-rename", "configuration-apply", "configuration-import-apply", "engine-update":
-		return true
-	}
-	return false
 }
 func (s *Server) forward(w http.ResponseWriter, r *http.Request, request control.Request) {
 	data, e := s.Client.Do(r.Context(), request)

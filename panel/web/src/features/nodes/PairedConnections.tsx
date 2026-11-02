@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ArrowLeftRight, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/use-poll";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,25 +58,10 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
     return () => window.removeEventListener("gtm:nodes-refresh", reload);
   }, [refresh]);
   const active = pairs.some((p) => !finished(p));
-  useEffect(() => {
-    if (!active) return;
-    let pending = false;
-    const reload = () => {
-      if (document.hidden || pending) return;
-      pending = true;
-      void refresh()
-        .catch((e) => setError(String(e)))
-        .finally(() => {
-          pending = false;
-        });
-    };
-    const timer = setInterval(reload, 2000);
-    document.addEventListener("visibilitychange", reload);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", reload);
-    };
-  }, [active, refresh]);
+  usePoll(() => refresh().catch((e) => setError(String(e))), {
+    seconds: 2,
+    enabled: active,
+  });
   async function perform(action: () => Promise<void>) {
     setBusy(true);
     setError("");

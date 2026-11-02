@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { PanelHeader } from "@/components/PanelHeader";
 import { PanelFooter } from "@/components/PanelFooter";
+import { CommandPalette } from "@/components/CommandPalette";
 import { usePanelRoute } from "@/lib/use-panel-route";
 import { ConnectionWorkspace } from "@/features/connections/ConnectionWorkspace";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,12 +27,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import { PanelSidebar } from "@/components/PanelSidebar";
+import { Overview } from "@/features/Overview";
+import { Components, Settings } from "@/features/Settings";
+import { usePanelCommands } from "@/features/commands";
+import type { Connection } from "@/lib/api";
+import { LocaleContext, translate } from "@/lib/i18n";
+import {
+  defaultPreferences,
+  loadPreferences,
+  savePreferences,
+} from "@/lib/preferences";
+import { useSession } from "@/lib/use-session";
+import { useInventory } from "@/lib/use-inventory";
+import { useOperations } from "@/lib/use-operations";
+import type { Page } from "@/lib/navigation";
+import { ExperiencePage, ExperienceScope } from "@/experience/ExperienceScope";
+import { resolveExperience } from "@/experience/resolve";
+import { registry } from "@/experience/registry.generated";
 const ConnectionForm = lazy(() =>
   import("@/features/connections/ConnectionForm").then((module) => ({
     default: module.ConnectionForm,
   })),
 );
-import { Overview } from "@/features/Overview";
 const Resources = lazy(() =>
   import("@/features/Resources").then((module) => ({
     default: module.Resources,
@@ -50,63 +67,132 @@ const Backups = lazy(() =>
     default: module.Backups,
   })),
 );
-import { Components, Settings } from "@/features/Settings";
-import type { Preferences } from "@/features/Settings";
-import { api, operate } from "@/lib/api";
-import type { Connection, Inventory, Job, Session } from "@/lib/api";
-import { LocaleContext, translate } from "@/lib/i18n";
-import { ExperiencePage, ExperienceScope } from "@/experience/ExperienceScope";
-import { resolveExperience } from "@/experience/resolve";
-import { registry } from "@/experience/registry.generated";
 
-const defaults: Preferences = {
-  locale: "fa",
-  style: "nettinx",
-  mode: "dark",
-  refresh: false,
-};
-function savedPreferences(): Preferences {
-  try {
-    const value = JSON.parse(
-      localStorage.getItem("gtm.preferences.v1") || "{}",
-    );
-    return {
-      locale: value.locale === "en" ? "en" : "fa",
-      style: Object.hasOwn(registry.styles, value.style)
-        ? value.style
-        : defaults.style,
-      mode: ["light", "dark", "system"].includes(value.mode)
-        ? value.mode
-        : defaults.mode,
-      refresh: value.refresh === true,
+const styleIds = Object.keys(registry.styles);
+type FormState = { engine: string; engines?: string[]; original?: Connection };
+
+function usePreferences() {
+  const [preferences, setPreferences] = useState(() =>
+    loadPreferences(globalThis.localStorage, styleIds),
+  );
+  useEffect(() => {
+    savePreferences(globalThis.localStorage, preferences);
+  }, [preferences]);
+  return [preferences, setPreferences] as const;
+}
+
+function useSystemDark() {
+  const [dark, setDark] = useState(
+    () => matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+  useEffect(() => {
+    const query = matchMedia("(prefers-color-scheme: dark)");
+    const changed = () => setDark(query.matches);
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, []);
+  return dark;
+}
+
+/** Ctrl/⌘+K anywhere opens the command palette. */
+function useCommandShortcut(open: () => void, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const keys = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        open();
+      }
     };
-  } catch {
-    return defaults;
-  }
+    window.addEventListener("keydown", keys);
+    return () => window.removeEventListener("keydown", keys);
+  }, [open, enabled]);
+}
+
+const lazyFallback = <Skeleton className="h-60 w-full" />;
+
+function PageSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-busy>
+      <Skeleton className="h-10 w-64" />
+      <div className="stats-grid">
+        {[0, 1, 2, 3].map((id) => (
+          <Skeleton key={id} className="h-28" />
+        ))}
+      </div>
+      <Skeleton className="h-80 w-full" />
+    </div>
+  );
+}
+
+function pageKind(page: Page) {
+  return page === "overview"
+    ? "dashboard"
+    : ["settings", "components", "traffic"].includes(page)
+      ? "settings"
+      : "list";
 }
 
 export default function App() {
-  const [preferences, setPreferences] = useState(savedPreferences);
-  const [session, setSession] = useState<Session>();
-  const [sessionError, setSessionError] = useState("");
-  const [inventory, setInventory] = useState<Inventory>();
-  const { page, navigate } = usePanelRoute();
-  const [form, setForm] = useState<{ engine: string; original?: Connection }>();
-  const [job, setJob] = useState<Job>();
-  const [output, setOutput] = useState<{ title: string; text: string }>();
-  const [systemDark, setSystemDark] = useState(
-    () => matchMedia("(prefers-color-scheme: dark)").matches,
-  );
+  const [preferences, setPreferences] = usePreferences();
+  const systemDark = useSystemDark();
   const t = useCallback(
     (key: string) => translate(preferences.locale, key),
     [preferences.locale],
   );
+  const { session, setSession, error: sessionError, logout } = useSession();
+  const authenticated = Boolean(session?.authenticated);
+  const operations = useOperations(t);
+  const {
+    inventory,
+    error: inventoryError,
+    refresh,
+  } = useInventory({
+    authenticated,
+    autoRefresh: preferences.refresh,
+    paused: operations.busy,
+  });
+  const runOperation = operations.run;
+  const run = useCallback(
+    (request: unknown) => runOperation(request, refresh),
+    [runOperation, refresh],
+  );
+  const { page, navigate } = usePanelRoute();
+  const [form, setForm] = useState<FormState>();
+  const [palette, setPalette] = useState(false);
+  const openPalette = useCallback(() => setPalette(true), []);
+  useCommandShortcut(openPalette, authenticated);
+  const add = useCallback(
+    (engine = "haproxy", engines?: string[]) => setForm({ engine, engines }),
+    [],
+  );
+  const edit = (original: Connection) =>
+    setForm({ engine: original.engine, original });
+  const refreshPage = useCallback(
+    () =>
+      page === "nodes"
+        ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
+        : void refresh().catch((error) => toast.error(String(error))),
+    [page, refresh],
+  );
+  const commands = usePanelCommands({
+    t,
+    inventory,
+    preferences,
+    setPreferences,
+    navigate,
+    add,
+    refresh: refreshPage,
+  });
   const experience = useMemo(
     () =>
       resolveExperience({
         registry,
         surface: "admin",
-        site: { styleId: "nettinx", mode: "dark" },
+        site: {
+          styleId: defaultPreferences.style,
+          mode: defaultPreferences.mode,
+        },
         user: { styleId: preferences.style, mode: preferences.mode },
         userMay: { style: true, mode: true },
         locale: preferences.locale,
@@ -114,106 +200,7 @@ export default function App() {
       }),
     [preferences, systemDark],
   );
-  const refresh = useCallback(async () => {
-    setInventory(await api<Inventory>("inventory"));
-    setSessionError("");
-  }, []);
-  useEffect(() => {
-    api<Session>("session")
-      .then(setSession)
-      .catch((error) => setSessionError(String(error)));
-  }, []);
-  useEffect(() => {
-    const expired = () => {
-      setSession({
-        authenticated: false,
-        session: { csrf: "", username: "", expires: "" },
-        demo: false,
-      });
-      setInventory(undefined);
-    };
-    window.addEventListener("gtm:unauthorized", expired);
-    return () => window.removeEventListener("gtm:unauthorized", expired);
-  }, []);
-  useEffect(() => {
-    localStorage.setItem("gtm.preferences.v1", JSON.stringify(preferences));
-  }, [preferences]);
-  useEffect(() => {
-    const query = matchMedia("(prefers-color-scheme: dark)");
-    const changed = () => setSystemDark(query.matches);
-    query.addEventListener("change", changed);
-    return () => query.removeEventListener("change", changed);
-  }, []);
-  useEffect(() => {
-    if (!session?.authenticated) return;
-    let alive = true;
-    api<Inventory>("inventory")
-      .then((value) => alive && setInventory(value))
-      .catch((error) => alive && setSessionError(String(error)));
-    return () => {
-      alive = false;
-    };
-  }, [session?.authenticated]);
-  useEffect(() => {
-    if (!session?.authenticated || !preferences.refresh) return;
-    const timer = window.setInterval(() => {
-      if (!document.hidden && job?.state !== "running")
-        refresh().catch((error) => toast.error(String(error)));
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [session?.authenticated, preferences.refresh, refresh, job?.state]);
-  const add = (
-    engine = ["haproxy", "realm"].includes(page)
-      ? page
-      : page === "forwarding"
-        ? "nftables"
-        : "haproxy",
-  ) => setForm({ engine });
-  const edit = (original: Connection) =>
-    setForm({ engine: original.engine, original });
-  async function run(request: unknown): Promise<void> {
-    try {
-      const completed = await operate(request, setJob);
-      try {
-        await refresh();
-        toast.success(t("completed"));
-      } catch {
-        toast.warning(t("savedRefreshFailed"));
-      }
-      const operation = (request as { action: string }).action;
-      if (["logs", "plan", "doctor", "reverse-create"].includes(operation))
-        setOutput({
-          title: t(
-            operation === "logs"
-              ? "logs"
-              : operation === "reverse-create"
-                ? "completed"
-                : operation === "plan"
-                  ? "previewAll"
-                  : "review",
-          ),
-          text:
-            typeof completed.result === "string"
-              ? completed.result
-              : JSON.stringify(completed.result, null, 2),
-        });
-    } catch (error) {
-      setOutput({
-        title: t("error"),
-        text: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  }
-  async function logout() {
-    await api("logout", {});
-    setSession({
-      authenticated: false,
-      session: { csrf: "", username: "", expires: "" },
-      demo: false,
-    });
-    setInventory(undefined);
-  }
+
   let content;
   if (!session)
     content = (
@@ -227,7 +214,7 @@ export default function App() {
         )}
       </div>
     );
-  else if (!session.authenticated)
+  else if (!authenticated)
     content = (
       <Login
         t={t}
@@ -241,122 +228,107 @@ export default function App() {
     content = (
       <div className="app-shell">
         <SidebarProvider>
-          <PanelSidebar page={page} inventory={inventory} navigate={navigate} />
+          <PanelSidebar
+            page={page}
+            inventory={inventory}
+            navigate={navigate}
+            openPalette={openPalette}
+          />
           <SidebarInset className="min-w-0">
             <PanelHeader
               page={page}
               inventory={inventory}
               preferences={preferences}
               setPreferences={setPreferences}
-              busy={job?.state === "running"}
-              refresh={() =>
-                page === "nodes"
-                  ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
-                  : void refresh().catch((error) => toast.error(String(error)))
-              }
+              busy={operations.busy}
+              refresh={refreshPage}
+              openPalette={openPalette}
             />
-            <div className="page-container">
+            <main className="page-container" id="main">
               {session.demo && (
-                <Alert className="mb-5">
+                <Alert className="demo-banner mb-5">
                   <AlertDescription>{t("demo")}</AlertDescription>
                 </Alert>
               )}
-              {sessionError && (
-                <Alert className="mb-5">
-                  <AlertDescription>{sessionError}</AlertDescription>
+              {inventoryError && (
+                <Alert className="mb-5" variant="destructive">
+                  <AlertDescription>{inventoryError}</AlertDescription>
                 </Alert>
               )}
-              {job?.state === "running" && (
+              {operations.busy && (
                 <div className="operation-progress" role="status">
                   <Loader2 className="size-4 animate-spin" />
                   {t("working")}
-                  <span className="text-xs opacity-70">{job.action}</span>
+                  <span className="text-xs opacity-70">
+                    {operations.job?.action}
+                  </span>
                 </div>
               )}
               {page === "nodes" ? (
-                <Suspense fallback={<Skeleton className="h-60 w-full" />}>
+                <Suspense fallback={lazyFallback}>
                   <Nodes />
                 </Suspense>
               ) : !inventory ? (
-                <div className="flex flex-col gap-6">
-                  <Skeleton className="h-12 w-72" />
-                  <div className="stats-grid">
-                    {[0, 1, 2, 3].map((id) => (
-                      <Skeleton key={id} className="h-36" />
-                    ))}
-                  </div>
-                  <Skeleton className="h-80 w-full" />
-                </div>
+                <PageSkeleton />
               ) : (
                 <ExperiencePage
-                  pageKind={
-                    page === "overview"
-                      ? "dashboard"
-                      : ["settings", "components", "traffic"].includes(page)
-                        ? "settings"
-                        : "list"
-                  }
+                  key={page}
+                  pageKind={pageKind(page)}
                   model={{
-                    content:
-                      page === "overview" ? (
-                        <Overview
-                          inventory={inventory}
-                          add={() => add()}
-                          edit={edit}
-                          navigate={navigate}
-                        />
-                      ) : [
-                          "connections",
-                          "forwarding",
-                          "haproxy",
-                          "realm",
-                        ].includes(page) ? (
-                        <ConnectionWorkspace
-                          page={page}
-                          inventory={inventory}
-                          add={() => add()}
-                          edit={edit}
-                          run={run}
-                        />
-                      ) : page === "gre" || page === "reverse" ? (
-                        <Suspense
-                          fallback={<Skeleton className="h-60 w-full" />}
-                        >
+                    content: (
+                      <Suspense fallback={lazyFallback}>
+                        {page === "overview" ? (
+                          <Overview
+                            inventory={inventory}
+                            add={() => add()}
+                            edit={edit}
+                            navigate={navigate}
+                          />
+                        ) : page === "connections" ? (
+                          <ConnectionWorkspace
+                            inventory={inventory}
+                            add={add}
+                            edit={edit}
+                            run={run}
+                          />
+                        ) : page === "gre" || page === "reverse" ? (
                           <Resources
                             inventory={inventory}
                             engine={page}
                             run={run}
                           />
-                        </Suspense>
-                      ) : page === "traffic" ? (
-                        <Traffic inventory={inventory} run={run} />
-                      ) : page === "components" ? (
-                        <Components inventory={inventory} run={run} />
-                      ) : page === "backups" ? (
-                        <Suspense
-                          fallback={<Skeleton className="h-60 w-full" />}
-                        >
+                        ) : page === "traffic" ? (
+                          <Traffic inventory={inventory} run={run} />
+                        ) : page === "components" ? (
+                          <Components inventory={inventory} run={run} />
+                        ) : page === "backups" ? (
                           <Backups inventory={inventory} refreshed={refresh} />
-                        </Suspense>
-                      ) : (
-                        <Settings
-                          preferences={preferences}
-                          setPreferences={setPreferences}
-                          logout={() =>
-                            void logout().catch((error) =>
-                              toast.error(String(error)),
-                            )
-                          }
-                        />
-                      ),
+                        ) : (
+                          <Settings
+                            preferences={preferences}
+                            setPreferences={setPreferences}
+                            logout={() =>
+                              void logout().catch((error) =>
+                                toast.error(String(error)),
+                              )
+                            }
+                          />
+                        )}
+                      </Suspense>
+                    ),
                   }}
                 />
               )}
-            </div>
-            <PanelFooter inventory={inventory} navigate={navigate} />
+            </main>
+            <PanelFooter inventory={inventory} />
           </SidebarInset>
           <MobileNavigation page={page} navigate={navigate} />
         </SidebarProvider>
+        <CommandPalette
+          open={palette}
+          onOpenChange={setPalette}
+          commands={commands}
+        />
         {form && inventory && (
           <Suspense
             fallback={
@@ -367,13 +339,7 @@ export default function App() {
           >
             <ConnectionForm
               inventory={inventory}
-              engines={
-                page === "haproxy" || page === "realm"
-                  ? [page]
-                  : page === "forwarding"
-                    ? ["nftables", "iptables"]
-                    : undefined
-              }
+              engines={form.original ? undefined : form.engines}
               engine={form.engine}
               original={form.original}
               onClose={() => setForm(undefined)}
@@ -382,16 +348,16 @@ export default function App() {
           </Suspense>
         )}
         <Dialog
-          open={Boolean(output)}
-          onOpenChange={(open) => !open && setOutput(undefined)}
+          open={Boolean(operations.output)}
+          onOpenChange={(open) => !open && operations.closeOutput()}
         >
           <DialogContent closeLabel={t("close")} className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{output?.title}</DialogTitle>
+              <DialogTitle>{operations.output?.title}</DialogTitle>
               <DialogDescription>{t("reviewDesc")}</DialogDescription>
             </DialogHeader>
             <pre className="code-block max-h-[60dvh] overflow-auto" dir="ltr">
-              {output?.text}
+              {operations.output?.text}
             </pre>
           </DialogContent>
         </Dialog>

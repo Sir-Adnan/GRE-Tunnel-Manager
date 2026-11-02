@@ -34,13 +34,15 @@ The complete operation is not atomic across kernel tables and systemd. Optional 
 
 Port-first setup accepts up to 32 local ports and shows fixed/matching destination-port mapping before apply. It creates a separate record per listener, allocating IDs under one lock and committing the full batch once. Each HAProxy/Realm record still owns its own service, so more listeners also mean more relay processes. Editing remains per record. Names are automatic; advanced source/listen choices and disabled state are preserved during edits.
 
-New relay forms default to listening on all IPv4 addresses. Review exposes this scope and Optional settings can restrict it. Kernel listeners require a concrete local IP, suggested with a packet-free route lookup. Preflight additionally rejects a wildcard relay targeting a local address on its own listening port.
+New relay and kernel forms default to listening on all local addresses (`0.0.0.0`, or `::` for an IPv6 destination). Review exposes this scope and Optional settings can restrict it to one assigned IP. Use the default on servers with additional IPs: clients can connect through any of them. An explicit IP accepts traffic only on that address. A wildcard forward reserves its port and protocol on every address. Preflight rejects a wildcard listener targeting a local address on its own listening port.
+
+Additional IPs on a separate interface or gateway can also need policy routing for the replies. The manager does not create `ip rule` entries or edit the host's routing policy.
 
 ## Restore or investigate a failure
 
 For a reinstall or a move to another server, use the panel's encrypted [Backup & restore](BACKUP-RESTORE.md) workflow. It includes recognized GRE/reverse definitions and optional accounting. The terminal restore points below have a narrower scope.
 
-Use **Tools → Restore Backup**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates.
+Use **Tools → Restore Backup**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates. The newest 100 automatic restore points are kept. Set `GTM_RESTORE_POINTS` for another count, or `0` to keep all. Cleanup, tuning, legacy and manually named files are never pruned.
 
 ```bash
 sudo journalctl -u gre-manager-forwarding.service -n 100 --no-pager

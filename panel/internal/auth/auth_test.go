@@ -101,6 +101,29 @@ func TestBruteForceBounded(t *testing.T) {
 		t.Fatal("rate limit bypass")
 	}
 }
+func TestIPv6RotationSharesOneLimitAndFullTableDoesNotLockOut(t *testing.T) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("long-example-password"), bcrypt.MinCost)
+	s := New("admin", string(hash), true)
+	for i := 0; i < 5; i++ {
+		r := httptest.NewRequest("POST", "https://panel.example/api/login", nil)
+		r.RemoteAddr = "[2001:db8:1:2::" + string(rune('a'+i)) + "]:5000"
+		s.Login(httptest.NewRecorder(), r, "admin", "wrong")
+	}
+	r := httptest.NewRequest("POST", "https://panel.example/api/login", nil)
+	r.RemoteAddr = "[2001:db8:1:2:ffff::1]:5000"
+	if _, e := s.Login(httptest.NewRecorder(), r, "admin", "long-example-password"); e == nil {
+		t.Fatal("rotating addresses inside one /64 bypassed the limit")
+	}
+	// Fill the table with other clients; the administrator must still sign in.
+	for i := 0; i < maxTrackedClients+10; i++ {
+		s.attempts[time.Duration(i).String()] = attempt{Count: 1, Until: time.Now().Add(time.Minute + time.Duration(i))}
+	}
+	admin := httptest.NewRequest("POST", "https://panel.example/api/login", nil)
+	admin.RemoteAddr = "198.51.100.7:5000"
+	if _, e := s.Login(httptest.NewRecorder(), admin, "admin", "long-example-password"); e != nil {
+		t.Fatal("full attempt table locked out a new client:", e)
+	}
+}
 func TestOriginRejectsNullPortsAndScheme(t *testing.T) {
 	r := httptest.NewRequest("POST", "https://127.0.0.1:8433/api/login", nil)
 	for _, origin := range []string{"null", "https://evil.example", "http://127.0.0.1:8433", "https://127.0.0.1", "https://127.0.0.1:8433/path"} {

@@ -12,7 +12,7 @@ export function ConnectionAdvanced({ draft }: { draft: ConnectionDraft }) {
   const t = useT(),
     locale = useContext(LocaleContext);
   const [advancedTab, setAdvancedTab] = useState("limits");
-  const { value, patch, capability } = draft;
+  const { value, patch, capability, bindSuggestions } = draft;
   return (
     <Tabs
       dir={locale === "fa" ? "rtl" : "ltr"}
@@ -79,8 +79,14 @@ export function ConnectionAdvanced({ draft }: { draft: ConnectionDraft }) {
             dir="ltr"
             value={value.bind}
             onChange={(event) => patch("bind", event.target.value)}
+            list="bind-addresses"
             required
           />
+          <datalist id="bind-addresses">
+            {bindSuggestions.map((ip) => (
+              <option key={ip} value={ip} />
+            ))}
+          </datalist>
           {["nftables", "iptables"].includes(value.engine) && (
             <>
               <TextField

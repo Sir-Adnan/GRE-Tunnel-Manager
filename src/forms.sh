@@ -117,42 +117,20 @@ gtm_form_targets() {
     fi
 }
 
-# A route lookup sends no packets. Prefer the primary address, not a GRE address.
-gtm_suggest_bind() {
-    local family=$1 probe=1.1.1.1 listing index address
-    local -a fields=()
-    [[ $family != 6 ]] || probe=2001:4860:4860::8888
-    listing=$(ip -"$family" route get "$probe" 2>/dev/null) || listing=''
-    read -r -a fields <<< "$listing"
-    for index in "${!fields[@]}"; do
-        if [[ ${fields[$index]} == src && $((index+1)) -lt ${#fields[@]} ]]; then
-            address=${fields[$((index+1))]}
-            if gtm_ip "$address"; then printf '%s' "$address"; return 0; fi
-        fi
-    done
-    listing=$(ip -o -"$family" address show scope global 2>/dev/null) || return 1
-    while read -r -a fields; do
-        [[ ${fields[1]:-} != gre* && ${fields[1]:-} != ip6gre* ]] || continue
-        address=${fields[3]:-}; address=${address%/*}
-        if gtm_ip "$address"; then printf '%s' "$address"; return 0; fi
-    done <<< "$listing"
-    return 1
-}
-
+# Kernel forwards default to every local address of the destination family, so
+# servers with additional IPs accept the forward on each of them. A specific
+# local IP remains available under optional settings.
 gtm_form_bind() {
-    local value family=4 first=${W_TARGETS%%,*}
+    local family=4 any=0.0.0.0 first=${W_TARGETS%%,*}
     if [[ $W_ENGINE == haproxy || $W_ENGINE == realm ]]; then W_BIND=${W_BIND:-0.0.0.0}; return 0; fi
     gtm_endpoint "$first" || return 1
-    [[ $EP_IP != *:* ]] || family=6
+    [[ $EP_IP != *:* ]] || { family=6; any=::; }
     if [[ -n $W_BIND ]] && { [[ $family == 6 && $W_BIND != *:* ]] || [[ $family == 4 && $W_BIND == *:* ]]; }; then W_BIND=''; fi
-    [[ -n $W_BIND ]] || W_BIND=$(gtm_suggest_bind "$family") || :
-    while true; do
-        if gtm_ip "$W_BIND" && [[ $W_BIND != 0.0.0.0 && $W_BIND != :: ]] &&
-            { [[ $family == 4 && $W_BIND != *:* ]] || [[ $family == 6 && $W_BIND == *:* ]]; }; then return 0; fi
-        printf '  Use a specific local IPv%s address for this forward.\n' "$family"
+    W_BIND=${W_BIND:-$any}
+    until gtm_ip "$W_BIND" && { [[ $family == 4 && $W_BIND != *:* ]] || [[ $family == 6 && $W_BIND == *:* ]]; }; do
+        printf '  Use a local IPv%s address, or %s for all local addresses.\n' "$family" "$any"
         gtm_ask_ip 'Local IP' '' || return 1
-        value=$GTM_REPLY
-        W_BIND=$value
+        W_BIND=$GTM_REPLY
     done
 }
 
@@ -174,10 +152,16 @@ gtm_form_advanced() {
                    gtm_error 'Use up to 40 letters, digits, spaces, dot, dash or underscore.'
                done;;
             2)
+                current=$W_BIND
+                [[ $current == 0.0.0.0 || $current == :: ]] || current=custom
                 if [[ $W_ENGINE == haproxy || $W_ENGINE == realm ]]; then
-                    current=$W_BIND
-                    [[ $current == 0.0.0.0 || $current == :: ]] || current=custom
                     gtm_choose 'Listen on' "$current" 'All IPv4 addresses' 0.0.0.0 'Specific local IP' custom 'All IPv6 addresses' :: || continue
+                    if [[ $GTM_REPLY != custom ]]; then W_BIND=$GTM_REPLY; continue; fi
+                else
+                    # Kernel rules stay within the destination address family.
+                    input=0.0.0.0; [[ ${W_TARGETS%%,*} != \[* ]] || input=::
+                    [[ $current == custom ]] || current=$input
+                    gtm_choose 'Listen on' "$current" 'All local addresses (additional IPs included)' "$input" 'Specific local IP' custom || continue
                     if [[ $GTM_REPLY != custom ]]; then W_BIND=$GTM_REPLY; continue; fi
                 fi
                 gtm_ask_ip 'Local IP' "$W_BIND" || continue

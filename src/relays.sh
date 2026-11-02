@@ -122,10 +122,36 @@ WantedBy=multi-user.target
 EOF
 }
 
+# Realm has no readiness protocol. Wait for its TCP listener, and fail fast if
+# the service exits or enters an auto-restart loop. UDP-only endpoints and hosts
+# without ss keep the previous one-second settle check.
+gtm_realm_wait() {
+    local id=$1 protocol=$2 port=$3 tries=50
+    if [[ $protocol == udp ]] || ! command -v ss >/dev/null 2>&1; then
+        sleep 1; systemctl is-active --quiet "gtm-$id"; return
+    fi
+    while ((tries-- > 0)); do
+        systemctl is-active --quiet "gtm-$id" || return 1
+        [[ -z $(ss -H -n -l -t "( sport = :$((10#$port)) )" 2>/dev/null) ]] || return 0
+        sleep 0.1
+    done
+    return 1
+}
+
+# FRP WSS entrance gateway: HAProxy master-worker tied to its FRP entrance unit.
+# Shared by terminal setup, the API and recovery so the unit text stays identical.
+gtm_wss_gateway_unit() {
+    local bin=$1 config=$2 name=$3 id=$4
+    gtm_relay_unit "$bin" "$config" "$name" | sed "s|^ExecStart=.*|ExecStart=$bin -Ws -f $config|; /After=network-online.target/a PartOf=$id.service\nAfter=$id.service"
+}
+
 gtm_relays_apply() {
-    local line config unit bin old file changed=0 result=0 unit_tmp previous action
+    local line config unit bin old file changed=0 result=0 unit_tmp previous action item id engine protocol port
     local -A wanted=()
+    local -a pending=()
     mkdir -p "$GTM_CONFIG_DIR/generated" || return 1
+    # Pass 1 renders/checks every relay and publishes only changed files, so
+    # systemd is reloaded once for the whole batch instead of once per relay.
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
         [[ $R_ENABLED == 1 && ( $R_ENGINE == realm || $R_ENGINE == haproxy ) ]] || continue
@@ -148,10 +174,17 @@ gtm_relays_apply() {
             if [[ $R_ENGINE == haproxy ]]; then previous=$(gtm_haproxy_pid "$R_ID" 2>/dev/null) || previous=''; [[ -z $previous ]] || action=reload; fi
         fi
         chmod 600 "$file" "$unit_tmp" && mv "$file" "$config" && mv "$unit_tmp" "$unit" || { rm -f "$file" "$unit_tmp"; return 1; }
-        systemctl daemon-reload && systemctl enable "gtm-$R_ID" && systemctl "$action" "gtm-$R_ID" || return 1
-        if [[ $R_ENGINE == haproxy ]]; then gtm_haproxy_wait "$R_ID" "$previous" || return 1
-        else sleep 1; fi
-        systemctl is-active --quiet "gtm-$R_ID" || { journalctl -u "gtm-$R_ID" -n 15 --no-pager; return 1; }
+        pending+=("$R_ID/$R_ENGINE/$action/${previous:--}/$R_PROTO/$R_PORT")
+    done
+    # Pass 2 starts or reloads changed relays after a single daemon reload.
+    if ((${#pending[@]})); then systemctl daemon-reload || return 1; fi
+    for item in "${pending[@]}"; do
+        IFS=/ read -r id engine action previous protocol port <<< "$item"
+        [[ $previous != - ]] || previous=''
+        systemctl enable "gtm-$id" && systemctl "$action" "gtm-$id" || return 1
+        if [[ $engine == haproxy ]]; then gtm_haproxy_wait "$id" "$previous" || { journalctl -u "gtm-$id" -n 15 --no-pager; return 1; }
+        else gtm_realm_wait "$id" "$protocol" "$port" || { journalctl -u "gtm-$id" -n 15 --no-pager; return 1; }; fi
+        systemctl is-active --quiet "gtm-$id" || { journalctl -u "gtm-$id" -n 15 --no-pager; return 1; }
     done
     # Stop only names from our closed ID namespace. FRP has a separate namespace.
     for old in "$GTM_SERVICE_DIR"/gtm-F??????.service; do

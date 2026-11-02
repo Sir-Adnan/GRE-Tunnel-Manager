@@ -1,6 +1,9 @@
-import { Gauge, Layers3, Activity, Server, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
+import { mobileItems } from "@/components/nav-items";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
+
 export function MobileNavigation({
   page,
   navigate,
@@ -10,26 +13,17 @@ export function MobileNavigation({
 }) {
   const t = useT(),
     { setOpenMobile, openMobile } = useSidebar();
-  const links = [
-    { id: "overview", icon: Gauge },
-    { id: "connections", icon: Layers3 },
-    { id: "traffic", icon: Activity },
-    { id: "nodes", icon: Server },
-  ];
   return (
-    <nav
-      aria-label={t("mobileNavigation")}
-      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid grid-cols-5 rounded-2xl border bg-background/95 p-1.5 shadow-lg backdrop-blur-md md:hidden"
-    >
-      {links.map((item) => (
+    <nav aria-label={t("mobileNavigation")} className="mobile-nav md:hidden">
+      {mobileItems.map((item) => (
         <button
           key={item.id}
           type="button"
           aria-current={page === item.id ? "page" : undefined}
-          className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] transition-colors ${page === item.id ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+          className={cn("mobile-nav-item", page === item.id && "is-active")}
           onClick={() => navigate(item.id)}
         >
-          <item.icon className="size-4" />
+          <item.icon className="size-[18px]" />
           <span className="max-w-full truncate">{t(item.id)}</span>
         </button>
       ))}
@@ -37,9 +31,9 @@ export function MobileNavigation({
         type="button"
         aria-expanded={openMobile}
         onClick={() => setOpenMobile(true)}
-        className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="mobile-nav-item"
       >
-        <Menu className="size-4" />
+        <Menu className="size-[18px]" />
         <span>{t("moreNavigation")}</span>
       </button>
     </nav>

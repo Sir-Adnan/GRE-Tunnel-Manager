@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"sync"
 	"time"
@@ -55,16 +56,32 @@ func Random() string {
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
-func address(r *http.Request) string {
+
+// maxTrackedClients bounds the failed-login table.
+const maxTrackedClients = 1024
+
+// clientKey groups failed logins by IPv4 address or IPv6 /64. One IPv6 host
+// usually controls a whole /64, so per-address keys would be trivial to rotate.
+func clientKey(r *http.Request) string {
 	host, _, e := net.SplitHostPort(r.RemoteAddr)
 	if e != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
-	return host
+	a, e := netip.ParseAddr(host)
+	if e != nil {
+		return host
+	}
+	a = a.Unmap().WithZone("")
+	if a.Is6() {
+		if p, e := a.Prefix(64); e == nil {
+			return p.String()
+		}
+	}
+	return a.String()
 }
 func (s *Store) Login(w http.ResponseWriter, r *http.Request, user, password string) (Session, error) {
 	now := s.Now()
-	ip := address(r)
+	ip := clientKey(r)
 	s.mu.Lock()
 	for k, a := range s.attempts {
 		if now.After(a.Until) {
@@ -76,9 +93,16 @@ func (s *Store) Login(w http.ResponseWriter, r *http.Request, user, password str
 		s.mu.Unlock()
 		return Session{}, errors.New("too many login attempts; try again in 5 minutes")
 	}
-	if len(s.attempts) >= 1024 && a.Count == 0 {
-		s.mu.Unlock()
-		return Session{}, errors.New("login temporarily busy")
+	if len(s.attempts) >= maxTrackedClients && a.Count == 0 {
+		// Never refuse every new client because many others failed: that would
+		// let an attacker lock the administrator out. Forget the oldest entry.
+		oldest := ""
+		for k, v := range s.attempts {
+			if oldest == "" || v.Until.Before(s.attempts[oldest].Until) {
+				oldest = k
+			}
+		}
+		delete(s.attempts, oldest)
 	}
 	a.Count++
 	a.Until = now.Add(5 * time.Minute)
@@ -118,7 +142,8 @@ func (s *Store) Get(r *http.Request) (Session, bool) {
 	v, ok := s.sessions[key]
 	if ok && s.Now().After(v.Expires) {
 		delete(s.sessions, key)
-		ok = false
+		// An expired session must not echo its old CSRF token via /api/session.
+		return Session{}, false
 	}
 	return v, ok
 }

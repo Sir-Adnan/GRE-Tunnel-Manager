@@ -8,8 +8,8 @@
   "requires": {
     "contract": "^1.0.0"
   },
-  "defaultStyleId": "nettinx",
-  "compatibleStyleIds": ["nettinx", "neutral"],
+  "defaultStyleId": "signal",
+  "compatibleStyleIds": ["signal", "graphite", "aurora", "nettinx", "neutral"],
   "shell": "./Shell.tsx",
   "templates": {
     "dashboard": "./templates/Dashboard.tsx",

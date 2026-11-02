@@ -64,15 +64,16 @@ gtm_new_forward realm''', '51820\n203.0.113.20\n51820\n2\n1\n')
         row = next(line[4:] for line in result.stdout.splitlines() if line.startswith('ROW:')).split('\t')
         self.assertEqual(row[3], 'udp')
 
-    def test_kernel_suggests_primary_local_ip_without_public_ip_probes(self):
-        result = bash('''ip() { printf '1.1.1.1 via 192.0.2.1 dev eth0 src 192.0.2.10\n'; }
-curl() { exit 90; }; ping() { exit 91; }
+    def test_kernel_defaults_to_all_local_addresses_without_probes(self):
+        # Servers with additional IPs must accept the forward on every address.
+        for target, expected in [('203.0.113.20:8443', '0.0.0.0'), ('[2001:db8::20]:8443', '::')]:
+            result = bash('''ip() { exit 89; }; curl() { exit 90; }; ping() { exit 91; }
 gtm_form_save() { printf '\nROW:%s\n' "${GTM_FORM_ROWS[@]}"; }
-gtm_new_forward iptables''', '443\n203.0.113.20:8443\n1\n1\n')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        row = next(line[4:] for line in result.stdout.splitlines() if line.startswith('ROW:')).split('\t')
-        self.assertEqual(row[4], '192.0.2.10')
-        self.assertEqual(row[8:10], ['masquerade', 'any'])
+gtm_new_forward iptables''', f'443\n{target}\n1\n1\n')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            row = next(line[4:] for line in result.stdout.splitlines() if line.startswith('ROW:')).split('\t')
+            self.assertEqual(row[4], expected)
+            self.assertEqual(row[8:10], ['masquerade', 'any'])
 
     def test_batch_save_preserves_other_engines_and_allocates_unique_ids(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:

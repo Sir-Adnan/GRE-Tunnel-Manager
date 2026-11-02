@@ -29,6 +29,8 @@ go build -trimpath -ldflags='-s -w' -o bin/gtm-panel ./cmd/gtm-panel
 
 The demo is loopback-only, uses **demo / demo-panel-12345**, labels simulated state and cannot execute system commands. On Windows, name the executable `gtm-panel.exe`; use Linux for race tests if no C toolchain is available locally. Browser checks cover both locales, color modes and mobile/desktop widths; see [Interface conventions](INTERFACE.md).
 
+For live frontend work, run `go run ./cmd/gtm-panel demo --listen 127.0.0.1:8790` in `panel` and `npm run dev` in `panel/web`. The Vite server proxies `/api` to the demo and presents requests as same-origin there, so the panel's Origin/CSRF checks stay enabled. Restart Vite after moving or deleting modules; its module graph can keep a stale copy.
+
 For workspace changes, check direct hash links and browser back/forward, URL-backed search/status filters, inspection-to-traffic links and the current-server popover. Exercise create/edit/review with multiple destinations, an invalid field in a hidden advanced tab, keep/discard and untouched close. Test copied IPv4/IPv6 and configuration text on HTTP as well as secure contexts. A simulated inventory-refresh failure after a successful mutation must show a warning rather than encourage resubmitting the mutation. Keep simulated CRUD separate from real-server networking checks.
 
 ## Shell and networking checks

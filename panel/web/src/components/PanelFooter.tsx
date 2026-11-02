@@ -1,38 +1,21 @@
-import { Archive, Server } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Command } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
+import { panelVersion } from "@/lib/version";
 
-export function PanelFooter({
-  inventory,
-  navigate,
-}: {
-  inventory?: Inventory;
-  navigate: (page: string) => void;
-}) {
+/** Quiet page footer: product and version, plus the keyboard entry point for power users. */
+export function PanelFooter({ inventory }: { inventory?: Inventory }) {
   const t = useT();
   return (
     <footer className="app-footer">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <bdi className="truncate">{inventory?.host.hostname}</bdi>
-        <bdi>v{inventory?.version || "1.3.4"}</bdi>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <Button size="sm" variant="ghost" onClick={() => navigate("backups")}>
-          <Archive data-icon="inline-start" />
-          <span className="hidden sm:inline">{t("backups")}</span>
-          <span className="sr-only sm:hidden">{t("backups")}</span>
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => navigate("components")}
-        >
-          <Server data-icon="inline-start" />
-          <span className="hidden sm:inline">{t("components")}</span>
-          <span className="sr-only sm:hidden">{t("components")}</span>
-        </Button>
-      </div>
+      <span dir="ltr">
+        Tunnel Manager <bdi>v{inventory?.version || panelVersion}</bdi>
+      </span>
+      <span className="hidden items-center gap-1.5 md:inline-flex">
+        <Command className="size-3.5" />
+        <kbd className="kbd">Ctrl K</kbd>
+        {t("commandPalette")}
+      </span>
     </footer>
   );
 }

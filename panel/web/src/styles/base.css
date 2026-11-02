@@ -1,0 +1,98 @@
+/* Typography, document defaults and shared elevation. Theme colors come only from the style tokens. */
+
+/* Application typography is independent of preset colors. Inter sets Latin text and digits; Persian glyphs,
+   which Inter does not cover, fall through to Vazirmatn, so mixed fa/en lines share one rhythm. */
+[data-style] {
+  --font-sans:
+    "Inter Variable", "Vazirmatn Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* Elevation follows each style's shadow color; styles without one use black. */
+  --elevation-1: 0 1px 2px
+    color-mix(in srgb, var(--shadow-color, #000) 8%, transparent);
+  --elevation-2:
+    0 1px 2px color-mix(in srgb, var(--shadow-color, #000) 6%, transparent),
+    0 8px 24px -6px
+      color-mix(in srgb, var(--shadow-color, #000) 18%, transparent);
+  --elevation-3:
+    0 2px 6px color-mix(in srgb, var(--shadow-color, #000) 10%, transparent),
+    0 24px 48px -12px
+      color-mix(in srgb, var(--shadow-color, #000) 35%, transparent);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  html[data-mode="light"] {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Latin headings are tightened slightly; Persian keeps natural spacing and taller lines. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  [lang="fa"] {
+    letter-spacing: 0;
+    line-height: 1.75;
+  }
+  [lang="fa"] * {
+    letter-spacing: 0;
+  }
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    font-variant-ligatures: none;
+  }
+  pre code {
+    font-size: inherit;
+    line-height: inherit;
+  }
+  button:not(:disabled),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  [role="option"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 28%, transparent);
+    color: var(--foreground);
+  }
+  /* Thin, theme-colored scrollbars on desktop browsers that support them. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(
+        in srgb,
+        var(--muted-foreground) 35%,
+        transparent
+      )
+      transparent;
+  }
+}

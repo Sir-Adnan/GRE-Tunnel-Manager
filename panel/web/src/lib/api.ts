@@ -194,15 +194,42 @@ export async function api<T>(
       ? {}
       : { method: "POST", body: JSON.stringify(body) }),
   });
-  const value = await response.json();
+  // A proxy or gateway can answer with HTML; never hide the HTTP status behind
+  // a JSON parse error.
+  const value = await response.json().catch(() => undefined);
   if (!response.ok) {
     if (response.status === 401 && path !== "login")
       window.dispatchEvent(new Event("gtm:unauthorized"));
-    throw new Error(value.error || `HTTP ${response.status}`);
+    throw new ApiError(
+      value?.error || `HTTP ${response.status}`,
+      response.status,
+    );
   }
+  if (value === undefined) throw new ApiError("Invalid server response", 0);
   if (value.session?.csrf) csrf = value.session.csrf;
   return value as T;
 }
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+// Network failures and gateway/busy answers are temporary. Authentication and
+// request errors are final.
+export function transient(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError")
+    return false;
+  if (!(error instanceof ApiError)) return true;
+  return (
+    error.status === 0 ||
+    error.status === 502 ||
+    error.status === 503 ||
+    error.status === 504
+  );
+}
+const jobPollLimit = 30;
 export async function operate(
   request: unknown,
   changed?: (job: Job) => void,
@@ -210,9 +237,20 @@ export async function operate(
 ): Promise<Job> {
   let job = await api<Job>(path, request);
   changed?.(job);
+  // The job keeps running on the server while the browser polls. A brief
+  // network or busy-panel failure must not be reported as a failed operation.
+  let failures = 0;
   while (job.state === "running") {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    job = await api<Job>(`jobs/${job.id}`);
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(1000 * 2 ** failures, 8000)),
+    );
+    try {
+      job = await api<Job>(`jobs/${job.id}`);
+      failures = 0;
+    } catch (error) {
+      if (!transient(error) || ++failures > jobPollLimit) throw error;
+      continue;
+    }
     changed?.(job);
   }
   if (job.state === "failed") throw new Error(job.error || "Operation failed");

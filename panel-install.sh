@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optional prebuilt Go panel installer. Never changes tunnel configurations.
 set -euo pipefail
-PANEL_VERSION=1.3.4
+PANEL_VERSION=1.3.5
 PANEL_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 # Closed uninstall manifest. Unknown files and links require operator inspection;
@@ -196,6 +196,12 @@ panel_install_main() {
         if [[ -f /etc/gre-manager-panel/$component ]]; then chown root:grepanel "/etc/gre-manager-panel/$component"; fi
     done
     [[ ! -f /etc/gre-manager-panel/server.key ]] || chmod 640 /etc/gre-manager-panel/server.key
+    # Keep the installed release in the private temporary directory so a failed
+    # upgrade can return to it. Nothing extra is left behind on success.
+    local rollback=false
+    if [[ -f /usr/local/bin/gtm-panel && ! -L /usr/local/bin/gtm-panel && -f /usr/local/lib/gre-manager/manager.sh && ! -L /usr/local/lib/gre-manager/manager.sh ]]; then
+        cp -p /usr/local/bin/gtm-panel "$tmp/previous-gtm-panel" && cp -p /usr/local/lib/gre-manager/manager.sh "$tmp/previous-manager.sh" && rollback=true
+    fi
     # Stop only panel processes while replacing its private executable/helper.
     if systemctl cat gre-manager-panel.service >/dev/null 2>&1; then systemctl stop gre-manager-panel.service gre-manager-panel-broker.service; fi
     install -m 755 "$tmp/gtm-panel" /usr/local/bin/gtm-panel
@@ -204,7 +210,9 @@ panel_install_main() {
 [Unit]
 Description=GRE Manager private control broker
 After=network-online.target
-StopWhenUnneeded=yes
+# Traffic sampling and opt-in quota guards run here. They must keep working
+# while the public panel is stopped, restarting or crash-looping.
+StopWhenUnneeded=no
 [Service]
 Type=simple
 User=root
@@ -220,6 +228,8 @@ KillMode=mixed
 Environment=GOMEMLIMIT=64MiB
 ProtectHome=yes
 PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target
 EOF
     cat > /etc/systemd/system/gre-manager-panel.service <<'EOF'
 [Unit]
@@ -251,9 +261,22 @@ CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload
-    systemctl enable --now gre-manager-panel.service
+    systemctl enable --now gre-manager-panel-broker.service gre-manager-panel.service
     sleep 1
-    systemctl is-active --quiet gre-manager-panel.service || { journalctl -u gre-manager-panel -n 20 --no-pager; return 1; }
+    if ! systemctl is-active --quiet gre-manager-panel.service; then
+        journalctl -u gre-manager-panel -n 20 --no-pager || true
+        if [[ $rollback == true ]]; then
+            printf 'The new panel did not start. Restoring the previous release.\n' >&2
+            systemctl stop gre-manager-panel.service gre-manager-panel-broker.service || true
+            if install -m 755 "$tmp/previous-gtm-panel" /usr/local/bin/gtm-panel && install -m 700 "$tmp/previous-manager.sh" /usr/local/lib/gre-manager/manager.sh &&
+                systemctl start gre-manager-panel-broker.service gre-manager-panel.service; then
+                printf 'Previous panel release restored and running.\n' >&2
+            else
+                printf 'Rollback failed; inspect systemctl status gre-manager-panel locally.\n' >&2
+            fi
+        fi
+        return 1
+    fi
     if [[ $PANEL_INSTALL_ENGINES == true ]]; then
         /bin/bash /usr/local/lib/gre-manager/manager.sh --api install iptables nftables haproxy realm frp rathole
     else

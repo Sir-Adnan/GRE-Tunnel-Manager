@@ -15,6 +15,7 @@ import (
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/config"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/model"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/version"
 )
 
 type Selection struct {
@@ -247,7 +248,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: "1.3.4"}, nil
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: version.Number}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {

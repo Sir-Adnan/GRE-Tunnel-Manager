@@ -91,7 +91,7 @@ gtm_recovery_import() (
                     if [[ $P_TRANSPORT == wss && $P_ROLE == entrance ]]; then
                         local gateway="gtm-gateway-$P_NAME"
                         gtm_wss_haproxy_render > "$tmp/$gateway.conf" || return 1
-                        gtm_relay_unit /usr/sbin/haproxy "$GTM_CONFIG_DIR/$gateway.conf" "$P_NAME" | sed "s|^ExecStart=.*|ExecStart=/usr/sbin/haproxy -Ws -f $GTM_CONFIG_DIR/$gateway.conf|; /After=network-online.target/a PartOf=$id.service\nAfter=$id.service" > "$tmp/$gateway.service" || return 1
+                        gtm_wss_gateway_unit /usr/sbin/haproxy "$GTM_CONFIG_DIR/$gateway.conf" "$P_NAME" "$id" > "$tmp/$gateway.service" || return 1
                         sed -i "/After=network-online.target/a Wants=$gateway.service" "$tmp/$id.service" || return 1
                         staged+=("$gateway.conf" "$gateway.service")
                     fi

@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.3.4
+GTM_VERSION=1.3.5
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
@@ -25,6 +25,8 @@ gtm_ipv6() {
     if [[ $ip == *::* ]]; then
         left=${ip%%::*}; right=${ip#*::}
         [[ $right != *::* ]] || return 1
+        # A single colon may not open or close either side (":1::2", "1::2:").
+        [[ $left != :* && $left != *: && $right != :* && $right != *: ]] || return 1
         ip=${left:+$left:}$right
         for part in ${ip//:/ }; do [[ ${#part} -le 4 ]] || return 1; ((count+=1)); done
         (( count < 8 ))
@@ -38,11 +40,13 @@ gtm_ipv6() {
 gtm_ip() { gtm_ipv4 "$1" || gtm_ipv6 "$1"; }
 
 # A stable comparison key; equivalent IPv6 spellings must not evade ownership checks.
-gtm_ip_key() {
-    local address=$1 left right part missing index
+# gtm_key_of sets GTM_KEY without a subshell; hot validation loops must use it.
+gtm_key_of() {
+    local address=$1 left right part missing index key=''
     local -a words=() suffix=()
+    GTM_KEY=''
     gtm_ip "$address" || return 1
-    if [[ $address != *:* ]]; then printf '%s' "$address"; return; fi
+    if [[ $address != *:* ]]; then GTM_KEY=$address; return 0; fi
     if [[ $address == *::* ]]; then
         left=${address%%::*}; right=${address#*::}
         [[ -z $left ]] || IFS=: read -r -a words <<< "$left"
@@ -51,8 +55,14 @@ gtm_ip_key() {
         for ((index=0; index<missing; index++)); do words+=(0); done
         words+=("${suffix[@]}")
     else IFS=: read -r -a words <<< "$address"; fi
-    for part in "${words[@]}"; do printf '%04x' "$((16#$part))"; done
+    for part in "${words[@]}"; do printf -v part '%04x' "$((16#$part))"; key+=$part; done
+    GTM_KEY=$key
 }
+gtm_ip_key() { gtm_key_of "$1" && printf '%s' "$GTM_KEY"; }
+
+# Unspecified binds mean every local address of that family (0.0.0.0 or ::).
+gtm_wildcard_key() { [[ $1 == 0.0.0.0 || $1 == 00000000000000000000000000000000 ]]; }
+gtm_wildcard() { gtm_key_of "$1" && gtm_wildcard_key "$GTM_KEY"; }
 gtm_name() { [[ $1 =~ ^[a-zA-Z0-9][a-zA-Z0-9_.\ -]{0,39}$ ]]; }
 gtm_id() { [[ $1 =~ ^F[0-9]{6}$ ]]; }
 gtm_iface() { [[ $1 == any || $1 =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,14}$ ]]; }

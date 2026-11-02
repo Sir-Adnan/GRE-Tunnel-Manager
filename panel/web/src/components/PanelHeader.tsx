@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ChevronRight, Globe2, RefreshCw, Server } from "lucide-react";
+import { ChevronRight, Globe2, RefreshCw, Search, Server } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,7 @@ import { Address } from "@/components/shared";
 import { AccessStatus } from "@/components/AccessStatus";
 import { LocaleContext, useT } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
-import type { Preferences } from "@/features/Settings";
+import type { Preferences } from "@/lib/preferences";
 
 export function PanelHeader({
   page,
@@ -22,6 +22,7 @@ export function PanelHeader({
   setPreferences,
   busy,
   refresh,
+  openPalette,
 }: {
   page: string;
   inventory?: Inventory;
@@ -29,6 +30,7 @@ export function PanelHeader({
   setPreferences: (value: Preferences) => void;
   busy: boolean;
   refresh: () => void;
+  openPalette: () => void;
 }) {
   const t = useT(),
     locale = useContext(LocaleContext);
@@ -47,20 +49,18 @@ export function PanelHeader({
           Tunnel Manager
         </span>
         <ChevronRight className="hidden size-3.5 text-muted-foreground rtl:rotate-180 lg:block" />
-        <span className="truncate text-sm font-medium">
-          {page === "haproxy"
-            ? "HAProxy"
-            : page === "realm"
-              ? "Realm"
-              : t(page)}
-        </span>
+        <span className="truncate text-sm font-medium">{t(page)}</span>
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        {addresses[0] && (
-          <span className="hidden xl:inline-flex">
-            <Address>{addresses[0]}</Address>
-          </span>
-        )}
+        <ActionButton
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          label={t("commandPalette")}
+          onClick={openPalette}
+        >
+          <Search />
+        </ActionButton>
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" aria-label={t("currentServer")}>

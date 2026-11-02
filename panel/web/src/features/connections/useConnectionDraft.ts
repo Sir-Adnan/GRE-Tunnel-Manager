@@ -1,6 +1,21 @@
 import { useState } from "react";
 import type { Connection, Inventory, Preset } from "@/lib/api";
 import { creationOptions } from "@/lib/creation-defaults";
+const kernelEngines = ["nftables", "iptables"];
+// Every listener defaults to all local addresses. For kernel forwards this keeps
+// servers with additional IPs working on each address; a specific IP stays
+// available under advanced settings.
+const anyAddress = (ipv6: boolean) => (ipv6 ? "::" : "0.0.0.0");
+const isAnyAddress = (bind: string) => bind === "0.0.0.0" || bind === "::";
+// Kernel rules stay in one address family, so a wildcard follows the first target.
+function alignKernelBind(next: Connection): Connection {
+  if (!kernelEngines.includes(next.engine) || !isAnyAddress(next.bind))
+    return next;
+  return {
+    ...next,
+    bind: anyAddress(Boolean(next.targets[0]?.ip.includes(":"))),
+  };
+}
 export function useConnectionDraft({
   inventory,
   engine,
@@ -18,9 +33,7 @@ export function useConnectionDraft({
           name: "",
           engine,
           protocol: "tcp",
-          bind: ["nftables", "iptables"].includes(engine)
-            ? inventory.host.addresses.find((ip) => !ip.includes(":")) || ""
-            : "0.0.0.0",
+          bind: anyAddress(false),
           ports: "",
           strategy: "single",
           enabled: true,
@@ -40,20 +53,23 @@ export function useConnectionDraft({
     (item) => item.id === value.engine,
   )?.installed;
   function patch<K extends keyof Connection>(key: K, next: Connection[K]) {
-    setValue((current) => ({
-      ...current,
-      [key]: next,
-      ...(key === "strategy" &&
-      next === "failover" &&
-      current.options.check_mode === "off"
-        ? { options: { ...current.options, check_mode: "tcp" } }
-        : {}),
-      ...(key === "targets" &&
-      current.targets.length > 1 &&
-      (next as Connection["targets"]).length === 1
-        ? { strategy: "single" }
-        : {}),
-    }));
+    setValue((current) => {
+      const updated = {
+        ...current,
+        [key]: next,
+        ...(key === "strategy" &&
+        next === "failover" &&
+        current.options.check_mode === "off"
+          ? { options: { ...current.options, check_mode: "tcp" } }
+          : {}),
+        ...(key === "targets" &&
+        current.targets.length > 1 &&
+        (next as Connection["targets"]).length === 1
+          ? { strategy: "single" }
+          : {}),
+      };
+      return key === "targets" ? alignKernelBind(updated) : updated;
+    });
     if (["options", "protocol", "strategy", "routing"].includes(key))
       setPreset("custom");
   }
@@ -117,9 +133,9 @@ export function useConnectionDraft({
       targets: current.targets.slice(0, 1),
       options: creationOptions(next),
       routing: undefined,
-      bind: ["iptables", "nftables"].includes(next)
-        ? inventory.host.addresses.find((ip) => !ip.includes(":")) || ""
-        : "0.0.0.0",
+      bind: kernelEngines.includes(next)
+        ? anyAddress(Boolean(current.targets[0]?.ip.includes(":")))
+        : anyAddress(false),
     }));
   }
   function addTarget() {
@@ -154,6 +170,13 @@ export function useConnectionDraft({
     addTarget,
     capability,
     installed,
+    // Wildcard first, then this server's addresses (additional IPs included).
+    bindSuggestions: [
+      ...new Set([
+        anyAddress(Boolean(value.targets[0]?.ip.includes(":"))),
+        ...inventory.host.addresses,
+      ]),
+    ],
     dirty: JSON.stringify(value) !== baseline,
   };
 }

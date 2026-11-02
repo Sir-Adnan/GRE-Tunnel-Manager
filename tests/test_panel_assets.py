@@ -31,4 +31,5 @@ class PanelAssetsTests(unittest.TestCase):
     def test_release_versions_match(self):
         version=re.search(r'^GTM_VERSION=(\d+\.\d+\.\d+)$',(ROOT/'src/core.sh').read_text(encoding='utf-8'),re.M)[1]
         self.assertIn('PANEL_VERSION='+version,(ROOT/'panel-install.sh').read_text(encoding='utf-8'))
-        self.assertIn('const Version = "'+version+'"',(ROOT/'panel/cmd/gtm-panel/main.go').read_text(encoding='utf-8'))
+        self.assertIn('const Number = "'+version+'"',(ROOT/'panel/internal/version/version.go').read_text(encoding='utf-8'))
+        self.assertIn('const Version = version.Number',(ROOT/'panel/cmd/gtm-panel/main.go').read_text(encoding='utf-8'))

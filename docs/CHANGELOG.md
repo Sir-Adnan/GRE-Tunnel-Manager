@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.3.5 — Additional-IP forwarding, reliability fixes and a redesigned panel
+
+### Panel interface
+
+- Add three project presets, all at WCAG AA in both modes (checked by `tests/themes.test.mjs`): **Signal** (Grafana-like, the new default), **Graphite** (Linear-like) and **Aurora**. Nettinx and Neutral stay selectable and unchanged. Browsers whose stored preference was the old automatic Nettinx default move to Signal once; later choices are kept.
+- Set Latin text and digits in self-hosted Inter, with Persian falling through to Vazirmatn, so mixed Persian/English lines share one rhythm. Persian keeps taller lines and no letter spacing.
+- Merge the Port forwarding, HAProxy and Realm pages into one **Connections** page with engine filter chips and counts. Old `#/forwarding`, `#/haproxy` and `#/realm` links open the matching filter and are rewritten to the new address.
+- Regroup the sidebar into Workspace, Network and System, and add a search entry. Add a **Ctrl/Cmd+K** command palette for pages, filters, saved connections, creation per engine and appearance.
+- Rebuild the overview around status: host and address, four KPI tiles, live telemetry beside a **Needs attention** list (failed or stopped enabled services, missing engines) and recent connections with engine shortcuts. Remove the duplicated address chips and the marketing headline from the workspace.
+- Replace the ambiguous square stop icon with an explicit on/off switch per row; configuration moves into the row menu. Bulk actions appear in a floating selection bar, above the bottom navigation on phones.
+- Show presets as cards with light and dark miniatures in Settings, and put mode and preset together in the header's appearance popover. Add a two-step indicator and the engine glyph to the connection form header; drop its address chips, which took about 100 px on phones. Put the connection search on its own row on phones so its placeholder is no longer cut off.
+- Add subtle motion (staggered page entry, hover lift, live pulse, selection bar) that is removed under reduced motion.
+- Keep the demo sign-in hint after signing out of the demo, and fix the destructive alert's text contrast.
+
+### Frontend structure
+
+- Move session, inventory, job and preference state out of `App.tsx` into hooks; validate and migrate preferences in `lib/preferences.ts`.
+- Share one `usePoll` hook for every periodic request (visibility, no overlap, abort and timeout), replacing five copies, and rename state setters that shadowed `window.setInterval`.
+- Split the 1,400-line message file into feature modules type-checked for both languages; tests enforce one owner per key and Latin digits in Persian text. Unknown keys no longer resolve through `Object.prototype`.
+- Split the stylesheet into base, shell, components, forms and motion layers. Share the navigation model between the sidebar, mobile bar and palette, and move list filtering and attention rules into tested framework-free modules.
+- Let the Vite dev server proxy the API to `gtm-panel demo` while keeping the panel's Origin/CSRF checks intact.
+
+### Server and tooling
+
+- Fix iptables/nftables forwards on servers with additional IPs. Kernel rules previously matched one destination address, and the panel defaulted to the first IPv4 the OS listed, which could be a secondary, private or GRE address. New kernel forwards default to all local addresses (`0.0.0.0` / `::`). Rules then use `fib daddr type local` (nftables) or `-m addrtype --dst-type LOCAL` (iptables). Explicit binds keep their exact match, and the panel suggests this server's addresses. Wildcard records conflict with any other listener on the same port and protocol. Preflight rejects a wildcard DNAT back to this host's own port. Saved records are unchanged. Older releases reject wildcard kernel records, so a downgrade needs a compatible restore point.
+- Replace the owned nftables table atomically in one batch instead of flushing it. Balancing chains of deleted records or removed targets no longer accumulate. The table is removed when no nftables forward remains. Existing flows keep their conntrack NAT mappings.
+- Reject IPv6 spellings with a stray single colon (`:1::2`, `1::2:`). The validator previously accepted them, and the address key then failed with an arithmetic error.
+- Load state in linear time with no per-address subshells. 300 records went from about 20 s to 0.4 s on a Windows test host. Inventory, edits and commits all load state.
+- Keep the newest 100 automatic forwarding restore points (`GTM_RESTORE_POINTS`; `0` keeps all). Cleanup, tuning, legacy and manually named files are never pruned.
+- Start or reload changed HAProxy/Realm services after one `systemd` reload per apply. Wait for a Realm TCP listener and detect early exits instead of a fixed one-second sleep. Share one WSS gateway unit renderer between terminal setup, the API and recovery.
+- Serve broker reads (inventory, metrics, telemetry, configuration review, engine releases) without the mutation lock, with bounded concurrency. Dashboards stay responsive during a long apply or package installation. One action registry now drives the public allowlist, broker locking, audit filtering and backup routing.
+- Keep the panel broker running independently of the public panel, so traffic sampling and opt-in quota pauses continue while the panel is stopped or restarting. Roll back to the previous panel executable and helper when an upgraded panel fails to start.
+- Count failed logins per IPv4 address or IPv6 /64, and evict the oldest entry when the table is full. Many failing clients can no longer lock the administrator out. An expired session no longer echoes its CSRF token.
+- Keep polling a running job through temporary network, gateway or busy-panel errors (bounded backoff) instead of reporting it failed. Report the HTTP status when an error response is not JSON.
+- Check every release version copy (Go, frontend, package and installers) against `src/core.sh` in `tools/build.py --check`.
+- Make previously vacuous tests enforce their checks: state-loading conflict tests fed a pipe the loader rejects, and negated namespace-test commands never failed under `set -e`.
+
 ## v1.3.4 — Traffic controls, live telemetry and clearer configuration workflows
 
 - Show numeric cycle quotas, progress and applied traffic-pause state consistently on desktop/mobile accounting views.

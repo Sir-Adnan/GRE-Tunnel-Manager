@@ -2,16 +2,20 @@
 
 This is a direction for future work, not a promise that every native engine feature is supported. The [capability matrix](ENGINE-CAPABILITIES.md) describes current adapters; the [changelog](CHANGELOG.md) records delivered work.
 
-## Available in v1.3.4
+## Available in v1.3.5
 
 - Terminal managers and a bilingual responsive web panel with compact forms, three setup presets per engine and configuration inspection/editing.
 - Local GRE, kernel forwarding, HAProxy, Realm, FRP and rathole management, including bounded routing and transport options.
 - Optional Nodes/Agents, coordinated GRE/FRP creation and read-only remote traffic summaries.
 - Local traffic cycles, labels, reset, numeric quotas with optional sampled traffic pauses, bounded history and CSV export.
 - Visible-only dashboard CPU, memory and default-route network rates with pause/cadence controls.
+- Kernel forwards on every local address by default, so additional IPs work without per-address rules.
+- A status-first overview, one filtered Connections page, a command palette and five appearance presets (Signal by default) at WCAG AA for the project presets.
 - Versioned packages with embedded frontend and matching Bash helper; HTTP/HTTPS setup, upgrades and scoped removal.
 
 ## Priorities for the next iterations
+
+Version v1.3.5 fixes kernel forwarding on servers with additional IPs, hardens apply, state loading, login throttling and job polling, and redesigns the panel around a filtered Connections page, a needs-attention overview and a command palette. A guided GRE-plus-forward wizard and a route test remain proposals.
 
 Version v1.3.4 adds compact direct-action connection lists, expanded typed native edits, reviewed HAProxy/Realm/managed-JSON imports, automatic HAProxy sizing, local FRP KCP and explicit engine maintenance. These do not expose every upstream directive or expand the existing Node operation protocol. See [Engine capabilities](ENGINE-CAPABILITIES.md) and [Engine maintenance](ENGINE-MAINTENANCE.md).
 

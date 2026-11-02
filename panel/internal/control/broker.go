@@ -22,8 +22,21 @@ type Broker struct {
 	ReadOnly     bool
 	AgentTraffic bool
 	Nodes        *NodeExecutor
-	mu           sync.Mutex
+	// mu serializes mutations and background reconcilers. Reads never take it,
+	// so dashboards stay responsive during a long apply or package install.
+	mu       sync.Mutex
+	readOnce sync.Once
+	reads    chan struct{}
 }
+
+// maxConcurrentReads bounds subprocess fan-out from parallel dashboard polls.
+const maxConcurrentReads = 4
+
+func (b *Broker) readGate() chan struct{} {
+	b.readOnce.Do(func() { b.reads = make(chan struct{}, maxConcurrentReads) })
+	return b.reads
+}
+
 type Reply struct {
 	Data  json.RawMessage `json:"data,omitempty"`
 	Error string          `json:"error,omitempty"`
@@ -51,8 +64,7 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "one request required", 400)
 		return
 	}
-	backupAction := oneOf(request.Action, "backup-export", "backup-review", "backup-restore")
-	if backupAction != (r.URL.Path == "/backup") {
+	if BackupAction(request.Action) != (r.URL.Path == "/backup") {
 		http.Error(w, "invalid broker endpoint", 400)
 		return
 	}
@@ -61,23 +73,25 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}
-	if request.Action == "host-telemetry" {
-		// This read has its own cache lock and no configuration/system operations.
-		// A long network transaction must not queue dashboard sample requests.
+	if ReadAction(request.Action) {
+		// Reads use their own fine-grained caches/locks and atomically replaced
+		// files. A long network transaction must not queue dashboard requests.
+		select {
+		case b.readGate() <- struct{}{}:
+			defer func() { <-b.reads }()
+		case <-r.Context().Done():
+			return
+		}
 		result, e := b.Manager.Execute(r.Context(), request)
 		writeControlReply(w, result, e)
 		return
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	operationContext := r.Context()
-	if request.Action != "host-telemetry" && request.Action != "inventory" && request.Action != "metrics" && request.Action != "metrics-history" && request.Action != "capabilities" && request.Action != "configuration" && request.Action != "configuration-review" && request.Action != "configuration-import-review" && request.Action != "engine-releases" {
-		// A browser disconnect/public-service restart must not kill an in-flight
-		// network transaction. The broker owns its independent bounded lifetime.
-		var cancel context.CancelFunc
-		operationContext, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-	}
+	// A browser disconnect/public-service restart must not kill an in-flight
+	// network transaction. The broker owns its independent bounded lifetime.
+	operationContext, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
 	var result any
 	var e error
 	if request.Action == "node-task" {
@@ -241,7 +255,7 @@ func (c *UnixClient) Do(ctx context.Context, request Request) (json.RawMessage, 
 	go func() { e := json.NewEncoder(writer).Encode(request); writer.CloseWithError(e) }()
 	defer reader.Close()
 	path := "/control"
-	if oneOf(request.Action, "backup-export", "backup-review", "backup-restore") {
+	if BackupAction(request.Action) {
 		path = "/backup"
 	}
 	req, e := http.NewRequestWithContext(ctx, "POST", "http://broker"+path, reader)

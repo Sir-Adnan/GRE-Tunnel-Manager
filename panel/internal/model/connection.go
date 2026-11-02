@@ -185,10 +185,9 @@ func (c Connection) Rows(id string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// An unspecified kernel bind (0.0.0.0 or ::) matches every local address of
+	// that family, so servers with additional IPs forward on each of them.
 	kernel := c.Engine == "nftables" || c.Engine == "iptables"
-	if kernel && bind.IsUnspecified() {
-		return nil, errors.New("kernel forwarding requires an assigned local IP")
-	}
 	if c.Interface != "any" && !safeInterface.MatchString(c.Interface) {
 		return nil, errors.New("invalid interface")
 	}

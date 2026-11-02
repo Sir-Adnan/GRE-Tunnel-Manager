@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -235,7 +236,15 @@ func metricsRules(inventory Inventory, s MetricsSettings, blocked map[string]boo
 			if c.Protocol == "both" {
 				proto = "meta l4proto { tcp, udp }"
 			}
-			base := fmt.Sprintf("ct status dnat %s ct original %s daddr %s ct original proto-dst %s ", proto, family, c.Bind, c.Ports)
+			origin := fmt.Sprintf("ct original %s daddr %s ", family, c.Bind)
+			if a, e := netip.ParseAddr(c.Bind); e == nil && a.IsUnspecified() {
+				// All-local-address forwards: the family and port identify the flow.
+				origin = "meta nfproto ipv4 "
+				if family == "ip6" {
+					origin = "meta nfproto ipv6 "
+				}
+			}
+			base := fmt.Sprintf("ct status dnat %s %sct original proto-dst %s ", proto, origin, c.Ports)
 			entrance, exit := "", ""
 			if c.Interface != "any" {
 				entrance = "iifname \"" + c.Interface + "\" "

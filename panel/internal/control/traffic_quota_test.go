@@ -129,3 +129,16 @@ func TestQuotaWildcardAddressFamiliesRespectListenerScope(t *testing.T) {
 		}
 	}
 }
+
+func TestKernelWildcardAccountingKeepsFamilyWithoutPinningAnAddress(t *testing.T) {
+	for _, c := range []model.Connection{{ID: "F000003", Engine: "nftables", Enabled: true, Bind: "0.0.0.0", Protocol: "tcp", Ports: "443", Interface: "any"}, {ID: "F000004", Engine: "iptables", Enabled: true, Bind: "::", Protocol: "both", Ports: "8443", Interface: "eth1"}} {
+		rules := metricsRules(Inventory{Connections: []model.Connection{c}}, MetricsSettings{Enabled: true}, map[string]bool{c.ID: true})
+		family := "ipv4"
+		if c.Bind == "::" {
+			family = "ipv6"
+		}
+		if strings.Contains(rules, "daddr "+c.Bind) || strings.Count(rules, "meta nfproto "+family+" ct original proto-dst "+c.Ports) != 4 {
+			t.Fatal("wildcard accounting must match every local address of one family", rules)
+		}
+	}
+}

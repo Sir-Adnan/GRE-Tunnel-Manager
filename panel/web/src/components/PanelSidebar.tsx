@@ -1,15 +1,5 @@
 import { useContext } from "react";
-import {
-  Activity,
-  Archive,
-  ArrowRight,
-  Gauge,
-  Layers3,
-  Network,
-  Server,
-  Settings2,
-  Workflow,
-} from "lucide-react";
+import { Network, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -25,56 +15,39 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import { AccessStatus } from "@/components/AccessStatus";
 import { Logo } from "@/components/shared";
+import { navGroups } from "@/components/nav-items";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
+import { attentionItems } from "@/lib/attention";
 import type { Inventory } from "@/lib/api";
-
-const groups = [
-  {
-    title: "workspace",
-    items: [
-      { id: "overview", icon: Gauge },
-      { id: "connections", icon: Layers3 },
-      { id: "traffic", icon: Activity },
-    ],
-  },
-  {
-    title: "infrastructure",
-    items: [
-      { id: "nodes", icon: Server },
-      { id: "gre", icon: Network },
-      { id: "forwarding", icon: ArrowRight },
-      { id: "haproxy", icon: Workflow, label: "HAProxy" },
-      { id: "realm", icon: Network, label: "Realm" },
-      { id: "reverse", icon: ArrowRight },
-    ],
-  },
-  {
-    title: "preferences",
-    items: [
-      { id: "components", icon: Server },
-      { id: "backups", icon: Archive },
-      { id: "settings", icon: Settings2 },
-    ],
-  },
-];
+import { panelVersion } from "@/lib/version";
 
 /** Uses the official shadcn sidebar composition, with one navigation for all viewports. */
 export function PanelSidebar({
   page,
   inventory,
   navigate,
+  openPalette,
 }: {
   page: string;
   inventory?: Inventory;
   navigate: (page: string) => void;
+  openPalette: () => void;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
   const { setOpenMobile } = useSidebar();
+  const issues = inventory ? attentionItems(inventory).length : 0;
+  const badge = (id: string) =>
+    !inventory
+      ? undefined
+      : id === "connections"
+        ? number(inventory.connections.length, locale)
+        : id === "overview" && issues
+          ? number(issues, locale)
+          : undefined;
   return (
     <Sidebar
       side={locale === "fa" ? "right" : "left"}
@@ -82,8 +55,10 @@ export function PanelSidebar({
       mobileTitle={t("workspace")}
     >
       <SidebarHeader>
-        <div className="flex min-h-16 items-center justify-between gap-2 px-2 group-data-[collapsible=icon]:px-0">
-          <Network className="hidden size-5 group-data-[collapsible=icon]:block" />
+        <div className="flex min-h-14 items-center justify-between gap-2 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <span className="hidden group-data-[collapsible=icon]:block">
+            <Network className="size-5 text-primary-text" />
+          </span>
           <div className="group-data-[collapsible=icon]:hidden">
             <Logo />
           </div>
@@ -92,46 +67,75 @@ export function PanelSidebar({
             className="md:hidden"
           />
         </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="sidebar-search"
+              tooltip={{
+                children: t("commandPalette"),
+                side: locale === "fa" ? "left" : "right",
+              }}
+              onClick={() => {
+                setOpenMobile(false);
+                openPalette();
+              }}
+            >
+              <Search />
+              <span className="min-w-0 flex-1 truncate">
+                {t("commandPlaceholder")}
+              </span>
+              <kbd className="kbd group-data-[collapsible=icon]:hidden">
+                Ctrl K
+              </kbd>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <nav aria-label={t("workspace")}>
-          {groups.map((group) => (
+          {navGroups.map((group) => (
             <SidebarGroup key={group.title}>
               <SidebarGroupLabel>{t(group.title)}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {group.items.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        isActive={page === item.id}
-                        aria-current={page === item.id ? "page" : undefined}
-                        tooltip={{
-                          children: "label" in item ? item.label : t(item.id),
-                          side: locale === "fa" ? "left" : "right",
-                        }}
-                        onClick={() => {
-                          navigate(item.id);
-                          setOpenMobile(false);
-                        }}
-                      >
-                        <item.icon
-                          className={
-                            item.icon === ArrowRight
-                              ? "rtl:rotate-180"
-                              : undefined
-                          }
-                        />
-                        <span className="min-w-0 flex-1 truncate">
-                          {"label" in item ? item.label : t(item.id)}
-                        </span>
-                      </SidebarMenuButton>
-                      {item.id === "connections" && inventory && (
-                        <SidebarMenuBadge>
-                          {number(inventory.connections.length, locale)}
-                        </SidebarMenuBadge>
-                      )}
-                    </SidebarMenuItem>
-                  ))}
+                  {group.items.map((item) => {
+                    const count = badge(item.id);
+                    return (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={page === item.id}
+                          aria-current={page === item.id ? "page" : undefined}
+                          tooltip={{
+                            children: t(item.id),
+                            side: locale === "fa" ? "left" : "right",
+                          }}
+                          onClick={() => {
+                            navigate(item.id);
+                            setOpenMobile(false);
+                          }}
+                        >
+                          <item.icon />
+                          <span className="min-w-0 flex-1 truncate">
+                            {t(item.id)}
+                          </span>
+                        </SidebarMenuButton>
+                        {count && (
+                          <SidebarMenuBadge
+                            className={
+                              item.id === "overview" ? "is-alert" : undefined
+                            }
+                            aria-label={
+                              item.id === "overview"
+                                ? `${count} ${t("needsAttention")}`
+                                : undefined
+                            }
+                          >
+                            {count}
+                          </SidebarMenuBadge>
+                        )}
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -139,15 +143,14 @@ export function PanelSidebar({
         </nav>
       </SidebarContent>
       <SidebarFooter>
-        <Separator />
-        <div className="flex items-center gap-3 px-2 py-3">
-          <Server className="size-4 shrink-0" />
+        <div className="sidebar-server">
+          <span className="live-dot" aria-hidden />
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-xs font-medium">
-              <bdi>{inventory?.host.hostname || "Server"}</bdi>
+              <bdi>{inventory?.host.hostname || t("currentServer")}</bdi>
             </p>
             <p className="text-xs text-muted-foreground">
-              <bdi>v{inventory?.version || "1.3.4"}</bdi>
+              <bdi>v{inventory?.version || panelVersion}</bdi>
             </p>
           </div>
           <span className="group-data-[collapsible=icon]:hidden">

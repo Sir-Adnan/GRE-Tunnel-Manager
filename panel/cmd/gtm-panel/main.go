@@ -23,11 +23,12 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/nodes"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/setup"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/ui"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/version"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
 )
 
-const Version = "1.3.4"
+const Version = version.Number
 
 func main() {
 	if e := run(); e != nil {

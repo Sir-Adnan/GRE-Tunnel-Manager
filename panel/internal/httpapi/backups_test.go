@@ -40,7 +40,7 @@ func TestBackupRoutesRequireAuthenticationCSRFAndClosedInput(t *testing.T) {
 	if w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatal("backup cached")
 	}
-	if allowed("backup-restore") {
+	if control.PublicOperation("backup-restore") {
 		t.Fatal("large recovery payload exposed through generic operations")
 	}
 }

@@ -69,7 +69,7 @@ gtm_frp_create() {
         [[ ! -e $GTM_SERVICE_DIR/$gateway.service && ! -e $gateway_config ]] || { rm -f "$file.tmp"; return 1; }
         gtm_wss_haproxy_render > "$gateway_config.tmp" && haproxy -c -f "$gateway_config.tmp" || { rm -f "$file.tmp" "$gateway_config.tmp"; return 1; }
         mv "$gateway_config.tmp" "$gateway_config" && chmod 600 "$gateway_config" || return 1
-        gtm_relay_unit "$(command -v haproxy)" "$gateway_config" "$P_NAME" | sed "s|^ExecStart=.*|ExecStart=$(command -v haproxy) -Ws -f $gateway_config|; /After=network-online.target/a PartOf=$id.service\nAfter=$id.service" > "$GTM_SERVICE_DIR/$gateway.service" || return 1
+        gtm_wss_gateway_unit "$(command -v haproxy)" "$gateway_config" "$P_NAME" "$id" > "$GTM_SERVICE_DIR/$gateway.service" || return 1
     fi
     mv "$file.tmp" "$file" && chmod 600 "$file" && gtm_relay_unit "$bin" "$file" "$P_NAME" > "$unit" || return 1
     [[ $P_TRANSPORT != wss || $P_ROLE != entrance ]] || sed -i "/After=network-online.target/a Wants=$gateway.service" "$unit"

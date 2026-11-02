@@ -104,7 +104,7 @@ gtm_frp_menu() {
     if [[ $P_TRANSPORT == wss && $P_ROLE == entrance ]]; then
         if ! { gtm_wss_haproxy_render > "$gateway_config.tmp" && haproxy -c -f "$gateway_config.tmp"; }; then rm -f "$file.tmp" "$gateway_config.tmp"; gtm_unlock; return 1; fi
         mv "$gateway_config.tmp" "$gateway_config"; chmod 600 "$gateway_config"
-        gtm_relay_unit "$(command -v haproxy)" "$gateway_config" "$P_NAME" | sed "s|^ExecStart=.*|ExecStart=$(command -v haproxy) -Ws -f $gateway_config|; /After=network-online.target/a PartOf=$id.service\nAfter=$id.service" > "$GTM_SERVICE_DIR/$gateway.service"
+        gtm_wss_gateway_unit "$(command -v haproxy)" "$gateway_config" "$P_NAME" "$id" > "$GTM_SERVICE_DIR/$gateway.service"
     fi
     mv "$file.tmp" "$file" && chmod 600 "$file" || { gtm_unlock; return 1; }
     gtm_relay_unit "$bin" "$file" "$P_NAME" > "$unit"

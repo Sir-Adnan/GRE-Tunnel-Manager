@@ -32,6 +32,13 @@ def record(engine='nftables', protocol='tcp', strategy='single', targets='203.0.
     return '\t'.join(values.values())
 
 
+def load_state(stdin):
+    """Load records from a staged regular file; the loader rejects pipes."""
+    (ROOT / '.work').mkdir(exist_ok=True)
+    return bash('state=$(mktemp "$PWD/.work/state.XXXXXX"); cat > "$state"\n'
+                'gtm_load_records "$state"; loaded=$?; rm -f "$state"; exit "$loaded"', stdin)
+
+
 def render(engine, code, **kw):
     return bash('IFS= read -r line\ngtm_record_validate "$line" || exit 41\n' + code, record(engine, **kw) + '\n')
 
@@ -138,7 +145,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.3.4')
+        self.assertEqual(result.stdout.strip(),'v1.3.5')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)
@@ -166,7 +173,7 @@ true
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_ip_validation_is_not_a_route_probe(self):
-        result = bash('ip() { return 99; }; for ip in 0.0.0.0 192.0.2.1 ::1 fd00::10 2001:db8:0:0:0:0:0:1; do gtm_ip "$ip" || exit 8; done\nfor ip in 010.0.0.1 256.0.0.1 :1 1: 1::2::3 ::: ::ffff:192.0.2.1; do gtm_ip "$ip" && exit 9; done\ntrue')
+        result = bash('ip() { return 99; }; for ip in 0.0.0.0 192.0.2.1 ::1 fd00::10 2001:db8:0:0:0:0:0:1; do gtm_ip "$ip" || exit 8; done\nfor ip in 010.0.0.1 256.0.0.1 :1 1: 1::2::3 ::: ::ffff:192.0.2.1 :1::2 1::2: :1:: ::2:; do gtm_ip "$ip" && exit 9; done\ntrue')
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_selection_checks_boundaries_and_deduplicates(self):
@@ -177,9 +184,10 @@ true
     def test_invalid_record_cannot_reach_renderer(self):
         for value in [record(name='$(id)'), record(protocol='icmp'), record(engine='eval'),
                       record(engine='haproxy', protocol='udp'), record(strategy='leastconn'),
-                      record(targets='203.0.113.20:443@0'), record(bind='0.0.0.0'), record(version='2'),
+                      record(targets='203.0.113.20:443@0'), record(bind='0.0.0.0', targets='[2001:db8::2]:443'), record(version='2'),
                       record(engine='haproxy', strategy='random'),
-                      record(bind='0:0:0:0:0:0:0:0',targets='[2001:db8::2]:443'),
+                      record(bind='0:0:0:0:0:0:0:0',targets='203.0.113.20:443'),
+                      record(targets='[:1::2]:443'),
                       record(bind='192.0.2.10', targets='192.0.2.10:443'),
                       record(strategy='random', targets='203.0.113.20:443@1,203.0.113.20:0443@2')]:
             result = bash('IFS= read -r row\ngtm_record_validate "$row"', value+'\n')
@@ -197,8 +205,9 @@ true
     def test_equivalent_ipv6_listeners_and_targets_are_rejected(self):
         first=record(bind='2001:db8::1',targets='[2001:db8::2]:443')
         second=record(id='F000002',bind='2001:0DB8:0:0:0:0:0:1',targets='[2001:db8::3]:443')
-        result=bash('gtm_load_records <(cat)',first+'\n'+second+'\n')
+        result=load_state(first+'\n'+second+'\n')
         self.assertNotEqual(result.returncode,0)
+        self.assertIn('Listener conflicts', result.stderr)
         for targets in ['[2001:0db8:0:0:0:0:0:1]:443',
                         '[2001:db8::2]:443,[2001:0DB8:0:0:0:0:0:2]:443@2']:
             result=bash('IFS= read -r row; gtm_record_validate "$row"',record(bind='2001:db8::1',strategy='random',targets=targets)+'\n')
@@ -206,8 +215,9 @@ true
 
     def test_relays_cannot_hide_conflicts_behind_interfaces(self):
         rows=[record(engine='realm',interface='eth0'),record(engine='haproxy',id='F000002',interface='eth1')]
-        result=bash('gtm_load_records <(cat)','\n'.join(rows)+'\n')
+        result=load_state('\n'.join(rows)+'\n')
         self.assertNotEqual(result.returncode,0)
+        self.assertIn('Listener conflicts', result.stderr)
 
     def test_offline_cli_validates_and_previews_without_mutations(self):
         code=r'''
@@ -282,7 +292,10 @@ gtm_listener_check tcp 192.0.2.10 443
         result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', protocol='both', strategy='random', targets='203.0.113.20:443@2,203.0.113.21:8443@1')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('flush ruleset', result.stdout)
-        self.assertIn('flush table inet gre_manager', result.stdout)
+        self.assertNotIn('flush table', result.stdout)
+        # One batch recreates the owned table, so stale balancing chains vanish.
+        self.assertTrue(result.stdout.startswith(
+            'add table inet gre_manager\ndelete table inet gre_manager\nadd table inet gre_manager\n'))
         self.assertIn('numgen random mod 3 vmap', result.stdout)
         self.assertIn('ct original ip daddr 192.0.2.10', result.stdout)
         self.assertIn('meta l4proto udp dnat ip to 203.0.113.21:8443', result.stdout)
@@ -291,6 +304,58 @@ gtm_listener_check tcp 192.0.2.10 443
         result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', enabled='0')
         self.assertEqual(result.returncode, 0)
         self.assertNotIn('203.0.113.20', result.stdout)
+        # The owned table is removed entirely, not left with empty base chains.
+        self.assertEqual(result.stdout, 'add table inet gre_manager\ndelete table inet gre_manager\n')
+
+    def test_wildcard_kernel_bind_matches_every_local_address(self):
+        # Additional IPs: an unspecified bind must not pin one destination address.
+        result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', bind='0.0.0.0', strategy='random',
+                        targets='203.0.113.20:443@1,203.0.113.21:443@1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('add rule inet gre_manager pre meta nfproto ipv4 fib daddr type local tcp dport 443 counter numgen', result.stdout)
+        self.assertNotIn('daddr 0.0.0.0', result.stdout)
+        self.assertNotIn('ct original ip daddr', result.stdout)
+        self.assertIn('ct status dnat ct original proto-dst 443 counter masquerade', result.stdout)
+        result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', bind='::', targets='[2001:db8::20]:443@1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('pre meta nfproto ipv6 fib daddr type local tcp dport 443 counter dnat ip6 to [2001:db8::20]:443', result.stdout)
+        for table in ['nat', 'filter', 'mangle']:
+            result = render('iptables', 'GTM_RECORDS=("$line"); gtm_iptables_render 4 ' + table, bind='0.0.0.0', interface='eth1')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('0.0.0.0', result.stdout)
+            self.assertNotIn('--ctorigdst ', result.stdout)
+        result = render('iptables', 'GTM_RECORDS=("$line"); gtm_iptables_render 4 nat', bind='0.0.0.0', interface='eth1')
+        self.assertIn('-A GTM_PRE -m addrtype --dst-type LOCAL -i eth1 -p tcp --dport 443 ', result.stdout)
+        self.assertIn('--ctdir ORIGINAL --ctorigdstport 443 ', result.stdout)
+
+    def test_wildcard_kernel_bind_conflicts_with_specific_listener_on_its_port(self):
+        wildcard = record(bind='0.0.0.0')
+        specific = record(id='F000002', engine='iptables', bind='192.0.2.11', targets='203.0.113.30:443')
+        other_port = record(id='F000003', bind='192.0.2.11', port='8443')
+        # The loader accepts regular files only, so stage stdin in a file.
+        (ROOT / '.work').mkdir(exist_ok=True)
+        load = 'state=$(mktemp "$PWD/.work/state.XXXXXX"); cat > "$state"; gtm_load_records "$state"; loaded=$?; rm -f "$state"\n'
+        result = bash(load + 'exit "$loaded"', wildcard+'\n'+specific+'\n')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Listener conflicts: F000002 and F000001', result.stderr)
+        result = bash(load + '((loaded == 0)) && printf "%s\\n" "${#GTM_RECORDS[@]}"', wildcard+'\n'+other_port+'\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '2')
+
+    def test_restore_points_keep_only_newest_generated_files(self):
+        (ROOT / '.work').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
+            backups = Path(directory) / 'backups'
+            backups.mkdir()
+            names = [f'2026010{day}T000000-1-1.tsv' for day in range(1, 6)]
+            for name in names + ['cleanup-20260101T000000-1-1.tsv', 'manual.tsv']:
+                (backups / name).write_text('# state\n')
+            result = bash('GTM_CONFIG_DIR=' + shlex.quote(Path(directory).as_posix()) + '\nGTM_RESTORE_POINTS=2 gtm_prune_restore_points')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sorted(p.name for p in backups.iterdir()),
+                             sorted(names[-2:] + ['cleanup-20260101T000000-1-1.tsv', 'manual.tsv']))
+            result = bash('GTM_CONFIG_DIR=' + shlex.quote(Path(directory).as_posix()) + '\nGTM_RESTORE_POINTS=x gtm_prune_restore_points')
+            self.assertNotEqual(result.returncode, 0)
 
     def test_iptables_probability_preserves_weight_and_groups(self):
         result = render('iptables', 'GTM_RECORDS=("$line"); gtm_iptables_render 4 nat', strategy='random', targets='203.0.113.20:443@3,203.0.113.21:443@1')

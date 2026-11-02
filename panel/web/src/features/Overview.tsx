@@ -1,16 +1,69 @@
 import { useContext } from "react";
-import { Activity, ArrowUpRight, Clock3, Layers3, Plus } from "lucide-react";
+import {
+  Activity,
+  CircleAlert,
+  Clock3,
+  Layers3,
+  Plus,
+  Search,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Address, PageTitle, SectionLink } from "@/components/shared";
+import { Address, EngineGlyph, SectionLink } from "@/components/shared";
 import { ConnectionSummary } from "@/features/connections/ConnectionSummary";
-import { number, uptime } from "@/lib/format";
+import { number, uptime, engineName } from "@/lib/format";
+import { attentionItems } from "@/lib/attention";
+import { engineCounts } from "@/lib/connection-filters";
 import { LiveTelemetry } from "./overview/LiveTelemetry";
-import { LocaleContext } from "@/lib/i18n";
+import { AttentionPanel } from "./overview/AttentionPanel";
+import { LocaleContext, useT } from "@/lib/i18n";
 import type { Connection, Inventory } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
+function Kpi({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "alert" | "ok";
+  onClick?: () => void;
+}) {
+  const body = (
+    <>
+      <span className="kpi-label">
+        <Icon className="size-4" />
+        {label}
+      </span>
+      <span className="kpi-value">
+        <bdi>{value}</bdi>
+      </span>
+      <span className="kpi-detail">
+        <bdi>{detail}</bdi>
+      </span>
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      className={cn("kpi", tone && `is-${tone}`)}
+      onClick={onClick}
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={cn("kpi", tone && `is-${tone}`)}>{body}</div>
+  );
+}
+
+/** Status first: what runs on this server, what needs attention, and live host load. */
 export function Overview({
   inventory,
   add,
@@ -20,82 +73,126 @@ export function Overview({
   inventory: Inventory;
   add: () => void;
   edit: (value: Connection) => void;
-  navigate: (page: string) => void;
+  navigate: (page: string, params?: Record<string, string>) => void;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
   const h = inventory.host;
-  const online =
-    inventory.connections.filter((c) => c.status === "active").length +
-    inventory.resources.filter((r) => r.status === "active").length;
-  const cards = [
-    {
-      label: "managed",
-      value: number(inventory.connections.length, locale),
-      extra: `${number(inventory.connections.filter((c) => c.enabled).length, locale)} ${t("configured")}`,
-      icon: Layers3,
-    },
-    {
-      label: "services",
-      value: number(online, locale),
-      extra: "HAProxy · Realm · GRE · Reverse",
-      icon: Activity,
-    },
-    {
-      label: "uptime",
-      value: uptime(h.uptime, locale),
-      extra: h.os,
-      icon: Clock3,
-    },
+  const issues = attentionItems(inventory);
+  const services = [
+    ...inventory.connections.filter((c) => c.enabled),
+    ...inventory.resources.filter((r) => r.configured),
   ];
+  const running =
+    inventory.connections.filter((c) =>
+      ["active", "configured"].includes(c.status || ""),
+    ).length + inventory.resources.filter((r) => r.status === "active").length;
+  const counts = engineCounts(inventory.connections);
+  const addresses = [...new Set([h.public_ip, ...h.addresses])].filter(
+    (ip): ip is string => Boolean(ip),
+  );
   return (
     <div className="page-stack">
-      <PageTitle
-        title={t("headline")}
-        description={t("subtitle")}
-        action={
-          <Button size="lg" onClick={add}>
+      <header className="overview-header">
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="eyebrow">{t("overview")}</p>
+          <h1 className="page-title">
+            <bdi>{h.hostname}</bdi>
+          </h1>
+          <div className="host-meta">
+            <span className="flex items-center gap-1.5">
+              <span className="live-dot" aria-hidden />
+              {t("online")}
+            </span>
+            <span aria-hidden>·</span>
+            <bdi>{h.os}</bdi>
+            {addresses[0] && (
+              <>
+                <span aria-hidden className="hidden sm:inline">
+                  ·
+                </span>
+                <Address>{addresses[0]}</Address>
+                {addresses.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    +{number(addresses.length - 1, locale)}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => navigate("connections")}
+            className="hidden sm:inline-flex"
+          >
+            <Search data-icon="inline-start" />
+            {t("seeAll")}
+          </Button>
+          <Button onClick={add}>
             <Plus data-icon="inline-start" />
             {t("newConnection")}
           </Button>
-        }
-      />
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span>
-          {h.hostname} · {h.os}
-        </span>
-        {[...new Set([h.public_ip, ...h.addresses].filter(Boolean))]
-          .slice(0, 4)
-          .map((ip) => (
-            <Address key={ip}>{ip!}</Address>
-          ))}
+        </div>
+      </header>
+      <div className="kpi-grid">
+        <Kpi
+          icon={Layers3}
+          label={t("managed")}
+          value={number(inventory.connections.length, locale)}
+          detail={`${number(inventory.connections.filter((c) => c.enabled).length, locale)} ${t("configured")}`}
+          onClick={() => navigate("connections")}
+        />
+        <Kpi
+          icon={Activity}
+          label={t("services")}
+          value={`${number(running, locale)} / ${number(services.length, locale)}`}
+          detail={t("servicesRunning")}
+        />
+        <Kpi
+          icon={CircleAlert}
+          label={t("needsAttention")}
+          value={number(issues.length, locale)}
+          detail={t(issues.length ? "reviewIssues" : "allHealthy")}
+          tone={issues.length ? "alert" : "ok"}
+        />
+        <Kpi
+          icon={Clock3}
+          label={t("uptime")}
+          value={uptime(h.uptime, locale)}
+          detail={h.load ? `${t("load")} ${h.load}` : h.os}
+        />
       </div>
-      <dl className="overview-metrics">
-        {cards.map(({ label, value, extra, icon: Icon }) => (
-          <div key={label} className="overview-metric">
-            <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Icon className="size-4" />
-              {t(label)}
-            </dt>
-            <dd className="stat-value">
-              <bdi>{value}</bdi>
-            </dd>
-            <dd className="hidden min-w-0 break-words text-xs text-muted-foreground sm:block">
-              <bdi>{extra}</bdi>
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <LiveTelemetry />
+      <div className="overview-grid">
+        <LiveTelemetry />
+        <AttentionPanel items={issues} navigate={navigate} />
+      </div>
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <CardTitle>{t("recent")}</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>{t("recent")}</CardTitle>
+            <div className="flex flex-wrap items-center gap-1">
+              {(["haproxy", "realm", "kernel"] as const)
+                .filter((id) => counts[id])
+                .map((id) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigate("connections", { engine: id })}
+                  >
+                    <EngineGlyph engine={id === "kernel" ? "nftables" : id} />
+                    {id === "kernel" ? t("forwarding") : engineName(id)}
+                    <span className="text-muted-foreground tabular-nums">
+                      {number(counts[id], locale)}
+                    </span>
+                  </Button>
+                ))}
+              <SectionLink onClick={() => navigate("connections")}>
+                {t("seeAll")}
+              </SectionLink>
             </div>
-            <SectionLink onClick={() => navigate("connections")}>
-              {t("seeAll")}
-            </SectionLink>
           </div>
         </CardHeader>
         <CardContent>
@@ -104,35 +201,6 @@ export function Overview({
             onAdd={add}
             onEdit={edit}
           />
-        </CardContent>
-      </Card>
-      <Card size="sm">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>{t("components")}</CardTitle>
-            <SectionLink onClick={() => navigate("components")}>
-              {t("seeAll")}
-            </SectionLink>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2">
-            {inventory.components
-              .filter((c) => c.installed)
-              .map((c) => (
-                <Badge key={c.id} variant="outline">
-                  {c.id}
-                </Badge>
-              ))}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => navigate("traffic")}
-            >
-              {t("traffic")}
-              <ArrowUpRight data-icon="inline-end" />
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

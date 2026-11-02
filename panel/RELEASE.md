@@ -1,33 +1,33 @@
-# GRE Tunnel Manager v1.3.4
+# GRE Tunnel Manager v1.3.5
 
-Clearer connection workflows, optional quota enforcement and lightweight live server readings. This release also adds reviewed configuration imports and explicit engine maintenance.
+Kernel forwarding that works on servers with additional IPs, steadier applies and a redesigned web panel.
 
-## Traffic and dashboard
+## Forwarding on servers with additional IPs
 
-- Show numeric cycle quotas, usage progress and applied pause state on desktop and mobile. Keep labels, resets, history and CSV export together.
-- Optionally pause local forwarding, supported public reverse listeners or a GRE interface when its selected cycle limit is reached. Owned nftables rules block both directions, including established flows; reset the cycle, raise the limit or turn off the policy to resume. Services remain configured and running.
-- Quota detection is sampled, not byte-exact. The default interval is 60 seconds, so usage can exceed the quota between checks. Collection and the broker must run to detect new crossings. Remote quota edits and reboot-independent enforcement are not included. Existing policies remain advisory until explicitly enabled; portable restore disables automatic pauses.
-- Add CPU, memory and default-route receive/send rates with visible-dashboard polling, pause/resume and 5/15-second cadence. Use cached Linux counters without an extra daemon, database or disk history.
+- New iptables/nftables forwards listen on every local address by default (`0.0.0.0` / `::`), so users can connect through any additional IP. Rules match `fib daddr type local` (nftables) or `-m addrtype --dst-type LOCAL` (iptables). An explicit address still restricts a forward to that IP, and the panel suggests this server's addresses.
+- Previously each rule matched one destination address, and the panel defaulted to the first IPv4 the OS listed, which could be a secondary, private or GRE address.
+- A wildcard forward conflicts with any other listener on the same port and protocol, and preflight rejects a wildcard forward back to this host's own port. Saved records are unchanged. Older releases reject wildcard kernel records, so a downgrade needs a compatible restore point.
 
-## Configuration and engine maintenance
+## Reliability
 
-- Import supported HAProxy TCP configurations, simple Realm TOML or managed JSON through a bounded, additive review. Reject unsupported/lossy syntax and stale reviews, preserve unrelated records and save paused unless activation is selected.
-- Improve direct native editing for supported HAProxy/Realm configurations. Allow strict single-destination iptables/nftables edits only when the complete managed rule set can round-trip; submitted firewall text is never executed.
-- New HAProxy connections use automatic native connection sizing, no per-target cap, logs off and active checks off. Blank optional caps work. Preserve saved and legacy semantics; presets deliberately enable checks and reset stale options. Finite connection/inactivity timeouts remain.
-- Add manual official version checks and confirmed updates using reviewed package candidates or verified binary pins, with retained binaries and recovery. Latest-upstream discovery does not imply compatibility with every release.
-- Add local FRP KCP transport and recognize Realm's official version/build-feature output. Existing Node protocol and paired-connection capabilities stay unchanged.
+- Replace the owned nftables table atomically instead of flushing it. Existing flows keep their NAT mappings.
+- Load state in linear time (300 records: about 20 s to under 1 s), keep the newest 100 automatic restore points and reload systemd once per apply. Realm starts are confirmed by its listener instead of a fixed sleep.
+- Keep dashboards responsive during long applies: read actions no longer wait for the mutation lock.
+- The panel broker keeps running while the panel restarts, so sampling and opt-in quota pauses continue. A panel upgrade that fails to start rolls back to the previous executable.
+- Throttle failed logins per IPv4 address or IPv6 /64 without locking out the administrator. Keep following a running job through temporary network or gateway errors.
+- Reject malformed IPv6 spellings such as `:1::2`.
 
-## Interface
+## Web panel
 
-- Repair mobile identity wrapping and destination inspection; keep edit, start/stop and configuration actions directly available.
-- Balance desktop connection columns, compact filters and appearance controls, and add footer shortcuts. Preserve Nettinx colors, Persian RTL/English LTR, Latin digits and reduced-motion support.
+- Three new presets that meet WCAG AA in light and dark mode: **Signal** (Grafana-like, the new default), **Graphite** (Linear-like) and **Aurora**. Nettinx and Neutral stay available and unchanged. Browsers that stored the old automatic Nettinx default move to Signal once; a later choice is kept.
+- One **Connections** page for HAProxy, Realm and port forwarding, with engine filters and counts. Old `#/haproxy`, `#/realm` and `#/forwarding` links open the matching filter.
+- A status-first overview: host and address, four summary tiles, live telemetry and a **Needs attention** list for failed or stopped services and missing engines.
+- A **Ctrl/Cmd+K** command palette for pages, filters, saved connections, new connections and appearance.
+- A clear on/off switch per connection, a floating bar for bulk actions, a step indicator in the connection form and roomier mobile layouts.
+- Inter for Latin text and digits with Vazirmatn for Persian; short, subtle motion that is disabled under reduced motion.
 
 ## Upgrade and verification
 
-Run the current panel installer to install the matching v1.3.4 package, then refresh the browser to load its embedded interface. Downloading the script alone does not upgrade the executable. Existing credentials, certificates and managed tunnel settings are retained. Use matching Controller/Agent packages when upgrading Nodes.
+Run the current panel installer to install the matching v1.3.5 package, then refresh the browser to load the new interface. Downloading the script alone does not upgrade the executable. Existing credentials, certificates and managed tunnel settings are kept. Use matching Controller/Agent packages when upgrading Nodes.
 
 Linux amd64/arm64 archives contain the executable, embedded frontend, matching Bash helper and dependency notices. Verify `SHA256SUMS`. Managed servers do not need Node.js, Python or a compiler.
-
-Validation covers Python/Bash, ShellCheck, frontend build/lint/tests, Go race/vet, real isolated networking and responsive browser flows. A private Linux test verifies quota blocking of an established TCP flow, unrelated-listener isolation and reset/resume. Demo screenshots and simulated counters are not performance measurements. Public VPS rollout, reboot behavior, native arm64 execution and sustained capacity remain deployment checks.
-
-See [Traffic accounting](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/TRAFFIC-ACCOUNTING.md), [Configuration editor](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/CONFIGURATION-EDITOR.md), [Engine maintenance](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/ENGINE-MAINTENANCE.md) and [Kernel/userspace responsibilities](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/KERNEL-AND-USERSPACE.md).

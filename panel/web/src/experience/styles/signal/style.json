@@ -1,0 +1,21 @@
+{
+  "id": "signal",
+  "name": "Signal",
+  "description": "Dense observability surfaces with a blue primary and vivid chart series, in the spirit of Grafana.",
+  "styleVersion": "1.0.0",
+  "surfaces": ["admin"],
+  "modes": ["light", "dark"],
+  "tokens": "./tokens.css",
+  "fonts": [
+    { "family": "Inter", "source": "self-hosted @fontsource-variable/inter" },
+    {
+      "family": "Vazirmatn",
+      "source": "self-hosted @fontsource-variable/vazirmatn"
+    },
+    {
+      "family": "JetBrains Mono",
+      "source": "self-hosted @fontsource-variable/jetbrains-mono"
+    }
+  ],
+  "source": { "kind": "original", "license": "Project-owned" }
+}

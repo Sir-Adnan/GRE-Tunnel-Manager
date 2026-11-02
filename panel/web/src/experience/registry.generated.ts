@@ -16,6 +16,123 @@ export const registry: GeneratedRegistry = {
   },
   axes: {},
   styles: {
+    graphite: {
+      id: "graphite",
+      name: "Graphite",
+      styleVersion: "1.0.0",
+      surfaces: ["admin"],
+      modes: ["light", "dark"],
+      format: "css",
+      description:
+        "Calm neutral surfaces with one indigo accent; quiet and focused for long sessions, in the spirit of Linear.",
+      i18n: {
+        fa: {
+          name: "گرافیت",
+          description:
+            "سطوح خنثی و آرام با یک رنگ تأکید نیلی؛ متمرکز و کم‌خستگی برای کار طولانی.",
+        },
+      },
+      swatches: {
+        light: {
+          background: "#fbfbfc",
+          foreground: "#17181c",
+          card: "#ffffff",
+          primary: "#5e6ad2",
+          secondary: "#f1f2f5",
+          accent: "#eef0fb",
+          muted: "#f3f4f6",
+          border: "#e5e6ea",
+        },
+        dark: {
+          background: "#0c0d0f",
+          foreground: "#e7e8eb",
+          card: "#131416",
+          primary: "#5e6ad2",
+          secondary: "#1c1d21",
+          accent: "#1f2133",
+          muted: "#1a1b1e",
+          border: "#23252a",
+        },
+      },
+    },
+    signal: {
+      id: "signal",
+      name: "Signal",
+      styleVersion: "1.0.0",
+      surfaces: ["admin"],
+      modes: ["light", "dark"],
+      format: "css",
+      description:
+        "Dense observability surfaces with a blue primary and vivid chart series, in the spirit of Grafana.",
+      i18n: {
+        fa: {
+          name: "سیگنال",
+          description:
+            "ظاهر مانیتورینگ فشرده با رنگ اصلی آبی و سری‌های نمودار پررنگ.",
+        },
+      },
+      swatches: {
+        light: {
+          background: "#f4f5f7",
+          foreground: "#1f2329",
+          card: "#ffffff",
+          primary: "#3d71d9",
+          secondary: "#eceef2",
+          accent: "#e5edfc",
+          muted: "#eef0f3",
+          border: "#dfe2e7",
+        },
+        dark: {
+          background: "#111217",
+          foreground: "#d8d9e3",
+          card: "#181b1f",
+          primary: "#3d71d9",
+          secondary: "#22252b",
+          accent: "#1d2a44",
+          muted: "#1e2126",
+          border: "#2a2d33",
+        },
+      },
+    },
+    aurora: {
+      id: "aurora",
+      name: "Aurora",
+      styleVersion: "1.0.0",
+      surfaces: ["admin"],
+      modes: ["light", "dark"],
+      format: "css",
+      description:
+        "Deep navy surfaces with a luminous teal accent for a network-operations feel.",
+      i18n: {
+        fa: {
+          name: "شفق",
+          description:
+            "سطوح سرمه‌ای عمیق با تأکید فیروزه‌ای درخشان، با حس اتاق عملیات شبکه.",
+        },
+      },
+      swatches: {
+        light: {
+          background: "#f6f8fb",
+          foreground: "#0b1324",
+          card: "#ffffff",
+          primary: "#0f766e",
+          secondary: "#ecf1f7",
+          accent: "#e0f5f2",
+          muted: "#eef2f7",
+          border: "#dfe5ee",
+        },
+        dark: {
+          background: "#070b14",
+          foreground: "#e6edf7",
+          card: "#0d1422",
+          primary: "#2dd4bf",
+          secondary: "#121c2f",
+          accent: "#0d2b31",
+          muted: "#101827",
+          border: "#1a2539",
+        },
+      },
+    },
     nettinx: {
       id: "nettinx",
       name: "Nettinx",
@@ -23,6 +140,15 @@ export const registry: GeneratedRegistry = {
       surfaces: ["admin"],
       modes: ["light", "dark"],
       format: "css",
+      description:
+        "The original orange-on-navy palette, preserved exactly as selected.",
+      i18n: {
+        fa: {
+          name: "نتینکس",
+          description:
+            "پالت اصلی نارنجی و سرمه‌ای، دقیقاً همان‌طور که انتخاب شده بود.",
+        },
+      },
       swatches: {
         light: {
           background: "#ffffff",
@@ -55,6 +181,13 @@ export const registry: GeneratedRegistry = {
       format: "css",
       description:
         "shadcn/ui neutral base with contrast adjustments; the safe default for every surface.",
+      i18n: {
+        fa: {
+          name: "خنثی",
+          description:
+            "پایهٔ خاکستری shadcn/ui با اصلاح کنتراست؛ ساده و بی‌رنگ.",
+        },
+      },
       swatches: {
         light: {
           background: "#ffffff",
@@ -88,8 +221,14 @@ export const registry: GeneratedRegistry = {
       surface: "admin",
       packVersion: "1.0.0",
       extends: null,
-      defaultStyleId: "nettinx",
-      compatibleStyleIds: ["nettinx", "neutral"],
+      defaultStyleId: "signal",
+      compatibleStyleIds: [
+        "signal",
+        "graphite",
+        "aurora",
+        "nettinx",
+        "neutral",
+      ],
       shell: () => import("./packs/tunnel-admin/Shell"),
       templates: {
         auth: {

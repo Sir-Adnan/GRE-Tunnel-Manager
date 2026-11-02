@@ -51,7 +51,7 @@ export function Traffic({
     enabled,
     setEnabled,
     interval,
-    setInterval,
+    setSampleInterval,
     retention,
     setRetention,
     ids,
@@ -222,7 +222,7 @@ export function Traffic({
                       value={interval}
                       disabled={!metrics || busy}
                       onChange={(event) =>
-                        setInterval(Number(event.target.value))
+                        setSampleInterval(Number(event.target.value))
                       }
                       required
                     />

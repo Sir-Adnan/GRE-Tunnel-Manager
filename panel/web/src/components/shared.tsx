@@ -1,5 +1,13 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ArrowUpRight, Check, Copy, Network, Plus } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  Network,
+  Plus,
+  Route,
+  Workflow,
+} from "lucide-react";
 import { useCopyText } from "@/lib/use-copy-text";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +49,18 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       )}
     </div>
   );
+}
+/** One glyph per engine family, used wherever a connection is listed. */
+export function EngineGlyph({
+  engine,
+  className = "size-4",
+}: {
+  engine: string;
+  className?: string;
+}) {
+  const Icon =
+    engine === "haproxy" ? Workflow : engine === "realm" ? Network : Route;
+  return <Icon className={className} aria-hidden />;
 }
 export function Status({ value = "unknown" }: { value?: string }) {
   const t = useT();

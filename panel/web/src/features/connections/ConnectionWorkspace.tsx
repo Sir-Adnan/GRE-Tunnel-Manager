@@ -1,10 +1,21 @@
-import { useState, lazy, Suspense } from "react";
+import { useContext, useState, lazy, Suspense } from "react";
 import { Code2, Plus, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ActionButton } from "@/components/help";
 import { PageTitle } from "@/components/shared";
-import { useT } from "@/lib/i18n";
+import { Segmented } from "@/components/Segmented";
+import { LocaleContext, useT } from "@/lib/i18n";
+import { number } from "@/lib/format";
+import { usePanelRoute } from "@/lib/use-panel-route";
+import {
+  creationEngine,
+  creationEngines,
+  engineCounts,
+  engineFilter,
+  engineFilters,
+  matchesEngine,
+} from "@/lib/connection-filters";
 import type { Connection, Inventory } from "@/lib/api";
 import { ConnectionTable } from "./ConnectionTable";
 const ConfigurationImport = lazy(() =>
@@ -13,49 +24,42 @@ const ConfigurationImport = lazy(() =>
   })),
 );
 
+const engineLabels: Record<string, string> = {
+  all: "allEngines",
+  kernel: "forwarding",
+  haproxy: "HAProxy",
+  realm: "Realm",
+};
+
+/** One Connections page for every listener engine; the engine filter lives in the URL. */
 export function ConnectionWorkspace({
-  page,
   inventory,
   add,
   edit,
   run,
 }: {
-  page: string;
   inventory: Inventory;
-  add: () => void;
+  add: (engine: string, engines?: string[]) => void;
   edit: (connection: Connection) => void;
   run: (request: unknown) => Promise<void>;
 }) {
   const t = useT();
+  const locale = useContext(LocaleContext);
+  const { params, updateParams } = usePanelRoute();
   const [importing, setImporting] = useState(false);
-  const connections = inventory.connections.filter(
-    (c) =>
-      page === "connections" ||
-      (page === "forwarding"
-        ? ["nftables", "iptables"].includes(c.engine)
-        : c.engine === page),
+  const engine = engineFilter(params.get("engine"));
+  const counts = engineCounts(inventory.connections);
+  const connections = inventory.connections.filter((c) =>
+    matchesEngine(c.engine, engine),
   );
+  const create = () => add(creationEngine(engine), creationEngines(engine));
   return (
     <div className="page-stack">
       <PageTitle
-        title={
-          page === "haproxy" ? "HAProxy" : page === "realm" ? "Realm" : t(page)
-        }
-        description={t("subtitle")}
+        title={t("connections")}
+        description={t("connectionsHelp")}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={add}>
-              <Plus data-icon="inline-start" />
-              {t("newConnection")}
-            </Button>
-            <Button
-              variant="outline"
-              aria-label={t("importConfiguration")}
-              onClick={() => setImporting(true)}
-            >
-              <FileUp data-icon="inline-start" />
-              {t("importShort")}
-            </Button>
             <ActionButton
               variant="outline"
               size="icon"
@@ -64,15 +68,42 @@ export function ConnectionWorkspace({
             >
               <Code2 />
             </ActionButton>
+            <Button
+              variant="outline"
+              aria-label={t("importConfiguration")}
+              onClick={() => setImporting(true)}
+            >
+              <FileUp data-icon="inline-start" />
+              {t("importShort")}
+            </Button>
+            <Button onClick={create}>
+              <Plus data-icon="inline-start" />
+              {t("newConnection")}
+            </Button>
           </div>
         }
+      />
+      <Segmented
+        label={t("engine")}
+        value={engine}
+        onChange={(value) =>
+          updateParams({ engine: value === "all" ? "" : value, connection: "" })
+        }
+        options={engineFilters.map((id) => ({
+          value: id,
+          label:
+            id === "haproxy" || id === "realm"
+              ? engineLabels[id]
+              : t(engineLabels[id]),
+          count: number(counts[id], locale),
+        }))}
       />
       <Card>
         <CardContent>
           <ConnectionTable
-            key={page}
+            key={engine}
             connections={connections}
-            onAdd={add}
+            onAdd={create}
             onEdit={edit}
             run={run}
           />
@@ -82,9 +113,9 @@ export function ConnectionWorkspace({
         <Suspense fallback={null}>
           <ConfigurationImport
             engine={
-              page === "realm"
+              engine === "realm"
                 ? "realm"
-                : page === "forwarding"
+                : engine === "kernel"
                   ? "nftables"
                   : "haproxy"
             }
