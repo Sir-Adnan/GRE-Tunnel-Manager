@@ -127,10 +127,12 @@ fi
 # Removing balanced targets must not leave stale per-target chains behind.
 GTM_RECORDS=($'F000006\tBalanced\tnftables\ttcp\t0.0.0.0\t28448\trandom\t1\tmasquerade\tany\t203.0.113.20:28001@1,203.0.113.21:28001@1\t1')
 gtm_nft_render | nft -f -
-nft list chains inet gre_manager | grep -q b_F000006_tcp_1
+ruleset=$(nft list table inet gre_manager)
+if [[ $ruleset != *"chain b_F000006_tcp_1 "* ]]; then printf 'Balancing chain missing\n' >&2; exit 1; fi
 GTM_RECORDS=($'F000006\tBalanced\tnftables\ttcp\t0.0.0.0\t28448\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1')
 gtm_nft_render | nft -f -
-if nft list chains inet gre_manager | grep -q b_F000006; then printf 'Stale balancing chain kept\n' >&2; exit 1; fi
+ruleset=$(nft list table inet gre_manager)
+if [[ $ruleset == *"chain b_F000006_"* ]]; then printf 'Stale balancing chain kept\n' >&2; exit 1; fi
 if command -v iptables-restore >/dev/null; then
     GTM_RECORDS=($'F000007\tAll addresses\tiptables\ttcp\t0.0.0.0\t28449\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
     gtm_preflight
