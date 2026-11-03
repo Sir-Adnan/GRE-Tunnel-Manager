@@ -79,6 +79,8 @@ gtm_load_records() {
             # Relays bind sockets, not entrance interfaces. Only kernel rules can
             # safely distinguish identical listeners on two explicit interfaces.
             if [[ $R_ENGINE =~ ^(iptables|nftables)$ && $O_ENGINE =~ ^(iptables|nftables)$ ]]; then
+                # Kernel rules are family-specific: IPv4 and IPv6 listeners never overlap.
+                [[ $bind_key == *.* && $O_KEY != *.* || $bind_key != *.* && $O_KEY == *.* ]] && continue
                 [[ $iface == any || $O_IFACE == any || $iface == "$O_IFACE" ]] || continue
             fi
             gtm_error "Listener conflicts: $id and $O_ID"; return 1

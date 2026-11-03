@@ -16,7 +16,7 @@ Read-only commands do not require root if the state file is readable. Production
 
 - `--validate`: schema, backend capabilities, duplicate endpoints, direct listener loops and conflicting managed listeners. Equivalent IPv6 spellings compare equally.
 - `--plan`: validation plus generated enabled configurations. No package installation, temporary files, target probes, firewall changes or service restarts. It excludes existing-resource cleanup and separate FRP instances. Output contains topology/IP addresses.
-- `--doctor`: available tools, saved-state validity, forwarding switches, conntrack count/limit, GRE interfaces/MTU and service state. Missing optional tools are informational. No target traffic, bandwidth test or background monitoring is started.
+- `--doctor`: available tools, saved-state validity, forwarding switches, conntrack count/limit, GRE interfaces/MTU, per-address routing tables and return rules, single-address kernel forwards and service state. Missing optional tools are informational. No target traffic, bandwidth test or background monitoring is started.
 - `--catalog`: implemented adapters, selection tradeoffs and explicitly unimplemented methods. No state file, root or host probes required.
 
 Inspection exit codes: 0 for completed inspection, 1 for invalid/unreadable state or failed HAProxy socket inspection, 2 for invalid CLI arguments. Doctor's exit status reflects saved-state validity, not a guarantee that every host component is healthy. Host status commands can be unavailable or permission-limited.
@@ -36,7 +36,11 @@ Port-first setup accepts up to 32 local ports and shows fixed/matching destinati
 
 New relay and kernel forms default to listening on all local addresses (`0.0.0.0`, or `::` for an IPv6 destination). Review exposes this scope and Optional settings can restrict it to one assigned IP. Use the default on servers with additional IPs: clients can connect through any of them. An explicit IP accepts traffic only on that address. A wildcard forward reserves its port and protocol on every address. Preflight rejects a wildcard listener targeting a local address on its own listening port.
 
-Additional IPs on a separate interface or gateway can also need policy routing for the replies. The manager does not create `ip rule` entries or edit the host's routing policy.
+IPv4 and IPv6 kernel forwards may share a port, because their rules never overlap. A relay listening on `::` can accept IPv4 too, so mixed relay/kernel pairs still conflict.
+
+Some providers route an additional IP through its own gateway, configured as source policy routing (`ip rule add from X lookup N`). Local sockets follow that rule, but forwarded replies are routed before un-DNAT restores `X` as their source. Without help they leave through the main gateway and the provider's anti-spoofing drops them. On apply, the manager asks the kernel which table `ip route get 1.1.1.1 from X` uses for every global address (`2606:4700:4700::1111` for IPv6). This sends no packets. New flows that enter on such an address get a connection-mark value in bits `0xf000000`, one per table (sorted by table name, at most 15). An owned rule `fwmark M/0xf000000 lookup N` at preference 31001-31015 sends their replies through table `N`. Nothing changes on hosts without per-address tables. Rules are reconciled on every apply and at boot, and are removed with the last kernel forward; foreign `ip rule` entries are never touched. After changing the host's routing policy, apply again (or restart `gre-manager-forwarding.service`). Software that uses the same mark bits, or strict reverse-path filtering (`rp_filter=1`) on that address's interface, can still drop these flows; use `2` (loose) there.
+
+`--doctor` lists addresses with their own routing table and whether their return rule is active. It warns about strict `rp_filter` and lists explicit-bind kernel forwards on hosts with other addresses of that family. Records saved before v1.3.5 kept their single address; edit **Listen address** to all local addresses to accept on every IP.
 
 ## Restore or investigate a failure
 

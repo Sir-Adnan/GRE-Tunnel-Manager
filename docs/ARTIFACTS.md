@@ -33,7 +33,7 @@ Header server information is cached only in process memory. It creates no files 
 
 Config/state is root-owned with mode 600, containing directory 700. Temporary generation/download files use `/run/gre-manager` and private permissions. The manager does not delete operator certificates, unrelated services or optional binaries when deleting a connection. Backups are retained until the operator removes them.
 
-Kernel resources: iptables `GTM_PRE`, `GTM_POST`, `GTM_FWD`, `GTM_MSS` and their parent jumps; nftables `table inet gre_manager` including per-target branch chains. Disabling/deleting the final record empties owned chains/table rather than flushing host rules. Existing conntrack flows may live until their normal expiration; the manager does not flush the host conntrack table.
+Kernel resources: iptables `GTM_PRE`, `GTM_POST`, `GTM_FWD`, `GTM_MSS`, `GTM_RTM` (mangle `PREROUTING`) and their parent jumps; nftables `table inet gre_manager` including per-target branch chains and the `rtmark` chain; IPv4/IPv6 `ip rule` entries at preferences 31001-31015 that match `fwmark 0x?000000/0xf000000`. Connection-mark bits `0xf000000` are set only on flows that enter through an address with its own routing table. Disabling/deleting the final record empties owned chains/table rather than flushing host rules. Existing conntrack flows may live until their normal expiration; the manager does not flush the host conntrack table.
 
 The nftables table also owns a forward-hook MSS chain at priority -150, scoped to original-direction managed TCP DNAT flows. FRP/rathole secrets remain outside TSV snapshots; the encrypted portable recovery file includes recognized reverse definitions and keys. Their local deletion does not contact or delete the peer on another server.
 

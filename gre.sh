@@ -2010,6 +2010,8 @@ gtm_load_records() {
             # Relays bind sockets, not entrance interfaces. Only kernel rules can
             # safely distinguish identical listeners on two explicit interfaces.
             if [[ $R_ENGINE =~ ^(iptables|nftables)$ && $O_ENGINE =~ ^(iptables|nftables)$ ]]; then
+                # Kernel rules are family-specific: IPv4 and IPv6 listeners never overlap.
+                [[ $bind_key == *.* && $O_KEY != *.* || $bind_key != *.* && $O_KEY == *.* ]] && continue
                 [[ $iface == any || $O_IFACE == any || $iface == "$O_IFACE" ]] || continue
             fi
             gtm_error "Listener conflicts: $id and $O_ID"; return 1
@@ -2163,6 +2165,90 @@ gtm_kernel_dependencies() {
     done
 }
 
+# An additional IP with its own gateway uses source policy routing ("from X lookup
+# N"). Forwarded replies are routed before un-DNAT restores X as their source, so
+# they miss that rule and leave through the main gateway. Flows entering on such
+# an address get a connection mark (mask 0xf000000), and owned fwmark rules at
+# preference 31001-31015 route their replies through the same table.
+# Sets GTM_RT_ADDRS ("family|address|mark|table|interface") and GTM_RT_RULES
+# ("family|preference|mark|table"). Route lookups send no packets.
+gtm_return_routes_detect() {
+    local family probe address iface line table index=0
+    local -a found=() names=()
+    local -A marks=() seen=()
+    GTM_RT_ADDRS=(); GTM_RT_RULES=()
+    command -v ip >/dev/null 2>&1 || return 0
+    for family in 4 6; do
+        probe=1.1.1.1; [[ $family == 4 ]] || probe=2606:4700:4700::1111
+        while read -r iface address; do
+            address=${address%/*}
+            line=$(ip -o -"$family" route get "$probe" from "$address" 2>/dev/null) || continue
+            [[ $line =~ \ table\ ([A-Za-z0-9_.-]+)( |$) ]] || continue
+            table=${BASH_REMATCH[1]}
+            [[ $table != main && $table != local && $table != 254 && $table != 255 ]] || continue
+            found+=("$family|$address|$table|$iface")
+            [[ ${seen[$table]+set} ]] || { seen[$table]=1; names+=("$table"); }
+        done < <(ip -o -"$family" address show scope global 2>/dev/null | awk '{print $2, $4}')
+    done
+    ((${#found[@]})) || return 0
+    # Sorted table names keep marks stable across applies.
+    while IFS= read -r table; do
+        ((index < 15)) || { gtm_error "More than 15 source routing tables; return routing skips table $table."; continue; }
+        index=$((index + 1)); marks[$table]=$(printf '0x%x' "$((index << 24))")
+    done < <(printf '%s\n' "${names[@]}" | LC_ALL=C sort -u)
+    seen=()
+    for line in "${found[@]}"; do
+        IFS='|' read -r family address table iface <<< "$line"
+        [[ ${marks[$table]+set} ]] || continue
+        GTM_RT_ADDRS+=("$family|$address|${marks[$table]}|$table|$iface")
+        [[ ${seen[$family|$table]+set} ]] && continue
+        seen[$family|$table]=1
+        GTM_RT_RULES+=("$family|$((31000 + (${marks[$table]} >> 24)))|${marks[$table]}|$table")
+    done
+}
+
+# Prints "address mark" for the current record's marked entrance addresses.
+gtm_return_marks() {
+    local wanted=$1 entry family address mark key=''
+    gtm_wildcard "$R_BIND" || { gtm_key_of "$R_BIND" && key=$GTM_KEY; } || return 1
+    for entry in ${GTM_RT_ADDRS[@]+"${GTM_RT_ADDRS[@]}"}; do
+        IFS='|' read -r family address mark _ <<< "$entry"
+        [[ $family == "$wanted" ]] || continue
+        if [[ -n $key ]]; then gtm_key_of "$address" && [[ $GTM_KEY == "$key" ]] || continue; fi
+        printf '%s %s\n' "$address" "$mark"
+    done
+}
+
+# Prints each distinct reply mark of one family.
+gtm_return_family_marks() {
+    local entry family mark
+    for entry in ${GTM_RT_RULES[@]+"${GTM_RT_RULES[@]}"}; do
+        IFS='|' read -r family _ mark _ <<< "$entry"
+        [[ -z $1 || $family == "$1" ]] && printf '%s\n' "$mark"
+    done | LC_ALL=C sort -u
+}
+
+# Reconcile owned fwmark rules only; foreign rules are never touched.
+gtm_return_rules_apply() {
+    local family line entry pref mark table
+    local -A wanted=()
+    for entry in ${GTM_RT_RULES[@]+"${GTM_RT_RULES[@]}"}; do wanted[$entry]=1; done
+    command -v ip >/dev/null 2>&1 || { ((${#wanted[@]} == 0)) && return 0; gtm_error 'ip is required for return routing.'; return 1; }
+    for family in 4 6; do
+        while IFS= read -r line; do
+            [[ $line =~ ^(310(0[1-9]|1[0-5])):[[:space:]]+from\ all\ fwmark\ (0x[0-9a-f]+)/0xf000000\ lookup\ ([A-Za-z0-9_.-]+)[[:space:]]*$ ]] || continue
+            pref=${BASH_REMATCH[1]}; mark=${BASH_REMATCH[3]}; table=${BASH_REMATCH[4]}
+            entry="$family|$pref|$mark|$table"
+            if [[ ${wanted[$entry]+set} ]]; then unset 'wanted[$entry]'; continue; fi
+            ip -"$family" rule del pref "$pref" fwmark "$mark/0xf000000" lookup "$table" || return 1
+        done < <(ip -"$family" rule show 2>/dev/null)
+    done
+    for entry in "${!wanted[@]}"; do
+        IFS='|' read -r family pref mark table <<< "$entry"
+        ip -"$family" rule add pref "$pref" fwmark "$mark/0xf000000" lookup "$table" || { gtm_error "Could not add the return route for table $table."; return 1; }
+    done
+}
+
 # An unspecified bind (0.0.0.0 / ::) matches every address assigned to this host,
 # including additional IPs. Explicit binds keep their exact destination match.
 # Sets GTM_IPT_ENTRANCE / GTM_IPT_ORIGIN for the current record.
@@ -2175,13 +2261,17 @@ gtm_iptables_scope() {
 }
 
 gtm_iptables_render() {
-    local family=$1 table=$2 line proto target total remaining probability index
+    local family=$1 table=$2 line proto target total remaining probability index address mark
     local -a targets protocols
     printf '*%s\n' "$table"
     case $table in
         nat) printf ':GTM_PRE - [0:0]\n:GTM_POST - [0:0]\n-F GTM_PRE\n-F GTM_POST\n' ;;
         filter) printf ':GTM_FWD - [0:0]\n-F GTM_FWD\n' ;;
-        mangle) printf ':GTM_MSS - [0:0]\n-F GTM_MSS\n' ;;
+        mangle) printf ':GTM_MSS - [0:0]\n-F GTM_MSS\n:GTM_RTM - [0:0]\n-F GTM_RTM\n'
+            # Replies of marked flows take their entrance address's routing table.
+            while read -r mark; do
+                printf -- '-A GTM_RTM -m conntrack --ctdir REPLY -m connmark --mark %s/0xf000000 -m comment --comment gtm-return -j MARK --set-xmark %s/0xf000000\n' "$mark" "$mark"
+            done < <(gtm_return_family_marks "$family") ;;
     esac
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
@@ -2197,6 +2287,13 @@ gtm_iptables_render() {
             for target in "${targets[@]}"; do
                 gtm_endpoint "$target" || return 1
                 if [[ $table == nat ]]; then
+                    if ((index == 0)); then
+                        while read -r address mark; do
+                            printf -- '-A GTM_PRE -d %s' "$address"
+                            [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
+                            printf ' -p %s --dport %d -m comment --comment gtm-%s -j CONNMARK --set-xmark %s/0xf000000\n' "$proto" "$((10#$R_PORT))" "$R_ID" "$mark"
+                        done < <(gtm_return_marks "$family")
+                    fi
                     printf -- '-A GTM_PRE %s' "$GTM_IPT_ENTRANCE"
                     [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
                     printf ' -p %s --dport %d -m comment --comment gtm-%s' "$proto" "$((10#$R_PORT))" "$R_ID"
@@ -2232,7 +2329,7 @@ gtm_iptables_apply() {
     done
     rm -f "$file"
     for table in nat filter mangle; do
-        case $table in nat) local -a hooks=(PREROUTING:GTM_PRE POSTROUTING:GTM_POST);; filter) hooks=(FORWARD:GTM_FWD);; mangle) hooks=(FORWARD:GTM_MSS);; esac
+        case $table in nat) local -a hooks=(PREROUTING:GTM_PRE POSTROUTING:GTM_POST);; filter) hooks=(FORWARD:GTM_FWD);; mangle) hooks=(FORWARD:GTM_MSS PREROUTING:GTM_RTM);; esac
         for hook in "${hooks[@]}"; do
             chain=${hook#*:}; hook=${hook%%:*}
             "$tool" -w 5 -t "$table" -C "$hook" -j "$chain" 2>/dev/null || "$tool" -w 5 -t "$table" -I "$hook" 1 -j "$chain" || return 1
@@ -2241,7 +2338,7 @@ gtm_iptables_apply() {
 }
 
 gtm_nft_render() {
-    local line family proto target index total offset end entrance origin created=0
+    local line family number proto target index total offset end entrance origin address mark created=0
     local -a targets protocols
     # One atomic batch replaces only our table. Deleting it (instead of flushing)
     # also removes balancing chains left by deleted records or removed targets.
@@ -2257,8 +2354,13 @@ gtm_nft_render() {
             printf 'add chain inet gre_manager post { type nat hook postrouting priority 95; policy accept; }\n'
             printf 'add chain inet gre_manager forward { type filter hook forward priority -5; policy accept; }\n'
             printf 'add chain inet gre_manager mss { type filter hook forward priority -150; policy accept; }\n'
+            # Replies of marked flows take their entrance address's routing table.
+            while read -r mark; do
+                ((created == 2)) || { created=2; printf 'add chain inet gre_manager rtmark { type filter hook prerouting priority -150; policy accept; }\n'; }
+                printf 'add rule inet gre_manager rtmark ct direction reply ct mark and 0xf000000 == %s meta mark set meta mark and 0xf0ffffff or %s comment "gtm-return"\n' "$mark" "$mark"
+            done < <(gtm_return_family_marks '')
         fi
-        family=ip; [[ $R_BIND == *:* ]] && family=ip6
+        family=ip number=4; [[ $R_BIND == *:* ]] && { family=ip6; number=6; }
         # Unspecified binds match every local address (additional IPs included).
         if gtm_wildcard "$R_BIND"; then
             entrance='meta nfproto ipv4 fib daddr type local'; origin=''
@@ -2279,6 +2381,11 @@ gtm_nft_render() {
                     ((index+=1))
                 done
             fi
+            while read -r address mark; do
+                printf 'add rule inet gre_manager pre %s daddr %s' "$family" "$address"
+                [[ $R_IFACE == any ]] || printf ' iifname "%s"' "$R_IFACE"
+                printf ' %s dport %d ct mark set ct mark and 0xf0ffffff or %s comment "gtm-%s"\n' "$proto" "$((10#$R_PORT))" "$mark" "$R_ID"
+            done < <(gtm_return_marks "$number")
             printf 'add rule inet gre_manager pre %s' "$entrance"
             [[ $R_IFACE == any ]] || printf ' iifname "%s"' "$R_IFACE"
             printf ' %s dport %d counter ' "$proto" "$((10#$R_PORT))"
@@ -2327,6 +2434,8 @@ gtm_kernel_apply() {
         else v4=1; [[ $R_ENGINE == iptables ]] && ipt4=1; fi
         [[ $R_ENGINE == nftables ]] && nft=1
     done
+    GTM_RT_ADDRS=(); GTM_RT_RULES=()
+    if (( v4 || v6 )); then gtm_return_routes_detect || return 1; fi
     # Also clear previously owned chains/tables after disabling/deleting records.
     if (( ipt4 )) || { command -v iptables >/dev/null && iptables -t nat -S GTM_PRE >/dev/null 2>&1; }; then gtm_iptables_apply 4 || return 1; fi
     if (( ipt6 )) || { command -v ip6tables >/dev/null && ip6tables -t nat -S GTM_PRE >/dev/null 2>&1; }; then gtm_iptables_apply 6 || return 1; fi
@@ -2335,6 +2444,7 @@ gtm_kernel_apply() {
         gtm_nft_render > "$file" && nft -c -f "$file" && nft -f "$file" || { rm -f "$file"; return 1; }
         rm -f "$file"
     fi
+    gtm_return_rules_apply || return 1
     (( v4 == 0 )) || sysctl -w net.ipv4.ip_forward=1 || return 1
     # Do not silently disable RA on an IPv6 host. Require the operator's routing setup.
     if (( v6 )) && [[ $(sysctl -n net.ipv6.conf.all.forwarding) != 1 ]]; then
@@ -3111,6 +3221,9 @@ gtm_preflight_checks() {
             realm) gtm_need realm && gtm_realm_profile_preflight && gtm_realm_render > "$file" || return 1 ;;
         esac
     done
+    # Check the same return-route marks that apply will install.
+    GTM_RT_ADDRS=(); GTM_RT_RULES=()
+    if ((has4 || has6 || hasnft)); then gtm_return_routes_detect || return 1; fi
     for family in 4 6; do
         tool=iptables; [[ $family == 4 ]] || tool=ip6tables
         if { [[ $family == 4 ]] && ((has4)); } || { [[ $family == 6 ]] && ((has6)); } ||
@@ -3187,6 +3300,44 @@ gtm_plan() {
     printf '\nPreview excludes host-policy changes, global tuning, old-resource cleanup and FRP/rathole instances.\nOffline validation does not test routing, backend syntax or target health.\n'
 }
 
+# Multi-address hosts: per-address routing tables, strict reverse-path filters
+# and kernel forwards that still accept on one address only. Read-only.
+gtm_doctor_addresses() {
+    local entry family address mark table iface main state value strict line count key header=0
+    gtm_return_routes_detect || :
+    printf '\nAddresses with their own routing table (kernel-forward replies follow it):\n'
+    ((${#GTM_RT_ADDRS[@]})) || printf '  none\n'
+    for entry in ${GTM_RT_ADDRS[@]+"${GTM_RT_ADDRS[@]}"}; do
+        IFS='|' read -r family address mark table iface <<< "$entry"
+        state='not installed (applied with kernel forwards)'
+        [[ $(ip -"$family" rule show 2>/dev/null) != *"fwmark $mark/0xf000000 lookup $table"* ]] || state=active
+        printf '  %s on %s / table %s / return rule %s\n' "$address" "$iface" "$table" "$state"
+        [[ $family == 4 ]] || continue
+        main=$(ip -o -4 route get 1.1.1.1 2>/dev/null) || main=''
+        [[ $main =~ \ dev\ ([^ ]+) && ${BASH_REMATCH[1]} != "$iface" ]] || continue
+        strict=0
+        for value in all "$iface"; do
+            [[ $(cat "/proc/sys/net/ipv4/conf/$value/rp_filter" 2>/dev/null) != 1 ]] || strict=1
+        done
+        ((strict == 0)) || printf '    Strict rp_filter drops forwarded flows that enter on %s; set net.ipv4.conf.%s.rp_filter=2 (loose).\n' "$iface" "$iface"
+    done
+    for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
+        gtm_record_validate "$line" || continue
+        [[ $R_ENABLED == 1 && $R_ENGINE =~ ^(iptables|nftables)$ ]] && ! gtm_wildcard "$R_BIND" || continue
+        family=4; [[ $R_BIND == *:* ]] && family=6
+        gtm_key_of "$R_BIND" || continue
+        key=$GTM_KEY
+        count=0
+        while read -r address; do
+            gtm_key_of "${address%/*}" && [[ $GTM_KEY != "$key" ]] && count=$((count + 1))
+        done < <(ip -o -"$family" address show scope global 2>/dev/null | awk '{print $4}')
+        ((count)) || continue
+        ((header)) || { header=1; printf '\nKernel forwards limited to one local address:\n'; }
+        printf '  %s listens only on %s; %d other local IPv%s address(es) are not forwarded.\n' "$R_ID" "$R_BIND" "$count" "$family"
+    done
+    ((header == 0)) || printf '  Set Listen address to all local addresses to accept on every IP.\n'
+}
+
 gtm_doctor() {
     local tool line state used maximum errors=0
     printf 'Traffic Manager %s / read-only health report\n' "$GTM_VERSION"
@@ -3208,6 +3359,7 @@ gtm_doctor() {
     if command -v ip >/dev/null; then
         printf '\nGRE interfaces (includes current MTU):\n'
         ip -d link show type gre; ip -d link show type ip6gre
+        gtm_doctor_addresses
     fi
     if command -v systemctl >/dev/null; then
         printf '\nManaged relay state (configuration / service):\n'

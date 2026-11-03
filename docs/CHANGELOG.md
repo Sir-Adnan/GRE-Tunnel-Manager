@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Server and tooling
+
+- Fix kernel forwards on additional IPs that have their own gateway (source policy routing such as `ip rule add from X lookup N`). Forwarded replies are routed before un-DNAT, so they skipped that rule, left through the main gateway and were dropped by provider anti-spoofing. Apply now finds each address's table with a packet-free route lookup. Flows entering on such an address get a connection mark (bits `0xf000000`), and an owned `fwmark` rule at preference 31001-31015 routes their replies through that table. Both iptables and nftables are covered. Hosts without per-address tables render exactly as before, and the rules are reconciled at boot and removed with the last kernel forward.
+- Allow IPv4 and IPv6 kernel forwards on the same port. Their rules never overlap, but the loader rejected `0.0.0.0` beside `::` (or beside a specific IPv6 address) as a conflict. Relay/kernel pairs still conflict, because a relay on `::` can accept IPv4.
+- `--doctor` lists addresses with their own routing table and their return-rule state, and warns about strict `rp_filter` on those interfaces. It also names explicit-bind kernel forwards on hosts with other addresses of that family, such as records saved before v1.3.5. Saved records are not changed.
+- Namespace tests now cover IPv6 additional addresses (nftables and ip6tables), dual-stack listeners on one port, and a policy-routed address with modelled upstream anti-spoofing, including removal of a stale return rule. Local test evidence only; no real provider network was used.
+
 ## v1.3.5 — Additional-IP forwarding, reliability fixes and a redesigned panel
 
 ### Panel interface

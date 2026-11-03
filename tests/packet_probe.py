@@ -15,9 +15,11 @@ def receive_exact(sock, size):
     return bytes(chunks)
 
 
-def udp_server():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.bind(('0.0.0.0', 28001))
+def udp_server(family=socket.AF_INET):
+    with socket.socket(family, socket.SOCK_DGRAM) as sock:
+        if family == socket.AF_INET6:
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        sock.bind(('::' if family == socket.AF_INET6 else '0.0.0.0', 28001))
         while True:
             payload, peer = sock.recvfrom(4096)
             sock.sendto(b'udp:' + payload, peer)
@@ -66,14 +68,23 @@ if sys.argv[1] == 'mss':
                 options = options[length:]
             raise AssertionError('No MSS on captured TCP SYN')
 elif sys.argv[1] == 'server':
+    def tcp_server(family):
+        with socket.socket(family) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if family == socket.AF_INET6:
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+            sock.bind(('::' if family == socket.AF_INET6 else '0.0.0.0', 28001))
+            sock.listen()
+            while True:
+                conn, peer = sock.accept()
+                threading.Thread(target=tcp_connection, args=(conn,), daemon=True).start()
+
     threading.Thread(target=udp_server, daemon=True).start()
-    with socket.socket() as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(('0.0.0.0', 28001))
-        sock.listen()
-        while True:
-            conn, peer = sock.accept()
-            threading.Thread(target=tcp_connection, args=(conn,), daemon=True).start()
+    if socket.has_ipv6 and os.path.exists('/proc/net/if_inet6'):
+        # IPv6-only sockets beside the IPv4 ones; namespaces without IPv6 skip them.
+        threading.Thread(target=udp_server, args=(socket.AF_INET6,), daemon=True).start()
+        threading.Thread(target=tcp_server, args=(socket.AF_INET6,), daemon=True).start()
+    tcp_server(socket.AF_INET)
 else:
     host, port = sys.argv[2], int(sys.argv[3])
     selected = sys.argv[4] if len(sys.argv) > 4 else 'both'
@@ -82,7 +93,7 @@ else:
     for protocol, kind in [('tcp', socket.SOCK_STREAM), ('udp', socket.SOCK_DGRAM)]:
         if selected != 'both' and protocol != selected:
             continue
-        with socket.socket(socket.AF_INET, kind) as sock:
+        with socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET, kind) as sock:
             sock.settimeout(4)
             if protocol == 'tcp' and os.environ.get('GTM_TEST_TCP_MSS'):
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_MAXSEG, int(os.environ['GTM_TEST_TCP_MSS']))

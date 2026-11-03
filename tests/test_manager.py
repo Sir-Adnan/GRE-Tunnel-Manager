@@ -328,6 +328,87 @@ gtm_listener_check tcp 192.0.2.10 443
         self.assertIn('-A GTM_PRE -m addrtype --dst-type LOCAL -i eth1 -p tcp --dport 443 ', result.stdout)
         self.assertIn('--ctdir ORIGINAL --ctorigdstport 443 ', result.stdout)
 
+    def test_kernel_ipv4_and_ipv6_listeners_share_a_port(self):
+        # Kernel rules are family-specific, so dual-stack forwards may reuse a port.
+        four = record(bind='0.0.0.0')
+        six = record(id='F000002', bind='::', targets='[2001:db8::20]:443')
+        result = load_state(four+'\n'+six+'\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = load_state(four+'\n'+record(id='F000002', engine='iptables', bind='2001:db8::1', targets='[2001:db8::20]:443')+'\n')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # A relay socket on :: may accept IPv4 too, so mixed engines stay strict.
+        result = load_state(four+'\n'+record(id='F000002', engine='realm', bind='::', targets='[2001:db8::20]:443')+'\n')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Listener conflicts', result.stderr)
+
+    def test_return_routes_detect_policy_routed_addresses(self):
+        code = r'''
+ip() {
+    case "$*" in
+        '-o -4 address show scope global') printf '2: eth0    inet 192.0.2.10/24 brd x\n3: eth1    inet 198.51.100.10/24 brd x\n3: eth1    inet 198.51.100.11/32 brd x\n';;
+        '-o -6 address show scope global') printf '3: eth1    inet6 2001:db8:5::10/64 scope global\n';;
+        *'from 192.0.2.10') printf '1.1.1.1 from 192.0.2.10 via 192.0.2.1 dev eth0 uid 0 \\    cache\n';;
+        *'from 198.51.100.1'?) printf '1.1.1.1 from %s via 198.51.100.1 dev eth1 table 200 uid 0 \\    cache\n' "${*: -1}";;
+        *'from 2001:db8:5::10') printf '2606:4700:4700::1111 from :: via fe80::1 dev eth1 table isp2 proto ra uid 0 pref medium\n';;
+        *) return 1;;
+    esac
+}
+gtm_return_routes_detect
+printf '%s\n' "${GTM_RT_ADDRS[@]}" -- "${GTM_RT_RULES[@]}"
+'''
+        result = bash(code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # Sorted table names give stable marks: "200" < "isp2".
+        self.assertEqual(result.stdout.split('\n'), [
+            '4|198.51.100.10|0x1000000|200|eth1', '4|198.51.100.11|0x1000000|200|eth1',
+            '6|2001:db8:5::10|0x2000000|isp2|eth1', '--',
+            '4|31001|0x1000000|200', '6|31002|0x2000000|isp2', ''])
+
+    def test_return_route_marks_render_only_for_policy_routed_entrances(self):
+        marks = ('GTM_RT_ADDRS=("4|198.51.100.10|0x1000000|200|eth1" "6|2001:db8:5::10|0x2000000|isp2|eth1"); '
+                 'GTM_RT_RULES=("4|31001|0x1000000|200" "6|31002|0x2000000|isp2"); GTM_RECORDS=("$line"); ')
+        result = render('nftables', marks + 'gtm_nft_render', bind='0.0.0.0', interface='eth1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('add chain inet gre_manager rtmark { type filter hook prerouting priority -150; policy accept; }', result.stdout)
+        self.assertIn('rtmark ct direction reply ct mark and 0xf000000 == 0x2000000 meta mark set meta mark and 0xf0ffffff or 0x2000000', result.stdout)
+        mark = 'add rule inet gre_manager pre ip daddr 198.51.100.10 iifname "eth1" tcp dport 443 ct mark set ct mark and 0xf0ffffff or 0x1000000 comment "gtm-F000001"\n'
+        self.assertIn(mark + 'add rule inet gre_manager pre meta nfproto ipv4 fib daddr type local', result.stdout)
+        self.assertNotIn('ip6 daddr 2001:db8:5::10', result.stdout)
+        # An explicit bind marks only its own address.
+        result = render('nftables', marks + 'gtm_nft_render', bind='192.0.2.10')
+        self.assertNotIn('ct mark set', result.stdout)
+        result = render('iptables', marks + 'gtm_iptables_render 4 nat', bind='198.51.100.10', strategy='random',
+                        targets='203.0.113.20:443@1,203.0.113.21:443@1')
+        self.assertEqual(result.stdout.count('-j CONNMARK --set-xmark 0x1000000/0xf000000'), 1, result.stdout)
+        self.assertIn('-A GTM_PRE -d 198.51.100.10 -p tcp --dport 443 -m comment --comment gtm-F000001 -j CONNMARK', result.stdout)
+        result = render('iptables', marks + 'gtm_iptables_render 4 mangle')
+        self.assertIn(':GTM_RTM - [0:0]\n-F GTM_RTM\n-A GTM_RTM -m conntrack --ctdir REPLY -m connmark --mark 0x1000000/0xf000000 -m comment --comment gtm-return -j MARK --set-xmark 0x1000000/0xf000000\n', result.stdout)
+        self.assertNotIn('0x2000000', result.stdout)
+        # Offline previews never probe routes, so they render no marks.
+        result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', bind='0.0.0.0')
+        self.assertNotIn('rtmark', result.stdout)
+        self.assertNotIn('ct mark', result.stdout)
+
+    def test_return_rules_reconcile_only_owned_fwmark_rules(self):
+        code = r'''
+calls=()
+ip() {
+    case "$*" in
+        '-4 rule show') printf '0:\tfrom all lookup local\n1000:\tfrom 198.51.100.10 lookup 200\n31001:\tfrom all fwmark 0x1000000/0xf000000 lookup 200\n31003:\tfrom all fwmark 0x3000000/0xf000000 lookup old\n31005:\tfrom all fwmark 0x5 lookup foreign\n32766:\tfrom all lookup main\n';;
+        '-6 rule show') printf '0:\tfrom all lookup local\n32766:\tfrom all lookup main\n';;
+        *) calls+=("$*");;
+    esac
+}
+GTM_RT_RULES=("4|31001|0x1000000|200" "6|31002|0x2000000|isp2")
+gtm_return_rules_apply
+printf '%s\n' "${calls[@]}"
+'''
+        result = bash(code)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            '-4 rule del pref 31003 fwmark 0x3000000/0xf000000 lookup old',
+            '-6 rule add pref 31002 fwmark 0x2000000/0xf000000 lookup isp2'])
+
     def test_wildcard_kernel_bind_conflicts_with_specific_listener_on_its_port(self):
         wildcard = record(bind='0.0.0.0')
         specific = record(id='F000002', engine='iptables', bind='192.0.2.11', targets='203.0.113.30:443')

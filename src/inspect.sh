@@ -91,6 +91,9 @@ gtm_preflight_checks() {
             realm) gtm_need realm && gtm_realm_profile_preflight && gtm_realm_render > "$file" || return 1 ;;
         esac
     done
+    # Check the same return-route marks that apply will install.
+    GTM_RT_ADDRS=(); GTM_RT_RULES=()
+    if ((has4 || has6 || hasnft)); then gtm_return_routes_detect || return 1; fi
     for family in 4 6; do
         tool=iptables; [[ $family == 4 ]] || tool=ip6tables
         if { [[ $family == 4 ]] && ((has4)); } || { [[ $family == 6 ]] && ((has6)); } ||
@@ -167,6 +170,44 @@ gtm_plan() {
     printf '\nPreview excludes host-policy changes, global tuning, old-resource cleanup and FRP/rathole instances.\nOffline validation does not test routing, backend syntax or target health.\n'
 }
 
+# Multi-address hosts: per-address routing tables, strict reverse-path filters
+# and kernel forwards that still accept on one address only. Read-only.
+gtm_doctor_addresses() {
+    local entry family address mark table iface main state value strict line count key header=0
+    gtm_return_routes_detect || :
+    printf '\nAddresses with their own routing table (kernel-forward replies follow it):\n'
+    ((${#GTM_RT_ADDRS[@]})) || printf '  none\n'
+    for entry in ${GTM_RT_ADDRS[@]+"${GTM_RT_ADDRS[@]}"}; do
+        IFS='|' read -r family address mark table iface <<< "$entry"
+        state='not installed (applied with kernel forwards)'
+        [[ $(ip -"$family" rule show 2>/dev/null) != *"fwmark $mark/0xf000000 lookup $table"* ]] || state=active
+        printf '  %s on %s / table %s / return rule %s\n' "$address" "$iface" "$table" "$state"
+        [[ $family == 4 ]] || continue
+        main=$(ip -o -4 route get 1.1.1.1 2>/dev/null) || main=''
+        [[ $main =~ \ dev\ ([^ ]+) && ${BASH_REMATCH[1]} != "$iface" ]] || continue
+        strict=0
+        for value in all "$iface"; do
+            [[ $(cat "/proc/sys/net/ipv4/conf/$value/rp_filter" 2>/dev/null) != 1 ]] || strict=1
+        done
+        ((strict == 0)) || printf '    Strict rp_filter drops forwarded flows that enter on %s; set net.ipv4.conf.%s.rp_filter=2 (loose).\n' "$iface" "$iface"
+    done
+    for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
+        gtm_record_validate "$line" || continue
+        [[ $R_ENABLED == 1 && $R_ENGINE =~ ^(iptables|nftables)$ ]] && ! gtm_wildcard "$R_BIND" || continue
+        family=4; [[ $R_BIND == *:* ]] && family=6
+        gtm_key_of "$R_BIND" || continue
+        key=$GTM_KEY
+        count=0
+        while read -r address; do
+            gtm_key_of "${address%/*}" && [[ $GTM_KEY != "$key" ]] && count=$((count + 1))
+        done < <(ip -o -"$family" address show scope global 2>/dev/null | awk '{print $4}')
+        ((count)) || continue
+        ((header)) || { header=1; printf '\nKernel forwards limited to one local address:\n'; }
+        printf '  %s listens only on %s; %d other local IPv%s address(es) are not forwarded.\n' "$R_ID" "$R_BIND" "$count" "$family"
+    done
+    ((header == 0)) || printf '  Set Listen address to all local addresses to accept on every IP.\n'
+}
+
 gtm_doctor() {
     local tool line state used maximum errors=0
     printf 'Traffic Manager %s / read-only health report\n' "$GTM_VERSION"
@@ -188,6 +229,7 @@ gtm_doctor() {
     if command -v ip >/dev/null; then
         printf '\nGRE interfaces (includes current MTU):\n'
         ip -d link show type gre; ip -d link show type ip6gre
+        gtm_doctor_addresses
     fi
     if command -v systemctl >/dev/null; then
         printf '\nManaged relay state (configuration / service):\n'

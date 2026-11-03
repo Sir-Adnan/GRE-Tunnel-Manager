@@ -148,6 +148,92 @@ gtm_nft_render | nft -f -
 ip addr del 192.0.2.11/24 dev tm_in
 printf 'PASS: all-address kernel forwards work on additional IPs; explicit binds stay scoped.\n'
 
+# IPv6 additional addresses and dual-stack listeners on one port.
+ip -6 addr add 2001:db8:1::10/64 dev tm_in nodad
+ip -6 addr add 2001:db8:1::11/64 dev tm_in nodad
+ip -6 addr add 2001:db8:2::1/64 dev tm_out nodad
+nsenter -t "$client_ns" -n ip -6 addr add 2001:db8:1::2/64 dev tm_client nodad
+nsenter -t "$client_ns" -n ip -6 route add default via 2001:db8:1::10
+nsenter -t "$backend_ns" -n ip -6 addr add 2001:db8:2::20/64 dev tm_backend nodad
+nsenter -t "$backend_ns" -n ip -6 route add default via 2001:db8:2::1
+sysctl -qw net.ipv6.conf.all.forwarding=1
+printf '%s\n' $'F000012\tAll IPv4\tnftables\tboth\t0.0.0.0\t28454\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1' \
+    $'F000013\tAll IPv6\tnftables\tboth\t::\t28454\tsingle\t1\tmasquerade\tany\t[2001:db8:2::20]:28001@1\t1' > "$test_dir/dual.tsv"
+gtm_load_records "$test_dir/dual.tsv"
+gtm_preflight
+gtm_nft_render | nft -f -
+for address in 192.0.2.10 2001:db8:1::10 2001:db8:1::11; do
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client "$address" 28454
+done
+if command -v ip6tables-restore >/dev/null; then
+    GTM_RECORDS=($'F000014\tAll IPv6\tiptables\ttcp\t::\t28455\tsingle\t1\tmasquerade\tany\t[2001:db8:2::20]:28001@1\t1')
+    gtm_preflight
+    gtm_iptables_apply 6
+    for address in 2001:db8:1::10 2001:db8:1::11; do
+        nsenter -t "$client_ns" -n python3 tests/packet_probe.py client "$address" 28455 tcp
+    done
+    GTM_RECORDS=()
+    gtm_iptables_apply 6
+fi
+GTM_RECORDS=()
+gtm_nft_render | nft -f -
+sysctl -qw net.ipv6.conf.all.forwarding=0
+printf 'PASS: IPv6 additional addresses forward; IPv4 and IPv6 share a port.\n'
+
+# An additional IP with its own gateway (source policy routing). Upstream
+# anti-spoofing is modelled by strict rp_filter in the client namespace: a reply
+# from 198.51.100.10 is accepted only through that address's own link.
+ip link add tm_in2 type veth peer name tm_client2
+ip link set tm_client2 netns "$client_ns"
+ip addr add 198.51.100.10/24 dev tm_in2
+ip link set tm_in2 up
+nsenter -t "$client_ns" -n ip link set lo up
+nsenter -t "$client_ns" -n ip addr add 100.64.0.5/32 dev lo
+nsenter -t "$client_ns" -n ip addr add 198.51.100.2/24 dev tm_client2
+nsenter -t "$client_ns" -n ip link set tm_client2 up
+nsenter -t "$client_ns" -n ip route add 198.51.100.10/32 dev tm_client2 src 100.64.0.5
+for key in all tm_client tm_client2; do nsenter -t "$client_ns" -n sysctl -qw "net.ipv4.conf.$key.rp_filter=1"; done
+for key in all tm_in tm_in2; do sysctl -qw "net.ipv4.conf.$key.rp_filter=2"; done
+ip route add default via 192.0.2.2 dev tm_in
+ip rule add pref 1000 from 198.51.100.10 lookup 100
+ip route add default via 198.51.100.2 dev tm_in2 table 100
+saved_state=$GTM_STATE GTM_STATE=$test_dir/policy.tsv
+for engine in nftables iptables; do
+    [[ $engine == nftables ]] || command -v iptables-restore >/dev/null || continue
+    printf '%s\n' $'F000015\tAll addresses\t'"$engine"$'\ttcp\t0.0.0.0\t28456\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1' \
+        $'F000016\tMain only\t'"$engine"$'\ttcp\t192.0.2.10\t28457\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1' > "$GTM_STATE"
+    gtm_load_records
+    gtm_preflight
+    gtm_kernel_apply >/dev/null
+    [[ $(ip rule show) == *"31001:"*"from all fwmark 0x1000000/0xf000000 lookup 100"* ]] || { printf 'Return rule missing (%s)\n' "$engine" >&2; exit 1; }
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 198.51.100.10 28456 tcp
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28456 tcp
+    # Without the owned rule, replies leave through the main gateway and are dropped.
+    ip rule del pref 31001 fwmark 0x1000000/0xf000000 lookup 100
+    if nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 198.51.100.10 28456 tcp 2>/dev/null; then
+        printf 'Policy-routed address worked without its return rule (%s)\n' "$engine" >&2; exit 1
+    fi
+    gtm_kernel_apply >/dev/null
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 198.51.100.10 28456 tcp
+done
+sysctl -qw net.ipv4.conf.tm_in2.rp_filter=1
+report=$(gtm_doctor_addresses)
+sysctl -qw net.ipv4.conf.tm_in2.rp_filter=2
+for expected in '198.51.100.10 on tm_in2 / table 100 / return rule active' 'Strict rp_filter drops forwarded flows that enter on tm_in2' 'F000016 listens only on 192.0.2.10; 2 other local IPv4 address(es) are not forwarded.'; do
+    [[ $report == *"$expected"* ]] || { printf 'Doctor report lacks: %s\n%s\n' "$expected" "$report" >&2; exit 1; }
+done
+: > "$GTM_STATE"
+gtm_kernel_apply >/dev/null
+[[ $(ip rule show) != *0xf000000* ]] || { printf 'Owned return rule survived without records\n' >&2; exit 1; }
+[[ $(ip rule show) == *"from 198.51.100.10 lookup 100"* ]] || { printf 'Foreign policy rule was removed\n' >&2; exit 1; }
+ip rule del pref 1000 from 198.51.100.10 lookup 100
+ip route flush table 100
+ip route del default via 192.0.2.2 dev tm_in
+ip link del tm_in2
+for key in all tm_client; do nsenter -t "$client_ns" -n sysctl -qw "net.ipv4.conf.$key.rp_filter=0"; done
+GTM_STATE=$saved_state
+printf 'PASS: replies for an additional IP with its own gateway follow its routing table.\n'
+
 # Real GRE encapsulation using the retained key/address/MTU contracts.
 ip tunnel add gre10 mode gre local 203.0.113.1 remote 203.0.113.20 key 10
 nsenter -t "$backend_ns" -n ip tunnel add gre-out-10 mode gre local 203.0.113.20 remote 203.0.113.1 key 10

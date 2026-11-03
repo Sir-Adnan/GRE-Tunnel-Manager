@@ -47,7 +47,7 @@ The authoritative CI commands are in [.github/workflows/checks.yml](../.github/w
 
 Namespace tests require Linux namespace capabilities, `ip`, `nft`, `nsenter` and Python 3. Installed optional engines are exercised; tests do not download them. CI installs nftables, iptables, HAProxy, socat and ShellCheck. Set `GTM_PANEL_TEST_BINARY` to a matching Linux build to cover setup PTYs and actual panel accounting rather than skipping those optional checks.
 
-The suite creates private parent/child namespaces and veth paths. It checks real TCP/UDP NAT, repeat apply/deletion, rejected preflight preserving traffic, keyed GRE, route MSS without increasing a smaller peer MSS, relay failover/reload, PROXY metadata and paired creation. Host networking stays outside the fixture. Cleanup stops test processes. A constrained unit runner replaces systemd; actual service boot/reload behavior still requires disposable real hosts.
+The suite creates private parent/child namespaces and veth paths. It checks real TCP/UDP NAT, repeat apply/deletion, rejected preflight preserving traffic, IPv4/IPv6 additional addresses, dual-stack listeners on one port, return routing for an address with its own gateway (strict `rp_filter` in the client namespace models upstream anti-spoofing), keyed GRE, route MSS without increasing a smaller peer MSS, relay failover/reload, PROXY metadata and paired creation. Host networking stays outside the fixture. Cleanup stops test processes. A constrained unit runner replaces systemd; actual service boot/reload behavior still requires disposable real hosts.
 
 ## Fixtures and contracts
 
