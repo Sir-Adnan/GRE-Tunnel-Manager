@@ -2,7 +2,7 @@
 
 Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
 
-Version **v1.3.5** redesigns the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixes iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
+Version **v1.3.6** routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
 
 ## Installation and login
 
@@ -50,7 +50,7 @@ Explicit HTTP works on an IP without a certificate, but browser login and manage
 
 ### Existing installations and recovery
 
-Run the current installer again to upgrade to the matching **v1.3.5** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+Run the current installer again to upgrade to the matching **v1.3.6** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
 
 Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. If an upgraded panel fails to start, the installer reinstalls the previous executable and helper and starts them again. Rewritten unit files stay in place. That rollback is not a host-wide atomic transaction: inspect logs when it reports failure. Keep private backups of configuration and Node identities.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.3.6 — Return routing for additional IPs with their own gateway
 
 ### Server and tooling
 
