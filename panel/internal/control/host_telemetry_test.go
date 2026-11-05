@@ -32,7 +32,7 @@ func TestHostTelemetryUsesDeltasCacheAndDefaultRoutes(t *testing.T) {
 	if a.CPU != nil || a.Received != nil || a.MemoryTotal != 2048*1024 || len(a.Interfaces) != 1 || a.Interfaces[0] != "eth0" {
 		t.Fatal(a)
 	}
-	s.sample(now.Add(time.Second), read)
+	s.sample(now.Add(500*time.Millisecond), read)
 	if reads != 5 {
 		t.Fatal("cache bypass", reads)
 	}

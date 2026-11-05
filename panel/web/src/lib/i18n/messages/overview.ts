@@ -22,8 +22,8 @@ export const overview = {
     "بعضی شمارنده‌های سرور در دسترس نیستند. مقدارهای موجود همچنان نمایش داده می‌شوند.",
   ],
   liveInterval: [
-    "Switch between 5 and 15 second updates",
-    "تغییر فاصلهٔ به‌روزرسانی بین 5 و 15 ثانیه",
+    "Live update interval (1 s is the finest useful step)",
+    "فاصلهٔ به‌روزرسانی زنده (کمترین گام مفید 1 ثانیه است)",
   ],
   memory: ["Server memory", "حافظهٔ سرور"],
   allHealthy: ["All services healthy", "همهٔ سرویس‌ها سالم‌اند"],

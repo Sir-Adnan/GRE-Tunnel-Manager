@@ -45,9 +45,9 @@ git diff --check
 
 The authoritative CI commands are in [.github/workflows/checks.yml](../.github/workflows/checks.yml). SC2034 is excluded because modules share public variables. Legacy scripts remain unchanged and are outside the modern-module lint gate.
 
-Namespace tests require Linux namespace capabilities, `ip`, `nft`, `nsenter` and Python 3. Installed optional engines are exercised; tests do not download them. CI installs nftables, iptables, HAProxy, socat and ShellCheck. Set `GTM_PANEL_TEST_BINARY` to a matching Linux build to cover setup PTYs and actual panel accounting rather than skipping those optional checks.
+Namespace tests require Linux namespace capabilities, `ip`, `nft`, `nsenter` and Python 3. Installed optional engines are exercised; tests do not download them. CI installs nftables, iptables, conntrack, HAProxy, socat and ShellCheck. Set `GTM_PANEL_TEST_BINARY` to a matching Linux build to cover setup PTYs and actual panel accounting rather than skipping those optional checks.
 
-The suite creates private parent/child namespaces and veth paths. It checks real TCP/UDP NAT, repeat apply/deletion, rejected preflight preserving traffic, IPv4/IPv6 additional addresses, dual-stack listeners on one port, return routing for an address with its own gateway (strict `rp_filter` in the client namespace models upstream anti-spoofing), keyed GRE, route MSS without increasing a smaller peer MSS, relay failover/reload, PROXY metadata and paired creation. Host networking stays outside the fixture. Cleanup stops test processes. A constrained unit runner replaces systemd; actual service boot/reload behavior still requires disposable real hosts.
+The suite creates private parent/child namespaces and veth paths. It checks real TCP/UDP NAT, repeat apply/deletion, rejected preflight preserving traffic, IPv4/IPv6 additional addresses, dual-stack listeners on one port, return routing for an address with its own gateway (strict `rp_filter` in the client namespace models upstream anti-spoofing), maintenance rule refresh keeping established flows and flow reset clearing only the selected forward (needs the `conntrack` CLI; otherwise reported as skipped), keyed GRE, route MSS without increasing a smaller peer MSS, relay failover/reload, PROXY metadata and paired creation. Host networking stays outside the fixture. Cleanup stops test processes. A constrained unit runner replaces systemd; actual service boot/reload behavior still requires disposable real hosts.
 
 ## Fixtures and contracts
 
@@ -66,6 +66,10 @@ Keep LF endings, bounded data contracts and checked operations. Do not source us
 Technical guides are English; [README.fa.md](../README.fa.md) is the Persian quick start. Keep user-facing guides about current behavior, move completed implementation reports to the [archive](archive/README.md), and record changes in the changelog.
 
 Use MAJOR.MINOR.PATCH for application releases; state schemas and Node protocols are versioned independently. Historical v13.x tags keep their original numbers. Follow [Releasing](RELEASING.md) for matched versions, packages and publication. Local tests do not establish public-network reachability, reboot recovery or sustained capacity; see [Operations](OPERATIONS.md#deployment-checks-still-requiring-real-hosts).
+
+## Health and maintenance regressions
+
+`internal/health` tests cover failure/recovery thresholds, outage start times, multi-destination status, latency warnings, removed targets, merged report downtime, local week boundaries (Saturday in a +03:30 zone), retention, revision checks and `/proc` deltas. `internal/maintenance` tests cover local daily/weekly/uptime/interval schedules, missed runs, cancellable notices, the reboot loop guard, cooldown, quiet-traffic waits and timeouts, health durations, refresh applicability, manual runs and persistence. `control/operations_test.go` checks the allowlisted command of each step and the demo simulation. `tests/operations.test.mjs` checks templates, validation, summaries and the report CSV. In the browser, check both pages in both locales and at phone width, a reboot plan's second confirmation, Run now and Cancel on a pending notice.
 
 ## Telemetry and quota regressions
 

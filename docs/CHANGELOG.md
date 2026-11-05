@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.7 — Health monitoring and scheduled maintenance
+
+### Panel
+
+- Add an optional **Health** page, off by default. On a configurable interval (default 30 s) it checks every enabled destination with one TCP connection (ping for UDP-only services), GRE peers over the tunnel and managed service units. It shows current status, latency sparklines, 24 h / 7 d / 30 d uptime with hourly and daily cells, an outage history and a weekly report (CSV and print) with downtime, latency, jitter, server load, maintenance runs and accounted traffic. Thresholds, slow-latency warning and retention (1–90 days) are configurable.
+- Show server pressure on **Health → Server**: conntrack usage, hash buckets, idle-TCP timeout and drops, and CPU steal, softirq and I/O wait, read from `/proc` and `/sys`. Hints point to ServerTools for tuning; the panel changes no kernel settings. This explains the common case of ping and jitter that rise over hours and clear after a reboot.
+- Add an optional **Maintenance** page, off by default, with plans for a soft refresh (reapply kernel rules, reload HAProxy gracefully; no disconnects), a restart (services, GRE links, reverse tunnels; for kernel forwards, clearing only that forward's tracked flows) or a server reboot. Triggers: daily, weekdays, every N hours, after long uptime and health conditions (down or high latency for N minutes, acting only on affected tunnels). Guards: time window, quiet-traffic wait, cooldown, daily limit, cancellable notice, pause between tunnels, reboot loop guard and dry run. Six templates, Run now, pending countdown with Cancel, and history. Enabled reboot plans need a second confirmation.
+- The dashboard's live activity refreshes every 2 seconds by default, with 1, 2, 5 and 15 seconds selectable and remembered per browser. The server-side sample cache drops from two seconds to under one.
+
+### Server and tooling
+
+- Add Bash API operations `kernel-refresh` (reapply owned kernel rules from saved state under the manager lock) and `flows-reset ID` (delete the conntrack entries one kernel forward DNATed to its own targets; never a table flush). They require the `conntrack` CLI for flow resets.
+- The broker keeps health and maintenance state in root-only `health.json` and `maintenance.json` under `/var/lib/gre-manager-panel`. No unit, timer, firewall rule or daemon is added; Agent brokers do not run either feature.
+- Namespace tests show that a rule refresh keeps established flows and a flow reset clears only the selected forward. CI installs `conntrack`. Local evidence only; long-running behavior and real reboots were not tested on a server.
+
 ## v1.3.6 — Return routing for additional IPs with their own gateway
 
 ### Server and tooling

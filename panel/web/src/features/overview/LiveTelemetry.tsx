@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HelpTip } from "@/components/help";
+import { Segmented } from "@/components/Segmented";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { number, trafficBytes } from "@/lib/format";
 import { useHostTelemetry } from "./useHostTelemetry";
@@ -22,11 +23,32 @@ function rate(bytes: number | null | undefined, locale: "en" | "fa") {
   return `${number(bits / unit, locale, 1)} ${unit === 1e9 ? "Gbps" : unit === 1e6 ? "Mbps" : unit === 1e3 ? "Kbps" : "bps"}`;
 }
 
+/** Dashboard sampling choices in seconds. Below 1 s the network rate is noise. */
+const liveIntervals = [1, 2, 5, 15] as const;
+const liveKey = "gtm.live-interval.v1";
+
+function storedInterval(): number {
+  try {
+    const value = Number(globalThis.localStorage?.getItem(liveKey));
+    return (liveIntervals as readonly number[]).includes(value) ? value : 2;
+  } catch {
+    return 2;
+  }
+}
+
 export function LiveTelemetry() {
   const t = useT(),
     locale = useContext(LocaleContext);
   const [enabled, setEnabled] = useState(true);
-  const [interval, setSampleInterval] = useState(5);
+  const [interval, setStoredInterval] = useState(storedInterval);
+  const setSampleInterval = (value: number) => {
+    setStoredInterval(value);
+    try {
+      globalThis.localStorage?.setItem(liveKey, String(value));
+    } catch {
+      /* blocked storage: the choice lasts for this page only */
+    }
+  };
   const { sample, error } = useHostTelemetry(enabled, interval);
   const stale = error;
   const ready = !stale;
@@ -94,14 +116,16 @@ export function LiveTelemetry() {
             </Badge>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSampleInterval(interval === 5 ? 15 : 5)}
-              aria-label={t("liveInterval")}
-            >
-              <bdi>{interval}s</bdi>
-            </Button>
+            <Segmented
+              label={t("liveInterval")}
+              value={String(interval)}
+              onChange={(value) => setSampleInterval(Number(value))}
+              className="live-interval"
+              options={liveIntervals.map((value) => ({
+                value: String(value),
+                label: <bdi dir="ltr">{value}s</bdi>,
+              }))}
+            />
             <Button
               variant="outline"
               size="sm"

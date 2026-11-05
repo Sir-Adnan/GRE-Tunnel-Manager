@@ -234,6 +234,38 @@ for key in all tm_client; do nsenter -t "$client_ns" -n sysctl -qw "net.ipv4.con
 GTM_STATE=$saved_state
 printf 'PASS: replies for an additional IP with its own gateway follow its routing table.\n'
 
+# Maintenance: reapplying rules keeps established flows; a flow reset clears
+# only the selected forward's DNAT entries.
+if command -v conntrack >/dev/null; then
+    saved_state=$GTM_STATE GTM_STATE=$test_dir/flows.tsv
+    printf '%s\n' $'F000017\tReset me\tnftables\ttcp\t0.0.0.0\t28458\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1' \
+        $'F000018\tKeep me\tnftables\ttcp\t192.0.2.10\t28459\tsingle\t1\tmasquerade\tany\t203.0.113.20:28001@1\t1' > "$GTM_STATE"
+    gtm_load_records
+    gtm_preflight
+    gtm_kernel_apply >/dev/null
+    hold='import socket, sys, time
+held = [socket.create_connection((sys.argv[1], int(sys.argv[2]))) for _ in range(int(sys.argv[3]))]
+time.sleep(30)'
+    nsenter -t "$client_ns" -n python3 -c "$hold" 192.0.2.10 28458 2 & hold_reset=$!
+    nsenter -t "$client_ns" -n python3 -c "$hold" 192.0.2.10 28459 1 & hold_keep=$!
+    flows() { conntrack -L -p tcp --orig-port-dst "$1" 2>/dev/null | grep -c ESTABLISHED || true; }
+    for _ in $(seq 50); do [[ $(flows 28458) == 2 && $(flows 28459) == 1 ]] && break; sleep 0.1; done
+    [[ $(flows 28458) == 2 && $(flows 28459) == 1 ]] || { printf 'Held flows missing: %s/%s\n' "$(flows 28458)" "$(flows 28459)" >&2; exit 1; }
+    gtm_kernel_apply >/dev/null
+    [[ $(flows 28458) == 2 && $(flows 28459) == 1 ]] || { printf 'Rule refresh dropped established flows\n' >&2; exit 1; }
+    result=$(gtm_flows_reset F000017)
+    [[ $result == 'Cleared 2 tracked flow(s) for F000017;'* ]] || { printf 'Unexpected reset result: %s\n' "$result" >&2; exit 1; }
+    [[ $(flows 28458) == 0 && $(flows 28459) == 1 ]] || { printf 'Flow reset touched other forwards: %s/%s\n' "$(flows 28458)" "$(flows 28459)" >&2; exit 1; }
+    kill "$hold_reset" "$hold_keep" 2>/dev/null || true
+    wait "$hold_reset" "$hold_keep" 2>/dev/null || true
+    : > "$GTM_STATE"
+    gtm_kernel_apply >/dev/null
+    GTM_STATE=$saved_state
+    printf 'PASS: rule refresh keeps established flows; flow reset clears only the selected forward.\n'
+else
+    printf 'SKIP: conntrack CLI unavailable; flow reset fixture not run.\n'
+fi
+
 # Real GRE encapsulation using the retained key/address/MTU contracts.
 ip tunnel add gre10 mode gre local 203.0.113.1 remote 203.0.113.20 key 10
 nsenter -t "$backend_ns" -n ip tunnel add gre-out-10 mode gre local 203.0.113.20 remote 203.0.113.1 key 10

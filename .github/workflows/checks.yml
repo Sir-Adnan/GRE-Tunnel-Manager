@@ -12,7 +12,7 @@ jobs:
           python-version: '3.12'
       - run: python tools/build.py --check
       - run: python -m unittest discover -s tests -v
-      - run: sudo apt-get update && sudo apt-get install -y nftables iptables haproxy socat shellcheck
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables conntrack haproxy socat shellcheck
       - run: shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,components,relays,transports,rathole,catalog,inspect,forms,tuning,cleanup,links,reverse_api,pair_api,recovery,api,panel,menus}.sh panel-install.sh node-install.sh
       - run: sudo bash tests/linux_namespace.sh
       - run: sudo bash tests/component_publish_namespace.sh
@@ -36,7 +36,7 @@ jobs:
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
         working-directory: panel
       - run: env GTM_PANEL_TEST_BINARY="$PWD/panel/bin/gtm-panel-linux-amd64" python3 -m unittest discover -s tests -p test_panel_setup_pty.py -v
-      - run: sudo apt-get update && sudo apt-get install -y nftables iptables haproxy socat
+      - run: sudo apt-get update && sudo apt-get install -y nftables iptables conntrack haproxy socat
       - run: go test -c -o bin/gtm-control-tests ./internal/control
         working-directory: panel
       - run: sudo ./panel/bin/gtm-control-tests -test.run='^TestQuotaKernelStopsEstablishedRelayAndResumes$' -test.v

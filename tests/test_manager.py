@@ -145,7 +145,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.3.6')
+        self.assertEqual(result.stdout.strip(),'v1.3.7')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)
@@ -408,6 +408,47 @@ printf '%s\n' "${calls[@]}"
         self.assertEqual(result.stdout.splitlines(), [
             '-4 rule del pref 31003 fwmark 0x3000000/0xf000000 lookup old',
             '-6 rule add pref 31002 fwmark 0x2000000/0xf000000 lookup isp2'])
+
+    def test_flows_reset_deletes_only_one_forwards_dnat_flows(self):
+        wildcard = record(protocol='both', bind='0.0.0.0', strategy='roundrobin', targets='203.0.113.20:443@1,203.0.113.21:8443@1')
+        explicit = record(id='F000002', engine='iptables', bind='192.0.2.11', port='9000', targets='203.0.113.30:9001@1')
+        relay = record(id='F000003', engine='haproxy', port='7000', targets='203.0.113.40:7000@1')
+        (ROOT / '.work').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
+            state = Path(directory) / 'state.tsv'
+            state.write_text('\n'.join([wildcard, explicit, relay]) + '\n', newline='\n')
+            stub = ('GTM_STATE=' + shlex.quote(state.as_posix()) + '\n'
+                    'conntrack() { printf "%s\\n" "$*" >> "$GTM_STATE.calls"; '
+                    'printf "conntrack v1.4.8 (conntrack-tools): 2 flow entries have been deleted.\\n" >&2; return 1; }\n')
+            result = bash(stub + 'gtm_flows_reset F000001 && gtm_flows_reset F000002 && cat "$GTM_STATE.calls"')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lines = result.stdout.splitlines()
+            self.assertIn('Cleared 8 tracked flow(s) for F000001; clients reconnect on their next packet.', lines)
+            self.assertIn('Cleared 2 tracked flow(s) for F000002; clients reconnect on their next packet.', lines)
+            self.assertEqual([line for line in lines if line.startswith('-D')], [
+                '-D -f ipv4 -p tcp --orig-port-dst 443 --reply-src 203.0.113.20 --reply-port-src 443',
+                '-D -f ipv4 -p tcp --orig-port-dst 443 --reply-src 203.0.113.21 --reply-port-src 8443',
+                '-D -f ipv4 -p udp --orig-port-dst 443 --reply-src 203.0.113.20 --reply-port-src 443',
+                '-D -f ipv4 -p udp --orig-port-dst 443 --reply-src 203.0.113.21 --reply-port-src 8443',
+                '-D -f ipv4 -p tcp --orig-port-dst 9000 --reply-src 203.0.113.30 --reply-port-src 9001 --orig-dst 192.0.2.11'])
+            for code, message in [('gtm_flows_reset F000003', 'Only kernel forwards keep conntrack mappings.'),
+                                  ('gtm_flows_reset F000009', 'Connection not found.'),
+                                  ('gtm_flows_reset "F1;reboot"', 'Invalid connection ID.')]:
+                result = bash(stub + code)
+                self.assertNotEqual(result.returncode, 0, code)
+                self.assertIn(message, result.stderr)
+            failing = ('GTM_STATE=' + shlex.quote(state.as_posix()) + '\n'
+                       'conntrack() { printf "conntrack v1.4.8: Operation not permitted\\n" >&2; return 1; }\n')
+            result = bash(failing + 'gtm_flows_reset F000001')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('conntrack failed', result.stderr)
+
+    def test_api_allowlists_maintenance_operations(self):
+        source = (ROOT / 'src' / 'api.sh').read_text()
+        self.assertIn('kernel-refresh) (($#==0))', source)
+        self.assertIn('flows-reset) (($#==1))', source)
+        result = bash('gtm_api flows-reset')
+        self.assertEqual(result.returncode, 2)
 
     def test_wildcard_kernel_bind_conflicts_with_specific_listener_on_its_port(self):
         wildcard = record(bind='0.0.0.0')

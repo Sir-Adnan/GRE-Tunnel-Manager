@@ -8,6 +8,8 @@ import { resources } from "./resources";
 import { backups } from "./backups";
 import { system } from "./system";
 import { login } from "./login";
+import { health } from "./health";
+import { maintenance } from "./maintenance";
 
 export const modules = {
   common,
@@ -19,6 +21,8 @@ export const modules = {
   backups,
   system,
   login,
+  health,
+  maintenance,
 };
 
 export const messages = {
@@ -31,4 +35,6 @@ export const messages = {
   ...backups,
   ...system,
   ...login,
+  ...health,
+  ...maintenance,
 };

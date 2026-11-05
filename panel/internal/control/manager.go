@@ -60,6 +60,8 @@ type Resource struct {
 	Port        int    `json:"port,omitempty"`
 	Protocol    string `json:"protocol,omitempty"`
 	Revision    string `json:"revision,omitempty"`
+	// Peer is the far end's inner GRE address, read from the owned unit.
+	Peer string `json:"peer,omitempty"`
 }
 type Component struct {
 	ID            string `json:"id"`
@@ -107,6 +109,8 @@ type Request struct {
 	MetricsRevision *uint64          `json:"metrics_revision,omitempty"`
 	Traffic         TrafficChange    `json:"traffic"`
 	ResourceName    ResourceName     `json:"resource_name"`
+	Health          HealthInput      `json:"health,omitzero"`
+	Maintenance     MaintenanceInput `json:"maintenance,omitzero"`
 }
 type Manager struct {
 	telemetry hostSampler
@@ -116,6 +120,8 @@ type Manager struct {
 	ConfigDir string
 	UnitDir   string
 	Metrics   *Metrics
+	// Ops is nil on Agent brokers, which offer no health or maintenance.
+	Ops *Operations
 }
 
 func NewManager() *Manager {
@@ -192,6 +198,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 				resource.Role = "iran"
 				resource.Interface = "gre-out-" + tid
 			}
+			resource.Peer = grePeer(text)
 			resource.Configured = true
 		} else {
 			parts := strings.SplitN(strings.TrimPrefix(id, "gtm-"), "-", 3)
@@ -254,6 +261,11 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 	switch r.Action {
 	case "host-telemetry":
 		return m.telemetry.Sample(), nil
+	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
+		if m.Ops == nil {
+			return nil, errors.New("health and maintenance are unavailable on this broker")
+		}
+		return m.Ops.execute(time.Now().UTC(), r, m.Metrics)
 	case "engine-releases":
 		return m.engineReleases(ctx), nil
 	case "engine-update":

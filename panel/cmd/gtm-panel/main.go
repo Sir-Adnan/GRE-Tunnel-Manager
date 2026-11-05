@@ -134,6 +134,11 @@ func run() error {
 			return e
 		}
 		manager.Metrics = metrics
+		if !*agentTraffic {
+			if manager.Ops, e = control.NewOperations("/var/lib/gre-manager-panel"); e != nil {
+				return e
+			}
+		}
 		return (&control.Broker{Manager: manager, ReadOnly: *readOnly, AgentTraffic: *agentTraffic, Nodes: nodeExecutor}).Listen(ctx, *socket)
 	case "serve":
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {

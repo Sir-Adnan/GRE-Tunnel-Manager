@@ -25,6 +25,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | [Realm profiles](REALM-PROFILES.md) | WS, MPTCP and IPv6-only options |
 | [Configuration editor](CONFIGURATION-EDITOR.md) | Inspection, supported edits and review/apply |
 | [Traffic accounting](TRAFFIC-ACCOUNTING.md) · [Remote summaries](REMOTE-TRAFFIC.md) | Collection, resets, quotas, history and Node reports |
+| [Health and maintenance](HEALTH-AND-MAINTENANCE.md) | Uptime, outages, weekly reports, conntrack pressure and scheduled refresh/restart/reboot |
 | [Performance](PERFORMANCE.md) · [Tuning and cleanup](TUNING-CLEANUP.md) | Capacity limits and explicit host tuning |
 
 ## Development and reference

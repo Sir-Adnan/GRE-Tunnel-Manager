@@ -55,7 +55,9 @@ func (s *hostSampler) Sample() HostTelemetry {
 func (s *hostSampler) sample(now time.Time, read func(string) ([]byte, error)) HostTelemetry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.view.Time.IsZero() && now.Sub(s.view.Time) < 2*time.Second {
+	// Several open dashboards share one sample; 1-second polling still gets
+	// a fresh window each time.
+	if !s.view.Time.IsZero() && now.Sub(s.view.Time) < 900*time.Millisecond {
 		return s.view
 	}
 	v := HostTelemetry{Time: now, Interfaces: []string{}}
@@ -88,7 +90,7 @@ func (s *hostSampler) sample(now time.Time, read func(string) ([]byte, error)) H
 	}
 	slices.Sort(v.Interfaces)
 	window := now.Sub(s.last.time).Seconds()
-	if window >= 1 && window <= 30 {
+	if window >= 0.9 && window <= 30 {
 		v.Window = window
 		if next.cpuValid && s.last.cpuValid && next.total > s.last.total && next.idle >= s.last.idle {
 			total, idle := next.total-s.last.total, next.idle-s.last.idle

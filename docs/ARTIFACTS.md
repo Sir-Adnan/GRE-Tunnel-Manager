@@ -102,8 +102,12 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 | `/run/gre-manager-panel/broker.sock` | Group-protected local socket, mode 660 inside mode-750 runtime directory |
 | `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |
 | `/var/lib/gre-manager-panel/audit.jsonl{,.1}` | Root-only bounded action metadata; no tokens, keys, passwords or request bodies |
+| `/var/lib/gre-manager-panel/health.json` | Root-only optional health settings, current probe state, hourly rollups and outages, mode 600; bounded by the retention setting (1–90 days, 128 targets, 1,000 outages, 32 MiB) |
+| `/var/lib/gre-manager-panel/maintenance.json` | Root-only maintenance settings, at most 32 plans, their schedule state and the newest 1,000 history entries, mode 600 |
 | `inet gtm_panel_metrics` | Optional separate nftables counters; removed when accounting is disabled |
 | `grepanel` system user/group | Restricted panel service account, no login shell |
+
+Health and maintenance add no unit, timer, firewall rule or kernel setting; the broker runs them and they stop with it. A maintenance restart of a kernel forward deletes only conntrack entries matching that forward's port and targets (`conntrack -D ... --reply-src TARGET --reply-port-src PORT`); the table is never flushed. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
 
 Stopping the panel does not delete tunnels, credentials, certificates or totals. Accounting counters remain if collection was enabled; disable it first to remove counting overhead. Package installation suppresses autostart of newly installed distribution HAProxy; existing operator service policy is preserved. Browser appearance/language choices are stored locally and never used for authorization. See [WEB-PANEL.md](WEB-PANEL.md).
 

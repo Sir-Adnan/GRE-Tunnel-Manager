@@ -25,6 +25,9 @@ var actions = map[string]actionSpec{
 	"configuration-review":        {read: true},
 	"configuration-import-review": {read: true},
 	"engine-releases":             {read: true},
+	"health":                      {read: true},
+	"health-report":               {read: true},
+	"maintenance":                 {read: true},
 
 	"create":                     {public: true},
 	"update":                     {public: true},
@@ -48,6 +51,12 @@ var actions = map[string]actionSpec{
 	"configuration-apply":        {public: true},
 	"configuration-import-apply": {public: true},
 	"engine-update":              {public: true},
+	"health-configure":           {public: true},
+	"maintenance-configure":      {public: true},
+	"maintenance-save":           {public: true},
+	"maintenance-delete":         {public: true},
+	"maintenance-run":            {public: true},
+	"maintenance-cancel":         {public: true},
 
 	"backup-export":  {backup: true},
 	"backup-review":  {backup: true},

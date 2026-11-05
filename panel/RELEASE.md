@@ -1,23 +1,28 @@
-# GRE Tunnel Manager v1.3.6
+# GRE Tunnel Manager v1.3.7
 
-Kernel forwards now work on additional IPs that have their own gateway, and IPv4/IPv6 forwards can share a port.
+The panel gains optional health monitoring and scheduled maintenance. Both are off after installing or upgrading, and do no background work while off.
 
-## Additional IPs with their own gateway
+## Health
 
-- Some providers route an additional IP through a separate gateway, set up as source policy routing (`ip rule add from X lookup N`). Forwarded replies are routed before their source changes back to that IP, so they left through the main gateway and the provider dropped them. HAProxy/Realm were not affected.
-- On apply, the manager finds each address's routing table with a route lookup that sends no packets. Flows entering on such an address get a connection mark (bits `0xf000000`). An owned `ip rule` at preference 31001-31015 sends their replies through the same table. Both iptables and nftables are covered.
-- Servers without per-address tables get exactly the same rules as before. The return rules are reconciled on every apply and at boot and removed with the last kernel forward; other `ip rule` entries are never touched.
-- After changing the server's routing policy, apply again or restart `gre-manager-forwarding.service`. Strict reverse-path filtering (`rp_filter=1`) on that address's interface still drops these flows; use `2` (loose).
+- **Health** checks every enabled destination on an interval (default 30 s): one TCP connection closed before any data, or a ping for UDP-only services. It also pings GRE peers over the tunnel and reads managed service states.
+- It shows status, latency, 24 h / 7 d / 30 d uptime with hourly and daily cells, an outage history and a weekly report with downtime, latency, jitter, server load, maintenance runs and accounted traffic. The report exports as CSV and prints.
+- **Health → Server** shows conntrack usage, hash size, the idle-TCP timeout and drops, plus CPU steal, softirq and I/O wait. Ping and jitter that rise over hours and clear after a reboot usually come from a filling conntrack table; the page names the cause and points to [ServerTools](https://github.com/Sir-Adnan/server-tools) for tuning. The panel changes no kernel setting.
+
+## Maintenance
+
+- Plans run a **soft refresh** (reapply kernel rules, reload HAProxy gracefully; nobody is disconnected), a **restart** (services, GRE links, reverse tunnels) or a **server reboot**.
+- A restart of an nftables/iptables forward clears only that forward's tracked flows, which for it has the same effect as a reboot. The conntrack table is never flushed. This needs the `conntrack` package.
+- Triggers: daily, on weekdays, every N hours, after long uptime, or when a tunnel is down or slow for N minutes (only affected tunnels are acted on).
+- Guards: time window, wait for quiet traffic, cooldown, daily limit, cancellable notice, pause between tunnels, a reboot loop guard and dry run. Six templates are included. Saving an enabled reboot plan asks twice.
 
 ## Other changes
 
-- IPv4 and IPv6 kernel forwards can use the same port. A relay on `::` and a kernel forward on the same port still conflict, because the relay can accept IPv4.
-- `--doctor` (and Doctor in the panel) lists addresses with their own routing table and whether their return rule is active. It warns about strict `rp_filter` and names kernel forwards that still listen on one address, such as records saved before v1.3.5. Saved records are not changed; set **Listen address** to all local addresses to accept on every IP.
+- Dashboard live activity refreshes every 2 s by default; 1, 2, 5 or 15 s can be chosen and is remembered in the browser.
 
 ## Upgrade and verification
 
-Run the current panel installer to install the matching v1.3.6 package, then refresh the browser. Downloading the script alone does not upgrade the executable. Existing credentials, certificates and managed tunnel settings are kept. Use matching Controller/Agent packages when upgrading Nodes.
+Run the current panel installer to install the matching v1.3.7 package, then refresh the browser. Downloading the script alone does not upgrade the executable. Existing credentials, certificates and managed tunnel settings are kept. Use matching Controller/Agent packages when upgrading Nodes. Install `conntrack` (`apt install conntrack`) if you plan restart plans for kernel forwards.
 
 Linux amd64/arm64 archives contain the executable, embedded frontend, matching Bash helper and dependency notices. Verify `SHA256SUMS`. Managed servers do not need Node.js, Python or a compiler.
 
-Tested in isolated Linux network namespaces and CI, including a policy-routed address with modelled upstream anti-spoofing. Not yet verified on a real provider network.
+Tested with unit tests and in isolated Linux network namespaces, including a check that rule refresh keeps established flows and flow reset clears only the selected forward. Long-running behavior and real reboots have not yet been verified on a server.

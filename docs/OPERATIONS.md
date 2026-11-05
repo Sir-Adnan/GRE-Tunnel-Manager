@@ -78,6 +78,18 @@ The delete action lists managed connections referencing `greID`, `gre-out-ID`, `
 
 This protects the default managed address/interface contracts. Custom routing, manually edited addresses, legacy rules and separate FRP endpoints are outside the dependency model. Review them before deleting. No dependent forwarding record is silently deleted.
 
+## High latency that a reboot fixes
+
+Rising ping and jitter over hours, cleared by a reboot, usually mean the connection-tracking table is filling with abandoned client connections (the kernel keeps idle TCP entries for five days by default). Reapplying kernel rules does not help: existing flows keep their NAT mappings. Check **Health → Server** or run:
+
+```bash
+sysctl net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max net.netfilter.nf_conntrack_tcp_timeout_established
+cat /sys/module/nf_conntrack/parameters/hashsize
+sudo conntrack -S
+```
+
+Tune the host with [ServerTools](https://github.com/Sir-Adnan/server-tools) (`st` → Quick Optimize), which sets a one-hour idle timeout on forwarders and sizes the hash table with the limit. To recover one forward without a reboot, a maintenance **Restart** clears only that forward's tracked flows; its clients reconnect. To rule out the destination, restart its proxy first: rebooting this server also drops every connection to the destination. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
+
 ## Deployment checks still requiring real hosts
 
 Namespace checks cover actual GRE/NAT/relay packets in isolation. Before replacing a production installation, verify the actual two-server path, reboot readiness, systemd sandbox behavior, provider GRE/UDP policy, IPv6 RA, UFW/Docker integration, certificate renewal, large packets and long-lived sessions. Measure load with the intended TCP/UDP workload before choosing limits or claiming capacity.

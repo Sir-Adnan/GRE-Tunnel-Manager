@@ -3,7 +3,9 @@ import {
   Archive,
   ArrowLeftRight,
   Boxes,
+  CalendarClock,
   Gauge,
+  HeartPulse,
   Layers3,
   Network,
   Server,
@@ -22,6 +24,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
       { id: "overview", icon: Gauge },
       { id: "connections", icon: Layers3 },
       { id: "traffic", icon: Activity },
+      { id: "health", icon: HeartPulse },
     ],
   },
   {
@@ -35,6 +38,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
   {
     title: "systemGroup",
     items: [
+      { id: "maintenance", icon: CalendarClock },
       { id: "components", icon: Boxes },
       { id: "backups", icon: Archive },
       { id: "settings", icon: Settings2 },

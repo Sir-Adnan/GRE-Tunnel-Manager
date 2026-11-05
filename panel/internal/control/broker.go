@@ -99,6 +99,9 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		result, e = b.Manager.Execute(operationContext, request)
 	}
+	if b.Manager.Ops != nil {
+		b.Manager.Ops.invalidate()
+	}
 	auditedError := e
 	if r, ok := result.(NodeResult); ok && oneOf(r.State, "failed", "unknown") {
 		auditedError = errors.New("node task incomplete")
@@ -176,6 +179,10 @@ func (b *Broker) Listen(ctx context.Context, socket string) error {
 	}
 	if b.Nodes != nil {
 		go b.monitorNodes(ctx, done)
+	}
+	if b.Manager.Ops != nil && !b.ReadOnly {
+		go b.monitorHealth(ctx, done)
+		go b.runMaintenance(ctx, done)
 	}
 	e = server.Serve(listener)
 	if errors.Is(e, http.ErrServerClosed) {

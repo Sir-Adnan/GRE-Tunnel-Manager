@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/auth"
@@ -119,6 +120,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "/api/host/telemetry" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "host-telemetry"})
+	case r.URL.Path == "/api/health" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "health"})
+	case r.URL.Path == "/api/health/report" && r.Method == "GET":
+		week, e1 := strconv.Atoi(r.URL.Query().Get("week"))
+		start, e2 := strconv.Atoi(r.URL.Query().Get("week_start"))
+		if e1 != nil || e2 != nil {
+			failure(w, 400, "invalid report week")
+			return
+		}
+		s.forward(w, r, control.Request{Action: "health-report", Health: control.HealthInput{Week: week, WeekStart: start}})
+	case r.URL.Path == "/api/maintenance" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "maintenance"})
 	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "engine-releases"})
 	case r.URL.Path == "/api/configuration/import/review" && r.Method == "POST":

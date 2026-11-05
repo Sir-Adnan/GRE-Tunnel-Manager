@@ -49,7 +49,7 @@ Copy actions share `lib/clipboard.ts`: prefer the Clipboard API, then attempt a 
 - State: `lib/use-session.ts`, `lib/use-inventory.ts` (load and optional 30 s refresh, paused during jobs), `lib/use-operations.ts` (job runner and result dialog) and `lib/preferences.ts` (validated, migrated browser preferences). `App.tsx` composes them.
 - Polling: every periodic request uses `lib/use-poll.ts`, which runs only while the page is visible, never overlaps runs, aborts on hide, unmount or timeout and always calls the latest callback.
 - Messages: `lib/i18n/messages/<feature>.ts` hold `[English, Persian]` pairs checked by `satisfies Messages`; a key lives in exactly one module and Persian text uses Latin digits (`tests/i18n.test.mjs`). Shared words live in `common.ts`.
-- Styles: `index.css` only imports; `styles/base.css` (typography, elevation), `shell.css` (sidebar, header, mobile bar), `components.css` (patterns), `forms.css` (dialogs and editor) and `motion.css`. Colors come only from style tokens.
+- Styles: `index.css` only imports; `styles/base.css` (typography, elevation), `shell.css` (sidebar, header, mobile bar), `components.css` (patterns), `operations.css` (health and maintenance), `forms.css` (dialogs and editor) and `motion.css`. Colors come only from style tokens.
 - Preferences migrate once from `gtm.preferences.v1` to `v2`. v1 always stored the style, so its stored Nettinx (the old default) becomes Signal; any choice saved afterwards, Nettinx included, is kept.
 
 ## Verify interactions

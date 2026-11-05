@@ -1,0 +1,433 @@
+/* Health and maintenance pages. Tone colors come from semantic tokens only, so every preset,
+   both modes and print stay legible; each colored state also carries text. */
+@layer components {
+  .module-switch {
+    @apply inline-flex h-8 cursor-pointer items-center gap-2 rounded-lg border bg-card px-2.5 text-sm font-medium;
+  }
+
+  /* Status */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+    --tone: var(--muted-foreground);
+    --tone-text: var(--muted-foreground);
+    color: var(--tone-text);
+    border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
+    background: color-mix(in srgb, var(--tone) 10%, transparent);
+  }
+  .status-pill[data-status="up"] {
+    --tone: var(--success);
+    --tone-text: var(--success-text);
+  }
+  .status-pill[data-status="degraded"] {
+    --tone: var(--warning);
+    --tone-text: var(--warning-text);
+  }
+  .status-pill[data-status="down"] {
+    --tone: var(--destructive);
+    --tone-text: var(--destructive-text);
+  }
+  .status-pill-dot {
+    @apply size-1.5 shrink-0 rounded-full;
+    background: var(--tone);
+  }
+  [data-tone="ok"] {
+    --tone: var(--success);
+  }
+  [data-tone="warn"] {
+    --tone: var(--warning);
+  }
+  [data-tone="bad"] {
+    --tone: var(--destructive);
+  }
+  [data-tone="none"] {
+    --tone: var(--muted);
+  }
+  td[data-tone="warn"],
+  dd[data-tone="warn"],
+  span[data-tone="warn"] {
+    color: var(--warning-text);
+  }
+  td[data-tone="bad"],
+  dd[data-tone="bad"],
+  span[data-tone="bad"] {
+    color: var(--destructive-text);
+  }
+
+  /* Uptime strips: equal cells that never overflow a phone screen. */
+  .uptime-bars {
+    @apply grid h-6 min-w-0 items-stretch gap-[2px];
+    grid-template-columns: repeat(var(--cells, 24), minmax(0, 1fr));
+    list-style: none;
+  }
+  .uptime-bars.is-days {
+    --cells: 30;
+    @apply h-8;
+  }
+  .uptime-cell {
+    @apply rounded-[2px];
+    background: var(--tone);
+    min-width: 2px;
+  }
+  .uptime-cell[data-tone="none"] {
+    background: color-mix(in srgb, var(--muted-foreground) 18%, transparent);
+  }
+
+  .sparkline {
+    @apply h-7 w-24 shrink-0 overflow-visible sm:w-28;
+  }
+  .sparkline.is-empty {
+    @apply inline-block;
+  }
+  .sparkline-line {
+    fill: none;
+    stroke: var(--chart-1);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+  }
+  .sparkline-fail {
+    fill: var(--destructive);
+  }
+
+  .meter {
+    @apply h-1.5 overflow-hidden rounded-full bg-muted;
+  }
+  .meter > div {
+    @apply h-full rounded-full;
+    background: var(--tone, var(--primary));
+  }
+  .meter[data-tone="ok"] > div {
+    background: var(--primary);
+  }
+
+  /* Status board */
+  .health-list {
+    @apply flex flex-col gap-2;
+  }
+  .health-row {
+    @apply rounded-xl border bg-card;
+    box-shadow: var(--elevation-1);
+  }
+  .health-row[data-status="down"] {
+    border-color: color-mix(in srgb, var(--destructive) 45%, var(--border));
+  }
+  .health-row[data-status="degraded"] {
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  }
+  .health-row-main {
+    @apply grid min-w-0 items-center gap-x-4 gap-y-3 p-3 sm:p-4;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name latency"
+      "hours hours"
+      "uptime expand";
+  }
+  @media (min-width: 1280px) {
+    .health-row-main {
+      grid-template-columns:
+        minmax(10rem, 1.2fr) auto minmax(8rem, 1fr)
+        auto auto;
+      grid-template-areas: "name latency hours uptime expand";
+    }
+  }
+  .health-name {
+    grid-area: name;
+    @apply flex min-w-0 items-center gap-3;
+  }
+  .health-latency {
+    grid-area: latency;
+    @apply flex items-center justify-end gap-3 whitespace-nowrap;
+  }
+  .health-hours {
+    grid-area: hours;
+  }
+  .uptime-triple {
+    grid-area: uptime;
+    @apply flex items-center gap-4;
+  }
+  .uptime-triple > div {
+    @apply flex flex-col;
+  }
+  .uptime-triple dt {
+    @apply text-[11px] text-muted-foreground;
+  }
+  .uptime-triple dd {
+    @apply text-sm font-medium whitespace-nowrap tabular-nums;
+  }
+  .uptime-triple dt {
+    @apply whitespace-nowrap;
+  }
+  .health-expand {
+    grid-area: expand;
+    justify-self: end;
+  }
+  .health-detail {
+    @apply flex flex-col gap-4 border-t p-3 sm:p-4;
+  }
+  .health-targets {
+    @apply flex flex-col gap-2;
+  }
+  .health-targets > li {
+    @apply grid min-w-0 items-center gap-x-4 gap-y-1 rounded-lg bg-muted/40 p-2.5;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .health-targets > li > p {
+    grid-column: 1 / -1;
+  }
+  .health-target-metrics {
+    @apply flex items-center gap-3 text-sm;
+  }
+  .tab-count {
+    @apply rounded-full bg-muted px-1.5 text-[11px] leading-5 tabular-nums;
+  }
+  .tab-count.is-alert {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+  }
+
+  .outage-list {
+    @apply flex flex-col divide-y rounded-xl border bg-card;
+  }
+  .outage-list > li {
+    @apply flex items-start gap-3 p-3 sm:p-4;
+  }
+  .outage-icon {
+    @apply mt-0.5 flex shrink-0;
+    color: var(--success-text);
+  }
+  .outage-list > li[data-open="true"] .outage-icon {
+    color: var(--destructive-text);
+  }
+  .outage-icon svg {
+    @apply size-4;
+  }
+  .hint-row {
+    @apply flex items-start gap-2 rounded-lg p-2.5;
+    background: color-mix(in srgb, var(--warning) 10%, transparent);
+  }
+  .hint-row svg {
+    color: var(--warning-text);
+    margin-top: 0.15rem;
+  }
+
+  /* Weekly report */
+  .report-tiles {
+    @apply grid grid-cols-2 gap-3 xl:grid-cols-4;
+  }
+  .report-tile {
+    @apply flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4;
+  }
+  .report-tile-value {
+    @apply text-xl font-semibold tracking-tight tabular-nums;
+  }
+  .report-tile[data-tone="warn"] .report-tile-value {
+    color: var(--warning-text);
+  }
+  .report-tile[data-tone="bad"] .report-tile-value {
+    color: var(--destructive-text);
+  }
+  .report-section {
+    @apply flex flex-col gap-3 rounded-xl border bg-card p-4;
+  }
+  .report-section h3 {
+    @apply text-sm font-semibold;
+  }
+  .report-section dl {
+    @apply flex flex-col gap-2;
+  }
+  .report-section dl > div {
+    @apply flex items-baseline justify-between gap-3 text-sm;
+  }
+  .report-section dt {
+    @apply text-muted-foreground;
+  }
+  .report-section dd {
+    @apply font-medium tabular-nums;
+  }
+
+  /* Maintenance */
+  .mx-strip {
+    @apply flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground;
+  }
+  .mx-strip > * {
+    @apply inline-flex items-center gap-1.5;
+  }
+  .mx-strip button {
+    @apply rounded-md underline-offset-4 hover:text-foreground hover:underline;
+  }
+  .plan-grid {
+    @apply grid min-w-0 gap-4 md:grid-cols-2;
+  }
+  .plan-card {
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4;
+    box-shadow: var(--elevation-1);
+  }
+  .plan-card[data-enabled="false"] {
+    @apply bg-muted/30;
+  }
+  .plan-card[data-enabled="false"] .plan-icon {
+    @apply opacity-60;
+  }
+  .plan-icon,
+  .template-icon {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-lg border;
+    --tone: var(--primary);
+    color: var(--primary-text);
+    background: color-mix(in srgb, var(--tone) 12%, transparent);
+    border-color: color-mix(in srgb, var(--tone) 30%, transparent);
+  }
+  [data-action="restart"] > .plan-icon,
+  [data-action="restart"] .plan-icon,
+  [data-action="restart"] > .template-icon {
+    --tone: var(--warning);
+    color: var(--warning-text);
+  }
+  [data-action="reboot"] .plan-icon,
+  [data-action="reboot"] > .template-icon {
+    --tone: var(--destructive);
+    color: var(--destructive-text);
+  }
+  .chip-list {
+    @apply flex flex-wrap gap-1.5;
+  }
+  .chip-list > li {
+    @apply rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground;
+  }
+  .plan-footer {
+    @apply mt-auto flex flex-wrap items-end justify-between gap-3 border-t pt-3;
+  }
+  .plan-footer dl {
+    @apply flex flex-wrap gap-x-5 gap-y-1;
+  }
+  .plan-footer dl > div {
+    @apply flex flex-col;
+  }
+  .plan-footer dt {
+    @apply text-[11px] text-muted-foreground;
+  }
+  .plan-footer dd {
+    @apply text-xs font-medium tabular-nums;
+  }
+  .result-badge {
+    @apply inline-flex items-center rounded-full border px-1.5 text-[11px] leading-5 font-medium;
+    --tone: var(--muted-foreground);
+    color: var(--muted-foreground);
+    border-color: color-mix(in srgb, var(--tone) 30%, var(--border));
+  }
+  .result-badge[data-result="ok"] {
+    --tone: var(--success);
+    color: var(--success-text);
+  }
+  .result-badge[data-result="failed"] {
+    --tone: var(--destructive);
+    color: var(--destructive-text);
+  }
+  .result-badge[data-result="skipped"],
+  .result-badge[data-result="cancelled"],
+  .result-badge[data-result="rebooting"] {
+    --tone: var(--warning);
+    color: var(--warning-text);
+  }
+  .history-list {
+    @apply flex flex-col divide-y rounded-xl border bg-card;
+  }
+  .history-list > li {
+    @apply flex flex-col gap-1.5 p-3 sm:p-4;
+  }
+  .pending-alert {
+    border-color: color-mix(in srgb, var(--warning) 50%, var(--border));
+  }
+  .pending-alert[data-action="reboot"] {
+    border-color: color-mix(in srgb, var(--destructive) 50%, var(--border));
+  }
+
+  /* Plan editor */
+  .template-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+  .template-card {
+    @apply flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3 text-start transition-colors;
+  }
+  .template-card:hover,
+  .template-card:focus-visible {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    background: color-mix(in srgb, var(--primary) 4%, var(--card));
+  }
+  .template-card.is-blank {
+    @apply items-center border-dashed;
+  }
+  .editor-section {
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border p-3 sm:p-4;
+  }
+  .editor-section > legend {
+    @apply px-1 text-sm font-medium;
+  }
+  .action-grid {
+    @apply grid gap-2 sm:grid-cols-3;
+  }
+  .action-card {
+    @apply flex flex-col items-start gap-2 rounded-lg border bg-card p-3 text-start transition-colors;
+  }
+  .action-card[aria-checked="true"] {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+  .action-card[data-action="reboot"][aria-checked="true"] {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 1px var(--destructive);
+  }
+  .scope-list {
+    @apply flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border p-1;
+  }
+  .scope-item {
+    @apply flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted;
+  }
+  .day-picker {
+    @apply flex flex-wrap gap-1.5;
+  }
+  .day-chip {
+    @apply h-8 rounded-md border px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground;
+  }
+  .day-chip[aria-pressed="true"] {
+    @apply font-medium text-primary-foreground;
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .time-list {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .time-item {
+    @apply flex items-center gap-1;
+  }
+  .time-item input {
+    @apply w-28;
+  }
+  .guards-toggle {
+    @apply flex w-full items-center justify-between gap-3 text-start;
+  }
+  .option-row {
+    @apply flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3;
+  }
+
+  .live-interval > button {
+    @apply h-7 px-2 text-xs;
+  }
+}
+
+@media print {
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  header,
+  footer,
+  nav,
+  .report-actions,
+  [role="tablist"],
+  .module-switch,
+  .demo-banner,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+  .weekly-report,
+  .weekly-report * {
+    box-shadow: none !important;
+  }
+}

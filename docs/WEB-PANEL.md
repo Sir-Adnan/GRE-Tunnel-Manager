@@ -2,7 +2,7 @@
 
 Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
 
-Version **v1.3.6** routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
+Version **v1.3.7** adds optional [health monitoring and scheduled maintenance](HEALTH-AND-MAINTENANCE.md) and a 1–15 second dashboard refresh. Version v1.3.6 routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
 
 ## Installation and login
 
@@ -50,7 +50,7 @@ Explicit HTTP works on an IP without a certificate, but browser login and manage
 
 ### Existing installations and recovery
 
-Run the current installer again to upgrade to the matching **v1.3.6** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+Run the current installer again to upgrade to the matching **v1.3.7** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
 
 Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. If an upgraded panel fails to start, the installer reinstalls the previous executable and helper and starts them again. Rewritten unit files stay in place. That rollback is not a host-wide atomic transaction: inspect logs when it reports failure. Keep private backups of configuration and Node identities.
 
@@ -94,6 +94,10 @@ Collection adds only owned `inet gtm_panel_metrics` counters and periodic sampli
 
 Bytes are network-layer usage, not provider billing. GRE and forwarding counters may overlap and are never summed. Quotas are advisory by default; an explicit automatic-pause option installs scoped kernel drop rules at the next successful sample after a crossing. This is not an exact byte limiter. History is bounded; remote summaries are read-only. See [Traffic accounting](TRAFFIC-ACCOUNTING.md) for coverage, lost-sample limits, reset semantics and CSV export.
 
+## Health and maintenance
+
+Both pages are off by default and cost nothing while off. **Health** checks every enabled destination (TCP connect, or ping for UDP-only services), GRE peers and managed service units on a schedule, and keeps status, 24 h / 7 d / 30 d uptime, outages, a weekly report (CSV and print) and conntrack/CPU pressure from `/proc`. **Maintenance** runs plans: a soft refresh without disconnects, a restart (for kernel forwards, clearing only that forward's tracked flows) or a server reboot, on daily, weekday, interval, uptime or health triggers, with guards such as a time window, quiet traffic, cooldown, daily limit, cancellable notice, minimum uptime and dry run. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
+
 ## Configurations and engines
 
 Configuration actions now open supported text editors directly. Use **Import** to convert a pasted/file HAProxy TCP configuration, simple Realm TOML or managed JSON into reviewed connections; it saves without starting unless explicitly enabled. See [Configuration editor](CONFIGURATION-EDITOR.md). **Tunnel engines → Check versions** separates current, official and verified/distribution versions and offers explicit local updates; see [Engine maintenance](ENGINE-MAINTENANCE.md).
@@ -116,12 +120,12 @@ The dashboard adds CPU utilization across all cores, used/available memory, and 
 
 Network rates use the deduplicated interfaces having IPv4/IPv6 default routes, not a sum of GRE and physical interfaces. Their names are visible. This is host interface traffic, not per-tunnel traffic or a complete policy-routing/link-bond accounting model. Traffic through other policy routes is not included. Rate values require two valid samples. Route/counter changes or gaps longer than 30 seconds restart the baseline rather than displaying a spike or zero.
 
-The visible dashboard requests a sample every 5 seconds; choose 15 seconds or pause it. Hidden/unmounted dashboards stop requests. All tabs share a two-second server cache. No new agent, daemon, database, disk history, Prometheus or packet capture is installed. These samples are independent of optional per-connection accounting. Demo readings are simulated. See [Kernel and userspace](KERNEL-AND-USERSPACE.md) for the execution split.
+The visible dashboard requests a sample every 2 seconds by default; choose 1, 2, 5 or 15 seconds (remembered in this browser) or pause it. Below one second the network rate is noise, so it is not offered. Hidden/unmounted dashboards stop requests. Open tabs share a sub-second server cache, so the files are read at most about once per second. No new agent, daemon, database, disk history, Prometheus or packet capture is installed. These samples are independent of optional per-connection accounting. Demo readings are simulated. See [Kernel and userspace](KERNEL-AND-USERSPACE.md) for the execution split.
 
 ## Overview, navigation and appearance
 
 The overview starts with the server's status: host name, OS and primary address, then four tiles for connections, running services, items that need attention and uptime/load. **Needs attention** lists enabled services in a failed or stopped state and engines that enabled connections use but that are not installed; each entry opens the related page. It is derived from inventory, not a separate health check.
 
-The sidebar groups **Workspace** (Overview, Connections, Traffic), **Network** (Nodes, GRE, Reverse tunnels) and **System** (Tunnel engines, Backup & restore, Settings). Phones keep Overview, Connections, Traffic and Nodes in the bottom bar.
+The sidebar groups **Workspace** (Overview, Connections, Traffic, Health), **Network** (Nodes, GRE, Reverse tunnels) and **System** (Maintenance, Tunnel engines, Backup & restore, Settings). Phones keep Overview, Connections, Traffic and Nodes in the bottom bar.
 
 Appearance is stored only in this browser. **Signal** (dark) is the default; **Graphite**, **Aurora**, **Nettinx** and **Neutral** are available from the header's appearance button, the command palette or **Settings**, each in light, dark or system mode. Browsers that had the earlier automatic Nettinx default move to Signal once; a preset chosen afterwards is kept. Interface motion is short and is disabled when the operating system asks for reduced motion.

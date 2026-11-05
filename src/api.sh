@@ -98,6 +98,13 @@ gtm_api() {
             gtm_api_rows "$expected";;
         update|enable|disable|delete) (($#==0)) && gtm_api_change "$operation";;
         plan) (($#==0)) && gtm_plan;;
+        # Maintenance: reapply owned kernel rules from saved state; clear one forward's flows.
+        kernel-refresh) (($#==0)) && gtm_prepare && gtm_lock || return 2
+            gtm_kernel_apply; local result=$?; gtm_unlock
+            ((result)) || printf 'Owned kernel rules reapplied; established flows kept.\n'
+            return "$result";;
+        flows-reset) (($#==1)) && gtm_prepare || return 2
+            gtm_flows_reset "$1";;
         config-render) (($#==0)) && gtm_config_render;;
         doctor) (($#==0)) && gtm_doctor;;
         install)

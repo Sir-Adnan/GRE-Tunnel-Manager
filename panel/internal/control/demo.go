@@ -20,6 +20,7 @@ type Demo struct {
 	counter   int
 	metrics   MetricsView
 	configs   map[string]string
+	ops       *demoOps
 }
 
 func NewDemo() *Demo {
@@ -47,6 +48,8 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	switch r.Action {
 	case "host-telemetry":
 		return json.Marshal(demoTelemetry())
+	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
+		return d.operations(r)
 	case "engine-releases":
 		var releases []EngineRelease
 		for _, c := range d.inventory.Components {
