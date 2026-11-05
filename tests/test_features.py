@@ -59,6 +59,22 @@ exit 0
 """)
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
+    def test_undo_steps_saved_in_one_second_keep_their_order(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder = Path(directory)
+            result = self.optimize(folder, r"""
+date() { printf '20260105T120000'; }
+gtm_optimize_apply conntrack > /dev/null || exit 9
+gtm_optimize_apply relay > /dev/null || exit 10
+gtm_optimize_paths
+[[ $(ls "$GTM_OPT_STEPS" | tr '\n' ' ') == '20260105T120000-000001.tsv 20260105T120000-000002.tsv ' ]] || exit 11
+gtm_optimize_undo > /dev/null || exit 12
+# The relay step is undone; connection tracking stays applied.
+[[ $(value net.ipv4.tcp_congestion_control) == cubic && $(value net.netfilter.nf_conntrack_max) == 524288 ]] || exit 13
+exit 0
+""")
+            self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
     def test_network_card_is_skipped_for_one_cpu_or_multiqueue(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
             folder = Path(directory)

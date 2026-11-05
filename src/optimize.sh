@@ -453,9 +453,17 @@ gtm_optimize_persist() {
 
 # Saves the journal as the newest undo step; keeps the last 20.
 gtm_optimize_push_step() {
-    local name file
+    local name file last stamp seq=1
     mkdir -p "$GTM_OPT_STEPS" && chmod 700 "$GTM_OPT_DIR" "$GTM_OPT_STEPS" || return 1
-    name=$(date -u +%Y%m%dT%H%M%S)-$$-$RANDOM
+    # Names sort in save order: a sequence number after the UTC second keeps
+    # two steps saved within one second (or after a clock step back) in order.
+    last=$(gtm_optimize_last_step); last=${last##*/}; last=${last%.tsv}
+    stamp=$(date -u +%Y%m%dT%H%M%S)
+    if [[ $last =~ ^([0-9]{8}T[0-9]{6})-([0-9]{6})$ ]]; then
+        seq=$(( (10#${BASH_REMATCH[2]} + 1) % 1000000 ))
+        [[ ! $stamp < ${BASH_REMATCH[1]} ]] || stamp=${BASH_REMATCH[1]}
+    fi
+    name=$stamp-$(printf '%06d' "$seq")
     GTM_OPT_ROWS=(${GTM_OPT_PREVIOUS[@]+"${GTM_OPT_PREVIOUS[@]}"})
     gtm_optimize_save_rows "$GTM_OPT_STEPS/$name.tsv" || return 1
     while IFS= read -r file; do rm -f "$file"; done < <(ls -1 "$GTM_OPT_STEPS"/*.tsv 2>/dev/null | LC_ALL=C sort | head -n -20)
