@@ -5,8 +5,10 @@ import {
   Code2,
   MoreHorizontal,
   Info,
+  Stethoscope,
 } from "lucide-react";
-import { useContext } from "react";
+import { useContext, useState } from "react";
+import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
 import { LocaleContext } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -50,6 +52,7 @@ export function ConnectionActions({
   const t = useT();
   const locale = useContext(LocaleContext);
   const toggle = `${t(row.enabled ? "disable" : "enable")} ${row.name}`;
+  const [diagnosing, setDiagnosing] = useState(false);
   return (
     <div
       className="row-actions"
@@ -100,6 +103,10 @@ export function ConnectionActions({
               <Code2 />
               {t("viewConfig")}
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setDiagnosing(true)}>
+              <Stethoscope />
+              {t("diagOpen")}
+            </DropdownMenuItem>
             {["realm", "haproxy"].includes(row.engine) && (
               <DropdownMenuItem
                 onSelect={() =>
@@ -122,6 +129,12 @@ export function ConnectionActions({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      <DiagnoseDialog
+        key={String(diagnosing)}
+        owner={diagnosing ? row.id : undefined}
+        name={row.name}
+        onClose={() => setDiagnosing(false)}
+      />
     </div>
   );
 }

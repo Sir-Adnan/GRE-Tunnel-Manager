@@ -133,13 +133,13 @@ func (d *Demo) diagnoseDemo(owner string) (json.RawMessage, error) {
 	return json.Marshal(DiagnoseReport{Owner: owner, Time: time.Now().UTC(), Checks: checks, Status: worst(checks)})
 }
 
-// demoPinger answers like a tunnel with some jitter and one lost ping.
-type demoPinger struct{}
+// demoPinger answers like a real tunnel: some jitter and one lost ping.
+type demoPinger struct{ n *int }
 
-func (demoPinger) Probe(_ context.Context, t health.Target) health.Result {
-	n := time.Now().UnixNano()
-	if n%17 == 0 {
+func (p demoPinger) Probe(_ context.Context, t health.Target) health.Result {
+	*p.n++
+	if *p.n%20 == 13 {
 		return health.Result{Error: "timeout"}
 	}
-	return health.Result{OK: true, RTT: 38 + float64(n%900)/100}
+	return health.Result{OK: true, RTT: 36 + float64((*p.n*7)%11) + float64(*p.n%3)/4}
 }

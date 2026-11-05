@@ -1,6 +1,6 @@
 // Wire types for /api/optimize (see panel/internal/control/optimize.go).
 
-export type OptimizeGroup = "conntrack" | "queues" | "relay" | "routing";
+export type OptimizeGroup = "conntrack" | "queues" | "relay" | "routing" | "nic";
 
 /** How far the values go: light touch, the default, or high-load sizes. */
 export type OptimizeLevel = "conservative" | "balanced" | "aggressive";
@@ -52,6 +52,25 @@ export type OptimizeView = {
   import?: string;
   servertools: string[];
   keys: OptimizeKey[];
+  cpus: number;
+  /** Uplinks (default-route interfaces) with their receive queue count. */
+  links: { name: string; rx_queues: number }[];
+  /** The active auto-undo watch, or the last result of the day. */
+  watch?: OptimizeWatch;
+  /** Offered watch windows in minutes; empty while Health is off. */
+  watch_minutes: number[];
+};
+
+/** Auto-undo: an outage of a healthy connection before `until` undoes the step. */
+export type OptimizeWatch = {
+  started: string;
+  until: string;
+  step: number;
+  baseline: string[];
+  result: "active" | "undone" | "kept" | "cancelled" | "failed";
+  ended?: string;
+  down?: string[];
+  error?: string;
 };
 
 export type OptimizeChange = {

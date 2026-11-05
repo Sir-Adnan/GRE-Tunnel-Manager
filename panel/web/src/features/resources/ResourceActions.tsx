@@ -7,8 +7,10 @@ import {
   Play,
   RotateCw,
   Square,
+  Stethoscope,
   Trash2,
 } from "lucide-react";
+import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,6 +39,8 @@ export function ResourceActions({
   const t = useT(),
     locale = useContext(LocaleContext);
   const [busy, setBusy] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const diagnosable = /^gre-tun-[0-9]{1,3}$/.test(resource.id);
   async function service(action: string) {
     setBusy(true);
     try {
@@ -90,6 +94,12 @@ export function ResourceActions({
               <FileText />
               {t("logs")}
             </DropdownMenuItem>
+            {diagnosable && (
+              <DropdownMenuItem onSelect={() => setDiagnosing(true)}>
+                <Stethoscope />
+                {t("diagOpen")}
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
@@ -100,6 +110,12 @@ export function ResourceActions({
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      <DiagnoseDialog
+        key={String(diagnosing)}
+        owner={diagnosing ? resource.id : undefined}
+        name={resource.name}
+        onClose={() => setDiagnosing(false)}
+      />
     </div>
   );
 }

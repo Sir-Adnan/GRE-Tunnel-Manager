@@ -209,7 +209,11 @@ func (o *Operations) runFailover(ctx context.Context, m *Manager, inventory Inve
 		cancel()
 		lock.Unlock()
 		if e == nil && o.Notify != nil {
-			o.Notify.Emit(notify.Event{Kind: notify.KindFailover, Owner: id, Name: names[id], Detail: failoverDetail(list)})
+			excluded := ""
+			if list != "-" {
+				excluded = strings.ReplaceAll(list, ",", ", ")
+			}
+			o.Notify.Emit(notify.Event{Kind: notify.KindFailover, Owner: id, Name: names[id], Detail: failoverDetail(list), Args: map[string]string{"excluded": excluded}})
 		}
 		return out, e
 	})

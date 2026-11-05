@@ -54,6 +54,17 @@ Lifetime traffic totals and cycle baselines survive optional accounting recovery
 - Accounting persistence follows configuration import. If it fails, the receipt explicitly reports that connections were restored while accounting was not. Keep the encrypted file and inspect storage; do not delete the only recovery copy.
 - Limits are 128 forward records, 512 GRE/reverse resources, 20 MiB decrypted data and 28 MiB per recovery file. Normal API request limits remain unchanged; only dedicated recovery routes accept larger bodies.
 
-Backups are downloaded on demand. No scheduled task, additional daemon, remote upload or ongoing sampling is enabled by this feature.
+Portable backups are downloaded on demand. Scheduled snapshots (below) are opt-in; nothing is uploaded anywhere.
+
+## Scheduled backups
+
+**Backups → Schedule** saves a recovery snapshot on this server daily or weekly at a time in the maintenance time zone, keeps the newest 1–60 (default 14) and can include traffic records. **Back up now** saves one at once.
+
+- Snapshots are the same recovery document a portable backup encrypts, stored unencrypted but root-only in `/var/lib/gre-manager-panel/snapshots/gtm-YYYYMMDDTHHMMSS.json` (directory 700, files 600), because they include FRP/rathole secrets. **Download** seals one with a password into a regular `.gtm-backup` file; restore it as described above.
+- A snapshot takes the same manager lock as an export and runs under the broker's mutation lock. A run that is due while the broker is stopped runs at the next check (every 30 seconds); a new schedule counts from the moment it is saved, so it never catches up on past times.
+- Success and failure appear in the notification center; failures can also go to the webhook or Telegram.
+- Snapshots protect against losing the server's configuration, not against losing the server: download one now and then, or keep the encrypted file elsewhere.
+
+To undo a recent forwarding change on this server, use [Change history](WEB-PANEL.md#change-history) instead: it restores in place without the empty-installation rule.
 
 Restoring optional traffic data preserves customer labels, quotas and cycle totals, but clears applied-block status and disables automatic quota pauses. Enable collection and opt into protection again after checking the new host and routes.

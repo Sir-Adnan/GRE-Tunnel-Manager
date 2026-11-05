@@ -1,0 +1,51 @@
+// Tunnel tests: GRE quality, far-side checks from Nodes and speed tests.
+import type { Messages } from "./types";
+
+export const tunnels = {
+  healthQuality: ["Quality test", "تست کیفیت"],
+  healthQualityHelp: [
+    "Twenty pings through the tunnel, 200 ms apart: average latency, jitter (how much it varies) and loss. About four seconds; the far side needs nothing installed.",
+    "بیست ping از داخل تونل با فاصلهٔ 200 میلی‌ثانیه: میانگین تأخیر، نوسان (جیتر) و افت بسته. حدود چهار ثانیه طول می‌کشد و سمت مقابل به نصب چیزی نیاز ندارد.",
+  ],
+  healthQualityRun: ["Run test", "اجرای تست"],
+  healthQualityRunning: ["Testing…", "در حال تست…"],
+  healthQualityAvg: ["Latency", "تأخیر"],
+  healthQualityJitter: ["Jitter", "نوسان"],
+  healthQualityLoss: ["Loss", "افت بسته"],
+  healthQualityRange: ["Min – max", "کمینه – بیشینه"],
+  healthQualitySamples: ["Round-trip time of each ping", "زمان رفت‌وبرگشت هر ping"],
+  healthQualityLost: ["Lost", "گم شد"],
+  farSideChipOk: ["Far side ✓ {ms}", "سمت مقابل ✓ {ms}"],
+  farSideChipBad: ["Far side ✗", "سمت مقابل ✗"],
+  farSideChipTitle: ["Checked by {node} at {t}", "بررسی‌شده توسط {node} در {t}"],
+  farSideTab: ["Tunnels", "تونل‌ها"],
+  farSideIntro: [
+    "This node pings the far end of each of its GRE tunnels and reports the result with its host load, so a one-way problem (usually a firewall) is visible from here.",
+    "این Node انتهای هر تونل GRE خود را ping می‌کند و نتیجه را همراه با بار سرور گزارش می‌دهد؛ این‌طور مشکل یک‌طرفه (معمولاً فایروال) از همین‌جا دیده می‌شود.",
+  ],
+  farSideAt: ["Reported {t}.", "گزارش در {t}."],
+  farSideNone: [
+    "This node has not sent tunnel checks yet. Agents from v1.4.1 send them with every report.",
+    "این Node هنوز بررسی تونل نفرستاده است. Agentهای نسخهٔ 1.4.1 به بعد آن را همراه هر گزارش می‌فرستند.",
+  ],
+  farSideNoTunnels: ["No GRE tunnels on this node.", "روی این Node تونل GRE وجود ندارد."],
+  farSideAnswers: ["Answers", "پاسخ می‌دهد"],
+  farSideSilent: ["No answer", "بدون پاسخ"],
+  farSideIfaceDown: ["interface down", "رابط پایین است"],
+  farSideSummary: ["{ok} of {n} tunnels answer from this side", "{ok} از {n} تونل از این سمت پاسخ می‌دهند"],
+  nodeCpu: ["CPU", "CPU"],
+  nodeMemory: ["Memory", "حافظه"],
+  nodeFlows: ["Connection table", "جدول اتصال"],
+  speedRun: ["Speed test", "تست سرعت"],
+  speed_waiting: ["Waiting for the node…", "در انتظار Node…"],
+  speed_connecting: ["Starting on the node…", "آماده‌سازی روی Node…"],
+  speed_running: ["Measuring…", "در حال اندازه‌گیری…"],
+  speed_done: ["Done", "انجام شد"],
+  speed_failed: ["Failed", "ناموفق"],
+  speedUpload: ["To node", "به Node"],
+  speedDownload: ["From node", "از Node"],
+  speedHelp: [
+    "The speed test sends TCP data through the tunnel for 5 seconds each way. The node opens a one-time port on its tunnel address only after it checks in (up to a minute), accepts one connection and closes it.",
+    "تست سرعت در هر جهت 5 ثانیه دادهٔ TCP از داخل تونل می‌فرستد. Node فقط بعد از گزارش بعدی خود (تا یک دقیقه) یک پورت یک‌بارمصرف روی آدرس تونل باز می‌کند، یک اتصال می‌پذیرد و می‌بندد.",
+  ],
+} satisfies Messages;

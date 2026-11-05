@@ -19,6 +19,9 @@ gtm_optimize_paths() {
     GTM_OPT_LINK_SCRIPT="${GTM_RUNTIME%/*}/optimize-links.sh"
     GTM_OPT_LINK_UNIT="$GTM_SERVICE_DIR/gre-manager-optimize.service"
     GTM_SYSFS_NET=${GTM_SYSFS_NET:-/sys/class/net}
+    # Host facts are read once per call: the catalog is rendered many times.
+    [[ -n ${GTM_OPT_LINK_LIST+set} ]] || GTM_OPT_LINK_LIST=$(gtm_optimize_links)
+    [[ -n ${GTM_OPT_CPU_COUNT:-} ]] || GTM_OPT_CPU_COUNT=$(gtm_optimize_cpus)
 }
 
 # Uplinks: interfaces of the IPv4/IPv6 default routes, at most four.
@@ -33,7 +36,7 @@ gtm_optimize_links() {
 }
 
 gtm_optimize_cpus() {
-    local cpus=${GTM_CPUS:-}
+    local cpus=${GTM_CPUS:-${GTM_OPT_CPU_COUNT:-}}
     [[ -n $cpus ]] || cpus=$(nproc 2>/dev/null) || cpus=1
     [[ $cpus =~ ^[0-9]{1,4}$ ]] || cpus=1
     printf '%d' "$((10#$cpus))"
@@ -174,7 +177,7 @@ gtm_optimize_links_catalog() {
         if ((cpus >= 2 && cpus <= 1024)) && [[ $(gtm_optimize_rx_queues "$link") == 1 && -f $GTM_SYSFS_NET/$link/queues/rx-0/rps_cpus ]]; then
             printf 'nic|link.%s.rps|%s|rps|rps\n' "$link" "${rps:-$(gtm_optimize_mask "$cpus")}"
         fi
-    done < <(gtm_optimize_links)
+    done < <(if [[ -n ${GTM_OPT_LINK_LIST+set} ]]; then printf '%s\n' "$GTM_OPT_LINK_LIST"; else gtm_optimize_links; fi)
 }
 
 # Custom-value bounds: "n MIN MAX" (number), "n3 MIN MAX" (each field of a
@@ -290,23 +293,24 @@ gtm_optimize_link_of() { local key=${1#link.}; printf '%s' "${key%.*}"; }
 
 gtm_optimize_read() {
     local value link
+    local -a parts=()
     if [[ $1 == link.* ]]; then
         gtm_optimize_key "$1" || return 1
         link=$(gtm_optimize_link_of "$1")
         if [[ $1 == *.txqueuelen ]]; then
-            value=$(cat "$GTM_SYSFS_NET/$link/tx_queue_len" 2>/dev/null) || return 1
+            [[ -r $GTM_SYSFS_NET/$link/tx_queue_len ]] && value=$(< "$GTM_SYSFS_NET/$link/tx_queue_len") || return 1
         else
             # sysfs prints comma-separated 32-bit groups with leading zeros.
             value=$(cat "$GTM_SYSFS_NET/$link/queues/rx-0/rps_cpus" 2>/dev/null) || return 1
             value=$(tr -d ', \n' <<< "$value" | tr 'A-F' 'a-f' | sed 's/^0*//')
             value=${value:-0}
         fi
-        value=$(awk '{$1=$1; print}' <<< "$value")
+        read -r -a parts <<< "$value"; value=${parts[*]}
         gtm_optimize_value "$1" "$value" || return 1
         printf '%s' "$value"; return 0
     fi
     value=$(sysctl -n "$1" 2>/dev/null) || return 1
-    value=$(awk '{$1=$1; print}' <<< "$value")
+    read -r -a parts <<< "$value"; value=${parts[*]}
     gtm_optimize_value "$1" "$value" || return 1
     printf '%s' "$value"
 }
@@ -655,7 +659,7 @@ gtm_optimize_status() {
     printf 'meta\tview\t%s %s\n' "${GTM_OPT_LEVEL:-balanced}" "${GTM_OPT_GOAL:-general}"
     printf 'meta\tcapped\t%s\n' "$(gtm_optimize_capped)"
     printf 'meta\tcpus\t%s\n' "$(gtm_optimize_cpus)"
-    while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tlink\t%s %s\n' "$file" "$(gtm_optimize_rx_queues "$file")"; done < <(gtm_optimize_links)
+    while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tlink\t%s %s\n' "$file" "$(gtm_optimize_rx_queues "$file")"; done <<< "$GTM_OPT_LINK_LIST"
     printf 'meta\tfile\t%s\n' "$GTM_OPT_FILE"
     [[ ! -f $GTM_OPT_OLD_JOURNAL ]] || printf 'meta\timport\t%s\n' "$GTM_OPT_OLD_JOURNAL"
     while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tservertools\t%s\n' "$file"; done < <(gtm_optimize_servertools)

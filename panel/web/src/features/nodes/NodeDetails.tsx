@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import type { Node } from "./types";
+import { FarSide } from "./FarSide";
 import { NodeTraffic } from "./NodeTraffic";
 
 export function NodeDetails({
@@ -45,6 +46,9 @@ export function NodeDetails({
               <TabsTrigger value="inventory">{t("connections")}</TabsTrigger>
               {!node.local && (
                 <TabsTrigger value="traffic">{t("nodeTraffic")}</TabsTrigger>
+              )}
+              {!node.local && (
+                <TabsTrigger value="tunnels">{t("farSideTab")}</TabsTrigger>
               )}
             </TabsList>
             <TabsContent value="inventory" className="min-w-0">
@@ -95,6 +99,11 @@ export function NodeDetails({
                 ))}
               </div>
             </TabsContent>
+            {!node.local && (
+              <TabsContent value="tunnels" className="min-w-0">
+                <FarSide node={node} />
+              </TabsContent>
+            )}
             {!node.local && (
               <TabsContent value="traffic" className="min-w-0">
                 <div className="min-w-0">

@@ -35,6 +35,9 @@ import type { HealthSettings, HealthView } from "@/features/operations/types";
 import { HealthSettingsDialog } from "./health/HealthSettingsDialog";
 import { OutageList } from "./health/OutageList";
 import { OwnerList } from "./health/OwnerList";
+import { farSideChecks } from "./health/farSide";
+import { useLoaded } from "@/features/operations/hooks";
+import type { Listing } from "@/features/nodes/types";
 import { ServerPressure } from "./health/ServerPressure";
 import { WeeklyReport } from "./health/WeeklyReport";
 import { milliseconds, percent, uptimeTone } from "./health/format";
@@ -139,6 +142,17 @@ export function Health({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const tab = tabs.find((x) => x === params.get("tab")) ?? "status";
+  // Nodes report what they see from the far end of shared GRE tunnels.
+  const hasGRE = inventory.resources.some((r) => r.engine === "gre");
+  const { value: nodes } = useLoaded<Listing>(hasGRE ? "nodes" : "", (v) =>
+    hasGRE && v ? 60 : 0,
+  );
+  const farSide = hasGRE
+    ? farSideChecks(nodes, [
+        ...(inventory.host.addresses ?? []),
+        ...(inventory.host.public_ip ? [inventory.host.public_ip] : []),
+      ])
+    : {};
   async function configure(settings: HealthSettings) {
     if (!view) return;
     await run({
@@ -266,6 +280,7 @@ export function Health({
                   timezone={view.timezone}
                   failover={view.failover ?? {}}
                   endpoints={endpointsOf(inventory)}
+                  farSide={farSide}
                 />
               )}
             </TabsContent>

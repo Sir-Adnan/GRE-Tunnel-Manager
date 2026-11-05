@@ -121,6 +121,7 @@ Application SemVer and Node protocol are independent. Protocol 1 retains `invent
 | `POST /v1/enroll` | Short-lived one-time secret, server CA pin | Validate CSR, allocate stable random node ID and certificate |
 | `POST /v1/report` | mTLS plus active node ID/certificate serial | Validate bounded report; retain canonical known-schema inventory |
 | `POST /v1/traffic` | Same active mTLS identity | Optional closed traffic-protocol-1 summary; 64 KiB / 128 counters |
+| `POST /v1/probes` | Same active mTLS identity | Optional probe-protocol-1 report (host load, GRE far-side pings; 32 KiB / 32 tunnels); the reply may carry a one-time speed-test offer. See [Monitoring](MONITORING.md#far-side-checks-and-speed-tests-through-nodes) |
 | `POST /v1/rotate` | Same active identity | Issue replacement certificate with bounded overlap |
 | `POST /v1/work` | Active mTLS identity advertising `connections.pair.v1` | Acknowledge a bounded result and pull one typed task |
 

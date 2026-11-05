@@ -224,11 +224,8 @@ export const optimize = {
     "{n} بهبود برای این سرور آماده است",
   ],
   optHeroNone: ["This server is up to date", "این سرور به‌روز است"],
-  optHeroDetail: [
-    "{a} of {g} groups applied. Recommendations never make a value your server already has worse.",
-    "{a} از {g} گروه اعمال شده. پیشنهادها هیچ مقداری را که سرور شما از قبل دارد بدتر نمی‌کنند.",
-  ],
   optReviewRecommended: ["Review recommendations", "بررسی پیشنهادها"],
+  optApplyAll: ["Apply all ({n})", "اعمال همه ({n})"],
   optRecommendedTitle: [
     "Recommendations for this server",
     "پیشنهادهای این سرور",
@@ -308,11 +305,6 @@ export const optimize = {
     "پذیرش redirect (رابط‌های جدید)",
   ],
   // Profiles: intensity level and goal.
-  optProfileTitle: ["Profile", "حالت بهینه‌سازی"],
-  optProfileHint: [
-    "Choose how far the values go and what the server is for. The groups below show that profile's values; nothing changes until you review and apply.",
-    "انتخاب کنید مقدارها تا چه حد بالا بروند و سرور بیشتر برای چه کاری است. گروه‌های پایین مقدارهای همان حالت را نشان می‌دهند؛ تا بررسی و اعمال نکنید چیزی تغییر نمی‌کند.",
-  ],
   optProfileApplied: ["Applied: {p}", "اعمال‌شده: {p}"],
   optProfileNone: ["Nothing applied yet", "هنوز چیزی اعمال نشده"],
   optProfilePreview: [
@@ -341,6 +333,11 @@ export const optimize = {
   ],
   optDefault: ["Default", "پیش‌فرض"],
   optGoalLegend: ["Goal", "هدف"],
+  optGoalHint_general: ["Mixed use", "کاربرد ترکیبی"],
+  optGoalHint_users: ["Many connections", "اتصال‌های زیاد"],
+  optGoalHint_latency: ["Games and calls", "بازی و تماس"],
+  optProgress: ["{n}% of this profile is in place", "{n}٪ این حالت اعمال شده است"],
+  optProfilePreviewing: ["Previewing another profile", "پیش‌نمایش حالت دیگر"],
   optGoal_general: ["General", "عمومی"],
   optGoal_users: ["Many users", "کاربر زیاد"],
   optGoal_latency: ["Low latency", "تأخیر کم"],
@@ -412,4 +409,43 @@ export const optimize = {
     "Room for closed connections, so busy relays do not drop them early.",
     "جا برای اتصال‌های بسته‌شده، تا رله‌های شلوغ آن‌ها را زودتر از موعد دور نریزند.",
   ],
+  optGroup_nic: ["Network card", "کارت شبکه"],
+  optGroupWhy_nic: [
+    "A virtual card with one receive queue hands every packet to one CPU, which then shows high softirq while the others idle. Packet steering (RPS) spreads that work across all CPUs; a longer transmit queue absorbs bursts on fast uplinks. These are not sysctls: a small boot unit (gre-manager-optimize.service) applies them again after a reboot.",
+    "کارت مجازی با یک صف دریافت، همهٔ بسته‌ها را به یک CPU می‌دهد؛ آن CPU درگیر softirq می‌شود و بقیه بیکار می‌مانند. پخش پردازش بسته (RPS) این کار را بین همهٔ CPUها تقسیم می‌کند و صف ارسال بلندتر، جهش ترافیک را روی خط‌های سریع جذب می‌کند. این‌ها تنظیم sysctl نیستند: یک سرویس کوچک بوت (gre-manager-optimize.service) بعد از ریبوت دوباره اعمالشان می‌کند.",
+  ],
+  optGroupFor_nic: [
+    "Servers with two or more CPUs and a single-queue card, or high packet rates.",
+    "سرورهای دارای دو CPU یا بیشتر با کارت تک‌صفی، یا نرخ بستهٔ بالا.",
+  ],
+  optKeyTxqueuelen: ["Transmit queue", "صف ارسال"],
+  optKeyRps: ["Packet steering (RPS)", "پخش پردازش بسته (RPS)"],
+  optWhy_txqueuelen: [
+    "Packets the card can hold before it drops; longer absorbs bursts. Low latency keeps the server's own queue.",
+    "تعداد بسته‌ای که کارت پیش از دور ریختن نگه می‌دارد؛ صف بلندتر جهش‌ها را جذب می‌کند. حالت «تأخیر کم» صف خود سرور را نگه می‌دارد.",
+  ],
+  optWhy_rps: [
+    "Spreads receive work of a single-queue card over every CPU; a mask the server already set is kept.",
+    "کار دریافت کارت تک‌صفی را بین همهٔ CPUها پخش می‌کند؛ اگر سرور خودش ماسکی تنظیم کرده باشد همان می‌ماند.",
+  ],
+  optUplink: ["Uplink", "رابط خروجی"],
+  optWatch: ["Undo automatically if tunnels go down", "برگشت خودکار در صورت قطع تونل‌ها"],
+  optWatchHelp: [
+    "Health keeps watching: if a connection that is healthy now goes down in this window, this step is undone and you are notified.",
+    "پایش سلامت ادامه می‌دهد: اگر اتصالی که الان سالم است در این مدت قطع شود، این مرحله برگردانده می‌شود و اعلان دریافت می‌کنید.",
+  ],
+  optWatchNeedsHealth: ["Turn on Health monitoring to use automatic undo.", "برای برگشت خودکار، پایش سلامت را روشن کنید."],
+  optWatchOff: ["Off", "خاموش"],
+  optWatchMinutes: ["{n} minutes", "{n} دقیقه"],
+  optWatchActive: ["Watching tunnel health", "در حال پایش سلامت تونل‌ها"],
+  optWatchActiveBody: [
+    "{n} healthy connections are watched; an outage undoes the last step automatically. {left} left.",
+    "{n} اتصال سالم زیر نظر است؛ هر قطعی، آخرین مرحله را خودکار برمی‌گرداند. {left} باقی مانده.",
+  ],
+  optWatchKept: ["The last step passed its watch", "آخرین مرحله از پایش سربلند بیرون آمد"],
+  optWatchKeptBody: ["No connection went down; the settings stay (finished {t}).", "هیچ اتصالی قطع نشد و تنظیمات می‌ماند (پایان در {t})."],
+  optWatchUndone: ["The last step was undone automatically", "آخرین مرحله خودکار برگردانده شد"],
+  optWatchUndoneBody: ["{names} went down after the apply; the previous values are back ({t}).", "{names} بعد از اعمال قطع شد و مقدارهای قبلی برگشتند ({t})."],
+  optWatchFailed: ["Automatic undo failed", "برگشت خودکار ناموفق بود"],
+  optWatchFailedBody: ["{names} went down, but undo failed: {e}. Undo the last step by hand.", "{names} قطع شد ولی برگشت ناموفق بود: {e}. آخرین مرحله را دستی برگردانید."],
 } satisfies Messages;

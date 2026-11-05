@@ -112,6 +112,12 @@ func (c *Center) Emit(e Event) Event {
 	}
 	e.ID, e.Read, e.Delivery = c.data.Next, false, ""
 	e.Name, e.Detail = clip(e.Name, 80), clip(e.Detail, 300)
+	if len(e.Args) > 8 {
+		e.Args = nil
+	}
+	for k, v := range e.Args {
+		e.Args[k] = clip(v, 200)
+	}
 	c.data.Next++
 	if c.data.Settings.external(e.Kind) {
 		e.Delivery = DeliveryPending

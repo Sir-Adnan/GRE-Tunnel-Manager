@@ -2,7 +2,7 @@
 
 Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
 
-Version **v1.4.0** adds opt-in health failover for kernel forwards, HAProxy check results, a GRE path MTU test and a reversible [Optimization](OPTIMIZATION.md) page. Version v1.3.7 added optional [health monitoring and scheduled maintenance](HEALTH-AND-MAINTENANCE.md) and a 1–15 second dashboard refresh. Version v1.3.6 routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
+Version **v1.4.1** adds a notification center with webhook and Telegram delivery, a change history with in-place restore, scheduled backups, a guided diagnosis, GRE quality and speed tests, far-side checks through Nodes, an opt-in Prometheus endpoint and a redesigned Optimization page with Apply all, profiles, a network-card group and automatic undo; see [Monitoring](MONITORING.md). Version v1.4.0 added opt-in health failover for kernel forwards, HAProxy check results, a GRE path MTU test and a reversible [Optimization](OPTIMIZATION.md) page. Version v1.3.7 added optional [health monitoring and scheduled maintenance](HEALTH-AND-MAINTENANCE.md) and a 1–15 second dashboard refresh. Version v1.3.6 routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
 
 ## Installation and login
 
@@ -50,7 +50,7 @@ Explicit HTTP works on an IP without a certificate, but browser login and manage
 
 ### Existing installations and recovery
 
-Run the current installer again to upgrade to the matching **v1.4.0** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+Run the current installer again to upgrade to the matching **v1.4.1** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
 
 Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. If an upgraded panel fails to start, the installer reinstalls the previous executable and helper and starts them again. Rewritten unit files stay in place. That rollback is not a host-wide atomic transaction: inspect logs when it reports failure. Keep private backups of configuration and Node identities.
 
@@ -98,9 +98,19 @@ Bytes are network-layer usage, not provider billing. GRE and forwarding counters
 
 Both pages are off by default and cost nothing while off. **Health** checks every enabled destination (TCP connect, or ping for UDP-only services), GRE peers and managed service units on a schedule, and keeps status, 24 h / 7 d / 30 d uptime, outages, a weekly report (CSV and print) and conntrack/CPU pressure from `/proc`. **Maintenance** runs plans: a soft refresh without disconnects, a restart (for kernel forwards, clearing only that forward's tracked flows) or a server reboot, on daily, weekday, interval, uptime or health triggers, with guards such as a time window, quiet traffic, cooldown, daily limit, cancellable notice, minimum uptime and dry run. Health can also fail over kernel forwards with several destinations, shows HAProxy's own check results, connection counts per destination and an on-demand GRE path MTU test. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
 
+Each Health row also offers **Diagnose** (a read-only "why isn't it working?" checklist) and, for GRE, a **Quality test** (latency, jitter, loss); tunnels a Node also reports show whether the far side reaches them. See [Monitoring](MONITORING.md).
+
 ## Optimization
 
-The **Optimization** page applies opt-in, reversible kernel settings in four groups (Connection tracking, Packet queues, Relay TCP, Tunnels & routing) after a review of current, recommended and original values, with step-by-step undo, per-group restore and a full reset. A profile (Conservative, Balanced or Aggressive; General, Many users or Low latency) sets the values, any value can be customized within safe bounds, and custom values worse than the original need a confirmation. See [Server optimization](OPTIMIZATION.md).
+The **Optimization** page is a control center: progress for the chosen profile, **Apply all** and **Review recommendations**, the profile (a three-stop intensity and goal cards) and the server facts in one card, then five opt-in groups (Connection tracking, Packet queues, Relay TCP, Tunnels & routing, Network card) reviewed with current, recommended and original values. Any value can be customized within safe bounds; worse values need a confirmation. Undo goes back step by step, a group can be restored and everything reset, and an apply can be watched with automatic undo when tunnels go down. See [Server optimization](OPTIMIZATION.md).
+
+## Change history
+
+**Change history** lists every forwarding change as a timeline grouped by day: which connections were added, removed or changed and which fields. **Restore to before this** shows exactly what restoring would change now and restores through the normal apply path after a revision check; the current state is saved first, so the restore appears in the history and can be undone. GRE tunnels, reverse tunnels and optimization keep their own undo.
+
+## Notifications and metrics
+
+The bell in the header opens the notification center; **Settings → Notification channels** sends selected events to a webhook or Telegram bot, and **Settings → Metrics export** enables a token-protected Prometheus endpoint. **Backups → Schedule** saves recovery snapshots on a schedule. See [Monitoring](MONITORING.md) and [Backup and restore](BACKUP-RESTORE.md#scheduled-backups).
 
 ## Configurations and engines
 

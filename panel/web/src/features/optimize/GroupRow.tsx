@@ -1,6 +1,7 @@
 import {
   Activity,
   ChevronDown,
+  Cpu,
   Network,
   RotateCcw,
   Route,
@@ -20,6 +21,7 @@ const icons: Record<OptimizeGroup, LucideIcon> = {
   queues: Activity,
   relay: Waypoints,
   routing: Route,
+  nic: Cpu,
 };
 
 function StatusLabel({ state }: { state: GroupState }) {

@@ -307,7 +307,7 @@ func (m *Manager) createSnapshot(ctx context.Context, scheduled bool) (SnapshotI
 		if e != nil {
 			m.Ops.Notify.Emit(notify.Event{Kind: notify.KindBackupFailed, Detail: truncate(e.Error(), 200)})
 		} else {
-			m.Ops.Notify.Emit(notify.Event{Kind: notify.KindBackup, Detail: fmt.Sprintf("%s · %d connections", info.Name, info.Connections)})
+			m.Ops.Notify.Emit(notify.Event{Kind: notify.KindBackup, Detail: fmt.Sprintf("%s · %d connections", info.Name, info.Connections), Args: map[string]string{"name": info.Name, "connections": strconv.Itoa(info.Connections)}})
 		}
 	}
 	return info, e

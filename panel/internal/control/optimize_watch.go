@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,7 +147,7 @@ func (o *Operations) checkWatch(ctx context.Context, m *Manager, lock sync.Locke
 	if len(down) == 0 {
 		if now.After(w.Until) {
 			o.finishWatch(now, WatchKept, "", nil)
-			o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindOptimizeKept, Detail: "watched for " + shortDuration(w.Until.Sub(w.Started))})
+			o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindOptimizeKept, Detail: "watched for " + shortDuration(w.Until.Sub(w.Started)), Args: map[string]string{"minutes": strconv.Itoa(int(w.Until.Sub(w.Started).Minutes()))}})
 		}
 		return
 	}
@@ -169,9 +170,9 @@ func (o *Operations) checkWatch(ctx context.Context, m *Manager, lock sync.Locke
 	detail := strings.Join(down, ", ")
 	if e != nil {
 		o.finishWatch(now, WatchFailed, e.Error(), down)
-		o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindRollback, Severity: notify.SeverityCritical, Detail: "undo failed: " + truncate(e.Error(), 120) + " · " + detail})
+		o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindRollback, Severity: notify.SeverityCritical, Detail: "undo failed: " + truncate(e.Error(), 120) + " · " + detail, Args: map[string]string{"names": detail, "error": truncate(e.Error(), 120)}})
 		return
 	}
 	o.finishWatch(now, WatchUndone, strings.TrimSpace(out), down)
-	o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindRollback, Detail: "down after apply: " + detail})
+	o.Notify.Emit(notify.Event{Time: now, Kind: notify.KindRollback, Detail: "down after apply: " + detail, Args: map[string]string{"names": detail}})
 }

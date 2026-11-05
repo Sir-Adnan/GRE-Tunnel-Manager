@@ -9,7 +9,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import { compactValue, keyLabel } from "./catalog";
+import { compactValue, keyTitle } from "./catalog";
 import type { Note } from "./types";
 
 /** Now → recommended, or why nothing changes, for one sysctl key. */
@@ -115,7 +115,19 @@ export function SettingRow({
     <li className="opt-setting" data-note={note} data-managed={managed}>
       <div className="opt-setting-name">
         <span className="text-sm font-medium">
-          {t(keyLabel[setting] ?? setting)}
+          {(() => {
+            const title = keyTitle(setting);
+            return title.link ? (
+              <>
+                {t(title.label)}{" "}
+                <bdi dir="ltr" className="opt-link-name">
+                  {title.link}
+                </bdi>
+              </>
+            ) : (
+              t(title.label)
+            );
+          })()}
           {managed && (
             <span className="opt-managed" title={t("optManagedKey")}>
               {t("optManagedKey")}

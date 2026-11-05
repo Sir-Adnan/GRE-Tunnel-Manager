@@ -27,6 +27,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | [Traffic accounting](TRAFFIC-ACCOUNTING.md) · [Remote summaries](REMOTE-TRAFFIC.md) | Collection, resets, quotas, history and Node reports |
 | [Health and maintenance](HEALTH-AND-MAINTENANCE.md) | Uptime, outages, weekly reports, conntrack pressure and scheduled refresh/restart/reboot |
 | [Performance](PERFORMANCE.md) · [Server optimization](OPTIMIZATION.md) | Capacity limits and opt-in, reversible kernel settings |
+| [Monitoring](MONITORING.md) | Notifications (webhook, Telegram), diagnosis, GRE quality and speed tests, far-side checks and Prometheus metrics |
 | [Retiring old installations](RETIRING-OLD-INSTALLS.md) | Removing v13.x forwards, Simple GRE and old tuning files |
 
 ## Development and reference

@@ -1,0 +1,365 @@
+/* Notifications, change history, diagnosis, scheduled backups and tunnel
+   tests. Colors come from semantic tokens only; every colored state also
+   carries text or an icon, and motion respects reduced-motion. */
+@layer components {
+  /* Notification center */
+  .ntf-badge {
+    @apply pointer-events-none absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold tabular-nums;
+    background: var(--destructive);
+    color: var(--primary-foreground);
+    box-shadow: 0 0 0 2px var(--background);
+  }
+  .ntf-sheet {
+    @apply gap-0 p-0;
+  }
+  .ntf-head {
+    @apply gap-2 border-b pe-12;
+  }
+  .ntf-toolbar {
+    @apply mt-2 flex flex-wrap items-center justify-between gap-2;
+  }
+  .ntf-count {
+    @apply ms-1 rounded-full bg-muted px-1.5 text-[10px] tabular-nums;
+  }
+  .ntf-scroll {
+    @apply flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3;
+    overscroll-behavior: contain;
+  }
+  .ntf-day > h3 {
+    @apply sticky top-0 z-10 mb-1 px-2 py-1 text-xs font-medium text-muted-foreground;
+    background: color-mix(in srgb, var(--popover) 92%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .ntf-day > ul {
+    @apply flex flex-col gap-1;
+  }
+  .ntf-item {
+    @apply relative grid w-full cursor-pointer items-start gap-3 rounded-lg p-2.5 text-start outline-none;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    --tone: var(--success);
+    --tone-text: var(--success-text);
+  }
+  .ntf-item:hover,
+  .ntf-item:focus-visible {
+    background: var(--accent);
+  }
+  .ntf-item:focus-visible {
+    box-shadow: 0 0 0 2px var(--ring);
+  }
+  .ntf-item[data-severity="warning"] {
+    --tone: var(--warning);
+    --tone-text: var(--warning-text);
+  }
+  .ntf-item[data-severity="critical"] {
+    --tone: var(--destructive);
+    --tone-text: var(--destructive-text);
+  }
+  .ntf-icon {
+    @apply mt-0.5 flex size-7 items-center justify-center rounded-full;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    color: var(--tone-text);
+  }
+  .ntf-icon svg {
+    @apply size-4;
+  }
+  .ntf-body {
+    @apply flex min-w-0 flex-col gap-0.5;
+  }
+  .ntf-title {
+    @apply text-sm leading-6 font-medium;
+    text-wrap: pretty;
+  }
+  .ntf-item[data-read="true"] .ntf-title {
+    @apply font-normal text-muted-foreground;
+  }
+  .ntf-detail {
+    @apply text-xs leading-5 break-words text-muted-foreground;
+  }
+  .ntf-meta {
+    @apply flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground;
+  }
+  .ntf-delivery {
+    @apply rounded-full border px-1.5 leading-4;
+  }
+  .ntf-delivery[data-state="failed"],
+  .ntf-delivery[data-state="limited"] {
+    color: var(--warning-text);
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+  }
+  .ntf-unread-dot {
+    @apply mt-2 size-2 rounded-full;
+    background: var(--primary);
+  }
+  .ntf-empty {
+    @apply flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center text-sm text-muted-foreground;
+  }
+  .ntf-empty svg {
+    @apply size-8 opacity-50;
+  }
+  .ntf-kinds {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  /* Change history: a day-grouped timeline */
+  .hist-hero {
+    @apply flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4 sm:p-5;
+  }
+  .hist-hero > div {
+    flex: 1 1 18rem;
+  }
+  .hist-hero-icon {
+    @apply flex size-11 shrink-0 items-center justify-center rounded-xl;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+  .hist-hero-icon svg {
+    @apply size-5;
+  }
+  .hist-hero-note {
+    @apply flex basis-full items-start gap-2 border-t pt-3 text-xs leading-5 text-muted-foreground;
+  }
+  .hist-day {
+    @apply flex flex-col gap-2;
+  }
+  .hist-day-label {
+    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+  .hist-timeline {
+    @apply relative flex flex-col gap-3 ps-6;
+  }
+  .hist-timeline::before {
+    content: "";
+    @apply absolute top-2 bottom-2 start-[0.4375rem] w-px bg-border;
+  }
+  .hist-entry {
+    @apply relative;
+  }
+  .hist-dot {
+    @apply absolute top-4 -start-6 size-3.5 rounded-full border-2 bg-background;
+    border-color: var(--border);
+  }
+  .hist-entry[data-latest="true"] .hist-dot {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 25%, var(--background));
+  }
+  .hist-card {
+    @apply flex flex-col gap-3 rounded-xl border bg-card p-3 sm:p-4;
+  }
+  .hist-card > header {
+    @apply flex flex-wrap items-start justify-between gap-3;
+  }
+  .hist-time {
+    @apply text-sm font-semibold tabular-nums;
+  }
+  .hist-changes {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .hist-change {
+    @apply flex min-w-0 items-center gap-2.5 px-3 py-2 text-sm;
+    --tone: var(--muted-foreground);
+  }
+  .hist-change[data-kind="added"] {
+    --tone: var(--success-text);
+  }
+  .hist-change[data-kind="removed"] {
+    --tone: var(--destructive-text);
+  }
+  .hist-change[data-kind="changed"] {
+    --tone: var(--warning-text);
+  }
+  .hist-change-icon {
+    @apply size-4 shrink-0;
+    color: var(--tone);
+  }
+  .hist-change-name {
+    @apply block truncate font-medium;
+  }
+  .hist-change-what {
+    @apply block truncate text-xs text-muted-foreground;
+  }
+  .hist-change-id {
+    @apply hidden shrink-0 text-[11px] text-muted-foreground sm:inline;
+  }
+  .hist-empty {
+    @apply flex flex-col items-center gap-2 rounded-xl border border-dashed p-10 text-center;
+  }
+  .hist-empty svg {
+    @apply size-8 text-muted-foreground opacity-60;
+  }
+
+  /* Guided diagnosis */
+  .diag-verdict {
+    @apply flex items-start gap-3 rounded-lg border p-3;
+    --tone: var(--success);
+    --tone-text: var(--success-text);
+    border-color: color-mix(in srgb, var(--tone) 40%, var(--border));
+    background: color-mix(in srgb, var(--tone) 8%, transparent);
+  }
+  .diag-verdict[data-status="warn"] {
+    --tone: var(--warning);
+    --tone-text: var(--warning-text);
+  }
+  .diag-verdict[data-status="fail"] {
+    --tone: var(--destructive);
+    --tone-text: var(--destructive-text);
+  }
+  .diag-verdict > svg {
+    @apply mt-0.5 size-5 shrink-0;
+    color: var(--tone-text);
+  }
+  .diag-list {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .diag-check {
+    @apply flex items-start gap-3 p-3;
+    --tone-text: var(--success-text);
+  }
+  .diag-check[data-status="warn"] {
+    --tone-text: var(--warning-text);
+  }
+  .diag-check[data-status="fail"] {
+    --tone-text: var(--destructive-text);
+  }
+  .diag-check[data-status="info"] {
+    --tone-text: var(--muted-foreground);
+  }
+  .diag-icon {
+    @apply mt-0.5 size-4 shrink-0;
+    color: var(--tone-text);
+  }
+  .diag-detail {
+    @apply self-start text-[11px] break-all text-muted-foreground;
+  }
+  .diag-fix {
+    @apply text-xs leading-5;
+    color: var(--tone-text);
+    text-wrap: pretty;
+  }
+  .health-detail-actions {
+    @apply flex flex-wrap justify-end gap-2;
+  }
+
+  /* GRE quality test */
+  .quality-stats {
+    @apply grid grid-cols-2 gap-3 sm:grid-cols-4;
+  }
+  .quality-stats dt {
+    @apply text-xs text-muted-foreground;
+  }
+  .quality-stats dd {
+    @apply text-sm font-semibold tabular-nums;
+  }
+  .quality-bars {
+    @apply grid h-10 items-end gap-[3px];
+    grid-template-columns: repeat(20, minmax(0, 1fr));
+  }
+  .quality-bars > li {
+    @apply rounded-sm;
+    background: color-mix(in srgb, var(--primary) 70%, transparent);
+  }
+  .quality-bars > li[data-lost="true"] {
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--destructive) 55%, transparent) 0 3px,
+      transparent 3px 6px
+    );
+  }
+
+  /* Far-side checks and speed tests from Nodes */
+  .node-pressure {
+    @apply grid gap-3 sm:grid-cols-3;
+  }
+  .node-pressure > div {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+  .node-pressure dt {
+    @apply text-xs text-muted-foreground;
+  }
+  .node-pressure dd {
+    @apply truncate text-xs font-medium tabular-nums;
+  }
+  .far-summary {
+    @apply flex items-center gap-2 text-xs;
+    --tone: var(--warning);
+    color: var(--warning-text);
+  }
+  .far-summary[data-ok="true"] {
+    --tone: var(--success);
+    color: var(--success-text);
+  }
+  .far-summary .status-pill-dot {
+    background: var(--tone);
+  }
+  .far-list {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .far-row {
+    @apply flex flex-wrap items-start gap-3 p-3;
+  }
+  .far-row > div {
+    flex: 1 1 14rem;
+  }
+  .speed-run {
+    @apply flex flex-col items-end gap-2;
+  }
+  .speed-result {
+    @apply grid grid-cols-2 gap-x-4 text-end;
+  }
+  .speed-result dt {
+    @apply text-[11px] text-muted-foreground;
+  }
+  .speed-result dd {
+    @apply text-sm font-semibold tabular-nums;
+  }
+  .far-chip {
+    @apply rounded-full border px-1.5 text-[11px] leading-5;
+    color: var(--success-text);
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  }
+  .far-chip[data-ok="false"] {
+    color: var(--destructive-text);
+    border-color: color-mix(in srgb, var(--destructive) 40%, var(--border));
+  }
+
+  /* Scheduled backups */
+  .snap-status {
+    @apply grid gap-3 rounded-lg border p-3 sm:grid-cols-3;
+  }
+  .snap-status dt {
+    @apply text-xs text-muted-foreground;
+  }
+  .snap-status dd {
+    @apply text-sm font-semibold tabular-nums;
+  }
+  .snap-list {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .snap-list > li {
+    @apply flex items-center gap-3 px-3 py-2.5;
+  }
+
+  /* Optimization: watch window and link names */
+  .opt-watch-field {
+    @apply mt-2 flex flex-wrap items-center gap-3 rounded-lg border p-3;
+  }
+  .opt-watch-field > select,
+  .opt-watch-field > [data-slot="native-select-wrapper"] {
+    @apply w-full sm:w-auto;
+  }
+  .opt-watch[data-state="active"] {
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  }
+  .opt-watch[data-state="kept"] {
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  }
+  .opt-link-name {
+    @apply rounded bg-muted px-1 font-mono text-xs font-normal;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ntf-item,
+    .hist-card {
+      transition: background-color 150ms ease-out, border-color 150ms ease-out;
+    }
+  }
+}

@@ -1,20 +1,34 @@
 # Changelog
 
-## Unreleased — Optimization profiles and custom values
+## v1.4.1 — Notifications, change history, scheduled backups and tunnel tests
 
 ### Panel
 
-- The Optimization page gains **profiles**: an intensity level (Conservative, Balanced, Aggressive) and a goal (General, Many users, Low latency). Choosing one previews its values in every group; nothing changes until a group is applied. Balanced · General is the default and equals v1.4.0. Aggressive is capped to Balanced table and buffer sizes on servers with less than 2 GB of memory, and the page says so.
-- Moving between profiles compares against each key's original value, so a lighter profile lowers what the panel raised but never goes below what the server had; keys a profile does not use return to their original value.
-- **Custom values** in the review: Edit opens any key within safe bounds (one input per field for buffer triples and the port range, a list for qdisc and congestion control). A value worse than the server's original needs an explicit confirmation.
-- When Health records outages that began after the last apply (within a day), the page lists the tunnels and offers Undo.
+- **Notification center:** a bell in the header lists outages and recoveries, failover changes, automatic undo, maintenance results and scheduled backups, grouped by day with unread counts; selecting one opens its page. **Settings → Notification channels** sends chosen kinds to a webhook (JSON, optional HMAC-SHA256 signature) and a Telegram bot (optional Bot API relay), in English or Persian, with retries, a rate limit and a test button. Secrets are stored root-only and never shown again. See [Monitoring](MONITORING.md).
+- **Change history** (new page): every forwarding change as a day-grouped timeline with what changed per connection (added, removed, or which fields). **Restore to before this** reviews exactly what restoring changes now and restores through the normal apply path, saving the current state first so the restore is undoable too.
+- **Scheduled backups** (Backups → Schedule): daily or weekly recovery snapshots on the server in the maintenance time zone, the newest 1–60 kept, optional traffic history, **Back up now**, delete, and download of any snapshot as a password-protected `.gtm-backup`.
+- **Diagnose:** a read-only "why isn't it working?" checklist for connections and GRE tunnels (Health details, connection and GRE menus) with problems first and a fix for each.
+- **GRE quality test:** 20 pings through the tunnel with latency, jitter, loss and a per-ping chart.
+- **Far-side checks and speed tests through Nodes:** v1.4.1 Agents report their load and whether each GRE peer answers from their side; Health shows "Far side ✓/✗" beside local tunnels and Node details offer a TCP speed test through the tunnel in both directions.
+- **Metrics export (Prometheus):** an opt-in `/metrics` endpoint with a bearer token shown once.
+- **Optimization:**
+  - Redesigned as a control center: a progress ring, the profile as a three-stop intensity and icon goal cards, the server facts and the actions in one card; groups and the safety/history/files column below.
+  - **Apply all** reviews and applies every group with changes at once.
+  - **Profiles:** an intensity level (Conservative, Balanced, Aggressive) and a goal (General, Many users, Low latency). Balanced · General is the default and equals v1.4.0. Aggressive is capped to Balanced table and buffer sizes below 2 GB of memory. Moving between profiles compares against each key's original value, so a lighter profile lowers what the panel raised but never below what the server had.
+  - **Custom values** within safe bounds in the review, with an explicit confirmation for values worse than the original.
+  - A **Network card** group: transmit queue length and packet steering (RPS) across every CPU for single-queue cards, replayed at boot by a small unit.
+  - **Automatic undo:** watch tunnel health for 5–60 minutes after an apply and undo the step if a healthy connection goes down; the page shows a countdown and the outcome, and a notification is sent.
+- The Optimization uplink fact, Health quality and far-side texts, and every new screen are bilingual with Latin digits, keyboard accessible and fit a phone screen.
 
 ### Server and tooling
 
-- `optimize.sh` takes the profile from `GTM_OPT_LEVEL`/`GTM_OPT_GOAL`, adds `net.ipv4.ip_local_port_range` (never over a port a service listens on) and `net.ipv4.tcp_max_tw_buckets` for the Many users goal, validates custom values with `gtm_optimize_bounds`, refuses worse custom values unless confirmed, stops tracking keys that return to their original value and records the applied profile. The terminal menu has **Change profile**.
-- Bash API: `optimize-status [LEVEL GOAL]`, `optimize-plan LEVEL GOAL GROUPS [key=value…]`, `optimize-apply LEVEL GOAL GROUPS allow|deny [key=value…]` (`- -` selects the saved profile).
+- New engine modules: `history.sh` (`history [LIMIT]`, `history-restore POINT REVISION`) and `diagnose.sh` (`diagnose ID`), both behind the existing API and lock.
+- `optimize.sh`: profiles from `GTM_OPT_LEVEL`/`GTM_OPT_GOAL`, `net.ipv4.ip_local_port_range` (never over a listening port) and `net.ipv4.tcp_max_tw_buckets` for Many users, custom-value bounds, link keys `link.IFACE.txqueuelen` and `link.IFACE.rps` for the uplinks of the default routes (an existing RPS mask is kept), `/usr/local/lib/gre-manager/optimize-links.sh` with `gre-manager-optimize.service`, and the terminal menu's **Network card** and **Change profile**. Reading a key no longer starts a subprocess for whitespace.
+- Broker: a bounded notification worker, health transition events, the optimization watch, a snapshot scheduler, `/metrics` token checks, the GRE quality test, and `node-probes` on the read-only Agent broker.
+- Nodes: optional `POST /v1/probes` sideband (probe protocol 1) with speed-test offers in its acknowledgment; Agent flag `--probes` (default on).
+- New private files under `/var/lib/gre-manager-panel`: `notifications.json`, `snapshots.json`, `snapshots/`, `prometheus.json`, `optimize-watch.json`. See [Server artifacts](ARTIFACTS.md).
 
-Local evidence only: Python, Go and frontend tests plus browser checks of the demo in both locales and at phone width.
+Local evidence only: Python, Go (race, vet) and frontend tests, ShellCheck, and browser checks of the demo in both locales at desktop and phone width. Not yet run on real servers: boot replay of link settings, speed tests between two VPSs, far-side checks through real firewalls and delivery through real webhook/Telegram endpoints.
 
 ## v1.4.0 — Failover, server optimization and a leaner terminal
 

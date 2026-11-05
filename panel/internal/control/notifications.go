@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,9 +70,10 @@ func healthEvents(c *notify.Center, now time.Time, before, after map[string]heal
 			if s.Error != "" {
 				detail = strings.TrimSpace(detail + " · " + s.Error)
 			}
-			c.Emit(notify.Event{Time: now, Kind: notify.KindDown, Owner: owner, Name: s.Name, Detail: detail})
+			c.Emit(notify.Event{Time: now, Kind: notify.KindDown, Owner: owner, Name: s.Name, Detail: detail, Args: map[string]string{"endpoint": s.Endpoint, "reason": s.Error}})
 		case known && previous.Status == health.StatusDown && (s.Status == health.StatusUp || s.Status == health.StatusDegraded):
-			c.Emit(notify.Event{Time: now, Kind: notify.KindUp, Owner: owner, Name: s.Name, Detail: "down for " + shortDuration(now.Sub(previous.Since))})
+			down := now.Sub(previous.Since)
+			c.Emit(notify.Event{Time: now, Kind: notify.KindUp, Owner: owner, Name: s.Name, Detail: "down for " + shortDuration(down), Args: map[string]string{"seconds": strconv.FormatInt(int64(down.Seconds()), 10)}})
 		}
 	}
 }

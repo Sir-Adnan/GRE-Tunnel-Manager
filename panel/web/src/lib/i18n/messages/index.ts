@@ -11,6 +11,9 @@ import { login } from "./login";
 import { health } from "./health";
 import { maintenance } from "./maintenance";
 import { optimize } from "./optimize";
+import { notifications } from "./notifications";
+import { history } from "./history";
+import { tunnels } from "./tunnels";
 
 export const modules = {
   common,
@@ -25,6 +28,9 @@ export const modules = {
   health,
   maintenance,
   optimize,
+  notifications,
+  history,
+  tunnels,
 };
 
 export const messages = {
@@ -40,4 +46,7 @@ export const messages = {
   ...health,
   ...maintenance,
   ...optimize,
+  ...notifications,
+  ...history,
+  ...tunnels,
 };

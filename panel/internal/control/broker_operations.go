@@ -146,11 +146,11 @@ func (b *Broker) executeRun(ctx context.Context, run maintenance.Run) {
 		log.Printf("maintenance history write failed: %v", e)
 	}
 	if !run.Plan.DryRun && ops.Notify != nil && len(entries) > 0 {
-		kind, detail := notify.KindMaintenance, describe(run.Plan.Action, run.Owners[0])
+		kind, detail := notify.KindMaintenance, ""
 		if failure != nil {
 			kind, detail = notify.KindMaintenanceFailed, truncate(failure.Error(), 200)
 		}
-		ops.Notify.Emit(notify.Event{Kind: kind, Name: run.Plan.Name, Detail: fmt.Sprintf("%s (%d)", detail, len(entries))})
+		ops.Notify.Emit(notify.Event{Kind: kind, Name: run.Plan.Name, Detail: detail, Args: map[string]string{"action": run.Plan.Action, "count": fmt.Sprint(len(entries))}})
 	}
 	if !run.Plan.DryRun {
 		_ = audit(Request{Action: "maintenance-" + run.Plan.Action}, failure)

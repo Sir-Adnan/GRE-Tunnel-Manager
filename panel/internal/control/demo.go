@@ -81,7 +81,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		if !greID.MatchString(r.Health.Owner) {
 			return nil, errors.New("the quality test runs on GRE tunnels")
 		}
-		return json.Marshal(runQuality(context.Background(), demoPinger{}, r.Health.Owner, "10.0.1.2", 0))
+		return json.Marshal(runQuality(context.Background(), demoPinger{n: new(int)}, r.Health.Owner, "10.0.1.2", 0))
 	case "snapshots", "snapshots-configure", "snapshots-run", "snapshots-delete":
 		return d.snapshotsDemo(r)
 	case "prometheus", "prometheus-settings", "prometheus-configure":

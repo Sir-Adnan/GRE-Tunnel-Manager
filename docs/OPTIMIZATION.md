@@ -1,6 +1,6 @@
 # Server optimization
 
-The panel's **Optimization** page (terminal: **Tools → Server optimization**) offers server-wide kernel settings for tunnel and forwarding servers: a [profile](#profiles) (Conservative, Balanced or Aggressive, for general use, many users or low latency) and four opt-in groups. Nothing changes until a group is reviewed and applied; any value can be [customized](#custom-values) within safe bounds. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
+The panel's **Optimization** page (terminal: **Tools → Server optimization**) offers server-wide kernel and network-card settings for tunnel and forwarding servers: a [profile](#profiles) (Conservative, Balanced or Aggressive, for general use, many users or low latency) and five opt-in groups. Nothing changes until a group is reviewed and applied; any value can be [customized](#custom-values) within safe bounds. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
 
 This module replaces the tuning menu of v1.3.7 and earlier; its values and method were not carried over. Settings applied with that menu are imported on the first change (see [Upgrading](#upgrading-from-v137)).
 
@@ -51,9 +51,17 @@ In the review, **Edit** opens any key's value within safe bounds (for example ke
 
 A custom value that is worse than the server's original value (by the same never-worse rule) is marked **Worse than original**, and Apply stays disabled until the operator confirms it. Undo and Reset still return the original.
 
+## The page
+
+The top card is a control center: a ring with the share of the viewed profile already in place, the applied profile (or "Previewing another profile"), **Apply all** for every group with changes, **Review recommendations** for the groups that fit what this server runs, the profile as a three-stop intensity and three goal cards, and the server facts (memory, tracked flows, congestion control, uplinks). Groups follow as expandable rows with their own **Review & apply**; safety notes, undo history and the panel's files sit in a column beside them on wide screens. **More actions** also offers Apply all, Undo and Reset.
+
 ## After applying
 
 The newest undo step carries its time. When Health monitoring is on and outages begin after the last apply (within a day), the page lists the affected tunnels and offers **Undo last step**. It is a hint, not proof: a destination can fail for its own reasons.
+
+### Automatic undo
+
+With Health monitoring on, the review offers **Undo automatically if tunnels go down** for 5, 10 (default), 15, 30 or 60 minutes. The broker records the connections that are up or degraded at apply time; if one of them goes down (an outage that starts after the apply) before the window ends, it undoes the step, sends a notification and the page shows which connections went down. When the window passes without an outage the step is kept. The watch guards one step: a later apply, undo, restore or reset, or turning monitoring off, cancels it, and it never undoes a step other than the one it guards. The watch survives a broker restart (`/var/lib/gre-manager-panel/optimize-watch.json`).
 
 ## Groups and values
 
@@ -106,6 +114,17 @@ For connections the server terminates or originates itself (HAProxy, Realm, FRP,
 
 `tcp_notsent_lowat` keeps at most 128 KiB of unsent data per relay socket instead of no limit, which lowers queueing delay with BBR. `default_qdisc` applies to interfaces created afterwards or after a reboot.
 
+### Network card
+
+Listed only for the uplinks of the IPv4/IPv6 default routes (at most four, GRE devices excluded). These are not sysctls: the journal stores them as `link.IFACE.txqueuelen` and `link.IFACE.rps`, and a oneshot unit replays them at boot.
+
+| Key | Value (Conservative / Balanced / Aggressive) | Mode |
+| --- | --- | --- |
+| `link.IFACE.txqueuelen` (`/sys/class/net/IFACE/tx_queue_len`) | 2000 / 5000 / 10000; Low latency keeps the server's value | raise |
+| `link.IFACE.rps` (`queues/rx-*/rps_cpus`) | Off for Conservative; a mask of every CPU otherwise | rps |
+
+Packet steering is offered only when the server has 2–1024 CPUs and the card has a single receive queue (common on virtual servers), where one CPU otherwise does all receive work and shows high softirq. A mask the server already set is kept (mode `rps`); a custom value is `0` or the full mask, and `0` over an existing mask counts as worse. Masks are written in comma-separated 32-bit groups.
+
 ### Tunnels & routing
 
 | Key | Value | Mode |
@@ -133,8 +152,10 @@ A key whose live value no longer equals what the panel applied was changed by so
 | `/etc/gre-manager/optimize/journal.tsv` | `key / before / applied / group`, mode 600 |
 | `/etc/gre-manager/optimize/steps/*.tsv` | Undo steps (newest 20) |
 | `/etc/gre-manager/optimize/profile` | The profile applied last (`level goal`); removed by Reset |
+| `/usr/local/lib/gre-manager/optimize-links.sh` | Applied network-card values, replayed at boot; exists only while link keys are applied |
+| `/etc/systemd/system/gre-manager-optimize.service` | Oneshot unit (after `network-online.target`) that runs the script above; enabled and removed with it |
 
-Both owned files are rewritten only while they still match what the panel last wrote; an edited file stops the operation and is kept for the operator.
+Owned files are rewritten only while they still match what the panel last wrote; an edited file stops the operation and is kept for the operator.
 
 ## ServerTools and other drop-ins
 

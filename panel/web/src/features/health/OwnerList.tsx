@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Stethoscope } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EngineGlyph } from "@/components/shared";
@@ -11,7 +11,9 @@ import type {
   HealthTarget,
 } from "@/features/operations/types";
 import { StatusPill, Sparkline, UptimeBars } from "./Indicators";
-import { FailoverNotice, FlowDistribution, MTUTest } from "./TunnelTools";
+import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
+import { FailoverNotice, FlowDistribution, MTUTest, QualityTest } from "./TunnelTools";
+import type { FarSideCheck } from "./farSide";
 import { dayLabel, milliseconds, percent, stamp, uptimeTone } from "./format";
 
 const kindKey = {
@@ -67,8 +69,29 @@ function Targets({
   const t = useT();
   const locale = useContext(LocaleContext);
   const today = new Date(time);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const diagnosable =
+    owner.engine === "gre" || /^F[0-9]{6}$/.test(owner.owner);
   return (
     <div className="health-detail">
+      {diagnosable && (
+        <div className="health-detail-actions">
+          <Button
+            variant={owner.status === "down" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setDiagnosing(true)}
+          >
+            <Stethoscope data-icon="inline-start" />
+            {t("diagOpen")}
+          </Button>
+          <DiagnoseDialog
+        key={String(diagnosing)}
+            owner={diagnosing ? owner.owner : undefined}
+            name={owner.name}
+            onClose={() => setDiagnosing(false)}
+          />
+        </div>
+      )}
       <FailoverNotice
         status={failover}
         endpoints={endpoints}
@@ -162,6 +185,7 @@ function Targets({
       {owner.engine === "nftables" && endpoints.length > 1 && (
         <FlowDistribution owner={owner.owner} endpoints={endpoints} />
       )}
+      {owner.engine === "gre" && <QualityTest owner={owner.owner} />}
       {owner.engine === "gre" && <MTUTest owner={owner.owner} />}
     </div>
   );
@@ -173,6 +197,7 @@ export function OwnerList({
   time,
   timezone,
   failover,
+  farSide = {},
   endpoints,
 }: {
   owners: HealthOwner[];
@@ -180,6 +205,8 @@ export function OwnerList({
   timezone: string;
   failover: Record<string, FailoverStatus>;
   endpoints: Record<string, string[]>;
+  /** Checks from the far end of GRE tunnels, reported by Nodes. */
+  farSide?: Record<string, FarSideCheck>;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -211,6 +238,19 @@ export function OwnerList({
                     {Boolean(failover[owner.owner]?.excluded.length) && (
                       <span className="failover-chip">
                         {t("healthFailover")}
+                      </span>
+                    )}
+                    {farSide[owner.owner] && (
+                      <span
+                        className="far-chip"
+                        data-ok={farSide[owner.owner].ok}
+                        title={t("farSideChipTitle")
+                          .replace("{node}", farSide[owner.owner].node)
+                          .replace("{t}", stamp(farSide[owner.owner].seen, locale, timezone))}
+                      >
+                        {farSide[owner.owner].ok
+                          ? t("farSideChipOk").replace("{ms}", milliseconds(farSide[owner.owner].rtt_ms, locale))
+                          : t("farSideChipBad")}
                       </span>
                     )}
                   </span>

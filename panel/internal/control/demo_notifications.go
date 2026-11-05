@@ -14,11 +14,11 @@ func demoNotices(now time.Time) *notify.Center {
 	c := notify.New()
 	c.Host = "edge-01"
 	for _, e := range []notify.Event{
-		{Time: now.Add(-6 * time.Hour), Kind: notify.KindBackup, Detail: "gtm-20260105T0300.json · 42 KB"},
-		{Time: now.Add(-3 * time.Hour), Kind: notify.KindMaintenance, Name: "Nightly relay restart", Detail: "Would restart the service. (2)"},
-		{Time: now.Add(-62 * time.Minute), Kind: notify.KindDown, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "198.51.100.30 · timeout"},
-		{Time: now.Add(-55 * time.Minute), Kind: notify.KindUp, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "down for 7m"},
-		{Time: now.Add(-20 * time.Minute), Kind: notify.KindFailover, Owner: "F000004", Name: "Reality pool", Detail: "no new flows to destination 2"},
+		{Time: now.Add(-6 * time.Hour), Kind: notify.KindBackup, Detail: "gtm-20260105T033000.json · 4 connections", Args: map[string]string{"name": "gtm-20260105T033000.json", "connections": "4"}},
+		{Time: now.Add(-3 * time.Hour), Kind: notify.KindMaintenance, Name: "Nightly relay restart", Args: map[string]string{"action": "restart", "count": "2"}},
+		{Time: now.Add(-62 * time.Minute), Kind: notify.KindDown, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "198.51.100.30 · timeout", Args: map[string]string{"endpoint": "198.51.100.30", "reason": "timeout"}},
+		{Time: now.Add(-55 * time.Minute), Kind: notify.KindUp, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "down for 7m", Args: map[string]string{"seconds": "420"}},
+		{Time: now.Add(-20 * time.Minute), Kind: notify.KindFailover, Owner: "F000004", Name: "Reality pool", Detail: "no new flows to destination 2", Args: map[string]string{"excluded": "2"}},
 	} {
 		c.Emit(e)
 	}

@@ -75,6 +75,9 @@ const Optimize = lazy(() =>
     default: module.Optimize,
   })),
 );
+const History = lazy(() =>
+  import("@/features/history/History").then((m) => ({ default: m.History })),
+);
 const Backups = lazy(() =>
   import("@/features/backups/Backups").then((module) => ({
     default: module.Backups,
@@ -258,7 +261,8 @@ export default function App() {
               busy={operations.busy}
               refresh={refreshPage}
               openPalette={openPalette}
-            />
+              navigate={navigate}
+              />
             <main className="page-container" id="main">
               {session.demo && (
                 <Alert className="demo-banner mb-5">
@@ -322,10 +326,17 @@ export default function App() {
                           <Optimize inventory={inventory} run={run} />
                         ) : page === "components" ? (
                           <Components inventory={inventory} run={run} />
+                        ) : page === "history" ? (
+                          <History run={run} />
                         ) : page === "backups" ? (
-                          <Backups inventory={inventory} refreshed={refresh} />
+                          <Backups
+                            inventory={inventory}
+                            refreshed={refresh}
+                            run={run}
+                          />
                         ) : (
                           <Settings
+                            run={run}
                             preferences={preferences}
                             setPreferences={setPreferences}
                             logout={() =>

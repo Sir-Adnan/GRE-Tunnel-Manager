@@ -26,10 +26,12 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | catalog | Offline capability guide and reverse-engine selection |
 | inspect | Offline previews/validation, preflight, host health report, GRE dependencies |
 | forms | Read-only staged setup, port lists, remote endpoints, optional details and batch save |
-| optimize | Opt-in sysctl groups (conntrack, packet queues, relay TCP), journal with original values, undo steps, group restore and reset; drop-in sorts last |
+| optimize | Opt-in profiles and groups (conntrack, packet queues, relay TCP, routing, network card), journal with original values, undo steps, group restore and reset; drop-in sorts last, link keys replay through a boot unit |
 | cleanup | Retirement of v13.x forwards, Simple GRE and old tuning files: closed inventory, backups, scoped deletion |
 | links / reverse_api / pair_api / api | Noninteractive owned-resource operations shared with the Go panel |
 | recovery | Typed, paused recovery with full staging, target-revision checks and checked file rollback; no imported executable units |
+| history | Restore points as a change history; revision-checked restore through the normal commit |
+| diagnose | Read-only checks and probe targets for one connection or GRE tunnel |
 | panel | Optional panel lifecycle and engine preinstallation menus |
 | menus | Task menus, grouped CRUD, GRE through the shared `links` engine, diagnostics |
 
@@ -124,3 +126,7 @@ Configuration inspection/import is isolated in `control/configuration*.go`. Only
 `internal/health` and `internal/maintenance` are pure packages: health turns probe results into status, rollups, outages and reports, and maintenance decides which plans are due under their triggers and guards. Neither starts goroutines or commands. `control/operations.go` adapts inventory to probe targets and plan owners; `control/broker_operations.go` runs the health and maintenance loops in the root broker and executes each step through `Manager.maintain`, which allows only managed `systemctl reload|restart`, the Bash `kernel-refresh` and `flows-reset` operations and `systemctl reboot`. Each step holds the mutation lock only for its command. Agent brokers construct no `Operations`. The browser modules are `features/health`, `features/maintenance` and the shared `features/operations` types and hooks; validation and summaries in `maintenance/plans.ts` mirror the Go rules and are unit-tested.
 
 `traffic_quota.go` evaluates opt-in current-cycle quotas. The existing locked metrics reconciler adds per-resource kernel drops to the accounting table; ledger edits reconcile guards immediately. Collection selection cannot silently withdraw protection. Portable recovery disables automatic pause. See [Kernel and userspace](KERNEL-AND-USERSPACE.md) and [Traffic accounting](TRAFFIC-ACCOUNTING.md) for scope and operational limits.
+
+## Notifications, snapshots and metrics
+
+The Go package `notify` owns the bounded event list, settings with masked secrets, localized message text and one delivery worker (webhook and Telegram, retries, rate limit); it runs no commands. The broker's `Operations` emits events from health transitions, failover changes, maintenance runs, the optimization watch and scheduled snapshots. `control/snapshots.go` owns the snapshot schedule and files, `control/prometheus.go` the hashed token and text exposition (served at `/metrics` by the public server after the broker checks the token), `control/history.go` and `control/diagnose.go` parse the Bash engine's output and add probes. Notification read marks are "light" actions: their own lock, no mutation lock, no audit entry. See [Monitoring](MONITORING.md).

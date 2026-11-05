@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePanelRoute } from "@/lib/use-panel-route";
 import { Download, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,17 +27,32 @@ import type { Locale, Preferences } from "@/lib/preferences";
 import type { Inventory } from "@/lib/api";
 import { EngineDetails } from "./EngineDetails";
 import { EngineUpdates } from "./engines/EngineUpdates";
+import { NotificationSettings } from "./notifications/NotificationSettings";
+import { MetricsExport } from "./settings/MetricsExport";
 
 export function Settings({
+  run,
   preferences,
   setPreferences,
   logout,
 }: {
+  run: (request: unknown) => Promise<void>;
   preferences: Preferences;
   setPreferences: (value: Preferences) => void;
   logout: () => void;
 }) {
   const t = useT();
+  const { params } = usePanelRoute();
+  const section = params.get("section");
+  useEffect(() => {
+    if (!section) return;
+    // Sections load their state first; scroll once they exist.
+    const timer = window.setTimeout(
+      () => document.getElementById(section)?.scrollIntoView({ block: "start" }),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, [section]);
   return (
     <div className="page-stack">
       <PageTitle title={t("settings")} description={t("appearanceDesc")} />
@@ -136,6 +152,8 @@ export function Settings({
           </CardFooter>
         </Card>
       </div>
+      <NotificationSettings run={run} />
+      <MetricsExport />
     </div>
   );
 }

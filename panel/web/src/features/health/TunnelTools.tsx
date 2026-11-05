@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { Gauge, Loader2, Ruler, Shuffle } from "lucide-react";
+import { Activity, Gauge, Loader2, Ruler, Shuffle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/help";
@@ -11,7 +11,7 @@ import type {
   FlowCounts,
   MTUResult,
 } from "@/features/operations/types";
-import { stamp } from "./format";
+import { milliseconds, stamp } from "./format";
 
 /** Which destinations failover keeps out of new connections, and why. */
 export function FailoverNotice({
@@ -168,6 +168,90 @@ export function MTUTest({ owner }: { owner: string }) {
             </>
           )}
         </div>
+      )}
+    </section>
+  );
+}
+
+type QualityReport = {
+  peer: string;
+  sent: number;
+  received: number;
+  loss_percent: number;
+  min_ms?: number;
+  avg_ms?: number;
+  max_ms?: number;
+  jitter_ms?: number;
+  samples: number[];
+};
+
+/** Twenty pings through one GRE link: latency, jitter and loss. */
+export function QualityTest({ owner }: { owner: string }) {
+  const t = useT();
+  const locale = useContext(LocaleContext);
+  const { value, error, busy, load } = useOnDemand<QualityReport>(
+    `health/quality?owner=${encodeURIComponent(owner)}`,
+  );
+  const peak = Math.max(1, ...(value?.samples ?? [1]));
+  return (
+    <section className="tunnel-tool">
+      <header>
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Activity className="size-4 text-muted-foreground" />
+          {t("healthQuality")}
+          <HelpTip>{t("healthQualityHelp")}</HelpTip>
+        </span>
+        <Button variant="outline" size="sm" disabled={busy} onClick={load}>
+          {busy && (
+            <Loader2 data-icon="inline-start" className="animate-spin" />
+          )}
+          {busy ? t("healthQualityRunning") : t("healthQualityRun")}
+        </Button>
+      </header>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {value && (
+        <>
+          <dl className="quality-stats">
+            {(
+              [
+                ["healthQualityAvg", milliseconds(value.avg_ms, locale)],
+                ["healthQualityJitter", milliseconds(value.jitter_ms, locale)],
+                ["healthQualityLoss", `${number(value.loss_percent, locale)}%`],
+                [
+                  "healthQualityRange",
+                  value.min_ms == null
+                    ? "—"
+                    : `${milliseconds(value.min_ms, locale)} – ${milliseconds(value.max_ms, locale)}`,
+                ],
+              ] as const
+            ).map(([label, text]) => (
+              <div key={label}>
+                <dt>{t(label)}</dt>
+                <dd
+                  data-tone={
+                    label === "healthQualityLoss" && value.loss_percent > 0
+                      ? value.loss_percent >= 5
+                        ? "bad"
+                        : "warn"
+                      : undefined
+                  }
+                >
+                  <bdi dir="ltr">{text}</bdi>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <ol className="quality-bars" aria-label={t("healthQualitySamples")}>
+            {value.samples.map((s, i) => (
+              <li
+                key={i}
+                data-lost={s < 0}
+                style={{ blockSize: s < 0 ? "100%" : `${Math.max(8, (100 * s) / peak)}%` }}
+                title={s < 0 ? t("healthQualityLost") : `${s} ms`}
+              />
+            ))}
+          </ol>
+        </>
       )}
     </section>
   );

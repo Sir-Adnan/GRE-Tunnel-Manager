@@ -141,8 +141,8 @@ gtm_diagnose_gre() {
 }
 
 gtm_diagnose() {
-    local id=$1
+    local id=$1 tid=${1#gre-tun-}
     if [[ $id =~ ^F[0-9]{6}$ ]]; then gtm_diagnose_connection "$id"
-    elif [[ $id =~ ^gre-tun-([0-9]{1,3})$ ]] && gtm_uint "${BASH_REMATCH[1]}" 1 250; then gtm_diagnose_gre "${BASH_REMATCH[1]}"
+    elif [[ $id == gre-tun-* && $tid =~ ^[0-9]{1,3}$ ]] && gtm_uint "$tid" 1 250; then gtm_diagnose_gre "$tid"
     else gtm_error 'Diagnosis supports connections and GRE tunnels.'; return 2; fi
 }

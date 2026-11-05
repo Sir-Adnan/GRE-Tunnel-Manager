@@ -11,6 +11,7 @@ import { AppearanceControl } from "@/components/AppearanceControl";
 import { ActionButton } from "@/components/help";
 import { Address } from "@/components/shared";
 import { AccessStatus } from "@/components/AccessStatus";
+import { NotificationCenter } from "@/features/notifications/NotificationCenter";
 import { LocaleContext, useT } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
 import type { Preferences } from "@/lib/preferences";
@@ -23,6 +24,7 @@ export function PanelHeader({
   busy,
   refresh,
   openPalette,
+  navigate,
 }: {
   page: string;
   inventory?: Inventory;
@@ -31,6 +33,7 @@ export function PanelHeader({
   busy: boolean;
   refresh: () => void;
   openPalette: () => void;
+  navigate: (page: string, params?: Record<string, string>) => void;
 }) {
   const t = useT(),
     locale = useContext(LocaleContext);
@@ -96,6 +99,7 @@ export function PanelHeader({
             </div>
           </PopoverContent>
         </Popover>
+        <NotificationCenter navigate={navigate} />
         <AppearanceControl
           preferences={preferences}
           onChange={setPreferences}

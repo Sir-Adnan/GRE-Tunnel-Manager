@@ -9,6 +9,7 @@ export const pages = [
   "maintenance",
   "optimize",
   "components",
+  "history",
   "backups",
   "settings",
 ] as const;

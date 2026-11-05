@@ -2,7 +2,7 @@
 
 This is a direction for future work, not a promise that every native engine feature is supported. The [capability matrix](ENGINE-CAPABILITIES.md) describes current adapters; the [changelog](CHANGELOG.md) records delivered work.
 
-## Available in v1.4.0
+## Available in v1.4.1
 
 - Terminal managers and a bilingual responsive web panel with compact forms, three setup presets per engine and configuration inspection/editing.
 - Local GRE, kernel forwarding, HAProxy, Realm, FRP and rathole management, including bounded routing and transport options.
@@ -10,14 +10,17 @@ This is a direction for future work, not a promise that every native engine feat
 - Local traffic cycles, labels, reset, numeric quotas with optional sampled traffic pauses, bounded history and CSV export.
 - Visible-only dashboard CPU, memory and default-route network rates with pause/cadence controls.
 - Optional health monitoring (uptime, outages, weekly reports, conntrack and CPU pressure) and maintenance plans for refresh, restart and reboot with schedules, health triggers and guards.
-- Health failover for balanced kernel forwards, HAProxy check results, per-destination connection counts, a GRE path MTU test and an Optimization page with reversible kernel settings that are never worse than the server's own values.
+- Health failover for balanced kernel forwards, HAProxy check results, per-destination connection counts, a GRE path MTU test and an Optimization page with profiles, custom values, a network-card group and automatic undo, never worse than the server's own values.
+- A notification center with webhook and Telegram delivery, a change history with in-place restore, scheduled local backups, a guided diagnosis, a GRE quality test, far-side checks and speed tests through Nodes, and an opt-in Prometheus endpoint.
 - Kernel forwards on every local address by default, so additional IPs work without per-address rules; replies for an address with its own gateway follow its routing table.
 - A status-first overview, one filtered Connections page, a command palette and five appearance presets (Signal by default) at WCAG AA for the project presets.
 - Versioned packages with embedded frontend and matching Bash helper; HTTP/HTTPS setup, upgrades and scoped removal.
 
 ## Priorities for the next iterations
 
-Version v1.4.0 adds health failover and server optimization. Next: change history with one-click rollback, scheduled local backups, a guided "why is this tunnel down" check, in-panel and webhook notifications, login hardening (TOTP, sessions, address allowlist), a read-only metrics endpoint, a multi-server health view through Nodes with probes from the far side, and an on-demand speed test between GRE ends.
+Version v1.4.1 adds notifications, change history, scheduled backups, diagnosis, metrics export and tunnel tests. Next: login hardening (TOTP, session list, address allowlist), node offline notifications, off-server backup copies (S3-compatible or SFTP), long-term latency charts per tunnel and a guided GRE-plus-forward setup.
+
+Version v1.4.0 adds health failover and server optimization.
 
 Version v1.3.6 routes kernel-forward replies for additional IPs with their own gateway through that gateway, allows IPv4 and IPv6 kernel forwards on one port and extends the doctor report for multi-address hosts.
 

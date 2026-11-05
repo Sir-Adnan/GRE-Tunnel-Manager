@@ -170,3 +170,21 @@ func TestPersianTextAndFailedSend(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestLocalizedDetails(t *testing.T) {
+	up := Event{Kind: KindUp, Severity: SeverityInfo, Args: map[string]string{"seconds": "3720"}, Detail: "down for 1h 2m"}
+	if got := up.localDetail(1); got != "مدت قطعی: 1 ساعت 2 دقیقه" {
+		t.Fatal(got)
+	}
+	if got := up.localDetail(0); got != "Down for 1h 2m" {
+		t.Fatal(got)
+	}
+	restored := Event{Kind: KindFailover, Args: map[string]string{"excluded": ""}}
+	if got := restored.localDetail(0); !strings.HasPrefix(got, "Every destination") {
+		t.Fatal(got)
+	}
+	plain := Event{Kind: KindBackupFailed, Detail: "disk full"}
+	if got := plain.localDetail(1); got != "disk full" {
+		t.Fatal(got)
+	}
+}

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card";
 import { Address } from "@/components/shared";
 import { ActionButton } from "@/components/help";
+import { NodePressure } from "./FarSide";
+import { tunnelSummary } from "./probes";
 import type { Node } from "./types";
 
 export function NodeCard({
@@ -79,6 +81,18 @@ export function NodeCard({
             {t(node.local ? "localInventoryError" : "nodeWaitingHelp")}
           </p>
         )}
+        <NodePressure node={node} />
+        {node.probes && node.probes.report.tunnels.length > 0 && (() => {
+          const s = tunnelSummary(node.probes.report.tunnels);
+          return (
+            <p className="far-summary" data-ok={s.ok === s.total}>
+              <span className="status-pill-dot" aria-hidden />
+              {t("farSideSummary")
+                .replace("{ok}", number(s.ok, locale))
+                .replace("{n}", number(s.total, locale))}
+            </p>
+          );
+        })()}
         <dl className="flex flex-col gap-2 text-xs">
           <div className="flex flex-wrap justify-between gap-2">
             <dt className="text-muted-foreground">{t("lastSeen")}</dt>

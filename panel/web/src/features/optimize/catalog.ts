@@ -16,7 +16,40 @@ export const groups: OptimizeGroup[] = [
   "queues",
   "relay",
   "routing",
+  "nic",
 ];
+
+/** Link keys name an uplink: link.<interface>.txqueuelen or .rps. */
+export function linkKey(
+  key: string,
+): { link: string; setting: "txqueuelen" | "rps" } | undefined {
+  const m = /^link\.([A-Za-z0-9_.-]{1,15})\.(txqueuelen|rps)$/.exec(key);
+  return m ? { link: m[1], setting: m[2] as "txqueuelen" | "rps" } : undefined;
+}
+
+/** The translation key and values for a key's display name. */
+export function keyTitle(key: string): { label: string; link?: string } {
+  const link = linkKey(key);
+  if (link)
+    return {
+      label: link.setting === "rps" ? "optKeyRps" : "optKeyTxqueuelen",
+      link: link.link,
+    };
+  return { label: keyLabel[key] ?? key };
+}
+
+/** CPUs set in a hex CPU mask ("0" is off). */
+export function maskCPUs(mask: string): number {
+  let n = 0;
+  for (const digit of mask.replace(/,/g, "")) {
+    let v = parseInt(digit, 16);
+    while (v) {
+      n += v & 1;
+      v >>= 1;
+    }
+  }
+  return n;
+}
 
 export const levels: OptimizeLevel[] = [
   "conservative",
@@ -122,7 +155,11 @@ export type GroupState = {
 };
 
 export function groupStates(view: OptimizeView): GroupState[] {
-  return groups.map((group) => {
+  // The network card group exists only where the server has an uplink to tune.
+  const shown = groups.filter(
+    (g) => g !== "nic" || view.keys.some((k) => k.group === "nic"),
+  );
+  return shown.map((group) => {
     const keys = view.keys.filter((k) => k.group === group);
     const managed = keys.filter((k) => k.applied !== undefined);
     const pending = keys.filter((k) => k.note === "change").length;
@@ -169,6 +206,9 @@ export function serverFit(
   if (inventory.resources.some((r) => r.engine === "gre") || ipv4.length > 1)
     fit.add("routing");
   if ((view.flows ?? 0) >= 20000) fit.add("queues");
+  // Packet steering helps a multi-CPU server whose card has one receive queue.
+  if ((view.cpus ?? 0) > 1 && (view.links ?? []).some((l) => l.rx_queues === 1))
+    fit.add("nic");
   return fit;
 }
 
@@ -243,6 +283,8 @@ function bytes(value: number): string {
 /** Short value for display: seconds as d/h/m/s, bytes as KiB/MiB, states by name. */
 export function compactValue(key: string, value?: string): string {
   if (value === undefined || value === "") return "—";
+  if (linkKey(key)?.setting === "rps")
+    return value === "0" ? "off" : `${maskCPUs(value)} CPU`;
   if (key === "net.ipv4.ip_local_port_range") return value.replace(" ", "–");
   const state = stateKeys[key]?.[value];
   if (state) return state;

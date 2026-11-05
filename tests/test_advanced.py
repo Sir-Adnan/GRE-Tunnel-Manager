@@ -36,6 +36,8 @@ sysctl() {
 
 OPT_MOCK = r'''
 DB=$GTM_CONFIG_DIR/sysctls.tsv
+# No uplinks unless a test adds them: the host's routes never leak in.
+GTM_PROC_ROUTE=$GTM_CONFIG_DIR/no-route GTM_PROC_ROUTE6=$GTM_CONFIG_DIR/no-route6
 modprobe() { return 0; }
 sysctl() {
     local key=${2%%=*} value=${2#*=}

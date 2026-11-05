@@ -16,13 +16,19 @@ type Loaded<T> = {
 
 /**
  * Loads one read endpoint once and then polls it while the page is visible.
- * `seconds` may depend on the loaded value (pass 0 to stop polling).
+ * `seconds` may depend on the loaded value (pass 0 to stop polling); an
+ * empty path loads nothing.
  */
-function useLoaded<T>(path: string, seconds: (value?: T) => number): Loaded<T> {
+export function useLoaded<T>(
+  path: string,
+  seconds: (value?: T) => number,
+): Loaded<T> {
   const [value, setValue] = useState<T>();
   const [error, setError] = useState("");
   const reload = useCallback(
     async (signal?: AbortSignal) => {
+      // An empty path loads nothing (an optional source that is not needed).
+      if (!path) return undefined;
       try {
         const next = await api<T>(path, undefined, signal);
         if (!signal?.aborted) {

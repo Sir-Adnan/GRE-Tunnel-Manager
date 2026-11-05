@@ -19,6 +19,11 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/optimize/journal.tsv`, `optimize/steps/*.tsv`, `optimize/profile` | Optimization journal (key, original, applied, group), the newest 20 undo steps and the profile applied last; mode 600 |
 | `/etc/sysctl.d/zz-gre-manager-optimize.conf` | Applied optimization values; sorts after other drop-ins so they win at boot; removed by Reset |
 | `/etc/modules-load.d/gre-manager-optimize.conf` | `nf_conntrack` / `tcp_bbr` loaded before sysctl at boot while those keys are managed |
+| `/usr/local/lib/gre-manager/optimize-links.sh`, `/etc/systemd/system/gre-manager-optimize.service` | Network-card optimization (transmit queue, packet steering) replayed at boot; present only while link keys are applied, removed by restore/reset |
+| `/var/lib/gre-manager-panel/notifications.json` | Notification events (newest 300) and channel settings including webhook URL/secret and bot token; mode 600 |
+| `/var/lib/gre-manager-panel/snapshots.json`, `snapshots/gtm-*.json` | Backup schedule and scheduled recovery snapshots (include reverse-tunnel secrets); directory 700, files 600, newest N kept |
+| `/var/lib/gre-manager-panel/prometheus.json` | Metrics export switch and SHA-256 of its bearer token |
+| `/var/lib/gre-manager-panel/optimize-watch.json` | The active or last automatic-undo watch of an optimization step |
 | `/run/gre-manager/excluded.tsv` | Runtime-only health failover exclusions (forward, destination list, excluded positions); cleared at boot |
 | `/etc/gre-manager/backups/{cleanup,retired-tuning,tuning-import}-*/` | Private pre-operation artifacts for scoped deletion, historical retirement or the v1.3.7 tuning import |
 | `/etc/systemd/system/gtm-F*.service` | Opt-in per-connection relay service; removed when disabled/deleted |

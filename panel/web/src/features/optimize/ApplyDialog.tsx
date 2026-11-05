@@ -1,5 +1,12 @@
 import { useContext, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, PenLine, TriangleAlert } from "lucide-react";
+import {
+  ChevronDown,
+  Loader2,
+  PenLine,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,6 +42,8 @@ export type ApplyRequest = {
   groups: OptimizeGroup[];
   set: Record<string, string>;
   allowWorse: boolean;
+  /** Minutes of auto-undo watch; 0 is off. */
+  watch: number;
 };
 
 function planPath(
@@ -70,11 +79,14 @@ function useSettled<T>(value: T, ms: number): T {
 export function ApplyDialog({
   groups,
   profile,
+  watchMinutes,
   onClose,
   apply,
 }: {
   groups?: OptimizeGroup[];
   profile: OptimizeProfile;
+  /** Offered auto-undo windows; empty while Health monitoring is off. */
+  watchMinutes: number[];
   onClose: () => void;
   apply: (request: ApplyRequest) => Promise<void>;
 }) {
@@ -84,6 +96,7 @@ export function ApplyDialog({
   // The value each editor opened with: unchanged drafts are not custom.
   const [starts, setStarts] = useState<Record<string, string>>({});
   const [accept, setAccept] = useState(false);
+  const [watch, setWatch] = useState(10);
   const [busy, setBusy] = useState(false);
   const [showRest, setShowRest] = useState(false);
   // The answer is kept with the selection it belongs to (base) and the exact
@@ -319,6 +332,29 @@ export function ApplyDialog({
                   </AlertDescription>
                 </Alert>
               )}
+              <div className="opt-watch-field">
+                <ShieldCheck className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <label htmlFor="opt-watch" className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-sm font-medium">{t("optWatch")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {watchMinutes.length ? t("optWatchHelp") : t("optWatchNeedsHealth")}
+                  </span>
+                </label>
+                <NativeSelect
+                  id="opt-watch"
+                  size="sm"
+                  value={watchMinutes.length ? String(watch) : "0"}
+                  disabled={!watchMinutes.length || busy}
+                  onChange={(e) => setWatch(Number(e.target.value))}
+                >
+                  <NativeSelectOption value="0">{t("optWatchOff")}</NativeSelectOption>
+                  {watchMinutes.map((m) => (
+                    <NativeSelectOption key={m} value={String(m)}>
+                      {t("optWatchMinutes").replace("{n}", String(m))}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
             </>
           )}
         </DialogBody>
@@ -342,6 +378,7 @@ export function ApplyDialog({
                 groups,
                 set: valid,
                 allowWorse: worse.length > 0 && accept,
+                watch: watchMinutes.includes(watch) ? watch : 0,
               })
                 .then(close)
                 .catch(() => undefined)

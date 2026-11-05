@@ -58,8 +58,11 @@ type Event struct {
 	Owner    string    `json:"owner,omitempty"`
 	Name     string    `json:"name,omitempty"`
 	Detail   string    `json:"detail,omitempty"`
-	Read     bool      `json:"read"`
-	Delivery string    `json:"delivery,omitempty"`
+	// Args carry the values of a localized detail (seconds, names, counts);
+	// Detail stays the untranslated fallback.
+	Args     map[string]string `json:"args,omitempty"`
+	Read     bool              `json:"read"`
+	Delivery string            `json:"delivery,omitempty"`
 }
 
 func severityOf(kind string) string {
@@ -118,12 +121,58 @@ func (e Event) Text(language, host string) string {
 		title = fmt.Sprintf(title, name)
 	}
 	lines := []string{icons[e.Severity] + " " + title}
-	if e.Detail != "" {
-		lines = append(lines, e.Detail)
+	if detail := e.localDetail(index); detail != "" {
+		lines = append(lines, detail)
 	}
 	footer := e.Time.UTC().Format("2006-01-02 15:04 UTC")
 	if host != "" {
 		footer = host + " · " + footer
 	}
 	return strings.Join(append(lines, footer), "\n")
+}
+
+// localDetail renders Args in English (0) or Persian (1); Detail otherwise.
+func (e Event) localDetail(lang int) string {
+	a := e.Args
+	pick := func(en, fa string) string { return [2]string{en, fa}[lang] }
+	switch {
+	case e.Kind == KindUp && a["seconds"] != "":
+		return pick("Down for ", "مدت قطعی: ") + duration(a["seconds"], lang)
+	case e.Kind == KindFailover && a != nil && a["excluded"] == "":
+		return pick("Every destination receives new flows again.", "همهٔ مقصدها دوباره اتصال جدید می‌گیرند.")
+	case e.Kind == KindFailover && a["excluded"] != "":
+		return pick("No new flows to destination ", "مقصد بدون اتصال جدید: ") + a["excluded"]
+	case e.Kind == KindOptimizeKept && a["minutes"] != "":
+		return pick("Watched for "+a["minutes"]+" minutes.", a["minutes"]+" دقیقه پایش شد.")
+	case e.Kind == KindRollback && a["names"] != "" && a["error"] == "":
+		return pick("Down after the apply: ", "قطع‌شده بعد از اعمال: ") + a["names"]
+	case e.Kind == KindBackup && a["name"] != "":
+		return a["name"] + " · " + a["connections"] + pick(" connections", " اتصال")
+	case (e.Kind == KindMaintenance || e.Kind == KindMaintenanceFailed) && a["count"] != "" && e.Detail == "":
+		return a["count"] + pick(" targets", " مورد")
+	}
+	return e.Detail
+}
+
+// duration renders seconds as "2h 5m" or "2 ساعت 5 دقیقه".
+func duration(value string, lang int) string {
+	var s int64
+	for _, c := range value {
+		if c < '0' || c > '9' {
+			return value
+		}
+		s = s*10 + int64(c-'0')
+	}
+	units := [2][3]string{{"d", "h", "m"}, {" روز", " ساعت", " دقیقه"}}[lang]
+	parts := []string{}
+	for i, size := range []int64{86400, 3600, 60} {
+		if n := s / size; n > 0 && len(parts) < 2 {
+			parts = append(parts, fmt.Sprintf("%d%s", n, units[i]))
+			s %= size
+		}
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("%d%s", s, [2]string{"s", " ثانیه"}[lang])
+	}
+	return strings.Join(parts, " ")
 }
