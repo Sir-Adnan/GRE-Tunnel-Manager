@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.3.7
+GTM_VERSION=1.4.0
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
@@ -108,8 +108,15 @@ gtm_paths() {
     GTM_SERVICE_DIR=${GTM_SERVICE_DIR:-/etc/systemd/system}
     GTM_RUNTIME=${GTM_RUNTIME:-/usr/local/lib/gre-manager/apply.sh}
     GTM_SYSCTL_DIR=${GTM_SYSCTL_DIR:-/etc/sysctl.d}
-    GTM_TUNING_STATE="$GTM_CONFIG_DIR/tuning.tsv"
-    GTM_TUNING_FILE="$GTM_SYSCTL_DIR/99-z-gre-manager-owned.conf"
+    # A relocated sysctl directory (tests, staging roots) keeps every optimization
+    # file inside it; only the real one scans the system drop-in directories.
+    if [[ $GTM_SYSCTL_DIR == /etc/sysctl.d ]]; then
+        GTM_MODULES_DIR=/etc/modules-load.d
+        GTM_SYSCTL_SCAN='/etc/sysctl.d /run/sysctl.d /usr/local/lib/sysctl.d /usr/lib/sysctl.d /lib/sysctl.d'
+    else
+        GTM_MODULES_DIR=$GTM_SYSCTL_DIR GTM_SYSCTL_SCAN=$GTM_SYSCTL_DIR
+    fi
+    GTM_MODULES_FILE="$GTM_MODULES_DIR/gre-manager-conntrack.conf"
     GTM_SIMPLE_SCRIPT=${GTM_SIMPLE_SCRIPT:-/opt/simple_gre_script.sh}
     GTM_SIMPLE_UNIT="$GTM_SERVICE_DIR/simple-gre.service"
 }
@@ -128,6 +135,3 @@ gtm_lock() {
 gtm_unlock() { flock -u 9; exec 9>&-; }
 
 # Legacy validators now share the same bounded input checks.
-validate_port() { gtm_port "$1"; }
-validate_ipv4() { gtm_ipv4 "$1"; }
-validate_ipv6() { gtm_ipv6 "$1"; }

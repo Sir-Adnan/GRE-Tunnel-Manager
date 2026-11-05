@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.4.0 — Failover, server optimization and a leaner terminal
+
+### Panel
+
+- Add **health failover** for nftables and iptables forwards with several destinations, off by default and chosen per forward. Their destinations are probed every 5 seconds (2–30 s); a destination that is down stops receiving new connections, its tracked flows are cleared so clients reconnect to a live one, and it returns when it answers again. At least one destination always stays, the saved configuration is unchanged and a reboot, an edit or turning monitoring off restores every destination.
+- HAProxy destinations on **Health** use HAProxy's own check results (status, check time, active sessions, backup) from its stats socket instead of a second probe.
+- Expanded Health rows show the 24-hour share of failed checks, new connections per destination for balanced nftables forwards, and an on-demand **path MTU test** for GRE links with a suggested MTU.
+- Add an **Optimization** page with four opt-in groups designed for tunnel and forwarding servers: Connection tracking (memory-sized flow limit, hash buckets at half the limit, 1-hour idle TCP, 30-second closing states, 60/180-second UDP), Packet queues, Relay TCP (BBR, fq, 32 MiB buffers, 128 KiB unsent data, MTU probing, keepalives inside the tracking timeout) and Tunnels & routing (loose reverse-path filter, no ICMP redirects). No recommendation is ever worse than the server's live value, including the provider's defaults: limits only grow, timeouts only shrink, buffer triples grow per field, equivalent choices such as `cake` or `bbr2` stay, and those keys are shown as kept. The page summarizes improvements for this server, marks groups that fit what it runs, reviews them together and lists each setting with its current, recommended and original value. Undo goes back step by step (20 steps), Restore originals undoes one group and Reset everything returns every value and deletes the panel's files. ServerTools and other drop-ins that set the same keys are detected and shown; the panel's drop-in sorts last and wins at boot.
+- Health → Server hints link to the Optimization page instead of an external tool.
+
+### Server and tooling
+
+- Replace the old tuning module and its profiles with `optimize.sh`: a new journal (`/etc/gre-manager/optimize/`), `zz-gre-manager-optimize.conf`, a module list that loads `nf_conntrack`/`tcp_bbr` before sysctl at boot, undo steps and per-group restore. Tuning applied with v1.3.7 or earlier is imported on the first change and stays resettable.
+- Add Bash API operations `forward-exclude ID LIST|-` (runtime-only exclusions under the manager lock, then a kernel reapply and a flow reset limited to newly excluded destinations) and `optimize-status|plan|apply|undo|remove`.
+- Balancing chains of nftables forwards count new connections per destination.
+- Remove the v13.x scripts (`gre-stable.sh`, `legacy/`), `src/legacy.sh` and the old numbered menu (`--legacy`). The terminal creates and deletes GRE through the same engine as the panel; **Tools → Retire old installation** keeps the recognized removal of v13.x forwards, Simple GRE and old tuning files. GRE tunnels created by old versions keep working.
+- AGENTS.md now states the kernel-first and thin-menu rules.
+
+Local evidence only: Python, Go and frontend tests plus browser checks of the demo in both locales and at phone width. Failover, flow counts, the MTU test and boot-time optimization have not yet been run on a real server.
+
 ## v1.3.7 — Health monitoring and scheduled maintenance
 
 ### Panel

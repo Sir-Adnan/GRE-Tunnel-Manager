@@ -1,9 +1,12 @@
 package control
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"hash/fnv"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/health"
@@ -40,13 +43,25 @@ func demoResults(targets []health.Target, at time.Time) map[string]health.Result
 			out[t.Key] = health.Result{Error: "timeout"}
 			continue
 		}
+		// One pool destination has been down for the last 45 minutes, so
+		// failover shows it excluded.
+		if t.Owner == "F000004" && t.Address == "198.51.100.62" && hoursAgo < 0.75 {
+			out[t.Key] = health.Result{Error: "refused"}
+			continue
+		}
 		base := 35 + 60*seed
 		wave := 6 * math.Sin(float64(at.Unix())/5400+seed*6)
 		evening := 0.0
 		if h := at.In(time.UTC).Hour(); h >= 16 && h <= 19 {
 			evening = 25 * seed
 		}
-		out[t.Key] = health.Result{OK: true, RTT: math.Round((base+wave+evening)*10) / 10}
+		r := health.Result{OK: true, RTT: math.Round((base+wave+evening)*10) / 10}
+		if t.Engine == "haproxy" {
+			// HAProxy destinations report the relay's own check.
+			sessions := 40 + int(120*seed)
+			r.Via, r.Sessions, r.RTT = "haproxy", &sessions, math.Round(r.RTT*0.9*10)/10
+		}
+		out[t.Key] = r
 	}
 	return out
 }
@@ -66,6 +81,7 @@ func newDemoOps(inventory Inventory) *demoOps {
 	now := time.Now().UTC()
 	settings := health.Defaults()
 	settings.Enabled = true
+	settings.Failover = []string{"F000004"}
 	_ = h.Configure(now, settings, 0)
 	_ = s.Configure(maintenance.Settings{Enabled: true, Timezone: "Asia/Tehran"}, 0)
 	inventory = demoResources(inventory)
@@ -92,7 +108,42 @@ func newDemoOps(inventory Inventory) *demoOps {
 			_ = s.Finish(maintenance.Run{Plan: stored, Owners: owners, Reason: []string{"schedule", "health"}[i]}, []maintenance.Entry{{Owner: owners[0].ID, OwnerName: owners[0].Name, Engine: owners[0].Engine, Started: at, Ended: at.Add(2 * time.Second), Result: maintenance.ResultOK, Message: demoMessage}})
 		}
 	}
+	o.demoFailover(now, inventory)
 	return &demoOps{ops: o, last: now}
+}
+
+// demoFailover runs the real exclusion logic with a simulated kernel step.
+func (o *Operations) demoFailover(now time.Time, inventory Inventory) {
+	want := desiredExclusions(o.Health.Settings(), inventory, o.Health.Statuses())
+	o.failover.reconcile(context.Background(), now, "", want, connectionsOf(inventory), func(_ context.Context, id, list string) (string, error) {
+		if list == "-" {
+			return "Demo: all destinations of " + id + " receive new flows again; nothing was changed.", nil
+		}
+		return "Demo: destination " + list + " of " + id + " receives no new flows until it recovers; nothing was changed.", nil
+	})
+}
+
+// demoFlows reports plausible per-destination connection counts.
+func demoFlows(inventory Inventory, id string) (FlowCounts, error) {
+	for _, c := range inventory.Connections {
+		if c.ID != id {
+			continue
+		}
+		if c.Engine != "nftables" {
+			return FlowCounts{}, errors.New("flow counts are available for enabled nftables forwards")
+		}
+		out := FlowCounts{Owner: id, Destinations: make([]uint64, len(c.Targets)), Time: time.Now().UTC().Format(time.RFC3339)}
+		for i := range c.Targets {
+			n := uint64(4200 + 900*demoSeed(c.ID+strconv.Itoa(i)))
+			if c.ID == "F000004" && i == 1 {
+				n = 380
+			}
+			out.Destinations[i] = n
+			out.Total += n
+		}
+		return out, nil
+	}
+	return FlowCounts{}, errors.New("connection not found")
 }
 
 // demoResources adds a simulated GRE link so health has every probe kind.
@@ -134,6 +185,16 @@ func (d *Demo) operations(r Request) (json.RawMessage, error) {
 		o.Health.Record(now, targets, demoResults(targets, now), demoHost(now))
 		d.ops.last = now
 	}
+	switch r.Action {
+	case "health-flows":
+		return marshal(demoFlows(d.inventory, r.Health.Owner))
+	case "health-mtu":
+		if r.Health.Owner != "gre-tun-7" {
+			return nil, errors.New("GRE link not found")
+		}
+		return json.Marshal(health.MTUResult{Address: "10.0.7.1", Interface: 1476, Path: 1436, Probes: 11, Failed: []int{1476, 1456, 1446, 1441, 1438, 1437}, Duration: 2380})
+	}
+	o.demoFailover(now, inventory)
 	result, e := o.execute(now, r, nil)
 	if e != nil {
 		return nil, e
@@ -158,4 +219,11 @@ func (d *Demo) operations(r Request) (json.RawMessage, error) {
 		}
 	}
 	return json.Marshal(result)
+}
+
+func marshal[T any](value T, e error) (json.RawMessage, error) {
+	if e != nil {
+		return nil, e
+	}
+	return json.Marshal(value)
 }

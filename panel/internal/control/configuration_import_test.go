@@ -101,6 +101,7 @@ func TestRealmImportSupportsMultipleSimpleEndpointsAndClosedNetworkOptions(t *te
 }
 func TestImportReviewIsReadOnlyAndApplyRejectsChangedGeneration(t *testing.T) {
 	d := NewDemo()
+	base := len(d.inventory.Connections)
 	ctx := context.Background()
 	in := ImportInput{Engine: "haproxy", Format: "haproxy", Text: haImportFixture}
 	b, e := d.Do(ctx, Request{Action: "configuration-import-review", Import: in})
@@ -109,7 +110,7 @@ func TestImportReviewIsReadOnlyAndApplyRejectsChangedGeneration(t *testing.T) {
 	}
 	var view ImportView
 	json.Unmarshal(b, &view)
-	if len(d.inventory.Connections) != 3 || len(view.Files) != 2 {
+	if len(d.inventory.Connections) != base || len(view.Files) != 2 {
 		t.Fatal("review changed state or omitted output")
 	}
 	in.Review = view.Review
@@ -121,7 +122,7 @@ func TestImportReviewIsReadOnlyAndApplyRejectsChangedGeneration(t *testing.T) {
 	if _, e = d.Do(ctx, Request{Action: "configuration-import-apply", Import: in}); e != nil {
 		t.Fatal(e)
 	}
-	if len(d.inventory.Connections) != 5 || d.inventory.Connections[3].Enabled {
+	if len(d.inventory.Connections) != base+2 || d.inventory.Connections[base].Enabled {
 		t.Fatal("import not paused")
 	}
 	if _, e = d.Do(ctx, Request{Action: "configuration-import-apply", Import: in}); e == nil {

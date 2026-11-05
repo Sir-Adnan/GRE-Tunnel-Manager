@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import {
   Cpu,
-  ExternalLink,
+  ArrowUpRight,
   Gauge,
   Lightbulb,
   TriangleAlert,
@@ -10,13 +10,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HelpTip } from "@/components/help";
+import { routeURL } from "@/lib/navigation";
 import { number } from "@/lib/format";
 import { LocaleContext, useT } from "@/lib/i18n";
 import type { HostPressure } from "@/features/operations/types";
 import { Meter } from "./Indicators";
 import { duration } from "./format";
-
-const serverTools = "https://github.com/Sir-Adnan/server-tools";
 
 function Row({
   label,
@@ -37,7 +36,7 @@ function Row({
   );
 }
 
-/** Conntrack and CPU pressure from /proc, with ServerTools recommendations. */
+/** Conntrack and CPU pressure from /proc, linked to the Optimization page. */
 export function ServerPressure({ host }: { host?: HostPressure }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -165,9 +164,9 @@ export function ServerPressure({ host }: { host?: HostPressure }) {
           {tuning.length > 0 && (
             <div>
               <Button variant="outline" size="sm" asChild>
-                <a href={serverTools} target="_blank" rel="noreferrer noopener">
-                  {t("healthServerTools")}
-                  <ExternalLink data-icon="inline-end" />
+                <a href={routeURL("optimize")}>
+                  {t("healthOpenOptimize")}
+                  <ArrowUpRight data-icon="inline-end" />
                 </a>
               </Button>
             </div>

@@ -56,7 +56,7 @@ sudo bash gre.sh --doctor
 
 Replace the example connection ID with the reported ID. If rollback reports failure, inspect the saved state and logs before another change; saved desired state and live resources may differ. Do not execute a legacy backup shell file from an untrusted source.
 
-HAProxy staged settings/status, PROXY requirements and restart cases are documented in [HAPROXY.md](HAPROXY.md). Legacy cleanup, independent global tuning journals and historical retirement/recovery are documented in [TUNING-CLEANUP.md](TUNING-CLEANUP.md). Do not restore a forwarding snapshot expecting it to roll back host tuning or a reverse-connection config.
+HAProxy staged settings/status, PROXY requirements and restart cases are documented in [HAPROXY.md](HAPROXY.md). Retiring v13.x resources is documented in [Retiring old installations](RETIRING-OLD-INSTALLS.md) and server-wide settings in [Server optimization](OPTIMIZATION.md). Do not restore a forwarding snapshot expecting it to roll back host settings or a reverse-connection config.
 
 For nftables, inspect the host's other base chains: an ACCEPT in the manager table does not override their DROP policies. For source-preserving forwarding, verify return routes. For stalls after small packets succeed, inspect path MTU and ICMP delivery on both peers.
 
@@ -88,7 +88,7 @@ cat /sys/module/nf_conntrack/parameters/hashsize
 sudo conntrack -S
 ```
 
-Tune the host with [ServerTools](https://github.com/Sir-Adnan/server-tools) (`st` → Quick Optimize), which sets a one-hour idle timeout on forwarders and sizes the hash table with the limit. To recover one forward without a reboot, a maintenance **Restart** clears only that forward's tracked flows; its clients reconnect. To rule out the destination, restart its proxy first: rebooting this server also drops every connection to the destination. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
+Apply **Connection tracking** on the Optimization page: idle TCP entries expire after one hour and the table and its hash are sized to the server's memory ([Server optimization](OPTIMIZATION.md)). For a forward with several destinations, turn on health failover so a dead destination stops receiving new connections. To recover one forward without a reboot, a maintenance **Restart** clears only that forward's tracked flows; its clients reconnect. To rule out the destination, restart its proxy first: rebooting this server also drops every connection to the destination. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md).
 
 ## Deployment checks still requiring real hosts
 

@@ -107,9 +107,36 @@ gtm_iptables_scope() {
     fi
 }
 
+# Runtime-only destination exclusions written by the panel's health failover.
+# The file lives in the run directory, which is cleared at boot, so every
+# destination receives traffic again after a restart. An entry applies only
+# while the record's destination list is exactly the one it was written for,
+# and never removes every destination.
+gtm_exclusions_file() { printf '%s/excluded.tsv' "$GTM_RUN_DIR"; }
+
+# Sets GTM_ACTIVE to the 0-based indexes of the current record's destinations
+# that receive new flows.
+gtm_active_targets() {
+    local count=$1 id saved list index file
+    local -a parts=()
+    local -A skip=()
+    GTM_ACTIVE=()
+    file=$(gtm_exclusions_file)
+    if [[ -f $file && ! -L $file ]]; then
+        while IFS=$'\t' read -r id saved list; do
+            [[ $id == "$R_ID" && $saved == "$R_TARGETS" ]] || continue
+            IFS=, read -r -a parts <<< "$list"
+            for index in "${parts[@]}"; do [[ $index =~ ^[0-9]{1,2}$ ]] && skip[$((10#$index))]=1; done
+        done < "$file"
+    fi
+    for ((index=1; index<=count; index++)); do [[ ${skip[$index]+set} ]] || GTM_ACTIVE+=("$((index-1))"); done
+    ((${#GTM_ACTIVE[@]})) || for ((index=0; index<count; index++)); do GTM_ACTIVE+=("$index"); done
+}
+
 gtm_iptables_render() {
-    local family=$1 table=$2 line proto target total remaining probability index address mark
+    local family=$1 table=$2 line proto target total remaining probability index address mark position
     local -a targets protocols
+    local -A active=()
     printf '*%s\n' "$table"
     case $table in
         nat) printf ':GTM_PRE - [0:0]\n:GTM_POST - [0:0]\n-F GTM_PRE\n-F GTM_POST\n' ;;
@@ -127,10 +154,13 @@ gtm_iptables_render() {
         IFS=, read -r -a targets <<< "$R_TARGETS"
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
         gtm_iptables_scope || return 1
-        total=0
-        for target in "${targets[@]}"; do gtm_endpoint "$target" || return 1; ((total+=EP_WEIGHT)); done
+        # Excluded destinations get no new flows; their accept, NAT and MSS
+        # rules stay so established flows continue if the destination answers.
+        gtm_active_targets "${#targets[@]}"
+        active=(); total=0
+        for index in "${GTM_ACTIVE[@]}"; do active[$index]=1; gtm_endpoint "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
         for proto in "${protocols[@]}"; do
-            remaining=$total; index=0
+            remaining=$total; index=0; position=0
             for target in "${targets[@]}"; do
                 gtm_endpoint "$target" || return 1
                 if [[ $table == nat ]]; then
@@ -141,14 +171,17 @@ gtm_iptables_render() {
                             printf ' -p %s --dport %d -m comment --comment gtm-%s -j CONNMARK --set-xmark %s/0xf000000\n' "$proto" "$((10#$R_PORT))" "$R_ID" "$mark"
                         done < <(gtm_return_marks "$family")
                     fi
-                    printf -- '-A GTM_PRE %s' "$GTM_IPT_ENTRANCE"
-                    [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
-                    printf ' -p %s --dport %d -m comment --comment gtm-%s' "$proto" "$((10#$R_PORT))" "$R_ID"
-                    if (( index < ${#targets[@]}-1 )); then
-                        probability=$(awk -v weight="$EP_WEIGHT" -v rest="$remaining" 'BEGIN {printf "%.10f", weight/rest}')
-                        printf ' -m statistic --mode random --probability %s' "$probability"
+                    if [[ ${active[$index]+set} ]]; then
+                        printf -- '-A GTM_PRE %s' "$GTM_IPT_ENTRANCE"
+                        [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
+                        printf ' -p %s --dport %d -m comment --comment gtm-%s' "$proto" "$((10#$R_PORT))" "$R_ID"
+                        if (( position < ${#GTM_ACTIVE[@]}-1 )); then
+                            probability=$(awk -v weight="$EP_WEIGHT" -v rest="$remaining" 'BEGIN {printf "%.10f", weight/rest}')
+                            printf ' -m statistic --mode random --probability %s' "$probability"
+                        fi
+                        printf ' -j DNAT --to-destination %s\n' "$(gtm_address "$EP_IP" "$EP_PORT")"
+                        ((remaining-=EP_WEIGHT)); ((position+=1))
                     fi
-                    printf ' -j DNAT --to-destination %s\n' "$(gtm_address "$EP_IP" "$EP_PORT")"
                     if [[ $R_SNAT == masquerade ]]; then
                         printf -- '-A GTM_POST -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %d -m comment --comment gtm-%s -j MASQUERADE\n' "$proto" "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))" "$R_ID"
                     fi
@@ -158,7 +191,7 @@ gtm_iptables_render() {
                 elif [[ $proto == tcp ]]; then
                     printf -- '-A GTM_MSS -p tcp -d %s --dport %s --tcp-flags SYN,RST SYN -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %d -j TCPMSS --clamp-mss-to-pmtu\n' "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))"
                 fi
-                ((remaining-=EP_WEIGHT)); ((index+=1))
+                ((index+=1))
             done
         done
     done
@@ -216,15 +249,20 @@ gtm_nft_render() {
             entrance="$family daddr $R_BIND"; origin="ct original $family daddr $R_BIND "
         fi
         IFS=, read -r -a targets <<< "$R_TARGETS"
-        total=0; for target in "${targets[@]}"; do gtm_endpoint "$target" || return 1; ((total+=EP_WEIGHT)); done
+        # Excluded destinations keep their chain (and their established flows)
+        # but leave the distribution map until the panel restores them.
+        gtm_active_targets "${#targets[@]}"
+        total=0; for index in "${GTM_ACTIVE[@]}"; do gtm_endpoint "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
         for proto in "${protocols[@]}"; do
             if (( ${#targets[@]} > 1 )); then
                 index=0
                 for target in "${targets[@]}"; do
                     gtm_endpoint "$target" || return 1
+                    # The counter sees each flow's first packet only (NAT hook),
+                    # so it counts new connections per destination since apply.
                     printf 'add chain inet gre_manager b_%s_%s_%d\n' "$R_ID" "$proto" "$index"
-                    printf 'add rule inet gre_manager b_%s_%s_%d meta l4proto %s dnat %s to %s\n' "$R_ID" "$proto" "$index" "$proto" "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
+                    printf 'add rule inet gre_manager b_%s_%s_%d meta l4proto %s counter dnat %s to %s\n' "$R_ID" "$proto" "$index" "$proto" "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
                     ((index+=1))
                 done
             fi
@@ -245,11 +283,11 @@ gtm_nft_render() {
                     roundrobin) printf 'numgen inc mod %d vmap { ' "$total";;
                     *) printf 'numgen random mod %d vmap { ' "$total";;
                 esac
-                offset=0; index=0
-                for target in "${targets[@]}"; do
-                    gtm_endpoint "$target" || return 1; (( index > 0 )) && printf ', '
+                offset=0
+                for index in "${GTM_ACTIVE[@]}"; do
+                    gtm_endpoint "${targets[$index]}" || return 1; (( offset > 0 )) && printf ', '
                     end=$((offset+EP_WEIGHT-1)); if (( offset == end )); then printf '%d' "$offset"; else printf '%d-%d' "$offset" "$end"; fi
-                    printf ' : jump b_%s_%s_%d' "$R_ID" "$proto" "$index"; offset=$((end+1)); ((index+=1))
+                    printf ' : jump b_%s_%s_%d' "$R_ID" "$proto" "$index"; offset=$((end+1))
                 done
                 printf ' }'
             fi
@@ -274,10 +312,13 @@ gtm_nft_render() {
 # Deletes only the tracked flows that one kernel forward DNATed to its own
 # targets: original destination port (and address unless the bind is a
 # wildcard) plus the target as reply source. Other host flows are untouched.
+# An optional comma-separated list of 1-based destination positions limits the
+# reset to those destinations (health failover clears flows of a dead one).
 gtm_flows_reset() {
-    local id=$1 line proto target family output count total=0 matched=0
+    local id=$1 only=${2:-} line proto target family output count total=0 matched=0 index
     local -a targets protocols args
     gtm_id "$id" || { gtm_error 'Invalid connection ID.'; return 2; }
+    [[ -z $only || $only =~ ^[0-9]{1,2}(,[0-9]{1,2}){0,31}$ ]] || { gtm_error 'Invalid destination list.'; return 2; }
     gtm_need conntrack || { printf 'Install conntrack (package conntrack) to reset tracked flows.\n' >&2; return 1; }
     gtm_load_records || return 1
     for line in "${GTM_RECORDS[@]}"; do
@@ -290,7 +331,10 @@ gtm_flows_reset() {
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
         IFS=, read -r -a targets <<< "$R_TARGETS"
         for proto in "${protocols[@]}"; do
+            index=0
             for target in "${targets[@]}"; do
+                ((index+=1))
+                [[ -z $only || ,$only, == *",$index,"* ]] || continue
                 gtm_endpoint "$target" || return 1
                 args=(-D -f "$family" -p "$proto" --orig-port-dst "$((10#$R_PORT))" --reply-src "$EP_IP" --reply-port-src "$((10#$EP_PORT))")
                 gtm_wildcard "$R_BIND" || args+=(--orig-dst "$R_BIND")
@@ -307,6 +351,66 @@ gtm_flows_reset() {
     done
     ((matched)) || { gtm_error 'Connection not found.'; return 1; }
     printf 'Cleared %d tracked flow(s) for %s; clients reconnect on their next packet.\n' "$total" "$id"
+}
+
+# Health failover: replaces one forward's runtime exclusion list ("-" clears it),
+# reapplies owned kernel rules and clears tracked flows of newly excluded
+# destinations so their clients reconnect to a live one. Caller locks.
+gtm_forward_exclude() {
+    local id=$1 list=$2 line matched=0 count index saved='' previous='' file tmp previous_targets previous_list
+    local -a parts=() sorted=() fresh=()
+    local -A seen=() before=()
+    gtm_id "$id" && [[ $list == - || $list =~ ^[0-9]{1,2}(,[0-9]{1,2}){0,31}$ ]] || { gtm_error 'Invalid failover request.'; return 2; }
+    gtm_load_records || return 1
+    for line in "${GTM_RECORDS[@]}"; do
+        gtm_record_validate "$line" || return 1
+        [[ $R_ID == "$id" ]] && { matched=1; break; }
+    done
+    ((matched)) || { gtm_error 'Connection not found.'; return 1; }
+    [[ ( $R_ENGINE == nftables || $R_ENGINE == iptables ) && $R_ENABLED == 1 ]] || { gtm_error 'Failover applies to enabled kernel forwards.'; return 1; }
+    saved=$R_TARGETS
+    IFS=, read -r -a parts <<< "$saved"; count=${#parts[@]}
+    parts=()
+    if [[ $list != - ]]; then
+        IFS=, read -r -a parts <<< "$list"
+        for index in "${parts[@]}"; do
+            index=$((10#$index))
+            ((index >= 1 && index <= count)) || { gtm_error 'Destination is not part of this connection.'; return 2; }
+            [[ ${seen[$index]+set} ]] || { seen[$index]=1; sorted+=("$index"); }
+        done
+        ((${#sorted[@]} < count)) || { gtm_error 'At least one destination must keep receiving traffic.'; return 1; }
+        mapfile -t sorted < <(printf '%s\n' "${sorted[@]}" | sort -n)
+    fi
+    file=$(gtm_exclusions_file)
+    [[ ! -L $file ]] || return 1
+    tmp=$(mktemp "$GTM_RUN_DIR/excluded.XXXXXX") || return 1
+    if [[ -f $file ]]; then
+        while IFS=$'\t' read -r line previous_targets previous_list; do
+            if [[ $line == "$id" ]]; then
+                [[ $previous_targets == "$saved" ]] && previous=$previous_list
+                continue
+            fi
+            gtm_id "$line" && printf '%s\t%s\t%s\n' "$line" "$previous_targets" "$previous_list"
+        done < "$file" > "$tmp"
+    fi
+    ((${#sorted[@]} == 0)) || printf '%s\t%s\t%s\n' "$id" "$saved" "$(IFS=,; printf '%s' "${sorted[*]}")" >> "$tmp"
+    chmod 600 "$tmp" && mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+    gtm_kernel_apply || return 1
+    IFS=, read -r -a parts <<< "$previous"
+    for index in "${parts[@]}"; do before[$index]=1; done
+    for index in "${sorted[@]}"; do [[ ${before[$index]+set} ]] || fresh+=("$index"); done
+    if ((${#sorted[@]} == 0)); then
+        printf 'All destinations of %s receive new flows again.\n' "$id"
+    else
+        printf 'Destinations %s of %s receive no new flows until they recover.\n' "$(IFS=,; printf '%s' "${sorted[*]}")" "$id"
+    fi
+    ((${#fresh[@]})) || return 0
+    if command -v conntrack >/dev/null 2>&1; then
+        gtm_flows_reset "$id" "$(IFS=,; printf '%s' "${fresh[*]}")" || printf 'Stale flows were kept; they expire with the conntrack timeout.\n'
+    else
+        printf 'Install conntrack to move existing clients off a dead destination at once.\n'
+    fi
+    return 0
 }
 
 gtm_kernel_apply() {

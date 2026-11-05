@@ -111,6 +111,7 @@ type Request struct {
 	ResourceName    ResourceName     `json:"resource_name"`
 	Health          HealthInput      `json:"health,omitzero"`
 	Maintenance     MaintenanceInput `json:"maintenance,omitzero"`
+	Optimize        OptimizeInput    `json:"optimize,omitzero"`
 }
 type Manager struct {
 	telemetry hostSampler
@@ -266,6 +267,12 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 			return nil, errors.New("health and maintenance are unavailable on this broker")
 		}
 		return m.Ops.execute(time.Now().UTC(), r, m.Metrics)
+	case "health-flows":
+		return m.flowCounts(ctx, r.Health.Owner)
+	case "health-mtu":
+		return m.pathMTU(ctx, r.Health.Owner)
+	case "optimize", "optimize-plan", "optimize-apply", "optimize-undo", "optimize-remove":
+		return m.optimize(ctx, r)
 	case "engine-releases":
 		return m.engineReleases(ctx), nil
 	case "engine-update":

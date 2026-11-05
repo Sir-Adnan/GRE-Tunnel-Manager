@@ -2,4 +2,4 @@
 // tools/build.py --check fails when it differs from GTM_VERSION in src/core.sh.
 package version
 
-const Number = "1.3.7"
+const Number = "1.4.0"

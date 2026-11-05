@@ -20,11 +20,11 @@ SNAT capacity depends on translated tuples for a protocol/source address/final d
 
 Connections are not users. Conntrack entry RAM varies with kernel/extensions/accounting. Old fixed estimates and 100k-user statements were not backed by reproducible benchmarks.
 
-## Explicit global tuning
+## Server optimization
 
-Performance menu 14 now exposes opt-in capacity and local-TCP profiles with a durable before/applied journal. Restore writes the captured baseline only while the current setting still matches what the manager applied; later administrator changes are preserved. No automatic GRE TCP/conntrack/IPv6 tuning, new RPS/NOTRACK helper or guessed default rollback is performed. Historical installs have no trustworthy before-values: retire recognized persistence, retain unknown runtime values and review separately. See [TUNING-CLEANUP.md](TUNING-CLEANUP.md).
+The Optimization page offers three opt-in groups: connection tracking (memory-sized limit, hash buckets at half the limit, 1-hour idle TCP, 30-second closing states, longer UDP stream mappings), packet queues and relay TCP (BBR, fq, buffers, MTU probing, keepalives). Limits only grow and timeouts only shrink. Every change has an original value, an undo step and a reset; see [Server optimization](OPTIMIZATION.md). No GRE or forward creation changes a sysctl, and no RPS/NOTRACK helper is installed.
 
-RPS can add inter-processor overhead; all-core masks are not universally optimal. New capacity presets deliberately avoid changing conntrack hash size or shortening existing idle timeouts. Raising a limit is not a RAM allocation forecast or a user-capacity guarantee.
+Raising a limit is not a RAM allocation forecast or a user-capacity guarantee; entries use memory only while connections exist.
 
 Host TCP congestion control affects locally terminated connections such as relays, not the remote endpoints' congestion control of forwarded TCP. MSS clamping uses known route MTU, not omniscient discovery of a blackholed underlay PMTU.
 

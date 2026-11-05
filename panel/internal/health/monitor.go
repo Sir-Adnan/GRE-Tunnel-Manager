@@ -44,6 +44,8 @@ type Target struct {
 	Address string `json:"address,omitempty"`
 	Port    int    `json:"port,omitempty"`
 	Unit    string `json:"unit,omitempty"`
+	// Indexes are the 1-based destination positions this probe stands for.
+	Indexes []int `json:"-"`
 }
 
 // Endpoint is the human label of what was probed.
@@ -73,6 +75,12 @@ type Result struct {
 	OK    bool    `json:"ok"`
 	RTT   float64 `json:"rtt_ms"`
 	Error string  `json:"error,omitempty"`
+	// Via names who checked the target when it was not this panel's own
+	// probe ("haproxy": the relay's health check); Sessions and Backup
+	// carry that checker's view.
+	Via      string `json:"via,omitempty"`
+	Sessions *int   `json:"sessions,omitempty"`
+	Backup   bool   `json:"backup,omitempty"`
 }
 
 // Point is one recent check; R < 0 marks a failed check.
@@ -92,6 +100,9 @@ type TargetState struct {
 	Successes int       `json:"successes"`
 	FailStart time.Time `json:"fail_start,omitzero"`
 	Recent    []Point   `json:"recent"`
+	Via       string    `json:"via,omitempty"`
+	Sessions  *int      `json:"sessions,omitempty"`
+	Backup    bool      `json:"backup,omitempty"`
 }
 
 // Bucket is one hour of checks for one target. Up counts checks whose
@@ -191,6 +202,7 @@ func Open(path string) (*Monitor, error) {
 	if e = json.Unmarshal(data, &m.data); e != nil {
 		return nil, e
 	}
+	m.data.Settings = m.data.Settings.normalized()
 	if e = m.data.Settings.Validate(); e != nil {
 		return nil, e
 	}
@@ -221,6 +233,7 @@ func (m *Monitor) Settings() Settings {
 
 // Configure replaces settings when revision matches the one the caller read.
 func (m *Monitor) Configure(now time.Time, s Settings, revision uint64) error {
+	s = s.normalized()
 	if e := s.Validate(); e != nil {
 		return e
 	}
@@ -295,6 +308,7 @@ func (m *Monitor) apply(st *TargetState, r Result, now time.Time) bool {
 		previous = st.Recent[n-1].R
 	}
 	st.Checked = now
+	st.Via, st.Sessions, st.Backup = r.Via, r.Sessions, r.Backup
 	if r.OK {
 		st.Successes++
 		st.Fails = 0
@@ -360,6 +374,17 @@ func (m *Monitor) apply(st *TargetState, r Result, now time.Time) bool {
 		b.OK++
 	}
 	return changed
+}
+
+// Statuses reports the current status of every target by key.
+func (m *Monitor) Statuses() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make(map[string]string, len(m.data.Targets))
+	for key, st := range m.data.Targets {
+		out[key] = st.Status
+	}
+	return out
 }
 
 func (m *Monitor) bucket(key string, now time.Time) *Bucket {

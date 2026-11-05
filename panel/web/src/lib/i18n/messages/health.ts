@@ -163,8 +163,8 @@ export const health = {
   ],
   healthRecommendations: ["Recommendations", "پیشنهادها"],
   hint_conntrackDefaultTimeout: [
-    "Idle TCP entries are kept for days (kernel default 5 days). Abandoned VPN connections fill the table over time. Tune it with ServerTools (st → Quick Optimize), which sets 1 hour on forwarders.",
-    "رکوردهای TCP بی‌ترافیک چند روز نگه داشته می‌شوند (پیش‌فرض هسته 5 روز). اتصال‌های رهاشدهٔ VPN به‌مرور جدول را پر می‌کنند. با ServerTools تنظیمش کنید (st ← Quick Optimize) که روی سرورهای فوروارد 1 ساعت قرار می‌دهد.",
+    "Idle TCP entries are kept for days (kernel default 5 days). Abandoned VPN connections fill the table over time. The Connection tracking group on the Optimization page keeps them 1 hour.",
+    "رکوردهای TCP بی‌ترافیک چند روز نگه داشته می‌شوند (پیش‌فرض هسته 5 روز). اتصال‌های رهاشدهٔ VPN به‌مرور جدول را پر می‌کنند. گروه «ردیابی اتصال» در صفحهٔ بهینه‌سازی آن‌ها را 1 ساعت نگه می‌دارد.",
   ],
   hint_conntrackHigh: [
     "The table is above 80 %. New connections are dropped when it is full.",
@@ -175,22 +175,95 @@ export const health = {
     "هسته از بررسی قبلی تا حالا اتصال‌هایی را دور ریخته یا نتوانسته ثبت کند.",
   ],
   hint_conntrackBuckets: [
-    "The limit is much larger than the hash table, so lookups slow down as it fills. ServerTools sizes both together.",
-    "سقف جدول خیلی بزرگ‌تر از جدول هش است و با پر شدن، جست‌وجو کند می‌شود. ServerTools هر دو را متناسب تنظیم می‌کند.",
+    "The limit is much larger than the hash table, so lookups slow down as it fills. The Connection tracking group sizes both together.",
+    "سقف جدول خیلی بزرگ‌تر از جدول هش است و با پر شدن، جست‌وجو کند می‌شود. گروه «ردیابی اتصال» هر دو را متناسب تنظیم می‌کند.",
   ],
   hint_cpuSteal: [
     "High CPU steal: the provider's host is busy. This raises latency for every tunnel and is outside this server's control.",
     "CPU دزدیده‌شده بالاست: میزبان دیتاسنتر شلوغ است. این تأخیر همهٔ تونل‌ها را بالا می‌برد و خارج از کنترل این سرور است.",
   ],
   hint_cpuSoftIRQ: [
-    "Packet processing uses a large share of CPU. Spreading receive work across cores (RPS) helps; ServerTools can configure it.",
-    "پردازش بسته‌ها سهم زیادی از CPU گرفته است. پخش دریافت بین هسته‌ها (RPS) کمک می‌کند و ServerTools می‌تواند تنظیمش کند.",
+    "Packet processing uses a large share of CPU. The Packet queues group lets each core handle more packets per pass; a larger server or more cores helps most.",
+    "پردازش بسته‌ها سهم زیادی از CPU گرفته است. گروه «صف بسته‌ها» به هر هسته اجازه می‌دهد در هر نوبت بسته‌های بیشتری پردازش کند؛ بیشترین اثر را سرور قوی‌تر یا هستهٔ بیشتر دارد.",
   ],
   healthConntrackCliMissing: [
     "The conntrack tool is not installed, so maintenance cannot clear the tracked flows of a kernel forward. Install the conntrack package to enable it.",
     "ابزار conntrack نصب نیست، بنابراین نگهداری نمی‌تواند اتصال‌های ردیابی‌شدهٔ فوروارد هسته را پاک کند. برای فعال شدن، بستهٔ conntrack را نصب کنید.",
   ],
-  healthServerTools: ["Open ServerTools", "باز کردن ServerTools"],
+  healthOpenOptimize: ["Open Optimization", "باز کردن بهینه‌سازی"],
+  reason_down: ["Marked down by HAProxy", "HAProxy آن را قطع اعلام کرد"],
+  reason_maintenance: ["In HAProxy maintenance", "در حالت نگهداری HAProxy"],
+  healthViaHaproxy: ["Checked by HAProxy", "بررسی‌شده توسط HAProxy"],
+  healthViaHaproxyHelp: [
+    "HAProxy checks its destinations every few seconds itself; the panel shows that result instead of probing again.",
+    "HAProxy خودش هر چند ثانیه مقصدهایش را بررسی می‌کند؛ پنل به‌جای بررسی دوباره همان نتیجه را نشان می‌دهد.",
+  ],
+  healthSessions: ["{n} sessions", "{n} نشست"],
+  healthBackup: ["Backup", "پشتیبان"],
+  healthLoss: ["Loss {v}", "اتلاف {v}"],
+  healthFailover: ["Failover", "جایگزینی خودکار"],
+  healthFailoverExcluded: [
+    "Destination {list} gets no new connections until it recovers.",
+    "مقصد {list} تا زمان برگشت، اتصال جدید نمی‌گیرد.",
+  ],
+  healthFailoverRestored: [
+    "Every destination gets new connections again.",
+    "همهٔ مقصدها دوباره اتصال جدید می‌گیرند.",
+  ],
+  healthFailoverError: [
+    "Failover could not change the rules: {e}",
+    "جایگزینی خودکار نتوانست قوانین را تغییر دهد: {e}",
+  ],
+  healthFlows: ["New connections per destination", "اتصال‌های جدید هر مقصد"],
+  healthFlowsHelp: [
+    "Counted in the kernel since the forward's rules were last applied. A destination far below the others is usually down or slow.",
+    "در هسته و از آخرین اعمال قوانین این فوروارد شمرده می‌شود. مقصدی که خیلی کمتر از بقیه است معمولاً قطع یا کند است.",
+  ],
+  healthFlowsLoad: ["Show distribution", "نمایش توزیع"],
+  healthFlowsTotal: ["{n} in total", "{n} در مجموع"],
+  healthMtu: ["Path MTU", "MTU مسیر"],
+  healthMtuTest: ["Test MTU", "آزمون MTU"],
+  healthMtuHelp: [
+    "Sends up to 24 pings with Don't Fragment set to the peer's inner address and finds the largest packet that passes. Takes a few seconds; runs only when you ask.",
+    "حداکثر 24 پینگ با بیت «تکه نکن» به نشانی داخلی طرف مقابل می‌فرستد و بزرگ‌ترین بسته‌ای را که عبور می‌کند پیدا می‌کند. چند ثانیه طول می‌کشد و فقط با درخواست شما اجرا می‌شود.",
+  ],
+  healthMtuResult: [
+    "Largest unfragmented packet: {path} bytes. Interface MTU: {mtu}.",
+    "بزرگ‌ترین بستهٔ بدون تکه: {path} بایت. MTU رابط: {mtu}.",
+  ],
+  healthMtuLower: [
+    "Packets larger than {path} bytes are dropped on the way. Set this tunnel's MTU to {path} on both servers to avoid stalled connections.",
+    "بسته‌های بزرگ‌تر از {path} بایت در مسیر دور ریخته می‌شوند. برای جلوگیری از گیر کردن اتصال‌ها، MTU این تونل را روی هر دو سرور {path} بگذارید.",
+  ],
+  healthMtuOk: [
+    "The interface MTU passes unfragmented.",
+    "MTU رابط بدون تکه شدن عبور می‌کند.",
+  ],
+  healthMtuNone: [
+    "The peer did not answer even at 1200 bytes. Check that the tunnel is up and ping is allowed.",
+    "طرف مقابل حتی با 1200 بایت پاسخ نداد. بالا بودن تونل و مجاز بودن پینگ را بررسی کنید.",
+  ],
+  healthFailoverSection: [
+    "Failover for kernel forwards",
+    "جایگزینی خودکار برای فورواردهای هسته",
+  ],
+  healthFailoverHelp: [
+    "nftables and iptables spread new connections without checking destinations. With failover on, a destination that stops answering is taken out of the spread until it answers again; its stuck connections are cleared so clients reconnect to a live one. At least one destination always stays. The saved configuration is not changed, and a reboot restores every destination.",
+    "nftables و iptables اتصال‌های جدید را بدون بررسی مقصد پخش می‌کنند. با روشن بودن این گزینه، مقصدی که پاسخ نمی‌دهد تا زمان برگشت از چرخه خارج می‌شود و اتصال‌های گیرکردهٔ آن پاک می‌شوند تا کاربران به مقصد سالم وصل شوند. همیشه دست‌کم یک مقصد باقی می‌ماند. تنظیمات ذخیره‌شده تغییر نمی‌کند و ریبوت همهٔ مقصدها را برمی‌گرداند.",
+  ],
+  healthFailoverInterval: [
+    "Check these forwards every (seconds)",
+    "فاصلهٔ بررسی این فورواردها (ثانیه)",
+  ],
+  healthFailoverIntervalHelp: [
+    "2–30 seconds. At 5 s with three failures a dead destination is out in about 15 s.",
+    "2 تا 30 ثانیه. با 5 ثانیه و سه خطای پیاپی، مقصد قطع در حدود 15 ثانیه کنار گذاشته می‌شود.",
+  ],
+  healthFailoverNone: [
+    "No eligible forward. Failover needs an enabled nftables or iptables forward with two or more destinations; HAProxy checks its destinations itself.",
+    "فوروارد مناسبی نیست. این گزینه به فوروارد فعال nftables یا iptables با دو مقصد یا بیشتر نیاز دارد؛ HAProxy خودش مقصدهایش را بررسی می‌کند.",
+  ],
+  healthFailoverDestinations: ["{n} destinations", "{n} مقصد"],
   healthAttention: [
     "{n} tunnels need attention",
     "{n} تونل نیاز به بررسی دارد",

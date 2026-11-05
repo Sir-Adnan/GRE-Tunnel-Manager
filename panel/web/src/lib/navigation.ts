@@ -7,6 +7,7 @@ export const pages = [
   "gre",
   "reverse",
   "maintenance",
+  "optimize",
   "components",
   "backups",
   "settings",

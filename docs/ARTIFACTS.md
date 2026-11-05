@@ -16,9 +16,11 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/backups/legacy-*.sh` | Raw backup before legacy group deletion; executable root data, not a modern restore point |
 | `/etc/gre-manager/generated/F*.conf` | Per-connection Realm/HAProxy config |
 | `/run/gre-manager/haproxy/F*.sock` | HAProxy read-only Unix stats sockets, mode 600 inside mode-700 directory |
-| `/etc/gre-manager/tuning.tsv` | Validated before/applied sysctl journal; independent of forwarding snapshots |
-| `/etc/sysctl.d/99-z-gre-manager-owned.conf` | Explicit managed global tuning; conditional restore/release |
-| `/etc/gre-manager/backups/{cleanup,tuning,retired-tuning}-*/` | Private pre-operation artifacts for scoped deletion, tuning recovery or historical retirement |
+| `/etc/gre-manager/optimize/journal.tsv`, `optimize/steps/*.tsv` | Optimization journal (key, original, applied, group) and the newest 20 undo steps; mode 600 |
+| `/etc/sysctl.d/zz-gre-manager-optimize.conf` | Applied optimization values; sorts after other drop-ins so they win at boot; removed by Reset |
+| `/etc/modules-load.d/gre-manager-optimize.conf` | `nf_conntrack` / `tcp_bbr` loaded before sysctl at boot while those keys are managed |
+| `/run/gre-manager/excluded.tsv` | Runtime-only health failover exclusions (forward, destination list, excluded positions); cleared at boot |
+| `/etc/gre-manager/backups/{cleanup,retired-tuning,tuning-import}-*/` | Private pre-operation artifacts for scoped deletion, historical retirement or the v1.3.7 tuning import |
 | `/etc/systemd/system/gtm-F*.service` | Opt-in per-connection relay service; removed when disabled/deleted |
 | `/usr/local/lib/gre-manager/apply.sh` | Generated self-contained boot reconciler; root-only executable |
 | `/etc/systemd/system/gre-manager-forwarding.service` | Oneshot kernel reconcile, not a manager daemon |
@@ -41,19 +43,19 @@ IPv4 forwarding is enabled when required and re-enabled by the boot runner. IPv6
 
 ## Legacy resources
 
-The following inventory includes historical artifacts for migration. New GRE creation no longer writes the old tuning drop-ins or invokes the old performance helper. New legacy forwarding keeps required IPv4 forwarding but does not size conntrack or auto-enable IPv6 forwarding. Recognized historical tuning can be retired, without guessed runtime rollback; see [TUNING-CLEANUP.md](TUNING-CLEANUP.md).
+The v13.x scripts created the artifacts below. Current versions create only `gre-tun-$TID.service` (through the shared GRE engine); the others are retired from **Tools → Retire old installation** when recognized, without guessed runtime rollback; see [Retiring old installations](RETIRING-OLD-INSTALLS.md).
 
 ## Files & services
 
 | Path | Created by | Purpose | Removed by |
 | --- | --- | --- | --- |
-| `/etc/systemd/system/gre-tun-$TID.service` | setup_tunnel (menu 1/2) | builds tunnel device at boot (oneshot, RemainAfterExit) | remove_tunnel (menu 3), overwrite on re-create |
-| `/etc/systemd/system/gre-keepalive-$TID.service` | setup_tunnel | watchdog loop (PartOf gre-tun-$TID) | remove_tunnel |
-| `/etc/sysctl.d/99-gre-tuning.conf` | historical apply_sysctl; no longer created | old ip_forward, BBR+fq, 16 MB TCP buffers | recognized historical retirement; customized files kept |
-| `/usr/local/bin/gre_firewall.sh` | fix_firewall (rewritten every call) | idempotent shared rules: GRE INPUT, MSS clamp, ESTABLISHED accept (v4+v6) | manual only |
-| `/etc/systemd/system/gre-firewall.service` | fix_firewall (first call) | replays gre_firewall.sh at boot | manual only |
-| `/opt/simple_gre_script.sh` | setup_simple_gre (menu 7) | tunnel + DNAT lines for Simple mode (single instance) | guarded scoped cleanup (8/12) |
-| `/etc/systemd/system/simple-gre.service` | setup_simple_gre | replays the above at boot | remove_simple_gre, wipe |
+| `/etc/systemd/system/gre-tun-$TID.service` | GRE create (panel or terminal) | builds tunnel device at boot (oneshot, RemainAfterExit) | GRE delete; refused while forwards use it |
+| `/etc/systemd/system/gre-keepalive-$TID.service` | v13.x setup | watchdog loop (PartOf gre-tun-$TID) | GRE delete |
+| `/etc/sysctl.d/99-gre-tuning.conf` | v13.x; no longer created | old ip_forward, BBR+fq, 16 MB TCP buffers | recognized historical retirement; customized files kept |
+| `/usr/local/bin/gre_firewall.sh` | v13.x fix_firewall | idempotent shared rules: GRE INPUT, MSS clamp, ESTABLISHED accept (v4+v6) | manual only |
+| `/etc/systemd/system/gre-firewall.service` | v13.x fix_firewall | replays gre_firewall.sh at boot | manual only |
+| `/opt/simple_gre_script.sh` | v13.x Simple GRE | tunnel + DNAT lines for Simple mode (single instance) | Retire old installation → Remove Simple GRE |
+| `/etc/systemd/system/simple-gre.service` | v13.x Simple GRE | replays the above at boot | Retire old installation → Remove Simple GRE |
 | `/usr/local/bin/gre_custom_rules.sh` (FW_SCRIPT) | ensure_forward_service (menu 9) | literal generated iptables lines; old files can contain untracked sysctls | grouped deletion (11) / recognized bulk cleanup (12) |
 | `/etc/systemd/system/gre-custom-rules.service` | ensure_forward_service | replays FW_SCRIPT at boot | same as above |
 | `/etc/sysctl.d/98-gre-highload.conf` | historical performance profile | old unjournaled sizing, ports, timeouts, backlogs | recognized historical retirement |
@@ -84,7 +86,7 @@ The following inventory includes historical artifacts for migration. New GRE cre
 
 Units and sysctl drop-ins are configured to restore at boot; verify real network readiness and host firewall ordering during rollout. `/run` caches vanish and are re-probed.
 
-Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journal and survive tunnel removal. Review these retained policies for the host's needs. Old tuning files need explicit historical retirement. Managed forwarding references block standard GRE/Simple GRE removal where recognized. Manual rules/custom routes and historical runtime RPS/NOTRACK still need operator inspection. New cleanup never calls an unscoped `systemctl reset-failed`.
+Shared gre-firewall unit/script and UFW's GRE allow remain outside the new journal and survive tunnel removal. Review these retained policies for the host's needs. Old tuning files need explicit retirement. Managed forwarding references block standard GRE/Simple GRE removal where recognized. Manual rules/custom routes and historical runtime RPS/NOTRACK still need operator inspection. New cleanup never calls an unscoped `systemctl reset-failed`.
 
 ## Optional web panel
 

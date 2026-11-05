@@ -10,6 +10,7 @@ import {
   Network,
   Server,
   Settings2,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Page } from "@/lib/navigation";
@@ -39,6 +40,7 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
     title: "systemGroup",
     items: [
       { id: "maintenance", icon: CalendarClock },
+      { id: "optimize", icon: Zap },
       { id: "components", icon: Boxes },
       { id: "backups", icon: Archive },
       { id: "settings", icon: Settings2 },

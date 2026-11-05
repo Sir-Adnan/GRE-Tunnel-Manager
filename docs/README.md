@@ -26,7 +26,8 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | [Configuration editor](CONFIGURATION-EDITOR.md) | Inspection, supported edits and review/apply |
 | [Traffic accounting](TRAFFIC-ACCOUNTING.md) · [Remote summaries](REMOTE-TRAFFIC.md) | Collection, resets, quotas, history and Node reports |
 | [Health and maintenance](HEALTH-AND-MAINTENANCE.md) | Uptime, outages, weekly reports, conntrack pressure and scheduled refresh/restart/reboot |
-| [Performance](PERFORMANCE.md) · [Tuning and cleanup](TUNING-CLEANUP.md) | Capacity limits and explicit host tuning |
+| [Performance](PERFORMANCE.md) · [Server optimization](OPTIMIZATION.md) | Capacity limits and opt-in, reversible kernel settings |
+| [Retiring old installations](RETIRING-OLD-INSTALLS.md) | Removing v13.x forwards, Simple GRE and old tuning files |
 
 ## Development and reference
 

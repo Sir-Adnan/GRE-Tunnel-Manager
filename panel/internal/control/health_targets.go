@@ -70,8 +70,10 @@ func healthTargets(inventory Inventory) []health.Target {
 		if c.Engine == "haproxy" || c.Engine == "realm" {
 			add(health.Target{Key: c.ID + "|service", Owner: c.ID, Name: name, Engine: c.Engine, Kind: health.KindService, Unit: "gtm-" + c.ID})
 		}
-		seen := map[string]bool{}
-		for _, t := range c.Targets {
+		// One probe per distinct endpoint; it stands for every position
+		// (1-based, as the Bash state numbers them) with that endpoint.
+		seen := map[string]int{}
+		for i, t := range c.Targets {
 			address, e := netip.ParseAddr(t.IP)
 			if e != nil || address.Zone() != "" {
 				continue
@@ -88,11 +90,15 @@ func healthTargets(inventory Inventory) []health.Target {
 			if port > 0 {
 				key += "|" + strconv.Itoa(port)
 			}
-			if seen[key] {
+			if at, ok := seen[key]; ok {
+				out[at].Indexes = append(out[at].Indexes, i+1)
 				continue
 			}
-			seen[key] = true
-			add(health.Target{Key: key, Owner: c.ID, Name: name, Engine: c.Engine, Kind: kind, Address: address.String(), Port: port})
+			if len(out) >= health.MaxTargets {
+				continue
+			}
+			seen[key] = len(out)
+			add(health.Target{Key: key, Owner: c.ID, Name: name, Engine: c.Engine, Kind: kind, Address: address.String(), Port: port, Indexes: []int{i + 1}})
 		}
 	}
 	for _, r := range inventory.Resources {

@@ -26,17 +26,16 @@ Modular Bash source is concatenated by `tools/build.py` into standalone `gre.sh`
 | catalog | Offline capability guide and reverse-engine selection |
 | inspect | Offline previews/validation, preflight, host health report, GRE dependencies |
 | forms | Read-only staged setup, port lists, remote endpoints, optional details and batch save |
-| tuning | Explicit global sysctl profiles, before/applied journal, drift-aware restore |
-| cleanup | Closed legacy inventory, backed-up scoped deletion and historical retirement |
+| optimize | Opt-in sysctl groups (conntrack, packet queues, relay TCP), journal with original values, undo steps, group restore and reset; drop-in sorts last |
+| cleanup | Retirement of v13.x forwards, Simple GRE and old tuning files: closed inventory, backups, scoped deletion |
 | links / reverse_api / pair_api / api | Noninteractive owned-resource operations shared with the Go panel |
 | recovery | Typed, paused recovery with full staging, target-revision checks and checked file rollback; no imported executable units |
 | panel | Optional panel lifecycle and engine preinstallation menus |
-| menus | Task menus, grouped CRUD, diagnostics, legacy cleanup |
-| legacy | Compatible GRE, Simple GRE, performance and old utilities |
+| menus | Task menus, grouped CRUD, GRE through the shared `links` engine, diagnostics |
 
 ## Navigation
 
-The main menu has eight sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing, Tools and optional Web Panel. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. Legacy numbers 1–14 remain in Tools → Old Menu and `--legacy`.
+The main menu has eight sections: GRE Tunnel, Port Forwarding, HAProxy Tunnel, Realm Tunnel, Reverse Tunnel, Load Balancing, Tools and optional Web Panel. GRE has direct Kharej/Iran choices; these roles retain the original wire contract regardless of geography. HAProxy and Realm have dedicated branded managers for setup, balancing, list/edit/delete, start/stop and status/logs. The terminal and the panel create and delete GRE through the same `links` operations.
 
 Engine menus use a dynamically scoped `GTM_ENGINE_FILTER` only in `gtm_records` presentation/selection. After selecting stable IDs, mutations reload the **entire** state under the lock and preserve other engines. Never pass a filtered presentation array directly to reconciliation. Styling is fixed, English-only and foreground-only, respecting NO_COLOR/non-TTY/dumb output. Old preferences are ignored and no preference file is created. Theme/language/layout switches are removed.
 
@@ -84,9 +83,9 @@ The optional panel has typed capability contracts, an unprivileged public HTTP/H
 
 ## Compatibility
 
-Modern navigation is default. `--legacy` preserves numbers 1–14; 15 returns to modern. GRE keys, addressing, interface/unit names, IDs 1–250 and MTU 1430 remain compatible with v13.7+. Side A maps to old kharej, Side B to iran, irrespective of geography. `gre-stable.sh` remains frozen v13.6. GRE deletion is guarded by managed-record references to its interface or default internal address range (including disabled records). Unknown manual/legacy rules and custom routes are outside that guard; no forwards are automatically deleted.
+GRE keys, addressing, interface/unit names, IDs 1–250 and MTU 1430 remain compatible with v13.7+, so tunnels created by the old scripts keep working. Side A maps to old kharej, Side B to iran, irrespective of geography. The v13.x scripts (`gre-stable.sh`, `legacy/`), the old numbered menu and `--legacy` were removed in v1.4.0. GRE deletion is guarded by managed-record references to its interface or default internal address range (including disabled records). Unknown manual/legacy rules and custom routes are outside that guard; no forwards are automatically deleted.
 
-Legacy 10 is now read-only script inspection, 12 is scoped cleanup, and 14 is explicit journaled tuning. Bulk removal refuses unknown commands/custom units. No saved shell line is executed by cleanup. New GRE setup no longer writes global TCP/conntrack/IPv6 tuning. Historical files can be retired only when recognized, with unknown runtime values preserved. New tuning uses an independent before/applied journal and conditional restore; see [TUNING-CLEANUP.md](TUNING-CLEANUP.md).
+**Tools → Retire old installation** removes recognized v13.x forwards, Simple GRE and old tuning files; bulk removal refuses unknown commands/custom units and no saved shell line is executed ([Retiring old installations](RETIRING-OLD-INSTALLS.md)). GRE setup writes no global sysctl. Server-wide kernel settings are opt-in groups with original values, undo and reset ([Server optimization](OPTIMIZATION.md)).
 
 
 Panel installation is independent of runtime control. `panel/internal/setup` owns the quick/custom terminal flow and one-time bounded IP discovery; `panel/internal/config` validates addresses, protocols and passwords and persists config/certificates. Missing protocol fields preserve older HTTPS installations. The public server selects both its listener and cookie policy from that validated protocol. Origin checks use the actual direct HTTP/TLS connection, never an untrusted forwarded header. No browser transport setting changes tunnel-engine behavior or exposes the broker socket remotely.

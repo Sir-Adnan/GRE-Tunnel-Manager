@@ -21,6 +21,7 @@ type Demo struct {
 	metrics   MetricsView
 	configs   map[string]string
 	ops       *demoOps
+	optimizer *demoOptimizer
 }
 
 func NewDemo() *Demo {
@@ -38,6 +39,12 @@ func NewDemo() *Demo {
 		c.Revision = model.Revision(rows[0])
 		d.inventory.Connections = append(d.inventory.Connections, c)
 	}
+	// A balanced kernel forward shows failover and per-destination flows.
+	pool := model.Connection{ID: "F000004", Name: "Reality pool", Engine: "nftables", Protocol: "tcp", Bind: "203.0.113.10", Ports: "2053", Strategy: "roundrobin", Enabled: true, SNAT: "masquerade", Interface: "any", Targets: []model.Target{{IP: "198.51.100.61", Port: 443, Weight: 1}, {IP: "198.51.100.62", Port: 443, Weight: 1}, {IP: "198.51.100.63", Port: 443, Weight: 1}}, Options: map[string]string{}, Status: "configured"}
+	if rows, e := pool.Rows(pool.ID); e == nil {
+		pool.Revision = model.Revision(rows[0])
+		d.inventory.Connections = append(d.inventory.Connections, pool)
+	}
 	d.metrics = MetricsView{Settings: MetricsSettings{Interval: 60, IDs: []string{}}, Counters: map[string]Traffic{}, Since: time.Now().UTC(), Policies: map[string]TrafficPolicy{}, History: map[string][]TrafficPoint{}, Cycles: map[string][]TrafficCycle{}}
 	return d
 }
@@ -48,8 +55,10 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	switch r.Action {
 	case "host-telemetry":
 		return json.Marshal(demoTelemetry())
-	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
+	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel", "health-flows", "health-mtu":
 		return d.operations(r)
+	case "optimize", "optimize-plan", "optimize-apply", "optimize-undo", "optimize-remove":
+		return d.optimizeDemo(r)
 	case "engine-releases":
 		var releases []EngineRelease
 		for _, c := range d.inventory.Components {

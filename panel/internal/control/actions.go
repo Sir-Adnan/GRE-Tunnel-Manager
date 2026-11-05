@@ -28,6 +28,10 @@ var actions = map[string]actionSpec{
 	"health":                      {read: true},
 	"health-report":               {read: true},
 	"maintenance":                 {read: true},
+	"health-flows":                {read: true},
+	"health-mtu":                  {read: true},
+	"optimize":                    {read: true},
+	"optimize-plan":               {read: true},
 
 	"create":                     {public: true},
 	"update":                     {public: true},
@@ -57,6 +61,9 @@ var actions = map[string]actionSpec{
 	"maintenance-delete":         {public: true},
 	"maintenance-run":            {public: true},
 	"maintenance-cancel":         {public: true},
+	"optimize-apply":             {public: true},
+	"optimize-undo":              {public: true},
+	"optimize-remove":            {public: true},
 
 	"backup-export":  {backup: true},
 	"backup-review":  {backup: true},

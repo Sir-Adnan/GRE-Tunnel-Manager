@@ -7,7 +7,7 @@ Publish only when requested. Each release contains matching terminal, panel, fro
 1. Review the full diff, including work completed before the release task. Update affected guides, both quick-start READMEs and `docs/CHANGELOG.md`.
 2. Set the version in `src/core.sh` (`GTM_VERSION`). Copy it to `panel/internal/version/version.go`, `panel/web/src/lib/version.ts`, the frontend package and lock, `panel-install.sh` and `node-install.sh`, then update versioned test fixtures. `python3 tools/build.py --check` fails when a version copy differs. Go code and frontend text import those constants rather than repeating the number. Do not renumber historical changelog/archive entries.
 3. Run `python3 tools/build.py`; do not edit generated `gre.sh`. Write the release notes in `panel/RELEASE.md`.
-4. Confirm archived scripts and `gre-stable.sh` are unchanged. Check Markdown links and distinguish shipped features from proposals.
+4. Check Markdown links and distinguish shipped features from proposals.
 
 ## Verify
 

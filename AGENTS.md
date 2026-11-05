@@ -6,12 +6,13 @@ This is a Bash tunnel/forwarding manager with an optional Go web panel. Read the
 
 - `src/` is the shell source; generate `gre.sh` with `python3 tools/build.py`.
 - `panel/internal/` owns Go contracts and control; `panel/web/src/` owns the interface.
-- `gre-stable.sh` and scripts in `legacy/` are preserved archives.
+- The terminal menus and the panel share one Bash engine (`api`, `links`, `firewall`, `state`, `optimize`); new behavior goes into the engine, menus stay thin.
 - Python, Node.js and compilers are development tools, not managed-server requirements.
 
 ## Change contracts
 
 - Keep changes focused and modular. Separate presentation, validation/rendering and system operations. Preserve saved configurations and peer compatibility unless an explicit migration is requested.
+- Keep the data path in the kernel where it can be (GRE, nftables/iptables). Background work in the panel is opt-in, bounded and cheap when off; nothing processes individual packets in userspace except the relay engines a user chose.
 - Validate external input before commands or generated configuration. Quote shell variables, use command arrays and checked results; never evaluate configuration as code.
 - Mutations must lock, reload complete state, check revisions and preserve unrelated records. A filtered UI list is never the state to save.
 - Modify only owned resources through existing backup/recovery paths. Report partial failures. Never flush the host firewall or conntrack table.

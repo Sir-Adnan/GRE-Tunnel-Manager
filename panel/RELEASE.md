@@ -1,28 +1,32 @@
-# GRE Tunnel Manager v1.3.7
+# GRE Tunnel Manager v1.4.0
 
-The panel gains optional health monitoring and scheduled maintenance. Both are off after installing or upgrading, and do no background work while off.
+Health failover for balanced kernel forwards, a new reversible server optimization module and a leaner terminal. Everything new is off until you turn it on or apply it.
 
 ## Health
 
-- **Health** checks every enabled destination on an interval (default 30 s): one TCP connection closed before any data, or a ping for UDP-only services. It also pings GRE peers over the tunnel and reads managed service states.
-- It shows status, latency, 24 h / 7 d / 30 d uptime with hourly and daily cells, an outage history and a weekly report with downtime, latency, jitter, server load, maintenance runs and accounted traffic. The report exports as CSV and prints.
-- **Health → Server** shows conntrack usage, hash size, the idle-TCP timeout and drops, plus CPU steal, softirq and I/O wait. Ping and jitter that rise over hours and clear after a reboot usually come from a filling conntrack table; the page names the cause and points to [ServerTools](https://github.com/Sir-Adnan/server-tools) for tuning. The panel changes no kernel setting.
+- **Failover** for nftables and iptables forwards with several destinations, chosen per forward. Their destinations are probed every 5 seconds (2–30 s). A destination that is down stops receiving new connections, its tracked flows are cleared so clients reconnect to a live one, and it returns when it answers again. At least one destination always stays; the saved configuration is not changed and a reboot, an edit or turning monitoring off restores every destination.
+- HAProxy destinations show HAProxy's own check results (status, check time, sessions, backup) instead of a second probe.
+- Expanded rows show the 24-hour share of failed checks, new connections per destination for balanced nftables forwards and an on-demand **path MTU test** for GRE links with a suggested MTU.
 
-## Maintenance
+## Optimization
 
-- Plans run a **soft refresh** (reapply kernel rules, reload HAProxy gracefully; nobody is disconnected), a **restart** (services, GRE links, reverse tunnels) or a **server reboot**.
-- A restart of an nftables/iptables forward clears only that forward's tracked flows, which for it has the same effect as a reboot. The conntrack table is never flushed. This needs the `conntrack` package.
-- Triggers: daily, on weekdays, every N hours, after long uptime, or when a tunnel is down or slow for N minutes (only affected tunnels are acted on).
-- Guards: time window, wait for quiet traffic, cooldown, daily limit, cancellable notice, pause between tunnels, a reboot loop guard and dry run. Six templates are included. Saving an enabled reboot plan asks twice.
+A new **Optimization** page (terminal: **Tools → Server optimization**) with four opt-in groups for tunnel and forwarding servers: Connection tracking, Packet queues, Relay TCP and Tunnels & routing. Values were chosen from scratch; the old tuning profiles are gone.
 
-## Other changes
+- No recommendation is ever worse than the server's live value, including the provider's defaults: limits only grow, timeouts only shrink, buffer triples grow per field and equivalent choices (`cake`, `bbr2`) stay. Such keys are shown as kept.
+- Every change is reviewed first and journaled. **Undo** goes back step by step (20 steps), **Restore originals** undoes one group and **Reset everything** returns every value and deletes the panel's files.
+- ServerTools and other drop-ins that set the same keys are detected and shown, never edited. The panel's drop-in sorts last and wins at boot. Tuning applied with v1.3.7 or earlier is imported on the first change and stays resettable.
 
-- Dashboard live activity refreshes every 2 s by default; 1, 2, 5 or 15 s can be chosen and is remembered in the browser.
+See [Server optimization](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/OPTIMIZATION.md) for every value and why.
+
+## Terminal
+
+- The v13.x scripts (`gre-stable.sh`, `legacy/`) and the old numbered menu are removed. Creating and deleting GRE in the terminal uses the same engine as the panel.
+- **Tools → Retire old installation** still removes v13.x forwards, Simple GRE and old tuning files. GRE tunnels created by old versions keep working.
 
 ## Upgrade and verification
 
-Run the current panel installer to install the matching v1.3.7 package, then refresh the browser. Downloading the script alone does not upgrade the executable. Existing credentials, certificates and managed tunnel settings are kept. Use matching Controller/Agent packages when upgrading Nodes. Install `conntrack` (`apt install conntrack`) if you plan restart plans for kernel forwards.
+Run the current panel installer to install the matching v1.4.0 package, then refresh the browser. Existing credentials, certificates and managed tunnel settings are kept. Use matching Controller/Agent packages when upgrading Nodes. Failover's flow clearing needs the `conntrack` package.
 
 Linux amd64/arm64 archives contain the executable, embedded frontend, matching Bash helper and dependency notices. Verify `SHA256SUMS`. Managed servers do not need Node.js, Python or a compiler.
 
-Tested with unit tests and in isolated Linux network namespaces, including a check that rule refresh keeps established flows and flow reset clears only the selected forward. Long-running behavior and real reboots have not yet been verified on a server.
+Tested with unit tests and in isolated Linux network namespaces, including failover keeping new connections off a dead destination. Failover, flow counts, the MTU test and boot-time optimization have not yet been verified on a real server.

@@ -70,6 +70,11 @@ const Maintenance = lazy(() =>
     default: module.Maintenance,
   })),
 );
+const Optimize = lazy(() =>
+  import("@/features/Optimize").then((module) => ({
+    default: module.Optimize,
+  })),
+);
 const Backups = lazy(() =>
   import("@/features/backups/Backups").then((module) => ({
     default: module.Backups,
@@ -136,7 +141,9 @@ function PageSkeleton() {
 function pageKind(page: Page) {
   return page === "overview"
     ? "dashboard"
-    : ["settings", "components", "traffic", "maintenance"].includes(page)
+    : ["settings", "components", "traffic", "maintenance", "optimize"].includes(
+          page,
+        )
       ? "settings"
       : "list";
 }
@@ -308,9 +315,11 @@ export default function App() {
                         ) : page === "traffic" ? (
                           <Traffic inventory={inventory} run={run} />
                         ) : page === "health" ? (
-                          <Health run={run} />
+                          <Health inventory={inventory} run={run} />
                         ) : page === "maintenance" ? (
                           <Maintenance inventory={inventory} run={run} />
+                        ) : page === "optimize" ? (
+                          <Optimize inventory={inventory} run={run} />
                         ) : page === "components" ? (
                           <Components inventory={inventory} run={run} />
                         ) : page === "backups" ? (

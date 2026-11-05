@@ -24,6 +24,8 @@ type HealthInput struct {
 	Revision  uint64          `json:"revision"`
 	Week      int             `json:"week,omitempty"`
 	WeekStart int             `json:"week_start,omitempty"`
+	// Owner selects one connection or resource for on-demand reads.
+	Owner string `json:"owner,omitempty"`
 }
 
 // MaintenanceInput carries one maintenance change. Exactly the fields an
@@ -37,7 +39,8 @@ type MaintenanceInput struct {
 
 type HealthView struct {
 	health.View
-	Timezone string `json:"timezone"`
+	Timezone string                    `json:"timezone"`
+	Failover map[string]FailoverStatus `json:"failover"`
 }
 
 type MaintenanceView struct {
@@ -69,6 +72,9 @@ type Operations struct {
 	// lookPath and uptime are replaceable for tests.
 	lookPath func(string) (string, error)
 	uptime   func() (time.Duration, bool)
+	// runDir holds HAProxy stats sockets and the failover exclusion file.
+	runDir   string
+	failover failover
 
 	mu          sync.Mutex
 	inventory   Inventory
@@ -92,7 +98,7 @@ func NewOperations(directory string) (*Operations, error) {
 }
 
 func newOperations(h *health.Monitor, s *maintenance.Scheduler) *Operations {
-	return &Operations{Health: h, Maintenance: s, host: health.NewHostSampler(), prober: health.NetProber{Timeout: 3 * time.Second}, lookPath: exec.LookPath, uptime: systemUptime}
+	return &Operations{Health: h, Maintenance: s, host: health.NewHostSampler(), prober: health.NetProber{Timeout: 3 * time.Second}, lookPath: exec.LookPath, uptime: systemUptime, runDir: "/run/gre-manager"}
 }
 
 func systemUptime() (time.Duration, bool) {
@@ -137,25 +143,48 @@ func (o *Operations) conntrackCLI() bool {
 	return e == nil
 }
 
-// healthRound probes every target once and records the results.
-func (o *Operations) healthRound(ctx context.Context, m *Manager, now time.Time) error {
-	interval := time.Duration(o.Health.Settings().Interval) * time.Second
+// healthRound records one probe round. A full round checks every target and
+// samples the host; a fast round checks only destinations of forwards with
+// failover. HAProxy destinations take the relay's own check results.
+func (o *Operations) healthRound(ctx context.Context, m *Manager, now time.Time, full bool) (Inventory, error) {
+	settings := o.Health.Settings()
+	interval := time.Duration(settings.Interval) * time.Second
 	inventory, e := o.cachedInventory(ctx, m, max(interval, 30*time.Second))
 	if e != nil {
-		return e
+		return Inventory{}, e
 	}
 	targets := healthTargets(inventory)
-	results := health.Run(ctx, o.prober, targets, 8)
-	maps.Copy(results, serviceResults(inventory, targets))
-	host := o.host.Sample(now)
-	host.ConntrackCLI = o.conntrackCLI()
+	probe := targets
+	if !full {
+		selected := settings.FailoverSet()
+		probe = []health.Target{}
+		for _, t := range targets {
+			if selected[t.Owner] && t.Kind != health.KindService {
+				probe = append(probe, t)
+			}
+		}
+	}
+	results := o.haproxyResults(ctx, inventory, probe)
+	rest := []health.Target{}
+	for _, t := range probe {
+		if _, ok := results[t.Key]; !ok {
+			rest = append(rest, t)
+		}
+	}
+	maps.Copy(results, health.Run(ctx, o.prober, rest, 8))
+	var host *health.HostSnapshot
+	if full {
+		maps.Copy(results, serviceResults(inventory, targets))
+		host = o.host.Sample(now)
+		host.ConntrackCLI = o.conntrackCLI()
+	}
 	changed := o.Health.Record(now, targets, results, host)
-	return o.Health.Flush(now, changed)
+	return inventory, o.Health.Flush(now, changed)
 }
 
 func (o *Operations) healthView(now time.Time) HealthView {
 	loc := o.Maintenance.Location()
-	return HealthView{View: o.Health.View(now, loc), Timezone: loc.String()}
+	return HealthView{View: o.Health.View(now, loc), Timezone: loc.String(), Failover: o.failover.view()}
 }
 
 func (o *Operations) report(now time.Time, input HealthInput, metrics *Metrics) (HealthReport, error) {

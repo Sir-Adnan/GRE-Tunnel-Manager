@@ -6,6 +6,7 @@ import type {
   HealthView,
   MaintenanceView,
 } from "@/features/operations/types";
+import type { OptimizeView } from "@/features/optimize/types";
 
 type Loaded<T> = {
   value?: T;
@@ -88,4 +89,31 @@ export function useNow(active: boolean) {
     return () => window.clearInterval(timer);
   }, [active]);
   return now;
+}
+
+/** Optimization state; polled slowly, reloaded after every change. */
+export function useOptimizeView() {
+  return useLoaded<OptimizeView>("optimize", () => 60);
+}
+
+/**
+ * One on-demand read (flow counts, MTU test): `load` starts it, `value`
+ * keeps the last answer until the next call.
+ */
+export function useOnDemand<T>(path: string) {
+  const [value, setValue] = useState<T>();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setValue(await api<T>(path));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [path]);
+  return { value, error, busy, load };
 }

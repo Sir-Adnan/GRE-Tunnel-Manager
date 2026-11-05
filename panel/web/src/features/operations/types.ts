@@ -9,6 +9,9 @@ export type HealthSettings = {
   recover_threshold: number;
   latency_warn_ms: number;
   retention_days: number;
+  /** Kernel forwards whose dead destinations stop getting new flows. */
+  failover: string[];
+  failover_interval: number;
 };
 
 export type HealthPoint = { t: number; r: number };
@@ -29,6 +32,12 @@ export type HealthTarget = {
   error?: string;
   recent: HealthPoint[];
   uptime_24h: number | null;
+  /** Share of failed checks in 24 h (packet loss for pings). */
+  loss_24h?: number;
+  /** "haproxy" when the relay's own health check supplied the result. */
+  via?: string;
+  sessions?: number;
+  backup?: boolean;
 };
 
 export type HealthOwner = {
@@ -95,6 +104,32 @@ export type HealthView = {
   owners: HealthOwner[];
   outages: Outage[];
   host?: HostPressure;
+  failover: Record<string, FailoverStatus>;
+};
+
+export type FailoverStatus = {
+  /** 1-based destination positions that receive no new flows. */
+  excluded: number[];
+  changed?: string;
+  message?: string;
+  error?: string;
+};
+
+/** New connections per destination since the forward's rules were applied. */
+export type FlowCounts = {
+  owner: string;
+  total: number;
+  destinations: number[];
+  time: string;
+};
+
+export type MTUResult = {
+  address: string;
+  interface_mtu: number;
+  path_mtu: number;
+  probes: number;
+  failed?: number[];
+  duration_ms: number;
 };
 
 export type ReportRow = {

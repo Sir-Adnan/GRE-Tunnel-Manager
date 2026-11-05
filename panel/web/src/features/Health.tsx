@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageTitle } from "@/components/shared";
+import type { Inventory } from "@/lib/api";
 import { number } from "@/lib/format";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { usePanelRoute } from "@/lib/use-panel-route";
@@ -112,7 +113,25 @@ function Summary({ view }: { view: HealthView }) {
   );
 }
 
-export function Health({ run }: { run: (request: unknown) => Promise<void> }) {
+/** Destination endpoints by forward, for failover and flow labels. */
+function endpointsOf(inventory: Inventory): Record<string, string[]> {
+  return Object.fromEntries(
+    inventory.connections.map((c) => [
+      c.id,
+      c.targets.map((x) =>
+        x.ip.includes(":") ? `[${x.ip}]:${x.port}` : `${x.ip}:${x.port}`,
+      ),
+    ]),
+  );
+}
+
+export function Health({
+  inventory,
+  run,
+}: {
+  inventory: Inventory;
+  run: (request: unknown) => Promise<void>;
+}) {
   const t = useT();
   const locale = useContext(LocaleContext);
   const { params, updateParams } = usePanelRoute();
@@ -245,6 +264,8 @@ export function Health({ run }: { run: (request: unknown) => Promise<void> }) {
                   owners={view.owners}
                   time={view.time}
                   timezone={view.timezone}
+                  failover={view.failover ?? {}}
+                  endpoints={endpointsOf(inventory)}
                 />
               )}
             </TabsContent>
@@ -269,6 +290,7 @@ export function Health({ run }: { run: (request: unknown) => Promise<void> }) {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           settings={view.settings}
+          connections={inventory.connections}
           save={configure}
         />
       )}

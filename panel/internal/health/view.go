@@ -9,6 +9,9 @@ import (
 type TargetView struct {
 	TargetState
 	Uptime24h *float64 `json:"uptime_24h"`
+	// Loss24h is the share of failed probes in the last 24 hours (packet
+	// loss for pings); nil for service states and targets without checks.
+	Loss24h *float64 `json:"loss_24h,omitempty"`
 }
 
 // OwnerView groups the probes of one connection or resource.
@@ -63,6 +66,19 @@ func (m *Monitor) sums(keys []string, from, to time.Time) (up, total int) {
 	return
 }
 
+// loss is the percentage of failed checks of key in [from, to).
+func (m *Monitor) loss(key string, from, to time.Time) *float64 {
+	a, b := from.Unix(), to.Unix()
+	failed, total := 0, 0
+	for _, x := range m.data.Buckets[key] {
+		if x.Hour >= a && x.Hour < b {
+			failed += x.Checks - x.OK
+			total += x.Checks
+		}
+	}
+	return ratio(failed, total)
+}
+
 // ownerStatus combines destinations: all down is down, some down is degraded.
 func ownerStatus(targets []TargetView) (string, time.Time) {
 	counts := map[string]int{}
@@ -108,6 +124,9 @@ func (m *Monitor) View(now time.Time, loc *time.Location) View {
 		}
 		up, total := m.sums([]string{key}, now.Add(-24*time.Hour), now.Add(time.Hour))
 		t := TargetView{TargetState: *st, Uptime24h: ratio(up, total)}
+		if st.Kind != KindService {
+			t.Loss24h = m.loss(key, now.Add(-24*time.Hour), now.Add(time.Hour))
+		}
 		t.Recent = append([]Point(nil), st.Recent...)
 		o.Targets = append(o.Targets, t)
 		keys[st.Owner] = append(keys[st.Owner], key)

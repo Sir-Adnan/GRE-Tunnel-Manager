@@ -10,6 +10,7 @@ import { system } from "./system";
 import { login } from "./login";
 import { health } from "./health";
 import { maintenance } from "./maintenance";
+import { optimize } from "./optimize";
 
 export const modules = {
   common,
@@ -23,6 +24,7 @@ export const modules = {
   login,
   health,
   maintenance,
+  optimize,
 };
 
 export const messages = {
@@ -37,4 +39,5 @@ export const messages = {
   ...login,
   ...health,
   ...maintenance,
+  ...optimize,
 };

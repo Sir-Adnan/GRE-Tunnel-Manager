@@ -80,7 +80,7 @@ For rathole, transfer only the entrance public key through a trusted channel. Pr
 
 Use **Tools → Restore Backup** for managed forwarding/relay restore points. TSV snapshots do not restore GRE units, FRP/rathole instances, certificates or global host settings; back those up separately.
 
-**Port Forwarding → Old forwarding rules** handles recognized historical entries. **Tools → Cleanup** accepts only known resources and takes a backup first. Unknown commands/custom services block whole cleanup. See [Tuning and cleanup](TUNING-CLEANUP.md) for partial-failure recovery and global settings.
+**Tools → Retire old installation** removes recognized v13.x forwards, Simple GRE and old tuning files after a backup. Unknown commands/custom services block bulk removal. See [Retiring old installations](RETIRING-OLD-INSTALLS.md). **Tools → Server optimization** applies the same opt-in groups as the panel ([Server optimization](OPTIMIZATION.md)).
 
 ## Read-only checks
 

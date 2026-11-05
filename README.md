@@ -68,4 +68,4 @@ Agents support inventory, coordinated GRE/FRP setup and optional read-only traff
 
 Quota pauses are opt-in and sampled; traffic can exceed the limit between checks.
 
-Open the required ports/protocols before applying. Test a spare port before replacing an active service. Forwarding restore points do not include GRE/reverse peer configurations. The original scripts remain in the [legacy archive](legacy/README.md).
+Open the required ports/protocols before applying. Test a spare port before replacing an active service. Forwarding restore points do not include GRE/reverse peer configurations.

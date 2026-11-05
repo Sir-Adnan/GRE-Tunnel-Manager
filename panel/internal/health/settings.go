@@ -3,7 +3,15 @@
 // commands: the broker decides when to probe and passes the results in.
 package health
 
-import "errors"
+import (
+	"errors"
+	"regexp"
+)
+
+// MaxFailover bounds the forwards with health failover (fast probes).
+const MaxFailover = 32
+
+var forwardID = regexp.MustCompile(`^F[0-9]{6}$`)
 
 // Settings are operator choices. The zero value is not valid; use Defaults.
 type Settings struct {
@@ -18,11 +26,36 @@ type Settings struct {
 	LatencyWarn int `json:"latency_warn_ms"`
 	// RetentionDays bounds hourly rollups and closed outages.
 	RetentionDays int `json:"retention_days"`
+	// Failover lists kernel forwards (nftables/iptables) whose dead
+	// destinations stop receiving new flows until they recover. Their
+	// destinations are probed every FailoverInterval seconds.
+	Failover         []string `json:"failover"`
+	FailoverInterval int      `json:"failover_interval"`
 }
 
 // Defaults are the documented first-run values; monitoring starts disabled.
 func Defaults() Settings {
-	return Settings{Interval: 30, FailThreshold: 3, RecoverThreshold: 2, LatencyWarn: 300, RetentionDays: 30}
+	return Settings{Interval: 30, FailThreshold: 3, RecoverThreshold: 2, LatencyWarn: 300, RetentionDays: 30, Failover: []string{}, FailoverInterval: 5}
+}
+
+// normalized fills fields that files written by older versions lack.
+func (s Settings) normalized() Settings {
+	if s.FailoverInterval == 0 {
+		s.FailoverInterval = 5
+	}
+	if s.Failover == nil {
+		s.Failover = []string{}
+	}
+	return s
+}
+
+// FailoverSet reports the forwards with health failover.
+func (s Settings) FailoverSet() map[string]bool {
+	set := make(map[string]bool, len(s.Failover))
+	for _, id := range s.Failover {
+		set[id] = true
+	}
+	return set
 }
 
 func (s Settings) Validate() error {
@@ -35,6 +68,17 @@ func (s Settings) Validate() error {
 		return errors.New("latency warning must be 0 (off) or 20–5000 ms")
 	case s.RetentionDays < 1 || s.RetentionDays > 90:
 		return errors.New("history retention must be 1–90 days")
+	case s.FailoverInterval < 2 || s.FailoverInterval > 30:
+		return errors.New("failover check interval must be 2–30 seconds")
+	case len(s.Failover) > MaxFailover:
+		return errors.New("failover is limited to 32 forwards")
+	}
+	seen := map[string]bool{}
+	for _, id := range s.Failover {
+		if !forwardID.MatchString(id) || seen[id] {
+			return errors.New("invalid failover forward list")
+		}
+		seen[id] = true
 	}
 	return nil
 }

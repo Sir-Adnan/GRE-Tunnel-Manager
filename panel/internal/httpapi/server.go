@@ -130,6 +130,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.forward(w, r, control.Request{Action: "health-report", Health: control.HealthInput{Week: week, WeekStart: start}})
+	case r.URL.Path == "/api/health/flows" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "health-flows", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
+	case r.URL.Path == "/api/health/mtu" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "health-mtu", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
+	case r.URL.Path == "/api/optimize" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "optimize"})
+	case r.URL.Path == "/api/optimize/plan" && r.Method == "GET":
+		groups := strings.Split(r.URL.Query().Get("groups"), ",")
+		s.forward(w, r, control.Request{Action: "optimize-plan", Optimize: control.OptimizeInput{Groups: groups}})
 	case r.URL.Path == "/api/maintenance" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "maintenance"})
 	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":

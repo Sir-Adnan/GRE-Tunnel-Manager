@@ -10,7 +10,8 @@ Turn it on with the switch on **Health**. Each round checks, from this server:
 | --- | --- |
 | Enabled TCP or TCP/UDP connection | One TCP connection per destination, closed before any payload is sent |
 | Enabled UDP-only connection | One ICMP echo per destination (the port itself cannot be tested without a protocol) |
-| HAProxy / Realm connection | Its systemd unit state |
+| HAProxy connection | Its systemd unit state; destinations use HAProxy's own health check (status, check time, sessions, backup) read from its stats socket, or one TCP connection when checks are off |
+| Realm connection | Its systemd unit state |
 | GRE link | Its unit state and one ping to the peer's inner address, read from the owned unit (`10.0.ID.1`/`.2`; legacy units are read the same way) |
 | FRP / rathole instance | Its unit state |
 
@@ -20,12 +21,33 @@ A tunnel with several destinations is **down** when all of them are down and **d
 
 The page shows:
 
-- **Status**: one row per tunnel with current status, latency sparkline, 24 hourly cells and 24 h / 7 d / 30 d uptime. Expanding a row shows each check, its last error and 30 daily cells.
+- **Status**: one row per tunnel with current status, latency sparkline, 24 hourly cells and 24 h / 7 d / 30 d uptime. Expanding a row shows each check, its last error, the share of failed checks in 24 hours (packet loss for pings), who checked it (this panel or HAProxy) and 30 daily cells. nftables forwards with several destinations also show **new connections per destination**, and GRE links a **path MTU test** (both below).
 - **Outages**: newest first, with an ongoing-only filter.
 - **Weekly report**: calendar weeks in the maintenance time zone, starting Saturday in Persian and Monday in English. It shows uptime, outages (overlapping destinations are merged, not summed), downtime, latency average, peak and jitter, server load and conntrack peak, maintenance runs and, when [traffic accounting](TRAFFIC-ACCOUNTING.md) history exists, per-tunnel traffic. Export it as CSV or print it. Hourly rollups are UTC hours, so a week boundary in a half-hour time zone is accurate to 30 minutes.
 - **Server**: conntrack usage, hash buckets, idle-TCP timeout and drops since the previous check, plus CPU, steal, softirq and I/O wait shares, all read from `/proc` and `/sys`.
 
-### Server pressure and ServerTools
+### Failover for kernel forwards
+
+nftables and iptables spread new connections with a fixed rule (`numgen`, `jhash` or `statistic`) and do not check destinations, so a dead destination keeps its share of new connections. With a source-hash spread its users stay on the dead one. Health failover fixes this per forward (**Settings → Failover for kernel forwards**, off by default):
+
+- Destinations of selected forwards are probed every 5 seconds (2–30 s), with the normal failure and recovery thresholds: three failures take a destination out in about 15 seconds.
+- A destination that is down leaves the distribution map; its chain, NAT, MSS and accept rules stay so established flows continue if it answers. Its tracked flows are then cleared (one `conntrack -D` per destination), so clients reconnect to a live destination at once instead of waiting for a timeout. This needs the `conntrack` package; without it, stale flows expire on their own.
+- At least one destination always stays. If every destination is down, nothing is excluded.
+- When the destination answers again (two successes), it returns to the map.
+- Exclusions live in `/run/gre-manager/excluded.tsv` (cleared at boot) and are bound to the forward's exact destination list: an edit or a reboot brings every destination back. The saved configuration never changes. Turning monitoring off clears every exclusion.
+- With a source-hash spread, removing a destination also remaps some users of the other destinations, for new connections only.
+
+The Status row shows a Failover badge and the expanded row which destinations are out, since when and any error. Each change is audited (`health-failover`). Failover is a kernel-forward feature; HAProxy already removes a failing destination after its own checks (default every 3 s, down after 3) and Realm has no destination checks.
+
+### New connections per destination
+
+For an nftables forward with several destinations, **Show distribution** reads one counter per destination chain from the owned table. Those chains hang off the NAT hook, which sees only the first packet of each connection, so the counters are new connections since the forward's rules were last applied. A destination far below the others is usually down or slow. Nothing runs until the button is pressed.
+
+### Path MTU test
+
+For a GRE link, **Test MTU** sends at most 24 ICMP echoes with Don't Fragment set (`IP_PMTUDISC_PROBE`) to the peer's inner address and finds the largest packet that gets a reply between 1200 bytes and the interface MTU. A result below the interface MTU means larger packets are dropped on the path; set the tunnel's MTU to the result on both servers. It takes a few seconds and runs only on request.
+
+### Server pressure
 
 High ping and jitter that build up over hours and disappear after a reboot usually come from connection tracking. Kernel forwards keep one conntrack entry per client connection. With the kernel default of keeping idle TCP entries for five days, abandoned VPN connections fill the table, lookups slow down when the limit is far above the hash size, and new connections are dropped once it is full. The Server tab names these conditions:
 
@@ -38,11 +60,11 @@ High ping and jitter that build up over hours and disappear after a reboot usual
 | CPU steal ≥ 10 % | the provider's host is busy; outside this server's control |
 | Softirq ≥ 25 % | packet processing dominates CPU |
 
-The panel does not change these kernel settings. [ServerTools](https://github.com/Sir-Adnan/server-tools) (`st` → Quick Optimize) sizes the table and hash together and sets a one-hour idle timeout on forwarders, with rollback.
+Health itself changes no kernel setting. The hints link to the [Optimization](OPTIMIZATION.md) page, whose Connection tracking group addresses the first, second and fourth, and Packet queues the last.
 
 ### Cost
 
-A round with ten destinations opens ten short TCP connections or pings and reads a few `/proc` files. Inventory, which runs the Bash helper and `systemctl show`, is refreshed at most every 30 seconds. History is one bounded JSON file written every five minutes and on each status change. Probe parallelism is limited to eight and each probe times out after three seconds.
+A round with ten destinations opens ten short TCP connections or pings and reads a few `/proc` files; HAProxy destinations cost one stats-socket read per instance instead. Failover adds a 5-second round for the selected forwards' destinations only, and a kernel rule reapply only when a destination changes state. Inventory, which runs the Bash helper and `systemctl show`, is refreshed at most every 30 seconds. History is one bounded JSON file written every five minutes and on each status change. Probe parallelism is limited to eight and each probe times out after three seconds.
 
 ## Maintenance plans
 

@@ -105,6 +105,29 @@ gtm_api() {
             return "$result";;
         flows-reset) (($#==1)) && gtm_prepare || return 2
             gtm_flows_reset "$1";;
+        # Health failover: runtime-only destination exclusions for one kernel forward.
+        forward-exclude) (($#==2)) && gtm_prepare && gtm_lock || return 2
+            gtm_forward_exclude "$1" "$2"; local result=$?; gtm_unlock; return "$result";;
+        # Server optimization. Status and plan only read; the others lock.
+        optimize-status) (($#==0)) || return 2
+            gtm_optimize_status;;
+        optimize-plan) (($#>=1 && $#<=4)) || return 2
+            gtm_optimize_plan "$@";;
+        optimize-apply|optimize-undo|optimize-remove)
+            case $operation in
+                optimize-apply) (($#>=1 && $#<=4)) || return 2;;
+                optimize-undo) (($#==0)) || return 2;;
+                *) (($#==1)) || return 2;;
+            esac
+            gtm_prepare && gtm_lock || return 2
+            # The panel previews the change first; this call is the confirmation.
+            gtm_confirm() { return 0; }
+            case $operation in
+                optimize-apply) gtm_optimize_apply "$@";;
+                optimize-undo) gtm_optimize_undo;;
+                *) gtm_optimize_remove "$1";;
+            esac
+            local result=$?; gtm_unlock; return "$result";;
         config-render) (($#==0)) && gtm_config_render;;
         doctor) (($#==0)) && gtm_doctor;;
         install)

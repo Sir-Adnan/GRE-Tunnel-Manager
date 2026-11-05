@@ -55,25 +55,6 @@ gtm_listener_check() {
     return 0
 }
 
-gtm_legacy_listener_check() {
-    local protocol=$1 bind=$2 port=$3 file line
-    local -a words=()
-    for file in "$FW_SCRIPT" /opt/simple_gre_script.sh; do
-        [[ -r $file ]] || continue
-        while IFS= read -r line; do
-            read -r -a words <<< "$line"
-            [[ ${#words[@]} == 13 && ${words[0]} =~ ^(iptables|ip6tables)$ && ${words[1]} == -t && ${words[2]} == nat && ${words[3]} == -A && ${words[4]} == PREROUTING && ${words[5]} == -p && ${words[7]} == --dport && ${words[9]} == -j && ${words[10]} == DNAT && ${words[11]} == --to-destination ]] || continue
-            if [[ $bind == *:* ]]; then [[ ${words[0]} == ip6tables ]] || continue; else [[ ${words[0]} == iptables ]] || continue; fi
-            [[ $protocol == both || $protocol == "${words[6]}" ]] || continue
-            gtm_port "${words[8]}" || continue
-            ((10#${words[8]} == 10#$port)) || continue
-            gtm_error "An existing legacy forward already uses this entrance port. Manage it under Legacy forwarding first."
-            return 1
-        done < "$file"
-    done
-    return 0
-}
-
 gtm_edit_forward() {
     local choice line id engine
     gtm_show_records || return
@@ -145,13 +126,12 @@ gtm_forward_menu() {
         gtm_option 4 'Edit forward'
         gtm_option 5 'Delete forward' 'Select one or more'
         gtm_option 6 'Enable / disable'
-        gtm_option 7 'Old forwarding rules' 'Rules from v13.x'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
             1) gtm_new_forward iptables;; 2) gtm_new_forward nftables;;
             3) gtm_show_records; gtm_pause;; 4) gtm_edit_forward;;
-            5) gtm_mutate_selected delete;; 6) gtm_toggle_menu;; 7) gtm_legacy_forward_menu;;
+            5) gtm_mutate_selected delete;; 6) gtm_toggle_menu;;
             0) return;; *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -228,15 +208,82 @@ gtm_engine_service() {
     gtm_pause
 }
 
+# Local source address the kernel would use toward remote; sends no packet.
+gtm_route_source() {
+    local family=4 line
+    [[ $1 != *:* ]] || family=6
+    line=$(ip -o -"$family" route get "$1" 2>/dev/null) || return 1
+    [[ $line =~ \ src\ ([0-9a-fA-F:.]+) ]] && printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# The terminal and the panel create GRE through the same engine (links.sh).
 gtm_gre_create() {
-    local role=$1 result
-    gtm_prepare && gtm_lock || return
-    if install_deps; then
-        detect_local_ips
-        gtm_header "GRE Tunnel / ${role^} server"
-        setup_tunnel "$role"; result=$?
-    else result=1; fi
+    local role=$1 remote bind tid mtu maximum=1472 result
+    gtm_header "GRE Tunnel / ${role^} server"
+    gtm_help links
+    gtm_ask_ip 'Public IP of the other server' '' || return
+    remote=$GTM_REPLY
+    [[ $remote != *:* ]] || maximum=1452
+    bind=$(gtm_route_source "$remote") || bind=''
+    gtm_ask_ip 'Local IP for this tunnel' "$bind" || return
+    bind=$GTM_REPLY
+    while true; do
+        gtm_default 'Tunnel ID (1-250, the same on both servers)' tid '' || return
+        gtm_uint "$tid" 1 250 && break
+        gtm_error 'Use a number from 1 to 250.'
+    done
+    while true; do
+        gtm_default "MTU (1280-$maximum)" mtu 1430 || return
+        gtm_uint "$mtu" 1280 "$maximum" && break
+        gtm_error "Use a value from 1280 to $maximum."
+    done
+    printf '\n  GRE %d  %s -> %s  MTU %d  (%s side)\n' "$((10#$tid))" "$bind" "$remote" "$((10#$mtu))" "$role"
+    if [[ ${GTM_DEMO:-0} == 1 ]]; then printf '  Demo: nothing was created.\n'; gtm_pause; return 0; fi
+    gtm_confirm && gtm_prepare && gtm_lock || return
+    gtm_link_create "$tid" "$role" "$remote" "$bind" "$mtu"; result=$?
+    gtm_unlock; gtm_pause
+    return "$result"
+}
+
+# Prints "id interface remote mtu state" for each managed GRE unit.
+gtm_gre_rows() {
+    local unit id iface remote mtu state
+    if [[ ${GTM_DEMO:-0} == 1 ]]; then printf '10 gre-out-10 203.0.113.20 1430 active\n'; return; fi
+    for unit in "$GTM_SERVICE_DIR"/gre-tun-*.service; do
+        [[ -f $unit ]] || continue
+        id=${unit##*/gre-tun-}; id=${id%.service}
+        gtm_uint "$id" 1 250 || continue
+        iface=$(awk '/ tunnel add / {for (i=1;i<=NF;i++) if ($i=="add") {print $(i+1); exit}}' "$unit")
+        remote=$(awk '/ tunnel add / {for (i=1;i<=NF;i++) if ($i=="remote") {print $(i+1); exit}}' "$unit")
+        mtu=$(awk '/ mtu / {for (i=1;i<=NF;i++) if ($i=="mtu") {print $(i+1); exit}}' "$unit")
+        state=$(systemctl is-active "gre-tun-$id" 2>/dev/null) || true
+        printf '%s %s %s %s %s\n' "$id" "${iface:--}" "${remote:--}" "${mtu:--}" "${state:-unknown}"
+    done
+}
+
+gtm_gre_show() {
+    local id iface remote mtu state count=0
+    while read -r id iface remote mtu state; do
+        ((count+=1))
+        printf '  %bGRE %-4s%b %-12s peer %-40s MTU %-5s %s\n' "$BOLD" "$id" "$GTM_RESET" "$iface" "$remote" "$mtu" "$state"
+    done < <(gtm_gre_rows)
+    ((count)) || printf '\n  No GRE tunnels yet.\n'
+    return 0
+}
+
+gtm_gre_delete() {
+    local tid result
+    gtm_header 'GRE Tunnel / Delete'
+    gtm_gre_show
+    gtm_default 'Tunnel ID to delete (0 cancels)' tid 0 || return
+    gtm_uint "$tid" 1 250 || return
+    printf '\n  GRE %d stops and its unit is removed. Forwards that still use it block the delete.\n' "$((10#$tid))"
+    if [[ ${GTM_DEMO:-0} == 1 ]]; then printf '  Demo: nothing was deleted.\n'; gtm_pause; return 0; fi
+    gtm_confirm && gtm_prepare && gtm_lock || return
+    gtm_link_delete "$tid"; result=$?
     gtm_unlock
+    ((result)) || printf 'GRE %d removed.\n' "$((10#$tid))"
+    gtm_pause
     return "$result"
 }
 
@@ -248,18 +295,12 @@ gtm_links_menu() {
         gtm_option 2 'Iran Server' 'Create GRE tunnel'
         gtm_option 3 'Show GRE tunnels'
         gtm_option 4 'Delete GRE tunnel'
-        gtm_option 5 'Edit GRE config'
-        gtm_option 6 'Simple GRE' 'GRE + port forwarding'
-        gtm_option 7 'Delete Simple GRE'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
             1) gtm_gre_create kharej;; 2) gtm_gre_create iran;;
-            3) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'gre-out-10 / GRE / 10.0.10.2 / sample\n'; else ip -d link show type gre; ip -d link show type ip6gre; fi; gtm_pause;;
-            4|5|6|7)
-                gtm_prepare && gtm_lock || return
-                case $choice in 4) remove_tunnel;; 5) edit_tunnel;; 6) if install_deps; then gtm_header 'GRE Tunnel / Simple GRE'; setup_simple_gre; fi;; 7) remove_simple_gre;; esac
-                gtm_unlock;;
+            3) gtm_header 'GRE Tunnel / Show'; gtm_gre_show; gtm_pause;;
+            4) gtm_gre_delete;;
             0) return;; *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -277,76 +318,6 @@ gtm_diagnostics() {
     printf '\n  With nftables, an ACCEPT in this table cannot override a DROP\n  in another base chain. Check UFW / Docker forwarding policies.\n'
     printf '  Kernel balancing has no health checks. Use HAProxy for checked TCP failover.\n'
     gtm_pause
-}
-
-gtm_legacy_forward_menu() {
-    local choice
-    gtm_header 'Existing v13.x forwarding'
-    printf '  Keep old and new listeners on different IP/port/protocol tuples.\n'
-    gtm_option 1 'Add legacy forward'
-    gtm_option 2 'Inspect legacy file' 'Read only; never replay unknown shell commands'
-    gtm_option 3 'Delete legacy group' 'TCP and UDP grouped by entrance + destination'
-    gtm_option 0 Back
-    gtm_read 'Choose: ' choice || return
-    [[ $choice != 0 ]] || return
-    gtm_prepare && gtm_lock || return
-    case $choice in 1) setup_advanced_forwarding;; 2) edit_advanced_rules;; 3) gtm_legacy_delete_group;; esac
-    gtm_unlock
-}
-
-# Strictly recognize generator-owned legacy DNAT syntax. Unknown/manual lines stay.
-gtm_legacy_delete_group() {
-    local line cmd localport dest choice index=0 key file deleted=0 failed=0
-    local -a keys=() lines=() keep=() args=()
-    local -A seen=()
-    [[ -f $FW_SCRIPT ]] || { printf 'No legacy rules file.\n'; return; }
-    mapfile -t lines < "$FW_SCRIPT"
-    for line in "${lines[@]}"; do
-        read -r -a args <<< "$line"
-        # The normal generated line has 13 words, including the destination.
-        [[ ${#args[@]} == 13 && ${args[0]} =~ ^(iptables|ip6tables)$ && ${args[1]} == -t && ${args[2]} == nat && ${args[3]} == -A && ${args[4]} == PREROUTING && ${args[5]} == -p && ${args[6]} =~ ^(tcp|udp)$ && ${args[7]} == --dport && ${args[9]} == -j && ${args[10]} == DNAT && ${args[11]} == --to-destination ]] || continue
-        gtm_port "${args[8]}" && gtm_endpoint "${args[12]}" || continue
-        key="${args[0]}|${args[8]}|${args[12]}"
-        [[ ${seen[$key]+set} ]] && continue
-        seen[$key]=1; keys+=("$key"); ((index+=1)); printf '  [%d] %s -> %s (%s)\n' "$index" "${args[8]}" "${args[12]}" "${args[0]}"
-    done
-    ((index>0)) || { printf 'No recognized generated groups. Manual rules were kept.\n'; return; }
-    gtm_read 'Delete group row [0 cancels]: ' choice || return
-    gtm_uint "$choice" 1 "$index" || return
-    key=${keys[$((10#$choice-1))]}; IFS='|' read -r cmd localport dest <<< "$key"
-    gtm_need "$cmd" && "$cmd" -t nat -S PREROUTING >/dev/null || return 1
-    gtm_endpoint "$dest" || return
-    local dest_ip=$EP_IP dest_port=$EP_PORT proto shared=0 other other_cmd other_port other_dest
-    for other in "${keys[@]}"; do
-        [[ $other != "$key" ]] || continue
-        IFS='|' read -r other_cmd other_port other_dest <<< "$other"
-        [[ $other_cmd != "$cmd" || $other_dest != "$dest" ]] || shared=1
-    done
-    printf 'Remove both TCP/UDP forwarding for :%s -> %s\n' "$localport" "$dest"
-    gtm_confirm || return
-    cp "$FW_SCRIPT" "$GTM_CONFIG_DIR/backups/legacy-$(date -u +%Y%m%dT%H%M%S)-$$.sh" || return
-    for line in "${lines[@]}"; do
-        local owned=0
-        for proto in tcp udp; do
-            if [[ $line == "$cmd -t nat -A PREROUTING -p $proto --dport $localport -j DNAT --to-destination $dest" ]]; then owned=1; fi
-            if ((shared==0)) && [[ $line == "$cmd -t nat -A POSTROUTING -d $dest_ip -p $proto --dport $dest_port -j MASQUERADE" || $line == "$cmd -I FORWARD -d $dest_ip -p $proto --dport $dest_port -j ACCEPT" ]]; then owned=1; fi
-        done
-        if ((owned)); then
-            read -r -a args <<< "$line"
-            for index in "${!args[@]}"; do [[ ${args[$index]} != -A && ${args[$index]} != -I ]] || { args[$index]=-D; break; }; done
-            # Check existence, then require deletion to succeed; drain duplicates.
-            local -a check=("${args[@]}")
-            for index in "${!check[@]}"; do [[ ${check[$index]} != -D ]] || { check[$index]=-C; break; }; done
-            while "$cmd" "${check[@]:1}" 2>/dev/null; do
-                "$cmd" "${args[@]:1}" || { failed=1; break; }
-                ((deleted+=1)); ((deleted<10000)) || { failed=1; break; }
-            done
-        else keep+=("$line"); fi
-    done
-    ((failed==0)) || { gtm_error 'Too many duplicate rules; configuration kept for inspection.'; return; }
-    file=$(mktemp "${FW_SCRIPT}.XXXXXX") || return
-    printf '%s\n' "${keep[@]}" > "$file" && chmod 700 "$file" && mv "$file" "$FW_SCRIPT"
-    printf 'Removed legacy group and its duplicates.\n'
 }
 
 gtm_home() {
@@ -371,25 +342,25 @@ gtm_tools_menu() {
         gtm_option 1 'Server Status'
         gtm_option 2 'Restore Backup'
         gtm_option 3 'Install / Update igre'
-        gtm_option 4 Performance
-        gtm_option 5 Cleanup 'Old rules / Simple GRE'
+        gtm_option 4 'Server optimization' 'Opt-in, reversible'
+        gtm_option 5 'Retire old installation' 'v13.x rules / Simple GRE / old tuning files'
         gtm_option 6 Help
-        gtm_option 7 'Old Menu' 'Original options 1-14'
-        gtm_option 8 'Show Configuration'
-        gtm_option 9 'Refresh Server Info'
-        gtm_option 10 'Install Tunnel Engines'
+        gtm_option 7 'Show Configuration'
+        gtm_option 8 'Refresh Server Info'
+        gtm_option 9 'Install Tunnel Engines'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
             1) gtm_diagnostics;; 2) gtm_restore_menu;;
-            3|4|5)
+            3|5)
                 gtm_prepare && gtm_lock || return
-                case $choice in 3) gtm_update_shortcut;; 4) gtm_tuning_menu;; 5) gtm_legacy_cleanup_menu;; esac
+                case $choice in 3) gtm_update_shortcut;; 5) gtm_legacy_cleanup_menu;; esac
                 gtm_unlock;;
-            6) gtm_catalog; gtm_pause;; 7) gtm_legacy_menu;; 0) return;;
-            8) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
-            9) GTM_SERVER_INFO_READY=0;;
-            10) gtm_dependencies_menu;;
+            4) gtm_optimize_menu;;
+            6) gtm_catalog; gtm_pause;; 0) return;;
+            7) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
+            8) GTM_SERVER_INFO_READY=0;;
+            9) gtm_dependencies_menu;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done
@@ -424,50 +395,27 @@ gtm_modern_menu() {
     done
 }
 
-gtm_legacy_menu() {
-    local choice
-    while true; do
-        gtm_header 'Legacy menu / original numbers'
-        gtm_option 1 'GRE side A (Kharej)'; gtm_option 2 'GRE side B (Iran)'
-        gtm_option 3 'Delete GRE'; gtm_option 4 'Edit GRE service'
-        gtm_option 5 'Install / update shortcut'; gtm_option 6 'Refresh IP cache'
-        gtm_option 7 'Simple GRE'; gtm_option 8 'Delete Simple GRE'
-        gtm_option 9 'Legacy forwarding'; gtm_option 10 'Inspect legacy rules'
-        gtm_option 11 'Delete legacy group'; gtm_option 12 'Legacy cleanup' 'Preview recognized resources; preserve unknown rules'
-        gtm_option 13 'Legacy Realm'; gtm_option 14 Performance
-        gtm_option 15 'Modern menu'; gtm_option 0 Back
-        gtm_read 'Choose: ' choice || return
-        case $choice in 0|15) return;; esac
-        gtm_prepare && gtm_lock || return
-        case $choice in
-            1) detect_local_ips; setup_tunnel kharej;; 2) detect_local_ips; setup_tunnel iran;;
-            3) remove_tunnel;; 4) edit_tunnel;; 5) gtm_update_shortcut;;
-            6) rm -f "$CACHE_V4" "$CACHE_V6" "$CACHE_V4_MISS" "$CACHE_V6_MISS";;
-            7) setup_simple_gre;; 8) remove_simple_gre;; 9) setup_advanced_forwarding;; 10) edit_advanced_rules;;
-            11) gtm_legacy_delete_group;; 12) wipe_all_gre_configs;; 13) run_realm_menu;; 14) run_perf_menu;;
-        esac
-        gtm_unlock
-    done
-}
+GTM_SHORTCUT_PATH=/usr/local/bin/igre
+GTM_REPO_URL=https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh
 
 gtm_update_shortcut() {
     local tmp
-    tmp=$(mktemp "${SHORTCUT_PATH}.XXXXXX") || return 1
-    curl --proto '=https' --tlsv1.2 -fL --connect-timeout 15 --max-time 120 "$REPO_URL" -o "$tmp" && bash -n "$tmp" && chmod 755 "$tmp" && mv "$tmp" "$SHORTCUT_PATH" || { rm -f "$tmp"; return 1; }
+    tmp=$(mktemp "${GTM_SHORTCUT_PATH}.XXXXXX") || return 1
+    curl --proto '=https' --tlsv1.2 -fL --connect-timeout 15 --max-time 120 "$GTM_REPO_URL" -o "$tmp" && bash -n "$tmp" && chmod 755 "$tmp" && mv "$tmp" "$GTM_SHORTCUT_PATH" || { rm -f "$tmp"; return 1; }
     printf 'Shortcut updated. Run igre again to load the new version.\n'
 }
 
 gtm_main() {
-    local legacy=0 preview='' action='' state_file='' status_id=''
+    local preview='' action='' state_file='' status_id=''
     GTM_DEMO=0
     gtm_paths
     if [[ ${1:-} == --api ]]; then shift; gtm_api "$@"; return $?; fi
     if [[ ${1:-} == --panel ]]; then shift; (($#==0)) && gtm_root && gtm_panel_menu; return $?; fi
     while (( $# )); do
         case $1 in
-            --help|-h) printf 'GRE Tunnel Manager %s\nUsage: bash gre.sh [--legacy] [--demo] [--preview home|forwards|haproxy|realm]\nRead only:\n  --validate | --plan [--state-file PATH]\n  --doctor | --catalog | --haproxy-status F000001\n' "$GTM_VERSION"; return;;
+            --help|-h) printf 'GRE Tunnel Manager %s\nUsage: bash gre.sh [--demo] [--preview home|forwards|haproxy|realm]\nRead only:\n  --validate | --plan [--state-file PATH]\n  --doctor | --catalog | --haproxy-status F000001\n' "$GTM_VERSION"; return;;
             --version) printf 'v%s\n' "$GTM_VERSION"; return;;
-            --legacy) legacy=1;; --demo) GTM_DEMO=1;;
+            --demo) GTM_DEMO=1;;
             --validate|--plan|--doctor|--catalog) [[ -z $action ]] || { gtm_error 'Choose one inspection action.'; return 2; }; action=${1#--};;
             --haproxy-status) [[ -z $action && $# -ge 2 ]] && gtm_id "$2" || return 2; action=haproxy-status; status_id=$2; shift;;
             --state-file) (( $#>=2 )) && [[ -n $2 ]] || return 2; state_file=$2; shift;;
@@ -479,7 +427,7 @@ gtm_main() {
     gtm_palette
     if [[ -n $state_file && $action != validate && $action != plan ]]; then gtm_error '--state-file requires --validate or --plan.'; return 2; fi
     if [[ -n $action ]]; then
-        [[ -z $preview && $legacy == 0 ]] || { gtm_error 'Inspection actions cannot be combined with menus or UI previews.'; return 2; }
+        [[ -z $preview ]] || { gtm_error 'Inspection actions cannot be combined with menus or UI previews.'; return 2; }
         case $action in
             validate) gtm_inspect_state "${state_file:-$GTM_STATE}";;
             plan) gtm_plan "${state_file:-$GTM_STATE}";;
@@ -499,5 +447,5 @@ gtm_main() {
         [[ $(uname -s) == Linux ]] || { gtm_error 'Live operations require Linux with systemd.'; return 1; }
         gtm_need systemctl || return 1
     fi
-    if ((legacy)); then gtm_legacy_menu; else gtm_modern_menu; fi
+    gtm_modern_menu
 }

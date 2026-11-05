@@ -1,4 +1,4 @@
-"""HAProxy lifecycle, closed legacy cleanup and journaled tuning regressions."""
+"""HAProxy lifecycle, retirement of old installations and server optimization regressions."""
 from pathlib import Path
 import shlex
 import tempfile
@@ -28,6 +28,21 @@ sysctl() {
         [[ -f $GTM_TUNING_STATE ]] || return 90
         [[ $key != "${FAIL_KEY:-}" || $value != "${FAIL_VALUE:-}" ]] || return 1
         printf '%s\n' "$2" >> "$WRITES"
+        awk -F '\t' -v OFS='\t' -v key="$key" -v value="$value" '{if($1==key) $2=value; print}' "$DB" > "$DB.tmp" && mv "$DB.tmp" "$DB"
+    else return 91; fi
+}
+'''
+
+
+OPT_MOCK = r'''
+DB=$GTM_CONFIG_DIR/sysctls.tsv
+modprobe() { return 0; }
+sysctl() {
+    local key=${2%%=*} value=${2#*=}
+    if [[ $1 == -n ]]; then
+        awk -F '\t' -v key="$2" '$1 == key {print $2; found=1} END {if(!found) exit 1}' "$DB"
+    elif [[ $1 == -w ]]; then
+        [[ $key != "${FAIL_KEY:-}" ]] || return 1
         awk -F '\t' -v OFS='\t' -v key="$key" -v value="$value" '{if($1==key) $2=value; print}' "$DB" > "$DB.tmp" && mv "$DB.tmp" "$DB"
     else return 91; fi
 }
@@ -69,11 +84,6 @@ class AdvancedTests(unittest.TestCase):
                     'check_host=x y', 'check_host=$(id)', 'check_status=2xx', 'check_path=/x#comment']:
             result=bash('gtm_record_validate '+shlex.quote(record(engine='haproxy',version='2')+'\t'+bad))
             self.assertNotEqual(result.returncode,0,bad)
-
-    def test_gre_setup_no_longer_applies_implicit_global_tuning(self):
-        result=bash('sysctl() { exit 92; }; SYSCTL_FILE=/missing-legacy-file; apply_sysctl')
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('does not rewrite',result.stdout)
 
     def test_haproxy_v2_limits_checks_proxy_and_injection(self):
         options = 'connect=3;idle=86400;queue=20;maxconn=20000;server_maxconn=500;check_interval=2;check_timeout=3;check_fall=2;check_rise=3;check_port=8080;slowstart=10;proxy=v2;log=errors'
@@ -128,81 +138,167 @@ gtm_haproxy_pid() { printf 123; }; gtm_haproxy_wait() { :; }
             self.assertIn('ExecReload=/bin/kill -USR2 $MAINPID',unit)
             self.assertIn('KillMode=mixed',unit)
 
-    def test_tuning_restores_baseline_and_preserves_external_change(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
-            folder=Path(directory)
-            (folder/'sysctls.tsv').write_text('net.netfilter.nf_conntrack_count\t10\nnet.netfilter.nf_conntrack_max\t262144\nnet.core.somaxconn\t4096\nnet.core.netdev_max_backlog\t1000\nnet.ipv4.tcp_max_syn_backlog\t4096\n',newline='\n')
-            result=bash(paths(folder)+SYSCTL_MOCK+r'''
-gtm_tuning_apply capacity 524288 || exit 10
-gtm_tuning_apply capacity 1048576 || exit 11
-sysctl -w net.core.somaxconn=7777 || exit 12
-gtm_tuning_restore || exit 13
-[[ $(gtm_tuning_read net.netfilter.nf_conntrack_max) == 262144 ]] || exit 14
-[[ $(gtm_tuning_read net.core.somaxconn) == 7777 ]] || exit 15
-[[ ! -e $GTM_TUNING_FILE ]] || exit 16
-gtm_tuning_load; [[ ${#GTM_TUNING_ROWS[@]} == 0 ]]
-''')
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn('Preserved external change',result.stdout)
+    HOST_DB = ('net.netfilter.nf_conntrack_count\t10\nnet.netfilter.nf_conntrack_max\t65536\n'
+               'net.netfilter.nf_conntrack_buckets\t16384\nnet.netfilter.nf_conntrack_tcp_timeout_established\t432000\n'
+               'net.netfilter.nf_conntrack_tcp_timeout_time_wait\t120\nnet.netfilter.nf_conntrack_tcp_timeout_fin_wait\t120\n'
+               'net.netfilter.nf_conntrack_tcp_timeout_close_wait\t60\nnet.netfilter.nf_conntrack_udp_timeout\t30\n'
+               'net.netfilter.nf_conntrack_udp_timeout_stream\t120\nnet.core.netdev_max_backlog\t1000\n'
+               'net.core.netdev_budget\t300\nnet.core.netdev_budget_usecs\t2000\nnet.core.somaxconn\t4096\n'
+               'net.ipv4.tcp_max_syn_backlog\t512\nnet.core.default_qdisc\tfq_codel\nnet.ipv4.tcp_congestion_control\tcubic\n'
+               'net.ipv4.tcp_available_congestion_control\treno cubic bbr\nnet.core.rmem_max\t212992\nnet.core.wmem_max\t212992\n'
+               'net.ipv4.tcp_rmem\t4096 131072 6291456\nnet.ipv4.tcp_wmem\t4096 16384 4194304\nnet.ipv4.tcp_mtu_probing\t0\n'
+               'net.ipv4.tcp_slow_start_after_idle\t1\nnet.ipv4.tcp_keepalive_time\t7200\nnet.ipv4.tcp_keepalive_intvl\t75\n'
+               'net.ipv4.tcp_keepalive_probes\t9\nnet.ipv4.tcp_fin_timeout\t60\nnet.ipv4.tcp_tw_reuse\t2\n'
+               'net.ipv4.tcp_notsent_lowat\t4294967295\nnet.ipv4.conf.all.rp_filter\t1\nnet.ipv4.conf.default.rp_filter\t1\n'
+               'net.ipv4.conf.all.send_redirects\t1\nnet.ipv4.conf.default.send_redirects\t1\n'
+               'net.ipv4.conf.all.accept_redirects\t0\nnet.ipv4.conf.default.accept_redirects\t1\n')
 
-    def test_failed_tuning_apply_recovers_all_prior_values(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
-            folder=Path(directory)
-            original='net.netfilter.nf_conntrack_count\t10\nnet.netfilter.nf_conntrack_max\t262144\nnet.core.somaxconn\t4096\nnet.core.netdev_max_backlog\t1000\nnet.ipv4.tcp_max_syn_backlog\t4096\n'
-            (folder/'sysctls.tsv').write_text(original,newline='\n')
-            result=bash(paths(folder)+SYSCTL_MOCK+r'''
-FAIL_KEY=net.core.netdev_max_backlog; FAIL_VALUE=16384
-gtm_tuning_apply capacity 524288 && exit 10
-gtm_tuning_load || exit 11
-[[ ${#GTM_TUNING_ROWS[@]} == 0 && ! -e $GTM_TUNING_FILE ]]
-''')
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertEqual((folder/'sysctls.tsv').read_text(),original)
-            self.assertIn('apply failed',result.stderr)
-            self.assertGreaterEqual(len((folder/'writes').read_text().splitlines()),4)
+    def optimize(self, folder, code, memory_kb=4194304):
+        (folder/'sysctls.tsv').write_text(self.HOST_DB,newline='\n')
+        (folder/'meminfo').write_text(f'MemTotal:        {memory_kb} kB\n',newline='\n')
+        return bash(paths(folder)+OPT_MOCK+'GTM_MEMINFO=$GTM_CONFIG_DIR/meminfo\nvalue() { gtm_optimize_read "$1"; }\n'+code)
 
-    def test_conntrack_restore_defers_when_baseline_is_below_live_usage(self):
+    def test_optimize_groups_apply_undo_remove_and_reset(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
             folder=Path(directory)
-            (folder/'sysctls.tsv').write_text('net.netfilter.nf_conntrack_count\t300000\nnet.netfilter.nf_conntrack_max\t524288\n',newline='\n')
-            (folder/'tuning.tsv').write_text('net.netfilter.nf_conntrack_max\t262144\t524288\n',newline='\n')
-            result=bash(paths(folder)+SYSCTL_MOCK+r'''
-gtm_tuning_restore && exit 10
-[[ $(gtm_tuning_read net.netfilter.nf_conntrack_max) == 524288 ]] || exit 11
-gtm_tuning_load; [[ ${#GTM_TUNING_ROWS[@]} == 1 ]]
-''')
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn('below the active flow count',result.stderr)
+            result=self.optimize(folder,r"""
+gtm_optimize_plan conntrack > "$GTM_CONFIG_DIR/plan" || exit 9
+gtm_optimize_apply conntrack || exit 10
+gtm_optimize_paths
+# 8 % of 4 GiB at 350 bytes per flow rounds down to 2^19; buckets are half.
+[[ $(value net.netfilter.nf_conntrack_max) == 524288 && $(value net.netfilter.nf_conntrack_buckets) == 262144 ]] || exit 11
+[[ $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 3600 && $(value net.netfilter.nf_conntrack_tcp_timeout_time_wait) == 30 ]] || exit 12
+[[ $(value net.netfilter.nf_conntrack_udp_timeout) == 60 && $(value net.netfilter.nf_conntrack_udp_timeout_stream) == 180 ]] || exit 13
+grep -qx nf_conntrack "$GTM_OPT_MODULES" && grep -q 'nf_conntrack_max = 524288' "$GTM_OPT_FILE" || exit 14
+gtm_optimize_apply queues relay || exit 15
+[[ $(value net.ipv4.tcp_congestion_control) == bbr && $(value net.ipv4.tcp_keepalive_time) == 600 && $(value net.core.netdev_budget) == 600 ]] || exit 16
+grep -qx tcp_bbr "$GTM_OPT_MODULES" || exit 17
+gtm_optimize_undo || exit 18
+[[ $(value net.ipv4.tcp_congestion_control) == cubic && $(value net.core.netdev_budget) == 300 ]] || exit 19
+[[ $(value net.netfilter.nf_conntrack_max) == 524288 ]] && ! grep -qx tcp_bbr "$GTM_OPT_MODULES" || exit 20
+gtm_optimize_apply relay || exit 21
+gtm_optimize_remove conntrack || exit 22
+[[ $(value net.netfilter.nf_conntrack_max) == 65536 && $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 432000 ]] || exit 23
+[[ $(value net.ipv4.tcp_congestion_control) == bbr ]] && ! grep -q nf_conntrack "$GTM_OPT_MODULES" || exit 24
+gtm_optimize_status > "$GTM_CONFIG_DIR/status" || exit 25
+gtm_optimize_remove all || exit 26
+[[ $(value net.ipv4.tcp_congestion_control) == cubic && $(value net.ipv4.tcp_rmem) == '4096 131072 6291456' ]] || exit 27
+[[ ! -e $GTM_OPT_FILE && ! -e $GTM_OPT_MODULES && ! -e $GTM_OPT_JOURNAL && ! -d $GTM_OPT_STEPS ]] || exit 28
+gtm_optimize_undo && exit 29
+true
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            plan=(folder/'plan').read_text()
+            self.assertIn('change\tconntrack\tnet.netfilter.nf_conntrack_max\t65536\t524288\tflow-limit\tchange\t-\t-',plan)
+            status=(folder/'status').read_text()
+            self.assertIn('meta\tsteps\t',status)
+            self.assertIn('key\trelay\tnet.ipv4.tcp_congestion_control\tbbr\tcubic\tbbr\trelay\t-\t-\tbbr\tbbr\tsame',status)
+            self.assertIn('key\tconntrack\tnet.netfilter.nf_conntrack_max\t65536\t-\t-\t-\t-\t-\t524288\tflow-limit\tchange',status)
 
-    def test_tuning_refuses_custom_dropin_and_corrupt_journal(self):
+    def test_optimize_never_makes_provider_defaults_worse(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
             folder=Path(directory)
-            (folder/'tuning.tsv').write_text('net.ipv4.ip_forward\t0\t1\n',newline='\n')
-            result=bash(paths(folder)+'sysctl() { exit 92; }; gtm_tuning_restore')
+            # A provider image that already ships better values than ours for some keys.
+            result=self.optimize(folder,r"""
+for pair in 'net.core.default_qdisc=cake' 'net.ipv4.tcp_congestion_control=bbr' 'net.core.rmem_max=67108864' \
+    'net.ipv4.tcp_rmem=8192 262144 16777216' 'net.core.netdev_max_backlog=65536' 'net.ipv4.tcp_keepalive_time=300' \
+    'net.ipv4.tcp_mtu_probing=2' 'net.ipv4.tcp_tw_reuse=1' 'net.ipv4.conf.all.rp_filter=0' 'net.ipv4.tcp_notsent_lowat=16384'; do
+    sysctl -w "$pair" >/dev/null
+done
+gtm_optimize_plan queues relay routing > "$GTM_CONFIG_DIR/plan" || exit 9
+gtm_optimize_apply queues relay routing || exit 10
+[[ $(value net.core.default_qdisc) == cake && $(value net.core.rmem_max) == 67108864 && $(value net.core.netdev_max_backlog) == 65536 ]] || exit 11
+# Triples grow field by field: the larger minimum and default stay, the maximum grows.
+[[ $(value net.ipv4.tcp_rmem) == '8192 262144 33554432' ]] || exit 12
+[[ $(value net.ipv4.tcp_keepalive_time) == 300 && $(value net.ipv4.tcp_mtu_probing) == 2 && $(value net.ipv4.tcp_notsent_lowat) == 16384 ]] || exit 13
+# Strict reverse-path filtering becomes loose; a disabled filter stays disabled.
+[[ $(value net.ipv4.conf.all.rp_filter) == 0 && $(value net.ipv4.conf.default.rp_filter) == 2 ]] || exit 14
+[[ $(value net.ipv4.conf.all.send_redirects) == 0 && $(value net.ipv4.conf.default.accept_redirects) == 0 ]] || exit 15
+gtm_optimize_remove all || exit 16
+[[ $(value net.ipv4.tcp_rmem) == '8192 262144 16777216' && $(value net.ipv4.conf.default.rp_filter) == 1 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            plan=(folder/'plan').read_text()
+            for key,current in [('net.core.default_qdisc','cake'),('net.core.rmem_max','67108864'),('net.ipv4.tcp_keepalive_time','300'),
+                                ('net.ipv4.tcp_mtu_probing','2'),('net.ipv4.conf.all.rp_filter','0'),('net.ipv4.tcp_notsent_lowat','16384')]:
+                self.assertRegex(plan,'\t'+key.replace('.','\\.')+'\t'+current+'\t'+current+'\t[a-z-]+\tkept\t',key)
+            self.assertRegex(plan,'\tnet\\.ipv4\\.tcp_congestion_control\tbbr\tbbr\tbbr\tsame\t')
+            self.assertIn('the server value is already better; kept',result.stdout)
+
+    def test_optimize_keeps_stricter_values_and_releases_external_changes(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=600 >/dev/null
+sysctl -w net.netfilter.nf_conntrack_max=2097152 >/dev/null
+gtm_optimize_plan conntrack > "$GTM_CONFIG_DIR/plan" || exit 9
+gtm_optimize_apply conntrack || exit 10
+[[ $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 600 && $(value net.netfilter.nf_conntrack_max) == 2097152 ]] || exit 11
+sysctl -w net.netfilter.nf_conntrack_udp_timeout=90 >/dev/null
+gtm_optimize_remove all || exit 12
+# An administrator's later change is left in place, everything else returns.
+[[ $(value net.netfilter.nf_conntrack_udp_timeout) == 90 && $(value net.netfilter.nf_conntrack_tcp_timeout_time_wait) == 120 ]]
+""", memory_kb=1048576)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('Left net.netfilter.nf_conntrack_udp_timeout = 90',result.stdout)
+            self.assertIn('\tnet.netfilter.nf_conntrack_tcp_timeout_established\t600\t600\tidle-tcp\tkept',(folder/'plan').read_text())
+
+    def test_failed_optimize_apply_reverts_its_own_writes(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+FAIL_KEY=net.netfilter.nf_conntrack_tcp_timeout_time_wait
+gtm_optimize_apply conntrack && exit 10
+unset FAIL_KEY
+gtm_optimize_paths; gtm_optimize_load || exit 11
+[[ ${#GTM_OPT_ROWS[@]} == 0 && ! -e $GTM_OPT_FILE && -z $(gtm_optimize_last_step) ]] || exit 12
+[[ $(value net.netfilter.nf_conntrack_max) == 65536 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('Applying stopped',result.stderr)
+
+    def test_optimize_wins_over_servertools_reports_it_and_imports_old_tuning(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            servertools=folder/'99-zz-server-tools.conf'
+            servertools.write_text('net.netfilter.nf_conntrack_tcp_timeout_established = 7200\n',newline='\n')
+            (folder/'tuning.tsv').write_text('# Traffic Manager tuning v1\nnet.core.somaxconn\t1024\t4096\n',newline='\n')
+            (folder/'99-z-gre-manager-owned.conf').write_text('net.core.somaxconn = 4096\n',newline='\n')
+            result=self.optimize(folder,r"""
+gtm_optimize_status > "$GTM_CONFIG_DIR/before" || exit 9
+gtm_optimize_apply conntrack || exit 10
+gtm_optimize_paths
+[[ $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 3600 ]] || exit 11
+[[ ! -e $GTM_OPT_OLD_JOURNAL && ! -e $GTM_OPT_OLD_FILE ]] || exit 12
+gtm_optimize_status > "$GTM_CONFIG_DIR/after" || exit 13
+grep -q 'nf_conntrack_tcp_timeout_established = 3600' "$GTM_OPT_FILE" || exit 15
+gtm_optimize_remove all || exit 14
+# The imported key returns to the value from before the old tuning menu.
+[[ $(value net.core.somaxconn) == 1024 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('Imported the earlier tuning',result.stdout)
+            before=(folder/'before').read_text()
+            self.assertIn('meta\tservertools\t'+servertools.as_posix(),before)
+            self.assertIn('meta\timport\t',before)
+            after=(folder/'after').read_text()
+            self.assertIn('\tnet.netfilter.nf_conntrack_tcp_timeout_established\t3600\t432000\t3600\tconntrack\t'+servertools.as_posix()+'\t7200\t3600\tidle-tcp\tsame',after)
+            self.assertIn('key\tqueues\tnet.core.somaxconn\t4096\t1024\t4096\tprevious\t-\t-\t8192\taccept-queue\tchange',after)
+
+    def test_optimize_refuses_edited_files_and_bad_journal(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            (folder/'optimize').mkdir()
+            (folder/'optimize'/'journal.tsv').write_text('net.ipv4.ip_forward\t0\t1\tconntrack\n',newline='\n')
+            result=self.optimize(folder,'gtm_optimize_apply conntrack')
             self.assertNotEqual(result.returncode,0)
-            self.assertIn('Invalid tuning journal',result.stderr)
-            (folder/'tuning.tsv').write_text('net.netfilter.nf_conntrack_max\t262144\t524288\n',newline='\n')
-            (folder/'99-z-gre-manager-owned.conf').write_text('# custom edit\n',newline='\n')
-            result=bash(paths(folder)+'sysctl() { exit 92; }; gtm_tuning_restore')
+            self.assertIn('Invalid optimization journal',result.stderr)
+            (folder/'optimize'/'journal.tsv').unlink()
+            result=self.optimize(folder,'gtm_optimize_apply queues || exit 10\nprintf "# mine\\n" >> "$GTM_CONFIG_DIR/zz-gre-manager-optimize.conf"\ngtm_optimize_remove all')
             self.assertNotEqual(result.returncode,0)
-            self.assertIn('edited outside',result.stderr)
-
-    def test_partial_tuning_restore_retains_only_failed_keys_for_retry(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
-            folder=Path(directory)
-            (folder/'sysctls.tsv').write_text('net.netfilter.nf_conntrack_count\t10\nnet.netfilter.nf_conntrack_max\t262144\nnet.core.somaxconn\t4096\nnet.core.netdev_max_backlog\t1000\nnet.ipv4.tcp_max_syn_backlog\t4096\n',newline='\n')
-            result=bash(paths(folder)+SYSCTL_MOCK+r'''
-gtm_tuning_apply capacity 524288 || exit 10
-FAIL_KEY=net.netfilter.nf_conntrack_max; FAIL_VALUE=262144
-gtm_tuning_restore && exit 11
-gtm_tuning_load || exit 12
-[[ ${#GTM_TUNING_ROWS[@]} == 1 ]] || exit 13
-[[ $(gtm_tuning_read net.core.somaxconn) == 4096 ]] || exit 14
-unset FAIL_KEY FAIL_VALUE
-gtm_tuning_restore || exit 15
-[[ $(gtm_tuning_read net.netfilter.nf_conntrack_max) == 262144 && ! -e $GTM_TUNING_FILE ]]
-''')
-            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn('Kept the edited file',result.stderr)
+            for bad in ['gtm_optimize_apply rm', 'gtm_optimize_plan "conntrack;id"', 'gtm_optimize_remove x']:
+                self.assertEqual(self.optimize(folder,bad).returncode,2,bad)
 
     def test_legacy_cleanup_refuses_unknown_lines_and_custom_unit(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:

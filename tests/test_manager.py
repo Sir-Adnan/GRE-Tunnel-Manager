@@ -145,7 +145,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.3.7')
+        self.assertEqual(result.stdout.strip(),'v1.4.0')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)
@@ -298,7 +298,8 @@ gtm_listener_check tcp 192.0.2.10 443
             'add table inet gre_manager\ndelete table inet gre_manager\nadd table inet gre_manager\n'))
         self.assertIn('numgen random mod 3 vmap', result.stdout)
         self.assertIn('ct original ip daddr 192.0.2.10', result.stdout)
-        self.assertIn('meta l4proto udp dnat ip to 203.0.113.21:8443', result.stdout)
+        # Balancing chains count each destination's new flows (NAT hook).
+        self.assertIn('meta l4proto udp counter dnat ip to 203.0.113.21:8443', result.stdout)
 
     def test_disabled_forward_has_no_rules(self):
         result = render('nftables', 'GTM_RECORDS=("$line"); gtm_nft_render', enabled='0')
@@ -449,6 +450,70 @@ printf '%s\n' "${calls[@]}"
         self.assertIn('flows-reset) (($#==1))', source)
         result = bash('gtm_api flows-reset')
         self.assertEqual(result.returncode, 2)
+        self.assertIn('forward-exclude) (($#==2))', source)
+        for code in ['gtm_api forward-exclude F000001', 'gtm_api tuning-plan', 'gtm_api tuning-status extra']:
+            self.assertEqual(bash(code).returncode, 2, code)
+
+    def test_failover_exclusions_send_new_flows_only_to_live_destinations(self):
+        targets = '203.0.113.20:443@2,203.0.113.21:8443@1,203.0.113.22:443@1'
+        (ROOT / '.work').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
+            run = shlex.quote(Path(directory).as_posix())
+            def nft(listing):
+                write = ('printf %s ' + shlex.quote(listing) + ' > "$GTM_RUN_DIR/excluded.tsv"\n' if listing
+                         else 'rm -f "$GTM_RUN_DIR/excluded.tsv"\n')
+                return render('nftables', 'GTM_RUN_DIR=' + run + '\n' + write + 'GTM_RECORDS=("$line"); gtm_nft_render',
+                              strategy='random', targets=targets)
+            result = nft('F000001\t' + targets + '\t2\n')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('numgen random mod 3 vmap { 0-1 : jump b_F000001_tcp_0, 2 : jump b_F000001_tcp_2 }', result.stdout)
+            # The excluded destination keeps its chain and accept rules for established flows.
+            self.assertIn('add rule inet gre_manager b_F000001_tcp_1 meta l4proto tcp counter dnat ip to 203.0.113.21:8443', result.stdout)
+            self.assertIn('ip saddr 203.0.113.21 tcp sport 8443 ct state established', result.stdout)
+            full = 'numgen random mod 4 vmap { 0-1 : jump b_F000001_tcp_0, 2 : jump b_F000001_tcp_1, 3 : jump b_F000001_tcp_2 }'
+            # A changed destination list, another record or excluding everything keeps the full map.
+            for listing in ['', 'F000001\t203.0.113.20:443@2\t2\n', 'F000002\t' + targets + '\t2\n', 'F000001\t' + targets + '\t1,2,3\n']:
+                result = nft(listing)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(full, result.stdout, listing)
+            write = 'printf "F000001\\t%s\\t1\\n" ' + shlex.quote(targets) + ' > "$GTM_RUN_DIR/excluded.tsv"\n'
+            result = render('iptables', 'GTM_RUN_DIR=' + run + '\n' + write + 'GTM_RECORDS=("$line"); gtm_iptables_render 4 nat',
+                            strategy='random', targets=targets)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            dnat = [line for line in result.stdout.splitlines() if '-j DNAT' in line]
+            self.assertEqual(len(dnat), 2, result.stdout)
+            self.assertIn('--probability 0.5000000000 -j DNAT --to-destination 203.0.113.21:8443', dnat[0])
+            self.assertNotIn('statistic', dnat[1])
+            self.assertIn('203.0.113.22:443', dnat[1])
+
+    def test_forward_exclude_updates_runtime_list_and_clears_dead_flows(self):
+        forward = record(strategy='roundrobin', targets='203.0.113.20:443@1,203.0.113.21:8443@1')
+        relay = record(id='F000003', engine='haproxy', port='7000', targets='203.0.113.40:7000@1')
+        (ROOT / '.work').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
+            folder = Path(directory)
+            state = folder / 'state.tsv'
+            state.write_text('\n'.join([forward, relay]) + '\n', newline='\n')
+            stub = ('GTM_STATE=' + shlex.quote(state.as_posix()) + '; GTM_RUN_DIR=' + shlex.quote(folder.as_posix()) + '\n'
+                    'gtm_kernel_apply() { printf "apply\\n" >> "$GTM_RUN_DIR/calls"; }\n'
+                    'conntrack() { printf "%s\\n" "$*" >> "$GTM_RUN_DIR/calls"; '
+                    'printf "1 flow entries have been deleted.\\n" >&2; return 0; }\n')
+            result = bash(stub + 'gtm_forward_exclude F000001 2 && gtm_forward_exclude F000001 2 && cat "$GTM_RUN_DIR/excluded.tsv"')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('F000001\t203.0.113.20:443@1,203.0.113.21:8443@1\t2', result.stdout)
+            calls = (folder / 'calls').read_text().splitlines()
+            # Flows are cleared once, for the newly excluded destination only.
+            self.assertEqual(calls, ['apply', '-D -f ipv4 -p tcp --orig-port-dst 443 --reply-src 203.0.113.21 --reply-port-src 8443 --orig-dst 192.0.2.10', 'apply'])
+            result = bash(stub + 'gtm_forward_exclude F000001 - && cat "$GTM_RUN_DIR/excluded.tsv"')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn('F000001', result.stdout.replace('All destinations of F000001', ''))
+            for code, message in [('gtm_forward_exclude F000001 1,2', 'At least one destination'),
+                                  ('gtm_forward_exclude F000001 5', 'not part of this connection'),
+                                  ('gtm_forward_exclude F000003 1', 'enabled kernel forwards'),
+                                  ('gtm_forward_exclude F000001 "1;id"', 'Invalid failover request')]:
+                result = bash(stub + code)
+                self.assertNotEqual(result.returncode, 0, code)
+                self.assertIn(message, result.stderr)
 
     def test_wildcard_kernel_bind_conflicts_with_specific_listener_on_its_port(self):
         wildcard = record(bind='0.0.0.0')
@@ -591,20 +656,6 @@ IFS= read -r row; GTM_RECORDS=("$row"); gtm_commit
             self.assertEqual(state.read_text(),previous)
             self.assertEqual((folder/'relay-recovery').read_text(),'restored\n')
             self.assertIn('Recovery needs attention',result.stderr)
-
-    def test_repeated_legacy_realm_delete_keeps_remaining_endpoint(self):
-        (ROOT / '.work').mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
-            config=Path(directory)/'realm.toml'
-            config.write_text('[network]\nno_tcp = false\nuse_udp = true\n\n'+''.join(
-                f'\n[[endpoints]]\nlisten = "0.0.0.0:{port}"\nremote = "192.0.2.1:443"\n'
-                for port in [1001,1002,1003]),encoding='utf-8',newline='\n')
-            result=bash('REALM_CONFIG_FILE='+shlex.quote(config.as_posix())+'\n'
-                        'realm_apply_config() { return 0; }; realm_backup_config() { return 0; }\n'
-                        'realm_delete_relay; realm_delete_relay','0\n0\n')
-            self.assertEqual(result.returncode,0,result.stderr)
-            remaining=tomllib.loads(config.read_text())['endpoints']
-            self.assertEqual([r['listen'] for r in remaining],['0.0.0.0:1003'])
 
     def test_legacy_group_removal_preserves_other_groups_and_shared_rules(self):
         (ROOT / '.work').mkdir(exist_ok=True)

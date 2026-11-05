@@ -266,6 +266,31 @@ else
     printf 'SKIP: conntrack CLI unavailable; flow reset fixture not run.\n'
 fi
 
+# Health failover: a runtime exclusion sends every new connection of a
+# balanced forward to the live destination; clearing it restores the spread.
+saved_state=$GTM_STATE GTM_STATE=$test_dir/failover.tsv
+printf '%s\n' $'F000019\tPool\tnftables\ttcp\t192.0.2.10\t28460\troundrobin\t1\tmasquerade\tany\t203.0.113.20:28001@1,203.0.113.20:28009@1\t1' > "$GTM_STATE"
+gtm_load_records
+gtm_preflight
+gtm_kernel_apply >/dev/null
+failed=0
+for _ in 1 2 3 4; do nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28460 tcp 2>/dev/null || ((failed+=1)); done
+((failed == 2)) || { printf 'Round robin should reach the dead destination twice, failed %d\n' "$failed" >&2; exit 1; }
+result=$(gtm_forward_exclude F000019 2)
+[[ $result == *'Destinations 2 of F000019 receive no new flows'* ]] || { printf 'Unexpected exclusion result: %s\n' "$result" >&2; exit 1; }
+for _ in 1 2 3 4; do nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28460 tcp; done
+packets=$(nft -j list chain inet gre_manager b_F000019_tcp_0 | python3 -c 'import json,sys; print(sum(e["counter"]["packets"] for i in json.load(sys.stdin)["nftables"] if "rule" in i for e in i["rule"]["expr"] if "counter" in e))')
+((packets >= 4)) || { printf 'Destination counter did not count new connections: %s\n' "$packets" >&2; exit 1; }
+gtm_forward_exclude F000019 - >/dev/null
+[[ ! -s $(gtm_exclusions_file) ]] || { printf 'Exclusion survived the restore\n' >&2; exit 1; }
+failed=0
+for _ in 1 2 3 4; do nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28460 tcp 2>/dev/null || ((failed+=1)); done
+((failed == 2)) || { printf 'Restoring the destination did not restore the spread (%d failures)\n' "$failed" >&2; exit 1; }
+: > "$GTM_STATE"
+gtm_kernel_apply >/dev/null
+GTM_STATE=$saved_state
+printf 'PASS: failover keeps new connections off an excluded destination; per-destination counters count them.\n'
+
 # Real GRE encapsulation using the retained key/address/MTU contracts.
 ip tunnel add gre10 mode gre local 203.0.113.1 remote 203.0.113.20 key 10
 nsenter -t "$backend_ns" -n ip tunnel add gre-out-10 mode gre local 203.0.113.20 remote 203.0.113.1 key 10

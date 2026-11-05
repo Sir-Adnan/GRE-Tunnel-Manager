@@ -5,8 +5,13 @@ import { Button } from "@/components/ui/button";
 import { EngineGlyph } from "@/components/shared";
 import { engineName } from "@/lib/format";
 import { LocaleContext, useT } from "@/lib/i18n";
-import type { HealthOwner, HealthTarget } from "@/features/operations/types";
+import type {
+  FailoverStatus,
+  HealthOwner,
+  HealthTarget,
+} from "@/features/operations/types";
 import { StatusPill, Sparkline, UptimeBars } from "./Indicators";
+import { FailoverNotice, FlowDistribution, MTUTest } from "./TunnelTools";
 import { dayLabel, milliseconds, percent, stamp, uptimeTone } from "./format";
 
 const kindKey = {
@@ -50,16 +55,25 @@ function Targets({
   owner,
   time,
   timezone,
+  failover,
+  endpoints,
 }: {
   owner: HealthOwner;
   time: string;
   timezone: string;
+  failover?: FailoverStatus;
+  endpoints: string[];
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
   const today = new Date(time);
   return (
     <div className="health-detail">
+      <FailoverNotice
+        status={failover}
+        endpoints={endpoints}
+        timezone={timezone}
+      />
       <div className="flex flex-col gap-2">
         <span className="text-xs text-muted-foreground">
           {t("healthLast30d").replace("{n}", String(owner.days.length))}
@@ -86,6 +100,14 @@ function Targets({
               <code className="truncate text-xs" dir="ltr">
                 {endpoint(target)}
               </code>
+              {target.via === "haproxy" && (
+                <Badge variant="secondary" title={t("healthViaHaproxyHelp")}>
+                  {t("healthViaHaproxy")}
+                </Badge>
+              )}
+              {target.backup && (
+                <Badge variant="outline">{t("healthBackup")}</Badge>
+              )}
             </div>
             <div className="health-target-metrics">
               {target.kind !== "service" && (
@@ -108,6 +130,24 @@ function Targets({
                 <bdi dir="ltr">{percent(target.uptime_24h, locale)}</bdi>
               </span>
             </div>
+            {(target.loss_24h || target.sessions !== undefined) && (
+              <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                {Boolean(target.loss_24h) && (
+                  <span>
+                    {t("healthLoss").replace("{v}", "")}
+                    <bdi dir="ltr">{percent(target.loss_24h, locale)}</bdi>
+                  </span>
+                )}
+                {target.sessions !== undefined && (
+                  <span>
+                    {t("healthSessions").replace(
+                      "{n}",
+                      String(target.sessions),
+                    )}
+                  </span>
+                )}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {target.error
                 ? t(`reason_${target.error}`).replace(/^reason_/, "")
@@ -119,6 +159,10 @@ function Targets({
           </li>
         ))}
       </ul>
+      {owner.engine === "nftables" && endpoints.length > 1 && (
+        <FlowDistribution owner={owner.owner} endpoints={endpoints} />
+      )}
+      {owner.engine === "gre" && <MTUTest owner={owner.owner} />}
     </div>
   );
 }
@@ -128,10 +172,14 @@ export function OwnerList({
   owners,
   time,
   timezone,
+  failover,
+  endpoints,
 }: {
   owners: HealthOwner[];
   time: string;
   timezone: string;
+  failover: Record<string, FailoverStatus>;
+  endpoints: Record<string, string[]>;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -160,6 +208,11 @@ export function OwnerList({
                   <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <StatusPill status={owner.status} />
                     <span>{engineName(owner.engine)}</span>
+                    {Boolean(failover[owner.owner]?.excluded.length) && (
+                      <span className="failover-chip">
+                        {t("healthFailover")}
+                      </span>
+                    )}
                   </span>
                 </div>
               </div>
@@ -206,7 +259,13 @@ export function OwnerList({
               </Button>
             </div>
             {expanded && (
-              <Targets owner={owner} time={time} timezone={timezone} />
+              <Targets
+                owner={owner}
+                time={time}
+                timezone={timezone}
+                failover={failover[owner.owner]}
+                endpoints={endpoints[owner.owner] ?? []}
+              />
             )}
           </li>
         );

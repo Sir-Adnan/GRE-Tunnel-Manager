@@ -9,14 +9,16 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/maintenance"
 )
 
-// monitorHealth probes on the configured interval. While monitoring is off it
-// only reads one in-memory setting per second.
+// monitorHealth probes on the configured interval, and destinations of
+// forwards with failover on their shorter interval. While monitoring is off
+// it only reads one in-memory setting per second; turning it off restores
+// every excluded destination.
 func (b *Broker) monitorHealth(ctx context.Context, done <-chan struct{}) {
 	ops := b.Manager.Ops
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	defer func() { _ = ops.Health.Flush(time.Now().UTC(), true) }()
-	elapsed := 1 << 30
+	full, fast := 1<<30, 1<<30
 	for {
 		select {
 		case <-ctx.Done():
@@ -27,18 +29,36 @@ func (b *Broker) monitorHealth(ctx context.Context, done <-chan struct{}) {
 		}
 		s := ops.Health.Settings()
 		if !s.Enabled {
-			elapsed = 1 << 30
+			if full != 1<<30 {
+				// Restore exclusions once; monitoring can no longer see recovery.
+				ops.restoreFailover(ctx, b.Manager, &b.mu)
+			}
+			full, fast = 1<<30, 1<<30
 			continue
 		}
-		if elapsed++; elapsed < s.Interval {
+		full++
+		fast++
+		runFull, runFast := full >= s.Interval, len(s.Failover) > 0 && fast >= s.FailoverInterval
+		if !runFull && !runFast {
 			continue
 		}
-		elapsed = 0
-		round, cancel := context.WithTimeout(ctx, time.Duration(min(s.Interval-1, 20))*time.Second)
-		if e := ops.healthRound(round, b.Manager, time.Now().UTC()); e != nil && !errors.Is(e, context.Canceled) {
+		fast = 0
+		if runFull {
+			full = 0
+		}
+		limit := 4 * time.Second
+		if runFull {
+			limit = time.Duration(min(s.Interval-1, 20)) * time.Second
+		}
+		round, cancel := context.WithTimeout(ctx, limit)
+		inventory, e := ops.healthRound(round, b.Manager, time.Now().UTC(), runFull)
+		cancel()
+		if e != nil && !errors.Is(e, context.Canceled) {
 			log.Printf("health round incomplete: %v", e)
 		}
-		cancel()
+		if e == nil {
+			ops.runFailover(ctx, b.Manager, inventory, &b.mu)
+		}
 	}
 }
 
