@@ -2,7 +2,7 @@
 
 This is a direction for future work, not a promise that every native engine feature is supported. The [capability matrix](ENGINE-CAPABILITIES.md) describes current adapters; the [changelog](CHANGELOG.md) records delivered work.
 
-## Available in v1.5.0
+## Available in v1.5.1
 
 - Terminal managers and a bilingual responsive web panel with compact forms, three setup presets per engine and configuration inspection/editing.
 - Local GRE, kernel forwarding, HAProxy, Realm, FRP and rathole management, including bounded routing and transport options.

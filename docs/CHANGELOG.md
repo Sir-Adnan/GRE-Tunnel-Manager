@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.5.1 — Package license notice
+
+- Panel packages now include the MIT license notice of dnd kit (`LICENSES/DndKit-MIT.txt`), the drag-and-drop library added in v1.5.0, and `NOTICE.md` names it. No functional changes.
+
 ## v1.5.0 — Port ranges, domain destinations, server DNS and a new connection editor
 
 ### Panel

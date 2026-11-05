@@ -1,4 +1,6 @@
-# GRE Tunnel Manager v1.5.0
+# GRE Tunnel Manager v1.5.1
+
+v1.5.1 adds the MIT license notice of dnd kit, the drag-and-drop library, to the packages. It has no functional changes; the rest of these notes describe what v1.5.0 brought.
 
 Large port ranges in one kernel rule, domains as destinations, the server's own DNS, and a new connection editor with health and safe apply built in.
 
@@ -32,7 +34,7 @@ See [Port ranges, domain destinations and server DNS](https://github.com/Sir-Adn
 
 ## Upgrade and verification
 
-Run the current panel installer to install the matching v1.5.0 package, then refresh the browser. Existing credentials, certificates and managed tunnel settings are kept. Range records cannot be read by v1.4.1 or older; to downgrade, restore a point taken before the first range was saved.
+Run the current panel installer to install the matching v1.5.1 package, then refresh the browser. Existing credentials, certificates and managed tunnel settings are kept. Range records cannot be read by v1.4.1 or older; to downgrade, restore a point taken before the first range was saved.
 
 Linux amd64/arm64 archives contain the executable, embedded frontend, matching Bash helper and dependency notices. Verify `SHA256SUMS`. Managed servers do not need Node.js, Python or a compiler.
 
