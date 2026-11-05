@@ -63,6 +63,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+	if r.URL.Path == "/metrics" {
+		s.prometheus(w, r)
+		return
+	}
 	if !strings.HasPrefix(r.URL.Path, "/api/") {
 		if r.Method != "GET" && r.Method != "HEAD" {
 			failure(w, 405, "method not allowed")
@@ -153,6 +157,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			in.Set[key] = value
 		}
 		s.forward(w, r, control.Request{Action: "optimize-plan", Optimize: in})
+	case r.URL.Path == "/api/prometheus" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "prometheus-settings"})
+	case r.URL.Path == "/api/snapshots" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "snapshots"})
+	case r.URL.Path == "/api/history" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "history"})
+	case r.URL.Path == "/api/history/review" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "history-review", History: control.HistoryInput{Point: r.URL.Query().Get("point")}})
+	case r.URL.Path == "/api/health/quality" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "gre-quality", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
+	case r.URL.Path == "/api/diagnose" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "diagnose", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
+	case r.URL.Path == "/api/notifications" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "notifications"})
+	case r.URL.Path == "/api/notifications/read" && r.Method == "POST":
+		var input control.NotifyInput
+		if !decode(w, r, &input) {
+			return
+		}
+		s.forward(w, r, control.Request{Action: "notifications-read", Notify: control.NotifyInput{IDs: input.IDs, All: input.All}})
+	case r.URL.Path == "/api/notifications/clear" && r.Method == "POST":
+		s.forward(w, r, control.Request{Action: "notifications-clear"})
 	case r.URL.Path == "/api/maintenance" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "maintenance"})
 	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":
@@ -218,4 +244,44 @@ func (s *Server) forward(w http.ResponseWriter, r *http.Request, request control
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
+}
+
+// prometheus serves /metrics to a scraper with a bearer token. It needs no
+// session; the broker checks the token against its stored hash and renders
+// only aggregate health, traffic and host gauges.
+func (s *Server) prometheus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Method != "GET" {
+		failure(w, 405, "method not allowed")
+		return
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || token == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="metrics"`)
+		failure(w, 401, "bearer token required")
+		return
+	}
+	select {
+	case s.gate <- struct{}{}:
+		defer func() { <-s.gate }()
+	default:
+		failure(w, 503, "panel busy")
+		return
+	}
+	data, e := s.Client.Do(r.Context(), control.Request{Action: "prometheus", Prometheus: control.PrometheusInput{Token: token}})
+	if e != nil {
+		if e.Error() == "unauthorized" {
+			failure(w, 401, "unauthorized")
+			return
+		}
+		failure(w, 502, "metrics unavailable")
+		return
+	}
+	var text string
+	if json.Unmarshal(data, &text) != nil {
+		failure(w, 502, "metrics unavailable")
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	io.WriteString(w, text)
 }

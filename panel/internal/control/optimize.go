@@ -3,14 +3,17 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Optimization groups, in the order the interface shows them.
-var optimizeGroups = []string{"conntrack", "queues", "relay", "routing"}
+var optimizeGroups = []string{"conntrack", "queues", "relay", "routing", "nic"}
 
 // Profile levels and goals (see gtm_optimize_catalog).
 var (
@@ -20,8 +23,8 @@ var (
 
 // Custom values: a catalog-style sysctl key and a value Bash validates fully.
 var (
-	customKey   = regexp.MustCompile(`^net\.[a-z0-9_.]{1,64}$`)
-	customValue = regexp.MustCompile(`^(?:[a-z0-9_]{1,16}|[0-9]{1,10}(?: [0-9]{1,10}){0,2})$`)
+	customKey   = regexp.MustCompile(`^(?:net\.[a-z0-9_.]{1,64}|link\.[A-Za-z0-9_.-]{1,15}\.(?:txqueuelen|rps))$`)
+	customValue = regexp.MustCompile(`^(?:[a-z0-9_]{1,16}|[0-9a-f]{1,256}|[0-9]{1,10}(?: [0-9]{1,10}){0,2})$`)
 )
 
 const maxCustomValues = 40
@@ -37,6 +40,15 @@ type OptimizeInput struct {
 	Goal       string            `json:"goal,omitempty"`
 	Set        map[string]string `json:"set,omitempty"`
 	AllowWorse bool              `json:"allow_worse,omitempty"`
+	// Watch guards the applied step for this many minutes (0: off): a
+	// connection that goes down meanwhile undoes it. Needs Health.
+	Watch int `json:"watch,omitempty"`
+}
+
+// OptimizeLink is an uplink with its receive queue count.
+type OptimizeLink struct {
+	Name     string `json:"name"`
+	RxQueues int    `json:"rx_queues"`
 }
 
 // OptimizeProfile is an intensity level and a goal.
@@ -81,6 +93,12 @@ type OptimizeView struct {
 	Import      string          `json:"import,omitempty"`
 	ServerTools []string        `json:"servertools"`
 	Keys        []OptimizeKey   `json:"keys"`
+	CPUs        int             `json:"cpus"`
+	Links       []OptimizeLink  `json:"links"`
+	// Watch is the active auto-undo watch or the last result of the day.
+	Watch *OptimizeWatch `json:"watch,omitempty"`
+	// WatchMinutes are the offered windows; empty while Health is off.
+	WatchMinutes []int `json:"watch_minutes"`
 }
 
 // OptimizeChange is one previewed key. Note is change, same, kept, off,
@@ -171,7 +189,7 @@ func parseProfile(v string) OptimizeProfile {
 }
 
 func parseOptimizeStatus(out string) (OptimizeView, error) {
-	v := OptimizeView{Congestion: []string{}, ServerTools: []string{}, Keys: []OptimizeKey{}, Profile: parseProfile(""), View: parseProfile("")}
+	v := OptimizeView{Congestion: []string{}, ServerTools: []string{}, Keys: []OptimizeKey{}, Links: []OptimizeLink{}, WatchMinutes: []int{}, Profile: parseProfile(""), View: parseProfile("")}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		f := strings.Split(line, "\t")
 		switch {
@@ -203,6 +221,13 @@ func parseOptimizeStatus(out string) (OptimizeView, error) {
 				v.Import = f[2]
 			case "servertools":
 				v.ServerTools = append(v.ServerTools, f[2])
+			case "cpus":
+				v.CPUs, _ = strconv.Atoi(f[2])
+			case "link":
+				if parts := strings.Fields(f[2]); len(parts) == 2 {
+					n, _ := strconv.Atoi(parts[1])
+					v.Links = append(v.Links, OptimizeLink{Name: parts[0], RxQueues: n})
+				}
 			}
 		case len(f) == 12 && f[0] == "key":
 			v.Keys = append(v.Keys, OptimizeKey{Group: f[1], Key: f[2], Current: dash(f[3]), Before: dash(f[4]), Applied: dash(f[5]), AppliedGroup: dash(f[6]), OtherFile: dash(f[7]), OtherValue: dash(f[8]), Recommended: dash(f[9]), Reason: dash(f[10]), Note: dash(f[11])})
@@ -263,7 +288,14 @@ func (m *Manager) optimize(ctx context.Context, r Request) (any, error) {
 		if e != nil {
 			return nil, e
 		}
-		return parseOptimizeStatus(out)
+		v, e := parseOptimizeStatus(out)
+		if e == nil && m.Ops != nil {
+			v.Watch = m.Ops.watchView(time.Now().UTC())
+			if m.Ops.Health.Settings().Enabled {
+				v.WatchMinutes = watchMinutes
+			}
+		}
+		return v, e
 	case "optimize-plan", "optimize-apply":
 		groups, e := in.groups()
 		if e != nil {
@@ -277,22 +309,61 @@ func (m *Manager) optimize(ctx context.Context, r Request) (any, error) {
 		if e != nil {
 			return nil, e
 		}
+		if in.Watch != 0 && (r.Action != "optimize-apply" || !slices.Contains(watchMinutes, in.Watch)) {
+			return nil, errors.New("invalid watch window")
+		}
 		args := append(profile, strings.Join(groups, ","))
 		if r.Action == "optimize-apply" {
 			args = append(args, map[bool]string{true: "allow", false: "deny"}[in.AllowWorse])
+			if m.Ops != nil {
+				m.Ops.cancelWatch(time.Now().UTC())
+			}
 		}
 		out, e := m.call(ctx, r.Action, "", append(args, custom...)...)
-		if e != nil || r.Action == "optimize-apply" {
+		if e != nil {
 			return out, e
+		}
+		if r.Action == "optimize-apply" {
+			if strings.Contains(out, "Nothing to change") {
+				return out, nil
+			}
+			return out + m.watchApplied(ctx, in.Watch), nil
 		}
 		return parseOptimizePlan(groups, OptimizeProfile{Level: in.Level, Goal: in.Goal}, out), nil
 	case "optimize-undo":
+		if m.Ops != nil {
+			m.Ops.cancelWatch(time.Now().UTC())
+		}
 		return m.call(ctx, "optimize-undo", "")
 	case "optimize-remove":
 		if !oneOf(in.Group, append([]string{"all", "previous"}, optimizeGroups...)...) {
 			return nil, errors.New("unknown optimization group")
 		}
+		if m.Ops != nil {
+			m.Ops.cancelWatch(time.Now().UTC())
+		}
 		return m.call(ctx, "optimize-remove", "", in.Group)
 	}
 	return nil, errors.New("unsupported operation")
+}
+
+// watchApplied starts the auto-undo watch for the step just saved and
+// returns a line for the operation output.
+func (m *Manager) watchApplied(ctx context.Context, minutes int) string {
+	if minutes == 0 || m.Ops == nil {
+		return ""
+	}
+	if !m.Ops.Health.Settings().Enabled {
+		return "Auto-undo needs Health monitoring; it was not started.\n"
+	}
+	out, e := m.call(ctx, "optimize-status", "")
+	if e != nil {
+		return "Auto-undo could not read the saved step; it was not started.\n"
+	}
+	view, e := parseOptimizeStatus(out)
+	if e != nil || view.Last == 0 {
+		return "Nothing new to guard; auto-undo was not started.\n"
+	}
+	m.Ops.startWatch(time.Now().UTC(), minutes, view.Last)
+	return fmt.Sprintf("Watching tunnel health for %d minutes; an outage undoes this step.\n", minutes)
 }

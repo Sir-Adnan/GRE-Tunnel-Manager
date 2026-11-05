@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +24,10 @@ type Demo struct {
 	configs   map[string]string
 	ops       *demoOps
 	optimizer *demoOptimizer
+	notices   *notify.Center
+	points    []demoPoint
+	snaps     *demoSnapshots
+	prom      *Prometheus
 }
 
 func NewDemo() *Demo {
@@ -52,6 +58,12 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	var result any = "Demo operation completed. No server settings were changed."
+	if oneOf(r.Action, "create", "update", "enable", "disable", "delete", "configuration-apply", "configuration-import-apply") {
+		if d.points == nil {
+			d.seedHistory()
+		}
+		defer d.rememberChange(slices.Clone(d.inventory.Connections))
+	}
 	switch r.Action {
 	case "host-telemetry":
 		return json.Marshal(demoTelemetry())
@@ -59,6 +71,21 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		return d.operations(r)
 	case "optimize", "optimize-plan", "optimize-apply", "optimize-undo", "optimize-remove":
 		return d.optimizeDemo(r)
+	case "notifications", "notifications-read", "notifications-clear", "notifications-configure", "notifications-test":
+		return d.notificationsDemo(r)
+	case "history", "history-review", "history-restore":
+		return d.historyDemo(r)
+	case "diagnose":
+		return d.diagnoseDemo(r.Health.Owner)
+	case "gre-quality":
+		if !greID.MatchString(r.Health.Owner) {
+			return nil, errors.New("the quality test runs on GRE tunnels")
+		}
+		return json.Marshal(runQuality(context.Background(), demoPinger{}, r.Health.Owner, "10.0.1.2", 0))
+	case "snapshots", "snapshots-configure", "snapshots-run", "snapshots-delete":
+		return d.snapshotsDemo(r)
+	case "prometheus", "prometheus-settings", "prometheus-configure":
+		return d.prometheusDemo(r)
 	case "engine-releases":
 		var releases []EngineRelease
 		for _, c := range d.inventory.Components {
@@ -104,7 +131,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 			d.inventory.Connections = append(d.inventory.Connections, c)
 		}
 		return json.Marshal(map[string]any{"ok": true, "count": len(v.Connections)})
-	case "backup-export", "backup-review", "backup-restore":
+	case "backup-export", "backup-review", "backup-restore", "backup-snapshot":
 		return d.backup(ctx, r)
 	case "configuration", "configuration-review", "configuration-apply":
 		if r.Action == "configuration" && !model.IDPattern.MatchString(r.Configuration.ID) {

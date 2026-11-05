@@ -22,6 +22,8 @@ type BackupInput struct {
 	Addresses      map[string]string `json:"addresses,omitempty"`
 	Interfaces     map[string]string `json:"interfaces,omitempty"`
 	Revision       string            `json:"revision,omitempty"`
+	// Snapshot names a local scheduled snapshot to download (backup-snapshot).
+	Snapshot string `json:"snapshot,omitempty"`
 }
 type BackupResource struct {
 	Name    string   `json:"name,omitempty"`
@@ -544,6 +546,8 @@ func (m *Manager) backup(ctx context.Context, action string, in BackupInput) (an
 		return v, e
 	case "backup-restore":
 		return m.RestoreBackup(ctx, in)
+	case "backup-snapshot":
+		return m.sealSnapshot(in)
 	}
 	return nil, errors.New("unknown recovery action")
 }

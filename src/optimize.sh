@@ -14,6 +14,44 @@ gtm_optimize_paths() {
     # Files written by the tuning menu of v1.3.7 and earlier; imported once.
     GTM_OPT_OLD_JOURNAL="$GTM_CONFIG_DIR/tuning.tsv"
     GTM_OPT_OLD_FILE="$GTM_SYSCTL_DIR/99-z-gre-manager-owned.conf"
+    # Link settings (queue length, packet steering) are not sysctls: a
+    # oneshot unit replays them at boot.
+    GTM_OPT_LINK_SCRIPT="${GTM_RUNTIME%/*}/optimize-links.sh"
+    GTM_OPT_LINK_UNIT="$GTM_SERVICE_DIR/gre-manager-optimize.service"
+    GTM_SYSFS_NET=${GTM_SYSFS_NET:-/sys/class/net}
+}
+
+# Uplinks: interfaces of the IPv4/IPv6 default routes, at most four.
+gtm_optimize_links() {
+    local name
+    {
+        awk '$2 == "00000000" && $8 == "00000000" {print $1}' "${GTM_PROC_ROUTE:-/proc/net/route}" 2>/dev/null
+        awk '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" {print $10}' "${GTM_PROC_ROUTE6:-/proc/net/ipv6_route}" 2>/dev/null
+    } | awk '!seen[$0]++' | head -n 4 | while IFS= read -r name; do
+        [[ $name =~ ^[A-Za-z0-9_.-]{1,15}$ && $name != lo && $name != gre* && -d $GTM_SYSFS_NET/$name ]] && printf '%s\n' "$name"
+    done
+}
+
+gtm_optimize_cpus() {
+    local cpus=${GTM_CPUS:-}
+    [[ -n $cpus ]] || cpus=$(nproc 2>/dev/null) || cpus=1
+    [[ $cpus =~ ^[0-9]{1,4}$ ]] || cpus=1
+    printf '%d' "$((10#$cpus))"
+}
+
+# The CPU mask of every CPU, in lowercase hex without separators.
+gtm_optimize_mask() {
+    local cpus=$1 out='' index
+    ((cpus % 4 == 0)) || out=$(printf '%x' "$(( (1 << (cpus % 4)) - 1 ))")
+    for ((index = 0; index < cpus / 4; index++)); do out+=f; done
+    printf '%s' "$out"
+}
+
+# Prints the receive queue count of a link.
+gtm_optimize_rx_queues() {
+    local queue count=0
+    for queue in "$GTM_SYSFS_NET/$1"/queues/rx-*; do [[ ! -d $queue ]] || ((count+=1)); done
+    printf '%d' "$count"
 }
 
 # group|key|value|mode|reason for the chosen profile (GTM_OPT_LEVEL and
@@ -26,6 +64,7 @@ gtm_optimize_paths() {
 #   range   "low high" port range: low only drops, high only grows
 #   prefer=A,B  keep the value when it is one of the listed equivalents
 #   loose   reverse-path filter: strict (1) becomes loose (2); off (0) stays
+#   rps     a CPU mask: kept when the server already steers packets
 # A value of "-" means the profile leaves the key at its original value.
 # Every profile lists the same keys, so switching profiles can return a key.
 GTM_OPT_LEVELS='conservative balanced aggressive'
@@ -118,6 +157,24 @@ gtm_optimize_catalog() {
         'routing|net.ipv4.conf.default.send_redirects|0|lower|redirects' \
         'routing|net.ipv4.conf.all.accept_redirects|0|lower|accept-redirects' \
         'routing|net.ipv4.conf.default.accept_redirects|0|lower|accept-redirects'
+    gtm_optimize_links_catalog
+}
+
+# A longer transmit queue absorbs bursts on fast uplinks; Low latency keeps
+# the server's queue. Packet steering (RPS) spreads receive work of a
+# single-queue card across every CPU; it is listed only where it helps.
+gtm_optimize_links_catalog() {
+    local level=${GTM_OPT_LEVEL:-balanced} goal=${GTM_OPT_GOAL:-general} link cpus txq rps
+    cpus=$(gtm_optimize_cpus)
+    case $level in conservative) txq=2000 rps=-;; aggressive) txq=10000 rps='';; *) txq=5000 rps='';; esac
+    [[ $goal != latency ]] || txq=-
+    while IFS= read -r link; do
+        [[ -n $link ]] || continue
+        [[ ! -f $GTM_SYSFS_NET/$link/tx_queue_len ]] || printf 'nic|link.%s.txqueuelen|%s|raise|txqueuelen\n' "$link" "$txq"
+        if ((cpus >= 2 && cpus <= 1024)) && [[ $(gtm_optimize_rx_queues "$link") == 1 && -f $GTM_SYSFS_NET/$link/queues/rx-0/rps_cpus ]]; then
+            printf 'nic|link.%s.rps|%s|rps|rps\n' "$link" "${rps:-$(gtm_optimize_mask "$cpus")}"
+        fi
+    done < <(gtm_optimize_links)
 }
 
 # Custom-value bounds: "n MIN MAX" (number), "n3 MIN MAX" (each field of a
@@ -155,6 +212,8 @@ gtm_optimize_bounds() {
         net.ipv4.tcp_fin_timeout) printf 'n 5 60';;
         net.ipv4.ip_local_port_range) printf 'n2 1024 65535';;
         net.ipv4.tcp_max_tw_buckets) printf 'n 4096 4194304';;
+        link.*.txqueuelen) printf 'n 100 100000';;
+        link.*.rps) printf 'c 0,%s' "$(gtm_optimize_mask "$(gtm_optimize_cpus)")";;
         *) return 1;;
     esac
 }
@@ -210,7 +269,7 @@ gtm_optimize_key() {
         net.ipv4.conf.all.accept_redirects|net.ipv4.conf.default.accept_redirects|\
         net.ipv4.ip_local_port_range|net.ipv4.tcp_max_tw_buckets) return 0;;
     esac
-    return 1
+    [[ $1 =~ ^link\.[A-Za-z0-9_.-]{1,15}\.(txqueuelen|rps)$ ]]
 }
 
 gtm_optimize_value() {
@@ -219,14 +278,33 @@ gtm_optimize_value() {
         net.core.default_qdisc|net.ipv4.tcp_congestion_control) [[ $2 =~ ^[a-z0-9_]{1,16}$ ]];;
         net.ipv4.tcp_rmem|net.ipv4.tcp_wmem) [[ $2 =~ ^[0-9]{1,10}\ [0-9]{1,10}\ [0-9]{1,10}$ ]];;
         net.ipv4.ip_local_port_range) [[ $2 =~ ^[0-9]{1,5}\ [0-9]{1,5}$ ]];;
+        link.*.txqueuelen) [[ $2 =~ ^[0-9]{1,6}$ ]];;
+        link.*.rps) [[ $2 =~ ^(0|[1-9a-f][0-9a-f]{0,255})$ ]];;
         *) [[ $2 =~ ^[0-9]{1,10}$ ]];;
     esac
 }
 
 gtm_optimize_memory() { awk '$1 == "MemTotal:" {printf "%d", $2 * 1024; found=1; exit} END {exit !found}' "${GTM_MEMINFO:-/proc/meminfo}" 2>/dev/null; }
 
+gtm_optimize_link_of() { local key=${1#link.}; printf '%s' "${key%.*}"; }
+
 gtm_optimize_read() {
-    local value
+    local value link
+    if [[ $1 == link.* ]]; then
+        gtm_optimize_key "$1" || return 1
+        link=$(gtm_optimize_link_of "$1")
+        if [[ $1 == *.txqueuelen ]]; then
+            value=$(cat "$GTM_SYSFS_NET/$link/tx_queue_len" 2>/dev/null) || return 1
+        else
+            # sysfs prints comma-separated 32-bit groups with leading zeros.
+            value=$(cat "$GTM_SYSFS_NET/$link/queues/rx-0/rps_cpus" 2>/dev/null) || return 1
+            value=$(tr -d ', \n' <<< "$value" | tr 'A-F' 'a-f' | sed 's/^0*//')
+            value=${value:-0}
+        fi
+        value=$(awk '{$1=$1; print}' <<< "$value")
+        gtm_optimize_value "$1" "$value" || return 1
+        printf '%s' "$value"; return 0
+    fi
     value=$(sysctl -n "$1" 2>/dev/null) || return 1
     value=$(awk '{$1=$1; print}' <<< "$value")
     gtm_optimize_value "$1" "$value" || return 1
@@ -234,8 +312,28 @@ gtm_optimize_read() {
 }
 
 # The flow limit may never drop below the flows tracked right now.
+# A CPU mask in the comma-separated 32-bit groups sysfs expects.
+gtm_optimize_mask_groups() {
+    local mask=$1 out=''
+    while ((${#mask} > 8)); do out=",${mask: -8}$out"; mask=${mask:0:${#mask}-8}; done
+    printf '%s%s' "$mask" "$out"
+}
+
+gtm_optimize_write_link() {
+    local link queue
+    link=$(gtm_optimize_link_of "$1")
+    if [[ $1 == *.txqueuelen ]]; then
+        printf '%s' "$2" > "$GTM_SYSFS_NET/$link/tx_queue_len" 2>/dev/null; return
+    fi
+    for queue in "$GTM_SYSFS_NET/$link"/queues/rx-*/rps_cpus; do
+        [[ -f $queue ]] || return 1
+        printf '%s' "$(gtm_optimize_mask_groups "$2")" > "$queue" 2>/dev/null || return 1
+    done
+}
+
 gtm_optimize_write() {
     local count
+    [[ $1 != link.* ]] || { gtm_optimize_write_link "$1" "$2"; return; }
     if [[ $1 == net.netfilter.nf_conntrack_max ]]; then
         count=$(sysctl -n net.netfilter.nf_conntrack_count 2>/dev/null) && [[ $count =~ ^[0-9]{1,10}$ ]] || { gtm_error 'Cannot read the tracked flow count; limit kept.'; return 1; }
         ((10#$2 >= 10#$count)) || { gtm_error "Flow limit $2 is below the $count tracked flows; limit kept."; return 1; }
@@ -252,7 +350,7 @@ gtm_optimize_load() {
     [[ -f $file && ! -L $file ]] || { gtm_error 'Optimization journal is not a regular file.'; return 1; }
     while IFS=$'\t' read -r key before applied group extra || [[ -n $key ]]; do
         [[ -n $key && $key != '#'* ]] || continue
-        if [[ -n $extra || ${seen[$key]+set} || ! $group =~ ^(conntrack|queues|relay|routing|previous)$ ]] || ! gtm_optimize_value "$key" "$before" || ! gtm_optimize_value "$key" "$applied"; then
+        if [[ -n $extra || ${seen[$key]+set} || ! $group =~ ^(conntrack|queues|relay|routing|nic|previous)$ ]] || ! gtm_optimize_value "$key" "$before" || ! gtm_optimize_value "$key" "$applied"; then
             gtm_error 'Invalid optimization journal. Nothing was changed.'; return 1
         fi
         seen[$key]=1; GTM_OPT_ROWS+=("$key"$'\t'"$before"$'\t'"$applied"$'\t'"$group")
@@ -272,8 +370,31 @@ gtm_optimize_render() {
     local row key before applied group
     printf '# Traffic Manager owned. Change or remove it from the panel (Optimization).\n'
     while IFS=$'\t' read -r key before applied group; do
-        [[ -n $key ]] && printf '%s = %s\n' "$key" "$applied"
+        [[ -n $key && $key != link.* ]] && printf '%s = %s\n' "$key" "$applied"
     done < <(((${#GTM_OPT_ROWS[@]} == 0)) || printf '%s\n' "${GTM_OPT_ROWS[@]}" | LC_ALL=C sort)
+}
+
+# The boot script for link rows; empty when none are applied. Link names
+# and values are validated, so they are safe inside double quotes.
+gtm_optimize_links_render() {
+    local key before applied group link found=0
+    while IFS=$'\t' read -r key before applied group; do
+        [[ $key == link.* ]] || continue
+        ((found)) || printf '#!/bin/sh\n# Traffic Manager owned. Change or remove it from the panel (Optimization).\nn=%s\n' "$GTM_SYSFS_NET"
+        found=1; link=$(gtm_optimize_link_of "$key")
+        if [[ $key == *.txqueuelen ]]; then
+            printf '[ -w "$n/%s/tx_queue_len" ] && printf %%s %s > "$n/%s/tx_queue_len"\n' "$link" "$applied" "$link"
+        else
+            printf 'for q in "$n/%s"/queues/rx-*/rps_cpus; do [ -w "$q" ] && printf %%s %s > "$q"; done\n' "$link" "$(gtm_optimize_mask_groups "$applied")"
+        fi
+    done < <(((${#GTM_OPT_ROWS[@]} == 0)) || printf '%s\n' "${GTM_OPT_ROWS[@]}" | LC_ALL=C sort)
+    ((found == 0)) || printf 'exit 0\n'
+}
+
+gtm_optimize_unit_render() {
+    printf '%s\n' '[Unit]' 'Description=Traffic Manager link optimization (queue length, packet steering)' \
+        'After=network-online.target' 'Wants=network-online.target' '' '[Service]' 'Type=oneshot' \
+        "ExecStart=/bin/sh $GTM_OPT_LINK_SCRIPT" 'RemainAfterExit=yes' '' '[Install]' 'WantedBy=multi-user.target'
 }
 
 gtm_optimize_modules_render() {
@@ -304,14 +425,26 @@ gtm_optimize_owned_file() {
 # holds the rows the files on disk were rendered from.
 gtm_optimize_persist() {
     local -a next=("${GTM_OPT_ROWS[@]}") prior=(${GTM_OPT_PREVIOUS[@]+"${GTM_OPT_PREVIOUS[@]}"})
-    local conf='' modules='' old_conf old_modules
-    GTM_OPT_ROWS=("${prior[@]}"); old_conf=''; old_modules=$(gtm_optimize_modules_render)
+    local conf='' modules='' old_conf old_modules links old_links unit='' old_unit=''
+    GTM_OPT_ROWS=("${prior[@]}"); old_conf=''; old_modules=$(gtm_optimize_modules_render); old_links=$(gtm_optimize_links_render)
     ((${#prior[@]} == 0)) || old_conf=$(gtm_optimize_render; printf x); old_conf=${old_conf%x}
-    GTM_OPT_ROWS=("${next[@]}"); modules=$(gtm_optimize_modules_render)
+    GTM_OPT_ROWS=("${next[@]}"); modules=$(gtm_optimize_modules_render); links=$(gtm_optimize_links_render)
     ((${#next[@]} == 0)) || conf=$(gtm_optimize_render; printf x); conf=${conf%x}
     [[ -z $modules ]] || modules+=$'\n'; [[ -z $old_modules ]] || old_modules+=$'\n'
+    [[ -z $links ]] || { links+=$'\n'; unit=$(gtm_optimize_unit_render)$'\n'; }
+    [[ -z $old_links ]] || { old_links+=$'\n'; old_unit=$(gtm_optimize_unit_render)$'\n'; }
+    [[ -z $links ]] || mkdir -p "${GTM_OPT_LINK_SCRIPT%/*}" || return 1
     gtm_optimize_save_rows "$GTM_OPT_JOURNAL" && gtm_optimize_owned_file "$GTM_OPT_FILE" "$conf" "$old_conf" &&
-        gtm_optimize_owned_file "$GTM_OPT_MODULES" "$modules" "$old_modules"
+        gtm_optimize_owned_file "$GTM_OPT_MODULES" "$modules" "$old_modules" &&
+        gtm_optimize_owned_file "$GTM_OPT_LINK_SCRIPT" "$links" "$old_links" || return 1
+    [[ -n $unit || -n $old_unit ]] || return 0
+    gtm_optimize_owned_file "$GTM_OPT_LINK_UNIT" "$unit" "$old_unit" || return 1
+    [[ -z $unit || -z $old_unit ]] || return 0
+    command -v systemctl >/dev/null 2>&1 || return 0
+    if [[ -n $unit ]]; then systemctl daemon-reload && systemctl enable gre-manager-optimize.service >/dev/null 2>&1
+    else systemctl disable gre-manager-optimize.service >/dev/null 2>&1; systemctl daemon-reload; fi ||
+        printf 'Warning: the boot unit for link settings could not be updated; the settings apply until reboot.\n' >&2
+    return 0
 }
 
 # Saves the journal as the newest undo step; keeps the last 20.
@@ -400,6 +533,7 @@ gtm_optimize_better() {
             printf '%d %d' "$(( 10#${have[0]} < 10#${want[0]} ? 10#${have[0]} : 10#${want[0]} ))" "$(( 10#${have[1]} > 10#${want[1]} ? 10#${have[1]} : 10#${want[1]} ))";;
         prefer=*) [[ ",${mode#prefer=}," == *",$current,"* ]] && printf '%s' "$current" || printf '%s' "$wanted";;
         loose) [[ $current == 1 ]] && printf 2 || printf '%s' "$current";;
+        rps) [[ $current != 0 ]] && printf '%s' "$current" || printf '%s' "$wanted";;
         *) printf '%s' "$wanted";;
     esac
 }
@@ -485,7 +619,7 @@ gtm_optimize_use_profile() {
 gtm_optimize_groups_valid() {
     local group
     (($#)) || return 1
-    for group in "$@"; do [[ $group =~ ^(conntrack|queues|relay|routing)$ ]] || return 1; done
+    for group in "$@"; do [[ $group =~ ^(conntrack|queues|relay|routing|nic)$ ]] || return 1; done
 }
 
 # Read-only preview: one "change" row per catalog key of the groups.
@@ -520,11 +654,13 @@ gtm_optimize_status() {
     printf 'meta\tprofile\t%s\n' "$(gtm_optimize_saved_profile)"
     printf 'meta\tview\t%s %s\n' "${GTM_OPT_LEVEL:-balanced}" "${GTM_OPT_GOAL:-general}"
     printf 'meta\tcapped\t%s\n' "$(gtm_optimize_capped)"
+    printf 'meta\tcpus\t%s\n' "$(gtm_optimize_cpus)"
+    while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tlink\t%s %s\n' "$file" "$(gtm_optimize_rx_queues "$file")"; done < <(gtm_optimize_links)
     printf 'meta\tfile\t%s\n' "$GTM_OPT_FILE"
     [[ ! -f $GTM_OPT_OLD_JOURNAL ]] || printf 'meta\timport\t%s\n' "$GTM_OPT_OLD_JOURNAL"
     while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tservertools\t%s\n' "$file"; done < <(gtm_optimize_servertools)
     gtm_optimize_others
-    GTM_OPT_READONLY=1 gtm_optimize_compute conntrack queues relay routing
+    GTM_OPT_READONLY=1 gtm_optimize_compute conntrack queues relay routing nic
     for row in "${GTM_OPT_PLAN[@]}"; do
         IFS=$'\t' read -r group key current value reason note <<< "$row"
         advice[$key]="$current"$'\t'"$value"$'\t'"$reason"$'\t'"$note"
@@ -660,7 +796,7 @@ gtm_optimize_undo() {
 gtm_optimize_remove() {
     local which=$1 row
     local -a remaining=()
-    [[ $which =~ ^(conntrack|queues|relay|routing|previous|all)$ ]] || { gtm_error 'Unknown optimization group.'; return 2; }
+    [[ $which =~ ^(conntrack|queues|relay|routing|nic|previous|all)$ ]] || { gtm_error 'Unknown optimization group.'; return 2; }
     gtm_optimize_paths
     gtm_optimize_import && gtm_optimize_load || return 1
     ((${#GTM_OPT_ROWS[@]})) || { printf 'Nothing is applied.\n'; [[ $which != all ]] || rm -rf "$GTM_OPT_STEPS" "$GTM_OPT_DIR/profile"; return 0; }
@@ -679,7 +815,7 @@ gtm_optimize_remove() {
 
 gtm_optimize_menu() {
     local choice level goal
-    local -a groups=(conntrack queues relay routing)
+    local -a groups=(conntrack queues relay routing nic)
     gtm_optimize_use_profile - - || return
     while true; do
         gtm_header 'Server optimization / opt-in, reversible'
@@ -690,17 +826,18 @@ gtm_optimize_menu() {
         gtm_option 3 'Packet queues' 'High packet rates'
         gtm_option 4 'Relay TCP' 'HAProxy / Realm / FRP: BBR, buffers, keepalive'
         gtm_option 5 'Tunnels & routing' 'Loose reverse-path filter, no ICMP redirects'
-        gtm_option 6 'Undo last step'
-        gtm_option 7 'Reset everything' 'Original values; remove panel files'
-        gtm_option 8 'Change profile' 'conservative / balanced / aggressive; general / users / latency'
+        gtm_option 6 'Network card' 'Transmit queue length; spread receive work across CPUs (RPS)'
+        gtm_option 7 'Undo last step'
+        gtm_option 8 'Reset everything' 'Original values; remove panel files'
+        gtm_option 9 'Change profile' 'conservative / balanced / aggressive; general / users / latency'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
             1) gtm_optimize_status | awk -F '\t' '$1 == "key" {printf "  %-52s %-22s (original %s)\n", $3, $4, $5}'; gtm_pause;;
-            2|3|4|5) gtm_prepare && gtm_lock || return; gtm_optimize_apply "${groups[$((choice-2))]}"; gtm_unlock; gtm_pause;;
-            6) gtm_prepare && gtm_lock || return; gtm_optimize_undo; gtm_unlock; gtm_pause;;
-            7) gtm_prepare && gtm_lock || return; gtm_optimize_remove all; gtm_unlock; gtm_pause;;
-            8) gtm_read 'Level (conservative, balanced, aggressive): ' level || continue
+            2|3|4|5|6) gtm_prepare && gtm_lock || return; gtm_optimize_apply "${groups[$((choice-2))]}"; gtm_unlock; gtm_pause;;
+            7) gtm_prepare && gtm_lock || return; gtm_optimize_undo; gtm_unlock; gtm_pause;;
+            8) gtm_prepare && gtm_lock || return; gtm_optimize_remove all; gtm_unlock; gtm_pause;;
+            9) gtm_read 'Level (conservative, balanced, aggressive): ' level || continue
                gtm_read 'Goal (general, users, latency): ' goal || continue
                gtm_optimize_use_profile "$level" "$goal" || gtm_pause;;
             0) return;;

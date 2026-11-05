@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/health"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
 )
 
 // FailoverStatus is one kernel forward's health failover state.
@@ -197,12 +198,20 @@ func (f *failover) view() map[string]FailoverStatus {
 // runFailover is called after every probe round of the real broker.
 func (o *Operations) runFailover(ctx context.Context, m *Manager, inventory Inventory, lock sync.Locker) {
 	want := desiredExclusions(o.Health.Settings(), inventory, o.Health.Statuses())
+	names := map[string]string{}
+	for _, c := range inventory.Connections {
+		names[c.ID] = c.Name
+	}
 	o.failover.reconcile(ctx, time.Now().UTC(), filepath.Join(o.runDir, "excluded.tsv"), want, connectionsOf(inventory), func(ctx context.Context, id, list string) (string, error) {
 		lock.Lock()
-		defer lock.Unlock()
 		step, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
-		return m.call(step, "forward-exclude", "", id, list)
+		out, e := m.call(step, "forward-exclude", "", id, list)
+		cancel()
+		lock.Unlock()
+		if e == nil && o.Notify != nil {
+			o.Notify.Emit(notify.Event{Kind: notify.KindFailover, Owner: id, Name: names[id], Detail: failoverDetail(list)})
+		}
+		return out, e
 	})
 }
 

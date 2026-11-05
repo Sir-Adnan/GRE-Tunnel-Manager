@@ -112,6 +112,10 @@ type Request struct {
 	Health          HealthInput      `json:"health,omitzero"`
 	Maintenance     MaintenanceInput `json:"maintenance,omitzero"`
 	Optimize        OptimizeInput    `json:"optimize,omitzero"`
+	Notify          NotifyInput      `json:"notify,omitzero"`
+	History         HistoryInput     `json:"history,omitzero"`
+	Snapshot        SnapshotInput    `json:"snapshot,omitzero"`
+	Prometheus      PrometheusInput  `json:"prometheus,omitzero"`
 }
 type Manager struct {
 	telemetry hostSampler
@@ -273,14 +277,28 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return m.pathMTU(ctx, r.Health.Owner)
 	case "optimize", "optimize-plan", "optimize-apply", "optimize-undo", "optimize-remove":
 		return m.optimize(ctx, r)
+	case "history", "history-review", "history-restore":
+		return m.history(ctx, r)
+	case "diagnose":
+		return m.diagnose(ctx, r.Health.Owner)
+	case "gre-quality":
+		return m.greQuality(ctx, r.Health.Owner)
+	case "node-probes":
+		return m.nodeProbes(ctx), nil
+	case "notifications", "notifications-read", "notifications-clear", "notifications-configure", "notifications-test":
+		return m.notifications(ctx, r)
 	case "engine-releases":
 		return m.engineReleases(ctx), nil
 	case "engine-update":
 		return m.updateEngine(ctx, r)
 	case "configuration-import-review", "configuration-import-apply":
 		return m.importConfiguration(ctx, r.Import, r.Action == "configuration-import-apply")
-	case "backup-export", "backup-review", "backup-restore":
+	case "backup-export", "backup-review", "backup-restore", "backup-snapshot":
 		return m.backup(ctx, r.Action, r.Backup)
+	case "snapshots", "snapshots-configure", "snapshots-run", "snapshots-delete":
+		return m.snapshots(ctx, r)
+	case "prometheus", "prometheus-settings", "prometheus-configure":
+		return m.prometheus(r)
 	case "configuration":
 		return m.Configuration(ctx, r.Configuration)
 	case "configuration-review", "configuration-apply":

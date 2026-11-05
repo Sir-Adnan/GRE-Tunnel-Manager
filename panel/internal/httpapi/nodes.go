@@ -53,6 +53,31 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 		reply(w, 200, out)
 		return
 	}
+	if r.URL.Path == "/api/nodes/speedtest" {
+		if r.Method == "POST" {
+			var in struct {
+				Node   string `json:"node"`
+				Tunnel string `json:"tunnel"`
+			}
+			if !decode(w, r, &in) {
+				return
+			}
+			out, e := s.Nodes.StartSpeedTest(in.Node, in.Tunnel)
+			if e != nil {
+				failure(w, 409, e.Error())
+				return
+			}
+			reply(w, 202, out)
+			return
+		}
+		out, e := s.Nodes.SpeedTestView(r.URL.Query().Get("id"))
+		if e != nil {
+			failure(w, 404, e.Error())
+			return
+		}
+		reply(w, 200, out)
+		return
+	}
 	if r.URL.Path == "/api/nodes/pairs" {
 		if r.Method == "GET" {
 			reply(w, 200, s.Nodes.Pairs())

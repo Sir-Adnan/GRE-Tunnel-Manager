@@ -82,6 +82,10 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveTraffic(w, r)
 		return
 	}
+	if r.URL.Path == "/v1/probes" {
+		h.serveProbes(w, r)
+		return
+	}
 	if r.URL.Path != "/v1/report" && r.URL.Path != "/v1/rotate" {
 		nodeError(w, 404, problem("not_found", "Unknown node endpoint"))
 		return

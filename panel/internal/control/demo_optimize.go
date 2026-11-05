@@ -17,6 +17,7 @@ type demoOptimizer struct {
 	steps   []map[string][3]string
 	profile OptimizeProfile
 	last    int64
+	watch   *OptimizeWatch
 }
 
 type catalogEntry struct{ group, key, value, mode, reason string }
@@ -25,6 +26,8 @@ const (
 	demoMemory = uint64(1073741824)
 	// demoSmall matches GTM_OPT_SMALL: aggressive is capped below it.
 	demoSmall = uint64(1792 * 1048576)
+	// The demo uplink has one receive queue on a two-CPU server.
+	demoCPUs = 2
 )
 
 // demoCatalog matches gtm_optimize_catalog for a profile and memory size.
@@ -57,6 +60,16 @@ func demoCatalog(level, goal string, memory uint64) []catalogEntry {
 		}
 	case "latency":
 		notsent, udp, stream = "16384", "120", "300"
+	}
+	txq, rps := map[string]string{"conservative": "2000", "aggressive": "10000"}[level], "3"
+	if txq == "" {
+		txq = "5000"
+	}
+	if level == "conservative" {
+		rps = "-"
+	}
+	if goal == "latency" {
+		txq = "-"
 	}
 	limit := uint64(131072)
 	for limit*2 <= memory*percent/100/350 && limit < limitCap {
@@ -101,6 +114,8 @@ func demoCatalog(level, goal string, memory uint64) []catalogEntry {
 		{"routing", "net.ipv4.conf.default.send_redirects", "0", "lower", "redirects"},
 		{"routing", "net.ipv4.conf.all.accept_redirects", "0", "lower", "accept-redirects"},
 		{"routing", "net.ipv4.conf.default.accept_redirects", "0", "lower", "accept-redirects"},
+		{"nic", "link.eth0.txqueuelen", txq, "raise", "txqueuelen"},
+		{"nic", "link.eth0.rps", rps, "rps", "rps"},
 	}
 }
 
@@ -132,6 +147,10 @@ func demoBounds(key string, memory uint64) string {
 		return "n 0 2"
 	case strings.HasSuffix(key, "_redirects"):
 		return "n 0 1"
+	case key == "link.eth0.txqueuelen":
+		return "n 100 100000"
+	case key == "link.eth0.rps":
+		return "c 0,3"
 	}
 	return map[string]string{
 		"net.core.netdev_max_backlog": "n 1000 262144", "net.core.netdev_budget": "n 300 5000", "net.core.netdev_budget_usecs": "n 2000 32000",
@@ -201,6 +220,11 @@ func betterValue(current, wanted, mode string) string {
 			return "2"
 		}
 		return current
+	case mode == "rps":
+		if current != "0" {
+			return current
+		}
+		return wanted
 	}
 	return wanted
 }
@@ -259,6 +283,7 @@ func newDemoOptimizer() *demoOptimizer {
 		"net.ipv4.conf.all.rp_filter": "0", "net.ipv4.conf.default.rp_filter": "1",
 		"net.ipv4.conf.all.send_redirects": "1", "net.ipv4.conf.default.send_redirects": "1",
 		"net.ipv4.conf.all.accept_redirects": "0", "net.ipv4.conf.default.accept_redirects": "1",
+		"link.eth0.txqueuelen": "1000", "link.eth0.rps": "0",
 	}}
 }
 
@@ -294,7 +319,16 @@ func (d *demoOptimizer) plan(groups []string, profile OptimizeProfile, set map[s
 func (d *demoOptimizer) view(profile OptimizeProfile) OptimizeView {
 	flows := uint64(23517)
 	v := OptimizeView{Memory: demoMemory, Flows: &flows, Congestion: []string{"reno", "cubic", "bbr"}, Steps: len(d.steps), Last: d.last, Profile: d.profile, View: profile,
-		Capped: profile.Level == "aggressive" && demoMemory < demoSmall, File: "/etc/sysctl.d/zz-gre-manager-optimize.conf", ServerTools: []string{demoServerTools}, Keys: []OptimizeKey{}}
+		Capped: profile.Level == "aggressive" && demoMemory < demoSmall, File: "/etc/sysctl.d/zz-gre-manager-optimize.conf", ServerTools: []string{demoServerTools}, Keys: []OptimizeKey{},
+		CPUs: demoCPUs, Links: []OptimizeLink{{Name: "eth0", RxQueues: 1}}, WatchMinutes: watchMinutes}
+	if w := d.watch; w != nil {
+		// No probes run in the demo: an active watch ends as kept.
+		if now := time.Now().UTC(); w.Result == WatchActive && now.After(w.Until) {
+			w.Result, w.Ended = WatchKept, &now
+		}
+		c := *w
+		v.Watch = &c
+	}
 	for _, c := range demoCatalog(profile.Level, profile.Goal, demoMemory) {
 		value, note := d.advise(c, nil)
 		k := OptimizeKey{Group: c.group, Key: c.key, Current: d.values[c.key], Recommended: value, Reason: c.reason, Note: note}
@@ -357,7 +391,13 @@ func (d *demoOptimizer) apply(groups []string, profile OptimizeProfile, in Optim
 	}
 	d.steps = append(d.steps, d.journal)
 	d.journal, d.profile, d.last = next, profile, time.Now().Unix()
-	return "Applied " + strconv.Itoa(n) + " setting(s). " + demoMessage, nil
+	message := "Applied " + strconv.Itoa(n) + " setting(s). "
+	if in.Watch > 0 {
+		now := time.Now().UTC()
+		d.watch = &OptimizeWatch{Started: now, Until: now.Add(time.Duration(in.Watch) * time.Minute), Step: d.last, Baseline: []string{"F000001", "F000002", "F000003"}, Result: WatchActive}
+		message += "Watching tunnel health for " + strconv.Itoa(in.Watch) + " minutes; an outage undoes this step. "
+	}
+	return message + demoMessage, nil
 }
 
 func (d *Demo) optimizeDemo(r Request) (json.RawMessage, error) {
@@ -384,9 +424,13 @@ func (d *Demo) optimizeDemo(r Request) (json.RawMessage, error) {
 		if _, e := r.Optimize.custom(); e != nil {
 			return nil, e
 		}
+		if r.Optimize.Watch != 0 && (r.Action != "optimize-apply" || !oneOf(strconv.Itoa(r.Optimize.Watch), "5", "10", "15", "30", "60")) {
+			return nil, errors.New("invalid watch window")
+		}
 		if r.Action == "optimize-plan" {
 			return json.Marshal(o.plan(groups, profile, r.Optimize.Set))
 		}
+		o.cancelWatch()
 		message, e := o.apply(groups, profile, r.Optimize)
 		if e != nil {
 			return nil, e
@@ -396,6 +440,7 @@ func (d *Demo) optimizeDemo(r Request) (json.RawMessage, error) {
 		if len(o.steps) == 0 {
 			return nil, errors.New("There is no step to undo.")
 		}
+		o.cancelWatch()
 		last := o.steps[len(o.steps)-1]
 		o.steps = o.steps[:len(o.steps)-1]
 		o.moveTo(last)
@@ -405,6 +450,7 @@ func (d *Demo) optimizeDemo(r Request) (json.RawMessage, error) {
 	if !oneOf(group, append([]string{"all", "previous"}, optimizeGroups...)...) {
 		return nil, errors.New("unknown optimization group")
 	}
+	o.cancelWatch()
 	if group == "all" {
 		o.moveTo(map[string][3]string{})
 		o.steps, o.last, o.profile = nil, 0, OptimizeProfile{Level: "balanced", Goal: "general"}
@@ -419,4 +465,11 @@ func (d *Demo) optimizeDemo(r Request) (json.RawMessage, error) {
 	o.steps = append(o.steps, o.journal)
 	o.moveTo(remaining)
 	return json.Marshal("Settings of " + group + " are back to their original values. " + demoMessage)
+}
+
+func (d *demoOptimizer) cancelWatch() {
+	if w := d.watch; w != nil && w.Result == WatchActive {
+		now := time.Now().UTC()
+		w.Result, w.Ended = WatchCancelled, &now
+	}
 }

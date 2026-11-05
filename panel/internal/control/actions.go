@@ -13,6 +13,9 @@ type actionSpec struct {
 	public bool
 	// backup actions use the larger, separate /backup broker endpoint.
 	backup bool
+	// light actions change only panel bookkeeping (notification read marks)
+	// under their own lock: no mutation lock, no audit, a direct POST route.
+	light bool
 }
 
 var actions = map[string]actionSpec{
@@ -32,6 +35,18 @@ var actions = map[string]actionSpec{
 	"health-mtu":                  {read: true},
 	"optimize":                    {read: true},
 	"optimize-plan":               {read: true},
+	"notifications":               {read: true},
+	"history":                     {read: true},
+	"history-review":              {read: true},
+	"diagnose":                    {read: true},
+	"gre-quality":                 {read: true},
+	"node-probes":                 {read: true},
+	"snapshots":                   {read: true},
+	"prometheus":                  {read: true},
+	"prometheus-settings":         {read: true},
+
+	"notifications-read":  {light: true},
+	"notifications-clear": {light: true},
 
 	"create":                     {public: true},
 	"update":                     {public: true},
@@ -64,10 +79,18 @@ var actions = map[string]actionSpec{
 	"optimize-apply":             {public: true},
 	"optimize-undo":              {public: true},
 	"optimize-remove":            {public: true},
+	"notifications-configure":    {public: true},
+	"notifications-test":         {public: true},
+	"history-restore":            {public: true},
+	"snapshots-configure":        {public: true},
+	"snapshots-run":              {public: true},
+	"snapshots-delete":           {public: true},
+	"prometheus-configure":       {public: true},
 
-	"backup-export":  {backup: true},
-	"backup-review":  {backup: true},
-	"backup-restore": {backup: true},
+	"backup-export":   {backup: true},
+	"backup-review":   {backup: true},
+	"backup-restore":  {backup: true},
+	"backup-snapshot": {backup: true},
 
 	"node-task": {},
 }
@@ -77,6 +100,9 @@ func ReadAction(action string) bool { return actions[action].read }
 
 // PublicOperation reports whether a browser may start the action as a job.
 func PublicOperation(action string) bool { return actions[action].public }
+
+// LightAction reports whether the action only changes panel bookkeeping.
+func LightAction(action string) bool { return actions[action].light }
 
 // BackupAction reports whether the action belongs to the /backup endpoint.
 func BackupAction(action string) bool { return actions[action].backup }

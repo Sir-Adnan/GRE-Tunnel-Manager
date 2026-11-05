@@ -236,3 +236,39 @@ func (m *Monitor) Owner(owner string) OwnerHealth {
 	}
 	return h
 }
+
+// OwnerState is the current status of one owner, without history.
+type OwnerState struct {
+	Owner  string
+	Name   string
+	Engine string
+	Status string
+	Since  time.Time
+	// Endpoint and Error describe the first failing target.
+	Endpoint string
+	Error    string
+}
+
+// OwnerStates is a cheap per-owner status map for transition checks.
+func (m *Monitor) OwnerStates() map[string]OwnerState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	targets := map[string][]TargetView{}
+	for _, st := range m.data.Targets {
+		targets[st.Owner] = append(targets[st.Owner], TargetView{TargetState: *st})
+	}
+	out := make(map[string]OwnerState, len(targets))
+	for owner, list := range targets {
+		sort.Slice(list, func(i, j int) bool { return list[i].Key < list[j].Key })
+		s := OwnerState{Owner: owner, Name: list[0].Name, Engine: list[0].Engine}
+		s.Status, s.Since = ownerStatus(list)
+		for _, t := range list {
+			if t.Status == StatusDown {
+				s.Endpoint, s.Error = t.Endpoint(), t.Error
+				break
+			}
+		}
+		out[owner] = s
+	}
+	return out
+}

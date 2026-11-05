@@ -98,6 +98,9 @@ gtm_api() {
             gtm_api_rows "$expected";;
         update|enable|disable|delete) (($#==0)) && gtm_api_change "$operation";;
         plan) (($#==0)) && gtm_plan;;
+        history) (($#<=1)) && gtm_history "$@";;
+        history-restore) (($#==2)) && gtm_history_restore "$1" "$2";;
+        diagnose) (($#==1)) && gtm_diagnose "$1";;
         # Maintenance: reapply owned kernel rules from saved state; clear one forward's flows.
         kernel-refresh) (($#==0)) && gtm_prepare && gtm_lock || return 2
             gtm_kernel_apply; local result=$?; gtm_unlock
@@ -118,7 +121,7 @@ gtm_api() {
         optimize-plan) (($#>=3)) || return 2
             gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:4}" || return 2
             local -a groups=(); IFS=, read -r -a groups <<< "$3"
-            ((${#groups[@]} <= 4)) || return 2
+            ((${#groups[@]} <= 5)) || return 2
             gtm_optimize_plan "${groups[@]}";;
         optimize-apply|optimize-undo|optimize-remove)
             local -a groups=()
@@ -126,7 +129,7 @@ gtm_api() {
                 optimize-apply) (($#>=4)) && [[ $4 =~ ^(allow|deny)$ ]] || return 2
                     gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:5}" || return 2
                     IFS=, read -r -a groups <<< "$3"
-                    ((${#groups[@]} <= 4)) && gtm_optimize_groups_valid "${groups[@]}" || return 2
+                    ((${#groups[@]} <= 5)) && gtm_optimize_groups_valid "${groups[@]}" || return 2
                     GTM_OPT_ALLOW_WORSE=0; [[ $4 != allow ]] || GTM_OPT_ALLOW_WORSE=1;;
                 optimize-undo) (($#==0)) || return 2;;
                 *) (($#==1)) || return 2;;

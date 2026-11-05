@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
 )
 
 type Broker struct {
@@ -69,11 +71,11 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	trafficAllowed := b.AgentTraffic && (request.Action == "metrics" || request.Action == "metrics-configure")
-	if (request.Action == "node-task" && (b.Nodes == nil || request.NodeTask == nil)) || (b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" && request.Action != "node-task" && !trafficAllowed) {
+	if (request.Action == "node-task" && (b.Nodes == nil || request.NodeTask == nil)) || (b.ReadOnly && request.Action != "inventory" && request.Action != "capabilities" && request.Action != "node-task" && request.Action != "node-probes" && !trafficAllowed) {
 		http.Error(w, "read-only agent broker", http.StatusForbidden)
 		return
 	}
-	if ReadAction(request.Action) {
+	if ReadAction(request.Action) || LightAction(request.Action) {
 		// Reads use their own fine-grained caches/locks and atomically replaced
 		// files. A long network transaction must not queue dashboard requests.
 		select {
@@ -183,6 +185,12 @@ func (b *Broker) Listen(ctx context.Context, socket string) error {
 	if b.Manager.Ops != nil && !b.ReadOnly {
 		go b.monitorHealth(ctx, done)
 		go b.runMaintenance(ctx, done)
+		if b.Manager.Ops.Notify != nil {
+			go b.Manager.Ops.Notify.Run(ctx, notify.Sender{})
+		}
+		if b.Manager.Ops.Snapshots != nil {
+			go b.runSnapshots(ctx, done)
+		}
 	}
 	e = server.Serve(listener)
 	if errors.Is(e, http.ErrServerClosed) {

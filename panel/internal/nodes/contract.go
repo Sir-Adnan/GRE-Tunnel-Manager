@@ -62,6 +62,8 @@ type View struct {
 	Capabilities      []string        `json:"capabilities"`
 	Inventory         json.RawMessage `json:"inventory,omitempty"`
 	Failure           *Problem        `json:"failure,omitempty"`
+	// Probes is the Node's last far-side report (v1.4.1+ Agents).
+	Probes *ProbeView `json:"probes,omitempty"`
 }
 type Listing struct {
 	Enabled  bool   `json:"enabled"`

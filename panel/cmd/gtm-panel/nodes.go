@@ -103,6 +103,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 	case "agent":
 		operations := fs.Bool("operations", false, "explicitly enable leased paired-create tasks")
 		traffic := fs.Bool("traffic", false, "send optional read-only traffic summaries")
+		probes := fs.Bool("probes", true, "send far-side GRE checks and answer requested speed tests")
 		path := fs.String("identity", nodes.DefaultAgentPath, "private identity file")
 		socket := fs.String("socket", "/run/gre-manager-agent/broker.sock", "local read-only broker socket")
 		if e := fs.Parse(args[1:]); e != nil {
@@ -114,7 +115,7 @@ func nodeCommand(ctx context.Context, args []string) error {
 		if runtime.GOOS == "linux" && os.Geteuid() == 0 {
 			return errors.New("run the network Agent as the greagent service user, not root")
 		}
-		return (nodes.Agent{Path: *path, Version: Version, Operations: *operations, Traffic: *traffic, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
+		return (nodes.Agent{Path: *path, Version: Version, Operations: *operations, Traffic: *traffic, Probes: *probes, Client: control.NewUnixClient(*socket), Notify: func(code string) { log.Printf("agent state: %s", code) }}).Run(ctx)
 	default:
 		return errors.New("unknown nodes command")
 	}

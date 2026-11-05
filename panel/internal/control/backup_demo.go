@@ -12,7 +12,7 @@ import (
 )
 
 func (d *Demo) backup(_ context.Context, r Request) (json.RawMessage, error) {
-	if r.Action == "backup-export" {
+	if r.Action == "backup-export" || r.Action == "backup-snapshot" {
 		doc := recoveryDocument{Version: 1, Created: time.Now().UTC(), ManagerVersion: d.inventory.Version, Host: d.inventory.Host.Hostname, Counter: d.counter, Connections: d.inventory.Connections, Resources: []BackupResource{}}
 		if len(d.inventory.Resources) > 0 {
 			return nil, errors.New("demo backup cannot export simulated GRE/reverse secrets; use a clean demo inventory")

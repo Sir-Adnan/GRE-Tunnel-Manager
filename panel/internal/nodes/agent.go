@@ -154,6 +154,8 @@ type Agent struct {
 	Notify     func(string)
 	Operations bool
 	Traffic    bool
+	// Probes sends far-side tunnel checks and serves requested speed tests.
+	Probes bool
 }
 
 func CheckIdentity(path string) error {
@@ -190,6 +192,7 @@ func (a Agent) Run(ctx context.Context) error {
 	trafficCode := ""
 	var pending *control.NodeResult
 	nextReport := time.Time{}
+	speed := &responder{}
 	for {
 		if delay > 0 {
 			timer := time.NewTimer(delay)
@@ -349,6 +352,11 @@ func (a Agent) Run(ctx context.Context) error {
 			trafficCode = nextCode
 		}
 		delay = 60*time.Second + jitter(10*time.Second)
+		if a.Probes {
+			if next := a.postProbes(ctx, c, id.URL, speed); next > 0 {
+				delay = next
+			}
+		}
 		if a.Operations {
 			nextReport = time.Now().Add(delay)
 			delay = 0
@@ -371,4 +379,37 @@ func backoff(n int) time.Duration {
 		n = 6
 	}
 	return time.Second*time.Duration(1<<n) + jitter(time.Second)
+}
+
+// postProbes sends the far-side report and starts a requested speed-test
+// responder. It returns a shorter report interval while a test is pending.
+func (a Agent) postProbes(ctx context.Context, c *http.Client, address string, speed *responder) time.Duration {
+	probeCtx, stop := context.WithTimeout(ctx, 15*time.Second)
+	report, e := readProbes(probeCtx, a.Client)
+	stop()
+	if e != nil {
+		return 0
+	}
+	var ack probeAck
+	if e = post(ctx, c, address+"/v1/probes", ProbeSideband{Protocol: ProbeProtocol, Report: report, SpeedTest: speed.get()}, &ack); e != nil || ack.Protocol != ProbeProtocol {
+		return 0
+	}
+	if offer := ack.SpeedTest; offer != nil && offer.validate() == nil {
+		owned := false
+		for _, t := range report.Tunnels {
+			owned = owned || t.Address == offer.Address
+		}
+		if owned {
+			speed.set(SpeedResponder{ID: offer.ID, State: "starting"})
+			go speed.run(ctx, *offer)
+			// Report the listening state promptly.
+			time.Sleep(500 * time.Millisecond)
+		} else {
+			speed.set(SpeedResponder{ID: offer.ID, State: "failed", Error: "address is not a local tunnel address"})
+		}
+	}
+	if ack.NextSeconds >= 2 && ack.NextSeconds <= 60 {
+		return time.Duration(ack.NextSeconds) * time.Second
+	}
+	return 0
 }

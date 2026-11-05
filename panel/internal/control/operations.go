@@ -16,6 +16,7 @@ import (
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/health"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/maintenance"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
 )
 
 // HealthInput carries health settings changes and report selection.
@@ -67,8 +68,14 @@ type HealthReport struct {
 type Operations struct {
 	Health      *health.Monitor
 	Maintenance *maintenance.Scheduler
-	host        *health.HostSampler
-	prober      health.Prober
+	// Notify records events; nil turns notifications off (tests, Agents).
+	Notify *notify.Center
+	// Snapshots schedules local recovery snapshots.
+	Snapshots *Snapshots
+	// Prometheus guards the optional read-only /metrics endpoint.
+	Prometheus *Prometheus
+	host       *health.HostSampler
+	prober     health.Prober
 	// lookPath and uptime are replaceable for tests.
 	lookPath func(string) (string, error)
 	uptime   func() (time.Duration, bool)
@@ -79,6 +86,10 @@ type Operations struct {
 	mu          sync.Mutex
 	inventory   Inventory
 	inventoryAt time.Time
+
+	// watch guards the newest optimization step (optional auto-undo).
+	watchPath string
+	watch     watchState
 }
 
 func NewOperations(directory string) (*Operations, error) {
@@ -91,6 +102,17 @@ func NewOperations(directory string) (*Operations, error) {
 		return nil, fmt.Errorf("maintenance plans: %w", e)
 	}
 	o := newOperations(h, s)
+	if o.Notify, e = notify.Open(filepath.Join(directory, "notifications.json")); e != nil {
+		return nil, fmt.Errorf("notifications: %w", e)
+	}
+	if o.Snapshots, e = OpenSnapshots(filepath.Join(directory, "snapshots.json"), filepath.Join(directory, "snapshots")); e != nil {
+		return nil, fmt.Errorf("backup schedule: %w", e)
+	}
+	if o.Prometheus, e = OpenPrometheus(filepath.Join(directory, "prometheus.json")); e != nil {
+		return nil, fmt.Errorf("metrics export: %w", e)
+	}
+	o.watchPath = filepath.Join(directory, "optimize-watch.json")
+	o.loadWatch()
 	if up, ok := o.uptime(); ok {
 		_ = s.ResolveReboots(time.Now().Add(-up))
 	}
@@ -178,7 +200,11 @@ func (o *Operations) healthRound(ctx context.Context, m *Manager, now time.Time,
 		host = o.host.Sample(now)
 		host.ConntrackCLI = o.conntrackCLI()
 	}
+	before := o.Health.OwnerStates()
 	changed := o.Health.Record(now, targets, results, host)
+	if changed && o.Notify != nil {
+		healthEvents(o.Notify, now, before, o.Health.OwnerStates())
+	}
 	return inventory, o.Health.Flush(now, changed)
 }
 

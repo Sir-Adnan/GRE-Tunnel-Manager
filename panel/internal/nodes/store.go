@@ -51,6 +51,8 @@ type Hub struct {
 	state   state
 	cache   map[string]observation
 	traffic map[string]trafficObservation
+	probes  map[string]probeObservation
+	speed   *SpeedTest
 	gate    chan struct{}
 	now     func() time.Time
 	lock    *os.File
@@ -219,7 +221,7 @@ func Init(dir, address, listen string) error {
 	return writeJSON(filepath.Join(dir, "controller.json"), state{Schema: 1, URL: address, Listen: listen, CA: ca, Key: key, Certificate: crt, ServerKey: serverKey, Nodes: []Node{}, Tickets: []ticket{}}, true)
 }
 func Open(dir string) (*Hub, error) {
-	h := &Hub{path: filepath.Join(dir, "controller.json"), cache: map[string]observation{}, traffic: map[string]trafficObservation{}, gate: make(chan struct{}, 8), now: time.Now}
+	h := &Hub{path: filepath.Join(dir, "controller.json"), cache: map[string]observation{}, traffic: map[string]trafficObservation{}, probes: map[string]probeObservation{}, gate: make(chan struct{}, 8), now: time.Now}
 	f, e := os.OpenFile(filepath.Join(dir, "controller.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if e != nil {
 		return nil, e
@@ -405,6 +407,7 @@ func (h *Hub) Revoke(id, revision string) error {
 			}
 			h.state = next
 			delete(h.traffic, id)
+			delete(h.probes, id)
 			return nil
 		}
 	}
@@ -436,6 +439,8 @@ func (h *Hub) Views() Listing {
 		}
 		if n.Revoked {
 			v.Status = "revoked"
+		} else {
+			v.Probes = h.probeView(n.ID)
 		}
 		out.Nodes = append(out.Nodes, v)
 	}

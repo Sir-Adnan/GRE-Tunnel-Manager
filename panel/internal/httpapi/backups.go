@@ -27,6 +27,8 @@ func (s *Server) backupRoutes(w http.ResponseWriter, r *http.Request) {
 		action = "backup-review"
 	case "/api/backups/restore":
 		action = "backup-restore"
+	case "/api/backups/snapshot":
+		action = "backup-snapshot"
 	default:
 		failure(w, 404, "not found")
 		return

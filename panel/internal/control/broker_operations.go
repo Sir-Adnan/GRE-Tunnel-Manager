@@ -3,10 +3,12 @@ package control
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/maintenance"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
 )
 
 // monitorHealth probes on the configured interval, and destinations of
@@ -29,6 +31,7 @@ func (b *Broker) monitorHealth(ctx context.Context, done <-chan struct{}) {
 		}
 		s := ops.Health.Settings()
 		if !s.Enabled {
+			ops.cancelWatch(time.Now().UTC())
 			if full != 1<<30 {
 				// Restore exclusions once; monitoring can no longer see recovery.
 				ops.restoreFailover(ctx, b.Manager, &b.mu)
@@ -58,6 +61,9 @@ func (b *Broker) monitorHealth(ctx context.Context, done <-chan struct{}) {
 		}
 		if e == nil {
 			ops.runFailover(ctx, b.Manager, inventory, &b.mu)
+			if runFull {
+				ops.checkWatch(ctx, b.Manager, &b.mu)
+			}
 		}
 	}
 }
@@ -139,6 +145,13 @@ func (b *Broker) executeRun(ctx context.Context, run maintenance.Run) {
 	if e := ops.Maintenance.Finish(run, entries); e != nil {
 		log.Printf("maintenance history write failed: %v", e)
 	}
+	if !run.Plan.DryRun && ops.Notify != nil && len(entries) > 0 {
+		kind, detail := notify.KindMaintenance, describe(run.Plan.Action, run.Owners[0])
+		if failure != nil {
+			kind, detail = notify.KindMaintenanceFailed, truncate(failure.Error(), 200)
+		}
+		ops.Notify.Emit(notify.Event{Kind: kind, Name: run.Plan.Name, Detail: fmt.Sprintf("%s (%d)", detail, len(entries))})
+	}
 	if !run.Plan.DryRun {
 		_ = audit(Request{Action: "maintenance-" + run.Plan.Action}, failure)
 	}
@@ -149,4 +162,30 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// runSnapshots checks the backup schedule every 30 seconds; a due snapshot
+// runs under the mutation lock like any other change.
+func (b *Broker) runSnapshots(ctx context.Context, done <-chan struct{}) {
+	ops := b.Manager.Ops
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case <-ticker.C:
+		}
+		if !ops.Snapshots.Due(time.Now().UTC(), ops.Maintenance.Location()) {
+			continue
+		}
+		step, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		b.mu.Lock()
+		_, e := b.Manager.createSnapshot(step, true)
+		b.mu.Unlock()
+		cancel()
+		_ = audit(Request{Action: "snapshots-scheduled"}, e)
+	}
 }

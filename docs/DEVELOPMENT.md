@@ -37,7 +37,7 @@ For workspace changes, check direct hash links and browser back/forward, URL-bac
 
 ```bash
 python3 -m unittest discover -s tests -v
-shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,components,relays,transports,rathole,catalog,inspect,forms,optimize,cleanup,links,reverse_api,pair_api,recovery,api,panel,menus}.sh panel-install.sh node-install.sh
+shellcheck -s bash -S warning -e SC2034 src/{core,server_info,ui,haproxy_routing,haproxy,realm_options,metadata,state,firewall,components,relays,transports,rathole,catalog,inspect,forms,optimize,cleanup,links,reverse_api,pair_api,recovery,history,diagnose,api,panel,menus}.sh panel-install.sh node-install.sh
 sudo bash tests/linux_namespace.sh
 sudo bash tests/component_publish_namespace.sh
 git diff --check
