@@ -4,8 +4,8 @@ import type { Messages } from "./types";
 export const optimize = {
   optimize: ["Optimization", "بهینه‌سازی"],
   optimizeIntro: [
-    "Server-wide kernel settings for tunnel and forwarding servers, in three opt-in groups. Nothing changes until you review and apply a group. Every change can be undone step by step, and Reset returns each setting to its original value and removes the panel's files.",
-    "تنظیمات سراسری هسته برای سرورهای تونل و فوروارد، در سه گروه اختیاری. تا گروهی را بررسی و اعمال نکنید هیچ چیزی تغییر نمی‌کند. هر تغییر مرحله‌به‌مرحله قابل برگشت است و «بازنشانی کامل» همهٔ مقدارها را به حالت اول برمی‌گرداند و فایل‌های پنل را پاک می‌کند.",
+    "Server-wide kernel settings for tunnel and forwarding servers: choose a profile, then review and apply four opt-in groups. Nothing changes until you apply a group. Every change can be undone step by step, and Reset returns each setting to its original value and removes the panel's files.",
+    "تنظیمات سراسری هسته برای سرورهای تونل و فوروارد: یک حالت انتخاب کنید، بعد چهار گروه اختیاری را بررسی و اعمال کنید. تا گروهی را اعمال نکنید هیچ چیزی تغییر نمی‌کند. هر تغییر مرحله‌به‌مرحله قابل برگشت است و «بازنشانی کامل» همهٔ مقدارها را به حالت اول برمی‌گرداند و فایل‌های پنل را پاک می‌کند.",
   ],
   optMemory: ["Memory", "حافظه"],
   optMemoryDetail: [
@@ -118,20 +118,20 @@ export const optimize = {
     "سرورهایی که HAProxy، Realm، FRP یا rathole دارند. فورواردهای هسته از این‌ها استفاده نمی‌کنند.",
   ],
   "optWhy_flow-limit": [
-    "Room for every user's connections; sized to about 8 % of memory.",
-    "جا برای اتصال‌های همهٔ کاربران؛ حدود 8 درصد حافظه.",
+    "Room for every user's connections; sized from memory by the profile.",
+    "جا برای اتصال‌های همهٔ کاربران؛ اندازه‌اش را حالت انتخاب‌شده از روی حافظه تعیین می‌کند.",
   ],
   "optWhy_flow-buckets": [
     "Index size; half the limit keeps lookups short when the table is full.",
     "اندازهٔ فهرست؛ نصف سقف، جست‌وجو را در جدول پر هم کوتاه نگه می‌دارد.",
   ],
   "optWhy_idle-tcp": [
-    "Forget idle connections after 1 hour instead of 5 days.",
-    "فراموش کردن اتصال‌های بی‌کار بعد از 1 ساعت به‌جای 5 روز.",
+    "Forget idle connections within hours instead of the kernel's 5 days.",
+    "فراموش کردن اتصال‌های بی‌کار در چند ساعت به‌جای 5 روز پیش‌فرض هسته.",
   ],
   "optWhy_closing-tcp": [
-    "Free closing connections in 30 seconds.",
-    "آزاد کردن اتصال‌های در حال بسته شدن در 30 ثانیه.",
+    "Free closing connections within seconds.",
+    "آزاد کردن اتصال‌های در حال بسته شدن در چند ثانیه.",
   ],
   optWhy_udp: [
     "Keep one-way UDP mappings a little longer.",
@@ -178,8 +178,8 @@ export const optimize = {
     "کند نشدن دوباره بعد از مکث.",
   ],
   optWhy_keepalive: [
-    "Probe idle relay connections every 10 minutes, well inside the 1-hour tracking timeout.",
-    "بررسی اتصال‌های بی‌کار رله هر 10 دقیقه، پیش از پایان زمان 1 ساعتهٔ ردیابی.",
+    "Probe idle relay connections well before connection tracking forgets them.",
+    "بررسی اتصال‌های بی‌کار رله، خیلی پیش از آن‌که ردیابی اتصال آن‌ها را فراموش کند.",
   ],
   "optWhy_fin-timeout": [
     "Release half-closed relay sockets sooner.",
@@ -192,7 +192,7 @@ export const optimize = {
   optKeyFlowLimit: ["Connection limit", "سقف اتصال‌ها"],
   optKeyBuckets: ["Index buckets", "خانه‌های فهرست"],
   optKeyIdleTcp: ["Idle TCP kept", "نگهداری TCP بی‌کار"],
-  optKeyTimeWait: ["TCP TIME-WAIT", "TCP در TIME-WAIT"],
+  optKeyTimeWait: ["TCP \u2066TIME-WAIT\u2069", "TCP در \u2066TIME-WAIT\u2069"],
   optKeyFinWait: ["TCP FIN-WAIT", "TCP در FIN-WAIT"],
   optKeyCloseWait: ["TCP CLOSE-WAIT", "TCP در CLOSE-WAIT"],
   optKeyUdp: ["UDP one-way", "UDP یک‌طرفه"],
@@ -214,7 +214,10 @@ export const optimize = {
   optKeyKeepaliveInterval: ["Keepalive interval", "فاصلهٔ keepalive"],
   optKeyKeepaliveProbes: ["Keepalive probes", "تعداد keepalive"],
   optKeyFinTimeout: ["FIN timeout", "زمان FIN"],
-  optKeyTwReuse: ["Reuse TIME-WAIT ports", "استفادهٔ دوباره از پورت TIME-WAIT"],
+  optKeyTwReuse: [
+    "Reuse \u2066TIME-WAIT\u2069 ports",
+    "استفادهٔ دوباره از پورت \u2066TIME-WAIT\u2069",
+  ],
   optMore: ["More actions", "کارهای بیشتر"],
   optHeroTitle: [
     "{n} improvements available for this server",
@@ -303,5 +306,110 @@ export const optimize = {
   optKeyAcceptRedirectsDefault: [
     "Accept redirects (new interfaces)",
     "پذیرش redirect (رابط‌های جدید)",
+  ],
+  // Profiles: intensity level and goal.
+  optProfileTitle: ["Profile", "حالت بهینه‌سازی"],
+  optProfileHint: [
+    "Choose how far the values go and what the server is for. The groups below show that profile's values; nothing changes until you review and apply.",
+    "انتخاب کنید مقدارها تا چه حد بالا بروند و سرور بیشتر برای چه کاری است. گروه‌های پایین مقدارهای همان حالت را نشان می‌دهند؛ تا بررسی و اعمال نکنید چیزی تغییر نمی‌کند.",
+  ],
+  optProfileApplied: ["Applied: {p}", "اعمال‌شده: {p}"],
+  optProfileNone: ["Nothing applied yet", "هنوز چیزی اعمال نشده"],
+  optProfilePreview: [
+    "Preview of another profile. Applying it moves already-applied settings to its values too, never below their original values.",
+    "پیش‌نمایش حالت دیگری است. با اعمال آن، تنظیمات اعمال‌شده هم به مقدارهای همین حالت می‌روند، ولی هرگز پایین‌تر از مقدار اول سرور نمی‌آیند.",
+  ],
+  optProfileCapped: [
+    "This server has less than 2 GB of memory, so Aggressive keeps the Balanced connection table and buffer sizes. Its shorter timeouts and larger queues still apply.",
+    "حافظهٔ این سرور کمتر از 2 گیگابایت است، پس حالت تهاجمی اندازهٔ جدول اتصال و بافرها را در حد متعادل نگه می‌دارد. زمان‌های کوتاه‌تر و صف‌های بزرگ‌ترش همچنان اعمال می‌شوند.",
+  ],
+  optLevelLegend: ["Intensity", "شدت"],
+  optLevel_conservative: ["Conservative", "محافظه‌کار"],
+  optLevel_balanced: ["Balanced", "متعادل"],
+  optLevel_aggressive: ["Aggressive", "تهاجمی"],
+  optLevelWhy_conservative: [
+    "Fixes the common problems with the smallest changes: 4% of memory for connections, 2-hour idle TCP, 16 MiB buffers.",
+    "مشکلات رایج را با کمترین تغییر رفع می‌کند: 4٪ حافظه برای اتصال‌ها، TCP بی‌کار 2 ساعت، بافر 16 مگابایت.",
+  ],
+  optLevelWhy_balanced: [
+    "Recommended for most tunnel servers: 8% of memory, 1-hour idle TCP, 32 MiB buffers, BBR.",
+    "پیشنهادی برای بیشتر سرورهای تونل: 8٪ حافظه، TCP بی‌کار 1 ساعت، بافر 32 مگابایت، BBR.",
+  ],
+  optLevelWhy_aggressive: [
+    "For busy servers with spare memory: 16% of memory, 30-minute idle TCP, 64 MiB buffers, long queues.",
+    "برای سرورهای شلوغ با حافظهٔ کافی: 16٪ حافظه، TCP بی‌کار 30 دقیقه، بافر 64 مگابایت، صف‌های بلند.",
+  ],
+  optDefault: ["Default", "پیش‌فرض"],
+  optGoalLegend: ["Goal", "هدف"],
+  optGoal_general: ["General", "عمومی"],
+  optGoal_users: ["Many users", "کاربر زیاد"],
+  optGoal_latency: ["Low latency", "تأخیر کم"],
+  optGoalWhy_general: [
+    "No special workload: the level's values as they are.",
+    "بدون کار خاص: همان مقدارهای سطح انتخاب‌شده.",
+  ],
+  optGoalWhy_users: [
+    "Many VPN users through relays: a wider local port range (it never takes a port a service listens on), more TIME-WAIT slots and longer connection queues.",
+    "کاربران VPN زیاد از طریق رله‌ها: بازهٔ پورت محلی بزرگ‌تر (هیچ‌وقت پورتی را که سرویسی روی آن گوش می‌دهد نمی‌گیرد)، جای \u2066TIME-WAIT\u2069 بیشتر و صف اتصال بلندتر.",
+  ],
+  optGoalWhy_latency: [
+    "Games and calls: 16 KiB of unsent data per relay socket for less queueing delay, and UDP mappings that last 2 and 5 minutes.",
+    "بازی و تماس: 16 کیلوبایت دادهٔ ارسال‌نشده در هر سوکت رله برای صف کوتاه‌تر، و نگه‌داشتن نگاشت‌های UDP تا 2 و 5 دقیقه.",
+  ],
+  optHeroProfile: ["Profile: {level} · {goal}.", "حالت: {level} · {goal}."],
+  optApplyProfile: ["Profile {level} · {goal}.", "حالت {level} · {goal}."],
+  optPlanEditHint: [
+    "Edit any value to set your own within safe limits.",
+    "هر مقدار را می‌توانید در محدودهٔ امن به دلخواه تغییر دهید.",
+  ],
+  optEdit: ["Edit", "ویرایش"],
+  optUseRecommended: ["Use recommended", "مقدار پیشنهادی"],
+  optFieldValue: ["Value", "مقدار"],
+  optFieldMin: ["Min", "کمینه"],
+  optFieldDefault: ["Default", "پیش‌فرض"],
+  optFieldMax: ["Max", "بیشینه"],
+  optFieldLow: ["From", "از"],
+  optFieldHigh: ["To", "تا"],
+  optAllowed: ["Allowed: {min} to {max}", "مجاز: {min} تا {max}"],
+  optAllowed_triple: [
+    "Each field {min} to {max}, in ascending order",
+    "هر بخش {min} تا {max}، به ترتیب صعودی",
+  ],
+  optAllowed_range: [
+    "Ports {min} to {max}; From below To",
+    "پورت {min} تا {max}؛ «از» کوچک‌تر از «تا»",
+  ],
+  optCustom: ["Custom", "سفارشی"],
+  optWorse: ["Worse than original", "بدتر از مقدار اول"],
+  optOff: ["Not used by this profile", "در این حالت استفاده نمی‌شود"],
+  optWorseTitle: [
+    "{n} custom values are worse than the server's original",
+    "{n} مقدار سفارشی از مقدار اول سرور بدتر است",
+  ],
+  optWorseBody: [
+    "Those values are below what the server or its provider had before the panel changed anything. They are applied only if you confirm, and Undo or Reset still restores the originals.",
+    "این مقدارها از چیزی که سرور یا دیتاسنتر پیش از تغییر پنل داشت پایین‌ترند. فقط با تأیید شما اعمال می‌شوند و «برگشت» یا «بازنشانی» همچنان مقدار اول را برمی‌گرداند.",
+  ],
+  optWorseAccept: [
+    "I understand and want to apply them",
+    "متوجهم و می‌خواهم اعمال شوند",
+  ],
+  optRegressionTitle: [
+    "{n} outages since the last optimization step",
+    "{n} قطعی از آخرین مرحلهٔ بهینه‌سازی",
+  ],
+  optRegressionBody: [
+    "Health recorded outages that began after the last apply: {names}. If these tunnels were fine before, undo the step.",
+    "پایش سلامت بعد از آخرین اعمال قطعی ثبت کرده است: {names}. اگر این تونل‌ها پیش از آن سالم بودند، مرحله را برگردانید.",
+  ],
+  optKeyPortRange: ["Local port range", "بازهٔ پورت محلی"],
+  optKeyTwBuckets: ["\u2066TIME-WAIT\u2069 slots", "جای \u2066TIME-WAIT\u2069"],
+  optWhy_ports: [
+    "More source ports for relay connections to the same destination.",
+    "پورت مبدأ بیشتر برای اتصال‌های رله به یک مقصد.",
+  ],
+  "optWhy_tw-buckets": [
+    "Room for closed connections, so busy relays do not drop them early.",
+    "جا برای اتصال‌های بسته‌شده، تا رله‌های شلوغ آن‌ها را زودتر از موعد دور نریزند.",
   ],
 } satisfies Messages;

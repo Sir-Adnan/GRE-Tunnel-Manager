@@ -6,7 +6,7 @@ import type {
   HealthView,
   MaintenanceView,
 } from "@/features/operations/types";
-import type { OptimizeView } from "@/features/optimize/types";
+import type { OptimizeProfile, OptimizeView } from "@/features/optimize/types";
 
 type Loaded<T> = {
   value?: T;
@@ -39,7 +39,8 @@ function useLoaded<T>(path: string, seconds: (value?: T) => number): Loaded<T> {
     [path],
   );
   // Runs at once and whenever the page becomes visible; slow refresh while idle.
-  usePoll(reload, { seconds: seconds(value) || 600 });
+  // A new path (another optimization profile) loads at once.
+  usePoll(reload, { seconds: seconds(value) || 600, restartOn: path });
   return { value, error, reload: () => reload() };
 }
 
@@ -92,8 +93,13 @@ export function useNow(active: boolean) {
 }
 
 /** Optimization state; polled slowly, reloaded after every change. */
-export function useOptimizeView() {
-  return useLoaded<OptimizeView>("optimize", () => 60);
+export function useOptimizeView(profile?: OptimizeProfile) {
+  return useLoaded<OptimizeView>(
+    profile
+      ? `optimize?level=${profile.level}&goal=${profile.goal}`
+      : "optimize",
+    () => 60,
+  );
 }
 
 /**

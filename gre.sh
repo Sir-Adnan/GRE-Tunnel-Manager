@@ -2843,56 +2843,182 @@ gtm_optimize_paths() {
     GTM_OPT_OLD_FILE="$GTM_SYSCTL_DIR/99-z-gre-manager-owned.conf"
 }
 
-# group|key|value|mode|reason. No mode ever makes the server's own value
-# worse, including the provider's image defaults: the live value is compared
-# first and kept when it is already as good.
+# group|key|value|mode|reason for the chosen profile (GTM_OPT_LEVEL and
+# GTM_OPT_GOAL). No mode ever makes the server's own value worse, including
+# the provider's image defaults: the original value is compared first and
+# kept when it is already as good.
 #   raise   only grow (limits, queues, buffers)
 #   lower   only shrink (timeouts)
 #   raise3  "min default max" triples, each field only grows
-#   prefer=A,B  keep the live value when it is one of the listed equivalents
+#   range   "low high" port range: low only drops, high only grows
+#   prefer=A,B  keep the value when it is one of the listed equivalents
 #   loose   reverse-path filter: strict (1) becomes loose (2); off (0) stays
-#   set     exact value (only where every other value is worse for relays)
-# Conntrack sizes are computed per host.
-gtm_optimize_catalog() {
-    local memory limit=131072 buckets
+# A value of "-" means the profile leaves the key at its original value.
+# Every profile lists the same keys, so switching profiles can return a key.
+GTM_OPT_LEVELS='conservative balanced aggressive'
+GTM_OPT_GOALS='general users latency'
+# Below this, aggressive keeps balanced table and buffer sizes (a "2 GB" plan
+# reports about 1.9 GiB, so it is not capped).
+GTM_OPT_SMALL=$((1792 * 1048576))
+declare -gA GTM_OPT_SET=()
+
+gtm_optimize_profile_valid() {
+    [[ $1 =~ ^[a-z]+$ && $2 =~ ^[a-z]+$ && " $GTM_OPT_LEVELS " == *" $1 "* && " $GTM_OPT_GOALS " == *" $2 "* ]]
+}
+
+# Prints 1 when the aggressive level is capped on this host.
+gtm_optimize_capped() {
+    local memory
+    [[ ${GTM_OPT_LEVEL:-balanced} == aggressive ]] || { printf 0; return; }
     memory=$(gtm_optimize_memory) || memory=0
-    # About 350 bytes per tracked flow, within 8 % of memory, as a power of two.
-    while ((limit * 2 <= memory * 8 / 100 / 350 && limit < 4194304)); do limit=$((limit * 2)); done
-    buckets=$(( limit / 2 > 2097152 ? 2097152 : limit / 2 ))
+    if ((memory < GTM_OPT_SMALL)); then printf 1; else printf 0; fi
+}
+
+gtm_optimize_catalog() {
+    local level=${GTM_OPT_LEVEL:-balanced} goal=${GTM_OPT_GOAL:-general}
+    local memory limit=131072 cap=4194304 bucket_cap=2097152 buckets percent
+    local established close backlog budget usecs somax syn buffer rmem wmem notsent ka kai kap fin
+    local udp=60 stream=180 tw=- ports=-
+    memory=$(gtm_optimize_memory) || memory=0
+    case $level in
+        conservative)
+            percent=4 established=7200 close=60 backlog=8192 budget=400 usecs=4000 somax=4096 syn=4096
+            buffer=16777216 rmem='4096 131072 16777216' wmem='4096 65536 16777216' notsent=-
+            ka=1800 kai=60 kap=6 fin=30;;
+        aggressive)
+            percent=16 cap=8388608 bucket_cap=4194304 established=1800 close=15 backlog=65536 budget=1000 usecs=8000
+            somax=65535 syn=65535 buffer=67108864 rmem='8192 262144 67108864' wmem='8192 131072 67108864'
+            notsent=131072 ka=300 kai=15 kap=5 fin=10
+            if [[ $(gtm_optimize_capped) == 1 ]]; then
+                percent=8 cap=4194304 bucket_cap=2097152 backlog=32768
+                buffer=33554432 rmem='4096 131072 33554432' wmem='4096 65536 33554432'
+            fi;;
+        *)
+            percent=8 established=3600 close=30 backlog=16384 budget=600 usecs=8000 somax=8192 syn=8192
+            buffer=33554432 rmem='4096 131072 33554432' wmem='4096 65536 33554432' notsent=131072
+            ka=600 kai=30 kap=5 fin=15;;
+    esac
+    case $goal in
+        users)
+            ((somax >= 16384)) || somax=16384
+            ((syn >= 16384)) || syn=16384
+            ports='16384 65535'
+            case $level in conservative) tw=262144;; aggressive) tw=1048576;; *) tw=524288;; esac;;
+        latency) notsent=16384 udp=120 stream=300;;
+    esac
+    # About 350 bytes per tracked flow, within the level's share of memory, as a power of two.
+    while ((limit * 2 <= memory * percent / 100 / 350 && limit < cap)); do limit=$((limit * 2)); done
+    buckets=$(( limit / 2 > bucket_cap ? bucket_cap : limit / 2 ))
     printf '%s\n' \
         "conntrack|net.netfilter.nf_conntrack_max|$limit|raise|flow-limit" \
         "conntrack|net.netfilter.nf_conntrack_buckets|$buckets|raise|flow-buckets" \
-        'conntrack|net.netfilter.nf_conntrack_tcp_timeout_established|3600|lower|idle-tcp' \
-        'conntrack|net.netfilter.nf_conntrack_tcp_timeout_time_wait|30|lower|closing-tcp' \
-        'conntrack|net.netfilter.nf_conntrack_tcp_timeout_fin_wait|30|lower|closing-tcp' \
-        'conntrack|net.netfilter.nf_conntrack_tcp_timeout_close_wait|30|lower|closing-tcp' \
-        'conntrack|net.netfilter.nf_conntrack_udp_timeout|60|raise|udp' \
-        'conntrack|net.netfilter.nf_conntrack_udp_timeout_stream|180|raise|udp-stream' \
-        'queues|net.core.netdev_max_backlog|16384|raise|backlog' \
-        'queues|net.core.netdev_budget|600|raise|budget' \
-        'queues|net.core.netdev_budget_usecs|8000|raise|budget' \
-        'queues|net.core.somaxconn|8192|raise|accept-queue' \
-        'queues|net.ipv4.tcp_max_syn_backlog|8192|raise|syn-queue' \
+        "conntrack|net.netfilter.nf_conntrack_tcp_timeout_established|$established|lower|idle-tcp" \
+        "conntrack|net.netfilter.nf_conntrack_tcp_timeout_time_wait|$close|lower|closing-tcp" \
+        "conntrack|net.netfilter.nf_conntrack_tcp_timeout_fin_wait|$close|lower|closing-tcp" \
+        "conntrack|net.netfilter.nf_conntrack_tcp_timeout_close_wait|$close|lower|closing-tcp" \
+        "conntrack|net.netfilter.nf_conntrack_udp_timeout|$udp|raise|udp" \
+        "conntrack|net.netfilter.nf_conntrack_udp_timeout_stream|$stream|raise|udp-stream" \
+        "queues|net.core.netdev_max_backlog|$backlog|raise|backlog" \
+        "queues|net.core.netdev_budget|$budget|raise|budget" \
+        "queues|net.core.netdev_budget_usecs|$usecs|raise|budget" \
+        "queues|net.core.somaxconn|$somax|raise|accept-queue" \
+        "queues|net.ipv4.tcp_max_syn_backlog|$syn|raise|syn-queue" \
         'relay|net.core.default_qdisc|fq|prefer=fq,cake,fq_pie|pacing' \
         'relay|net.ipv4.tcp_congestion_control|bbr|prefer=bbr,bbr2,bbr3|bbr' \
-        'relay|net.core.rmem_max|33554432|raise|buffers' \
-        'relay|net.core.wmem_max|33554432|raise|buffers' \
-        'relay|net.ipv4.tcp_rmem|4096 131072 33554432|raise3|buffers' \
-        'relay|net.ipv4.tcp_wmem|4096 65536 33554432|raise3|buffers' \
-        'relay|net.ipv4.tcp_notsent_lowat|131072|lower|notsent' \
+        "relay|net.core.rmem_max|$buffer|raise|buffers" \
+        "relay|net.core.wmem_max|$buffer|raise|buffers" \
+        "relay|net.ipv4.tcp_rmem|$rmem|raise3|buffers" \
+        "relay|net.ipv4.tcp_wmem|$wmem|raise3|buffers" \
+        "relay|net.ipv4.tcp_notsent_lowat|$notsent|lower|notsent" \
         'relay|net.ipv4.tcp_mtu_probing|1|raise|mtu-probing' \
         'relay|net.ipv4.tcp_slow_start_after_idle|0|lower|idle-restart' \
-        'relay|net.ipv4.tcp_keepalive_time|600|lower|keepalive' \
-        'relay|net.ipv4.tcp_keepalive_intvl|30|lower|keepalive' \
-        'relay|net.ipv4.tcp_keepalive_probes|5|lower|keepalive' \
-        'relay|net.ipv4.tcp_fin_timeout|15|lower|fin-timeout' \
+        "relay|net.ipv4.tcp_keepalive_time|$ka|lower|keepalive" \
+        "relay|net.ipv4.tcp_keepalive_intvl|$kai|lower|keepalive" \
+        "relay|net.ipv4.tcp_keepalive_probes|$kap|lower|keepalive" \
+        "relay|net.ipv4.tcp_fin_timeout|$fin|lower|fin-timeout" \
         'relay|net.ipv4.tcp_tw_reuse|1|prefer=1|tw-reuse' \
+        "relay|net.ipv4.ip_local_port_range|$ports|range|ports" \
+        "relay|net.ipv4.tcp_max_tw_buckets|$tw|raise|tw-buckets" \
         'routing|net.ipv4.conf.all.rp_filter|2|loose|rp-filter' \
         'routing|net.ipv4.conf.default.rp_filter|2|loose|rp-filter' \
         'routing|net.ipv4.conf.all.send_redirects|0|lower|redirects' \
         'routing|net.ipv4.conf.default.send_redirects|0|lower|redirects' \
         'routing|net.ipv4.conf.all.accept_redirects|0|lower|accept-redirects' \
         'routing|net.ipv4.conf.default.accept_redirects|0|lower|accept-redirects'
+}
+
+# Custom-value bounds: "n MIN MAX" (number), "n3 MIN MAX" (each field of a
+# triple, ascending), "n2 MIN MAX" (low below high) or "c A,B" (choices).
+gtm_optimize_bounds() {
+    local memory flows
+    case $1 in
+        net.netfilter.nf_conntrack_max)
+            memory=$(gtm_optimize_memory) || memory=0
+            flows=$((memory / 4 / 350))
+            ((flows <= 16777216)) || flows=16777216
+            ((flows >= 65536)) || flows=65536
+            printf 'n 32768 %d' "$flows";;
+        net.netfilter.nf_conntrack_buckets) printf 'n 8192 4194304';;
+        net.netfilter.nf_conntrack_tcp_timeout_established) printf 'n 300 432000';;
+        net.netfilter.nf_conntrack_tcp_timeout_*) printf 'n 5 300';;
+        net.netfilter.nf_conntrack_udp_timeout) printf 'n 10 600';;
+        net.netfilter.nf_conntrack_udp_timeout_stream) printf 'n 30 3600';;
+        net.core.netdev_max_backlog) printf 'n 1000 262144';;
+        net.core.netdev_budget) printf 'n 300 5000';;
+        net.core.netdev_budget_usecs) printf 'n 2000 32000';;
+        net.core.somaxconn) printf 'n 128 65535';;
+        net.ipv4.tcp_max_syn_backlog) printf 'n 128 262144';;
+        net.core.default_qdisc) printf 'c fq,cake,fq_pie,fq_codel,pfifo_fast';;
+        net.ipv4.tcp_congestion_control)
+            printf 'c %s' "$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null | awk '{$1=$1; gsub(/ /, ","); print}')";;
+        net.core.rmem_max|net.core.wmem_max) printf 'n 212992 268435456';;
+        net.ipv4.tcp_rmem|net.ipv4.tcp_wmem) printf 'n3 4096 268435456';;
+        net.ipv4.tcp_notsent_lowat) printf 'n 16384 4294967295';;
+        net.ipv4.tcp_mtu_probing|net.ipv4.tcp_tw_reuse|net.ipv4.conf.all.rp_filter|net.ipv4.conf.default.rp_filter) printf 'n 0 2';;
+        net.ipv4.tcp_slow_start_after_idle|net.ipv4.conf.*.send_redirects|net.ipv4.conf.*.accept_redirects) printf 'n 0 1';;
+        net.ipv4.tcp_keepalive_time) printf 'n 60 7200';;
+        net.ipv4.tcp_keepalive_intvl) printf 'n 5 120';;
+        net.ipv4.tcp_keepalive_probes) printf 'n 3 10';;
+        net.ipv4.tcp_fin_timeout) printf 'n 5 60';;
+        net.ipv4.ip_local_port_range) printf 'n2 1024 65535';;
+        net.ipv4.tcp_max_tw_buckets) printf 'n 4096 4194304';;
+        *) return 1;;
+    esac
+}
+
+# A custom value is valid for its key and inside its bounds.
+gtm_optimize_custom_valid() {
+    local key=$1 value=$2 bounds kind low high field previous=-1
+    local -a fields=()
+    gtm_optimize_value "$key" "$value" || return 1
+    bounds=$(gtm_optimize_bounds "$key") || return 1
+    read -r kind low high <<< "$bounds"
+    case $kind in
+        c) [[ -n $low && ",$low," == *",$value,"* ]];;
+        n) ((10#$value >= low && 10#$value <= high));;
+        n2|n3)
+            read -r -a fields <<< "$value"
+            for field in "${fields[@]}"; do
+                ((10#$field >= low && 10#$field <= high)) || return 1
+                if [[ $kind == n2 ]]; then ((10#$field > previous)) || return 1; else ((10#$field >= previous)) || return 1; fi
+                previous=$((10#$field))
+            done;;
+        *) return 1;;
+    esac
+}
+
+# Reads "key=value" custom values into GTM_OPT_SET; refuses unknown keys or
+# values outside their bounds.
+gtm_optimize_custom() {
+    local pair key value
+    declare -gA GTM_OPT_SET=()
+    (($# <= 40)) || { gtm_error 'Too many custom values.'; return 2; }
+    for pair in "$@"; do
+        [[ $pair == *=* ]] || { gtm_error 'Custom values are key=value.'; return 2; }
+        key=${pair%%=*} value=${pair#*=}
+        gtm_optimize_custom_valid "$key" "$value" || { gtm_error "Custom value for $key is outside its allowed range."; return 2; }
+        GTM_OPT_SET[$key]=$value
+    done
 }
 
 # Keys this module may write: the catalog plus keys imported from v1.3.7.
@@ -2908,7 +3034,8 @@ gtm_optimize_key() {
         net.ipv4.tcp_keepalive_intvl|net.ipv4.tcp_keepalive_probes|net.ipv4.tcp_fin_timeout|net.ipv4.tcp_tw_reuse|\
         net.ipv4.tcp_notsent_lowat|net.ipv4.conf.all.rp_filter|net.ipv4.conf.default.rp_filter|\
         net.ipv4.conf.all.send_redirects|net.ipv4.conf.default.send_redirects|\
-        net.ipv4.conf.all.accept_redirects|net.ipv4.conf.default.accept_redirects) return 0;;
+        net.ipv4.conf.all.accept_redirects|net.ipv4.conf.default.accept_redirects|\
+        net.ipv4.ip_local_port_range|net.ipv4.tcp_max_tw_buckets) return 0;;
     esac
     return 1
 }
@@ -2918,6 +3045,7 @@ gtm_optimize_value() {
     case $1 in
         net.core.default_qdisc|net.ipv4.tcp_congestion_control) [[ $2 =~ ^[a-z0-9_]{1,16}$ ]];;
         net.ipv4.tcp_rmem|net.ipv4.tcp_wmem) [[ $2 =~ ^[0-9]{1,10}\ [0-9]{1,10}\ [0-9]{1,10}$ ]];;
+        net.ipv4.ip_local_port_range) [[ $2 =~ ^[0-9]{1,5}\ [0-9]{1,5}$ ]];;
         *) [[ $2 =~ ^[0-9]{1,10}$ ]];;
     esac
 }
@@ -3094,18 +3222,42 @@ gtm_optimize_better() {
                 out+="$(( 10#$a > 10#$b ? 10#$a : 10#$b ))"; ((index == 2)) || out+=' '
             done
             printf '%s' "$out";;
+        range)
+            read -r -a have <<< "$current"; read -r -a want <<< "$wanted"
+            printf '%d %d' "$(( 10#${have[0]} < 10#${want[0]} ? 10#${have[0]} : 10#${want[0]} ))" "$(( 10#${have[1]} > 10#${want[1]} ? 10#${have[1]} : 10#${want[1]} ))";;
         prefer=*) [[ ",${mode#prefer=}," == *",$current,"* ]] && printf '%s' "$current" || printf '%s' "$wanted";;
         loose) [[ $current == 1 ]] && printf 2 || printf '%s' "$current";;
         *) printf '%s' "$wanted";;
     esac
 }
 
+# A wider port range never takes a port a service listens on right now: the
+# low end then stays where it is.
+gtm_optimize_ports() {
+    local now_low now_high low high port
+    read -r now_low now_high <<< "$1"; read -r low high <<< "$2"
+    if ((10#$low < 10#$now_low)); then
+        while IFS= read -r port; do
+            [[ $port =~ ^[0-9]{1,5}$ ]] && ((10#$port >= 10#$low && 10#$port < 10#$now_low)) && { low=$now_low; break; }
+        done < <(ss -Hltnu 2>/dev/null | awk '{n = split($5, part, ":"); print part[n]}')
+    fi
+    printf '%s %s' "$low" "$high"
+}
+
 # Sets GTM_OPT_PLAN rows "group key current value reason note" for groups.
 # Note: change, same (already the recommendation), kept (the server's own
-# value is already better and stays) or missing (no such key or algorithm).
+# value is already better and stays), off (the profile leaves the key at its
+# original value), custom (a custom value), worse (a custom value worse than
+# the original) or missing (no such key or algorithm). Keys the panel applied
+# compare against their original value, so a lighter profile can return them.
 gtm_optimize_compute() {
-    local groups=" $* " group key wanted value mode reason current note
+    local groups=" $* " group key wanted value mode reason current note base row before applied
+    local -A before_of=() applied_of=()
     GTM_OPT_PLAN=()
+    for row in ${GTM_OPT_ROWS[@]+"${GTM_OPT_ROWS[@]}"}; do
+        IFS=$'\t' read -r key before applied group <<< "$row"
+        before_of[$key]=$before applied_of[$key]=$applied
+    done
     # BBR may be a module that is not loaded yet; loading it changes nothing else.
     if [[ ${GTM_OPT_READONLY:-0} == 0 && $groups == *' relay '* && " $(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null) " != *' bbr '* ]]; then
         command -v modprobe >/dev/null 2>&1 && modprobe tcp_bbr 2>/dev/null
@@ -3115,16 +3267,46 @@ gtm_optimize_compute() {
         value=$wanted; note=change
         if ! current=$(gtm_optimize_read "$key"); then
             current=-; note=missing
-        elif [[ $key == net.ipv4.tcp_congestion_control && " $(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null) " != *" $wanted "* && $mode != *",$current"* && $mode != *"=$current"* ]]; then
-            note=missing
         else
-            value=$(gtm_optimize_better "$current" "$wanted" "$mode")
-            if [[ $value == "$current" ]]; then
-                note=kept; [[ $current != "$wanted" ]] || note=same
+            # Only while the live value is still what the panel applied.
+            base=$current
+            [[ ${applied_of[$key]-} != "$current" ]] || base=${before_of[$key]}
+            if [[ ${GTM_OPT_SET[$key]+set} ]]; then
+                value=${GTM_OPT_SET[$key]} note=custom
+                [[ $(gtm_optimize_better "$base" "$value" "$mode") == "$value" ]] || note=worse
+                [[ $value != "$current" ]] || note=same
+            elif [[ $wanted == - ]]; then
+                value=$base
+                [[ $value != "$current" ]] || note=off
+            elif [[ $key == net.ipv4.tcp_congestion_control && " $(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null) " != *" $wanted "* && $mode != *",$current"* && $mode != *"=$current"* ]]; then
+                note=missing
+            else
+                value=$(gtm_optimize_better "$base" "$wanted" "$mode")
+                [[ $key != net.ipv4.ip_local_port_range ]] || value=$(gtm_optimize_ports "$current" "$value")
+                if [[ $value == "$current" ]]; then
+                    note=kept; [[ $current != "$wanted" ]] || note=same
+                fi
             fi
         fi
         GTM_OPT_PLAN+=("$group"$'\t'"$key"$'\t'"$current"$'\t'"$value"$'\t'"$reason"$'\t'"$note")
     done < <(gtm_optimize_catalog)
+}
+
+# The profile last applied ("level goal"); balanced general before any.
+gtm_optimize_saved_profile() {
+    local level goal
+    [[ -f $GTM_OPT_DIR/profile ]] && read -r level goal < "$GTM_OPT_DIR/profile" && gtm_optimize_profile_valid "$level" "$goal" ||
+        { level=balanced goal=general; }
+    printf '%s %s' "$level" "$goal"
+}
+
+# Selects the profile for this call: "LEVEL GOAL", or the saved one for "-".
+gtm_optimize_use_profile() {
+    local level=$1 goal=$2
+    gtm_optimize_paths
+    [[ $level != - ]] || read -r level goal <<< "$(gtm_optimize_saved_profile)"
+    gtm_optimize_profile_valid "$level" "$goal" || { gtm_error 'Unknown optimization profile.'; return 2; }
+    GTM_OPT_LEVEL=$level GTM_OPT_GOAL=$goal
 }
 
 gtm_optimize_groups_valid() {
@@ -3138,11 +3320,12 @@ gtm_optimize_plan() {
     local row key
     gtm_optimize_groups_valid "$@" || { gtm_error 'Unknown optimization group.'; return 2; }
     gtm_optimize_paths
+    gtm_optimize_load || return 1
     gtm_optimize_compute "$@"
     gtm_optimize_others
     for row in "${GTM_OPT_PLAN[@]}"; do
         key=$(cut -f2 <<< "$row")
-        printf 'change\t%s\t%s\n' "$row" "${GTM_OPT_OTHERS[$key]:-$'-\t-'}"
+        printf 'change\t%s\t%s\t%s\n' "$row" "${GTM_OPT_OTHERS[$key]:-$'-\t-'}" "$(gtm_optimize_bounds "$key" || printf -)"
     done
 }
 
@@ -3159,6 +3342,11 @@ gtm_optimize_status() {
     printf 'meta\tcongestion\t%s\n' "$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || printf -)"
     [[ -d $GTM_OPT_STEPS ]] && steps=$(ls -1 "$GTM_OPT_STEPS"/*.tsv 2>/dev/null | wc -l)
     printf 'meta\tsteps\t%d\n' "$steps"
+    file=$(gtm_optimize_last_step)
+    [[ -z $file ]] || printf 'meta\tlast\t%s\n' "$(stat -c %Y "$file" 2>/dev/null || printf 0)"
+    printf 'meta\tprofile\t%s\n' "$(gtm_optimize_saved_profile)"
+    printf 'meta\tview\t%s %s\n' "${GTM_OPT_LEVEL:-balanced}" "${GTM_OPT_GOAL:-general}"
+    printf 'meta\tcapped\t%s\n' "$(gtm_optimize_capped)"
     printf 'meta\tfile\t%s\n' "$GTM_OPT_FILE"
     [[ ! -f $GTM_OPT_OLD_JOURNAL ]] || printf 'meta\timport\t%s\n' "$GTM_OPT_OLD_JOURNAL"
     while IFS= read -r file; do [[ -z $file ]] || printf 'meta\tservertools\t%s\n' "$file"; done < <(gtm_optimize_servertools)
@@ -3205,33 +3393,39 @@ gtm_optimize_apply() {
     gtm_optimize_check_live
     for row in ${GTM_OPT_LIVE[@]+"${GTM_OPT_LIVE[@]}"}; do rows[${row%%$'\t'*}]=$row; done
     gtm_optimize_compute "$@"
-    printf 'Server-wide settings (they do not promise a number of users):\n'
+    printf 'Profile %s / %s. Server-wide settings (they do not promise a number of users):\n' "${GTM_OPT_LEVEL:-balanced}" "${GTM_OPT_GOAL:-general}"
     for row in "${GTM_OPT_PLAN[@]}"; do
         IFS=$'\t' read -r group key current value reason note <<< "$row"
         case $note in
             same) printf '  %s = %s (already set)\n' "$key" "$current"; continue;;
             kept) printf '  %s = %s (the server value is already better; kept)\n' "$key" "$current"; continue;;
+            off) continue;;
             missing) printf '  %s: not available on this kernel; skipped\n' "$key"; continue;;
+            worse) [[ ${GTM_OPT_ALLOW_WORSE:-0} == 1 ]] || { gtm_error "The custom value for $key is worse than the server's original value; confirm it to apply."; return 1; }
+                printf '  %s: %s -> %s (custom; worse than the original value)\n' "$key" "$current" "$value";;
+            *) printf '  %s: %s -> %s\n' "$key" "$current" "$value";;
         esac
-        printf '  %s: %s -> %s\n' "$key" "$current" "$value"
         attempts+=("$key"$'\t'"$current"$'\t'"$value"$'\t'"$group")
     done
     ((${#attempts[@]})) || { printf 'Nothing to change.\n'; return 0; }
     gtm_confirm || return 1
-    # The undo step and journal are durable before the first live write.
+    # The undo step and journal are durable before the first live write. A
+    # key that returns to its original value is no longer tracked.
     for row in "${attempts[@]}"; do
         IFS=$'\t' read -r key current value group <<< "$row"
         if [[ ${rows[$key]+set} ]]; then IFS=$'\t' read -r _ current _ _ <<< "${rows[$key]}"; fi
+        if [[ $value == "$current" ]]; then unset 'rows[$key]'; continue; fi
         rows[$key]="$key"$'\t'"$current"$'\t'"$value"$'\t'"$group"
     done
     GTM_OPT_ROWS=(); for key in "${!rows[@]}"; do GTM_OPT_ROWS+=("${rows[$key]}"); done
-    local -a planned=("${GTM_OPT_ROWS[@]}")
-    gtm_optimize_push_step && GTM_OPT_ROWS=("${planned[@]}") && gtm_optimize_save_rows "$GTM_OPT_JOURNAL" || return 1
+    local -a planned=(${GTM_OPT_ROWS[@]+"${GTM_OPT_ROWS[@]}"})
+    gtm_optimize_push_step && GTM_OPT_ROWS=(${planned[@]+"${planned[@]}"}) && gtm_optimize_save_rows "$GTM_OPT_JOURNAL" || return 1
     for row in "${attempts[@]}"; do
         IFS=$'\t' read -r key current value group <<< "$row"
         if gtm_optimize_write "$key" "$value"; then done_rows+=("$row"); ((written+=1)); else failed=1; break; fi
     done
-    if ((failed == 0)) && GTM_OPT_ROWS=("${planned[@]}") && gtm_optimize_persist; then
+    if ((failed == 0)) && GTM_OPT_ROWS=(${planned[@]+"${planned[@]}"}) && gtm_optimize_persist; then
+        printf '%s %s\n' "${GTM_OPT_LEVEL:-balanced}" "${GTM_OPT_GOAL:-general}" > "$GTM_OPT_DIR/profile" && chmod 600 "$GTM_OPT_DIR/profile"
         printf 'Applied %d setting(s). Undo or Reset restores them.\n' "$written"; return 0
     fi
     gtm_error 'Applying stopped; reverting the settings written in this step.'
@@ -3296,14 +3490,14 @@ gtm_optimize_remove() {
     [[ $which =~ ^(conntrack|queues|relay|routing|previous|all)$ ]] || { gtm_error 'Unknown optimization group.'; return 2; }
     gtm_optimize_paths
     gtm_optimize_import && gtm_optimize_load || return 1
-    ((${#GTM_OPT_ROWS[@]})) || { printf 'Nothing is applied.\n'; [[ $which != all ]] || rm -rf "$GTM_OPT_STEPS"; return 0; }
+    ((${#GTM_OPT_ROWS[@]})) || { printf 'Nothing is applied.\n'; [[ $which != all ]] || rm -rf "$GTM_OPT_STEPS" "$GTM_OPT_DIR/profile"; return 0; }
     for row in "${GTM_OPT_ROWS[@]}"; do [[ $which != all && ${row##*$'\t'} != "$which" ]] && remaining+=("$row"); done
     gtm_confirm || return 1
     GTM_OPT_PREVIOUS=("${GTM_OPT_ROWS[@]}")
     if [[ $which != all ]]; then gtm_optimize_push_step || return 1; GTM_OPT_ROWS=("${GTM_OPT_PREVIOUS[@]}"); fi
     gtm_optimize_move remaining || { gtm_error 'Some settings could not be restored; they stay tracked. Try again.'; return 1; }
     if [[ $which == all ]]; then
-        rm -rf "$GTM_OPT_STEPS"; rm -f "$GTM_OPT_JOURNAL"
+        rm -rf "$GTM_OPT_STEPS"; rm -f "$GTM_OPT_JOURNAL" "$GTM_OPT_DIR/profile"
         printf 'Every setting is back to its original value; the panel files were removed.\n'
     else
         printf 'Settings of %s are back to their original values.\n' "$which"
@@ -3311,12 +3505,13 @@ gtm_optimize_remove() {
 }
 
 gtm_optimize_menu() {
-    local choice
+    local choice level goal
     local -a groups=(conntrack queues relay routing)
-    gtm_optimize_paths
+    gtm_optimize_use_profile - - || return
     while true; do
         gtm_header 'Server optimization / opt-in, reversible'
         gtm_help tuning
+        printf '  Profile: %s / %s\n\n' "$GTM_OPT_LEVEL" "$GTM_OPT_GOAL"
         gtm_option 1 'Show settings' 'Current, original and applied values'
         gtm_option 2 'Connection tracking' 'Recommended for forwarders: fixes rising latency'
         gtm_option 3 'Packet queues' 'High packet rates'
@@ -3324,6 +3519,7 @@ gtm_optimize_menu() {
         gtm_option 5 'Tunnels & routing' 'Loose reverse-path filter, no ICMP redirects'
         gtm_option 6 'Undo last step'
         gtm_option 7 'Reset everything' 'Original values; remove panel files'
+        gtm_option 8 'Change profile' 'conservative / balanced / aggressive; general / users / latency'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -3331,6 +3527,9 @@ gtm_optimize_menu() {
             2|3|4|5) gtm_prepare && gtm_lock || return; gtm_optimize_apply "${groups[$((choice-2))]}"; gtm_unlock; gtm_pause;;
             6) gtm_prepare && gtm_lock || return; gtm_optimize_undo; gtm_unlock; gtm_pause;;
             7) gtm_prepare && gtm_lock || return; gtm_optimize_remove all; gtm_unlock; gtm_pause;;
+            8) gtm_read 'Level (conservative, balanced, aggressive): ' level || continue
+               gtm_read 'Goal (general, users, latency): ' goal || continue
+               gtm_optimize_use_profile "$level" "$goal" || gtm_pause;;
             0) return;;
         esac
     done
@@ -4238,13 +4437,25 @@ gtm_api() {
         forward-exclude) (($#==2)) && gtm_prepare && gtm_lock || return 2
             gtm_forward_exclude "$1" "$2"; local result=$?; gtm_unlock; return "$result";;
         # Server optimization. Status and plan only read; the others lock.
-        optimize-status) (($#==0)) || return 2
+        # Profiles: LEVEL GOAL ("- -" for the saved one). Plan and apply take
+        # comma-separated groups and optional key=value custom values; apply
+        # also takes allow|deny for custom values worse than the original.
+        optimize-status) (($#==0 || $#==2)) || return 2
+            gtm_optimize_use_profile "${1:--}" "${2:--}" || return 2
             gtm_optimize_status;;
-        optimize-plan) (($#>=1 && $#<=4)) || return 2
-            gtm_optimize_plan "$@";;
+        optimize-plan) (($#>=3)) || return 2
+            gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:4}" || return 2
+            local -a groups=(); IFS=, read -r -a groups <<< "$3"
+            ((${#groups[@]} <= 4)) || return 2
+            gtm_optimize_plan "${groups[@]}";;
         optimize-apply|optimize-undo|optimize-remove)
+            local -a groups=()
             case $operation in
-                optimize-apply) (($#>=1 && $#<=4)) || return 2;;
+                optimize-apply) (($#>=4)) && [[ $4 =~ ^(allow|deny)$ ]] || return 2
+                    gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:5}" || return 2
+                    IFS=, read -r -a groups <<< "$3"
+                    ((${#groups[@]} <= 4)) && gtm_optimize_groups_valid "${groups[@]}" || return 2
+                    GTM_OPT_ALLOW_WORSE=0; [[ $4 != allow ]] || GTM_OPT_ALLOW_WORSE=1;;
                 optimize-undo) (($#==0)) || return 2;;
                 *) (($#==1)) || return 2;;
             esac
@@ -4252,7 +4463,7 @@ gtm_api() {
             # The panel previews the change first; this call is the confirmation.
             gtm_confirm() { return 0; }
             case $operation in
-                optimize-apply) gtm_optimize_apply "$@";;
+                optimize-apply) gtm_optimize_apply "${groups[@]}";;
                 optimize-undo) gtm_optimize_undo;;
                 *) gtm_optimize_remove "$1";;
             esac

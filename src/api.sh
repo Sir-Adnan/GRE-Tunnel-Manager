@@ -109,13 +109,25 @@ gtm_api() {
         forward-exclude) (($#==2)) && gtm_prepare && gtm_lock || return 2
             gtm_forward_exclude "$1" "$2"; local result=$?; gtm_unlock; return "$result";;
         # Server optimization. Status and plan only read; the others lock.
-        optimize-status) (($#==0)) || return 2
+        # Profiles: LEVEL GOAL ("- -" for the saved one). Plan and apply take
+        # comma-separated groups and optional key=value custom values; apply
+        # also takes allow|deny for custom values worse than the original.
+        optimize-status) (($#==0 || $#==2)) || return 2
+            gtm_optimize_use_profile "${1:--}" "${2:--}" || return 2
             gtm_optimize_status;;
-        optimize-plan) (($#>=1 && $#<=4)) || return 2
-            gtm_optimize_plan "$@";;
+        optimize-plan) (($#>=3)) || return 2
+            gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:4}" || return 2
+            local -a groups=(); IFS=, read -r -a groups <<< "$3"
+            ((${#groups[@]} <= 4)) || return 2
+            gtm_optimize_plan "${groups[@]}";;
         optimize-apply|optimize-undo|optimize-remove)
+            local -a groups=()
             case $operation in
-                optimize-apply) (($#>=1 && $#<=4)) || return 2;;
+                optimize-apply) (($#>=4)) && [[ $4 =~ ^(allow|deny)$ ]] || return 2
+                    gtm_optimize_use_profile "$1" "$2" && gtm_optimize_custom "${@:5}" || return 2
+                    IFS=, read -r -a groups <<< "$3"
+                    ((${#groups[@]} <= 4)) && gtm_optimize_groups_valid "${groups[@]}" || return 2
+                    GTM_OPT_ALLOW_WORSE=0; [[ $4 != allow ]] || GTM_OPT_ALLOW_WORSE=1;;
                 optimize-undo) (($#==0)) || return 2;;
                 *) (($#==1)) || return 2;;
             esac
@@ -123,7 +135,7 @@ gtm_api() {
             # The panel previews the change first; this call is the confirmation.
             gtm_confirm() { return 0; }
             case $operation in
-                optimize-apply) gtm_optimize_apply "$@";;
+                optimize-apply) gtm_optimize_apply "${groups[@]}";;
                 optimize-undo) gtm_optimize_undo;;
                 *) gtm_optimize_remove "$1";;
             esac

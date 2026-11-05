@@ -17,7 +17,7 @@ This is a direction for future work, not a promise that every native engine feat
 
 ## Priorities for the next iterations
 
-Version v1.4.0 adds health failover and server optimization. Next: optimization profiles, change history with one-click rollback, scheduled local backups, a guided "why is this tunnel down" check, in-panel and webhook notifications, login hardening (TOTP, sessions, address allowlist), a read-only metrics endpoint, a multi-server health view through Nodes with probes from the far side, and an on-demand speed test between GRE ends.
+Version v1.4.0 adds health failover and server optimization. Next: change history with one-click rollback, scheduled local backups, a guided "why is this tunnel down" check, in-panel and webhook notifications, login hardening (TOTP, sessions, address allowlist), a read-only metrics endpoint, a multi-server health view through Nodes with probes from the far side, and an on-demand speed test between GRE ends.
 
 Version v1.3.6 routes kernel-forward replies for additional IPs with their own gateway through that gateway, allows IPv4 and IPv6 kernel forwards on one port and extends the doctor report for multi-address hosts.
 

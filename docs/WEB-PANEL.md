@@ -100,7 +100,7 @@ Both pages are off by default and cost nothing while off. **Health** checks ever
 
 ## Optimization
 
-The **Optimization** page applies opt-in, reversible kernel settings in three groups (Connection tracking, Packet queues, Relay TCP) after a review of current, recommended and original values, with step-by-step undo, per-group restore and a full reset. See [Server optimization](OPTIMIZATION.md).
+The **Optimization** page applies opt-in, reversible kernel settings in four groups (Connection tracking, Packet queues, Relay TCP, Tunnels & routing) after a review of current, recommended and original values, with step-by-step undo, per-group restore and a full reset. A profile (Conservative, Balanced or Aggressive; General, Many users or Low latency) sets the values, any value can be customized within safe bounds, and custom values worse than the original need a confirmation. See [Server optimization](OPTIMIZATION.md).
 
 ## Configurations and engines
 

@@ -1,6 +1,6 @@
 # Server optimization
 
-The panel's **Optimization** page (terminal: **Tools → Server optimization**) offers server-wide kernel settings for tunnel and forwarding servers in four opt-in groups. Nothing changes until a group is reviewed and applied. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
+The panel's **Optimization** page (terminal: **Tools → Server optimization**) offers server-wide kernel settings for tunnel and forwarding servers: a [profile](#profiles) (Conservative, Balanced or Aggressive, for general use, many users or low latency) and four opt-in groups. Nothing changes until a group is reviewed and applied; any value can be [customized](#custom-values) within safe bounds. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
 
 This module replaces the tuning menu of v1.3.7 and earlier; its values and method were not carried over. Settings applied with that menu are imported on the first change (see [Upgrading](#upgrading-from-v137)).
 
@@ -14,13 +14,50 @@ Every recommendation is computed against the live value first, so a value the se
 | lower | Timeouts only shrink |
 | raise3 | `min default max` triples (`tcp_rmem`, `tcp_wmem`): each field only grows |
 | prefer | The live value stays when it is an equivalent choice (`fq`, `cake` or `fq_pie`; `bbr`, `bbr2` or `bbr3`) |
+| range | Port range `low high`: the low end only drops, the high end only grows |
 | loose | Reverse-path filter: strict (1) becomes loose (2); off (0) and loose stay |
 
 The page marks such a key **Server value is better; kept** and leaves it alone; only real improvements count as changes. A key the kernel does not have, or BBR when the kernel cannot load it, is skipped and shown as such.
 
 The page also marks groups that **fit this server**: Connection tracking when kernel forwards exist, Relay TCP when HAProxy, Realm, FRP or rathole run, Tunnels & routing with GRE or more than one IPv4 address, and Packet queues when 20,000 or more connections are tracked. **Review recommendations** opens one review for every fitting group that still has changes.
 
+## Profiles
+
+A profile is an intensity level and a goal. The page previews any profile before anything changes; the one applied last is shown as **Applied** and used by the terminal menu (**Change profile**). Balanced · General is the default and matches v1.4.0.
+
+| Level | Flow table | Idle TCP / closing | Queues (backlog, budget, accept/SYN) | Relay buffers | Keepalive |
+| --- | --- | --- | --- | --- | --- |
+| Conservative | 4 % of memory | 2 h / 60 s | 8192, 400 / 4000 µs, 4096 | 16 MiB, no `notsent_lowat` limit | 30 min / 60 s × 6 |
+| Balanced | 8 % (≤ 4M flows) | 1 h / 30 s | 16384, 600 / 8000 µs, 8192 | 32 MiB, 128 KiB unsent | 10 min / 30 s × 5 |
+| Aggressive | 16 % (≤ 8M flows) | 30 min / 15 s | 65536, 1000 / 8000 µs, 65535 | 64 MiB (`8192 262144 67108864`), 128 KiB unsent | 5 min / 15 s × 5 |
+
+| Goal | Adds |
+| --- | --- |
+| General | Nothing beyond the level |
+| Many users | `ip_local_port_range` `16384 65535`, `tcp_max_tw_buckets` 262144 / 524288 / 1048576 by level, accept and SYN queues at least 16384 |
+| Low latency | `tcp_notsent_lowat` 16 KiB, UDP 120 s and UDP stream 300 s |
+
+Every profile lists the same keys. A key a profile does not use (the port range outside Many users, for example) is shown as **Not used by this profile** and stays at, or returns to, its original value.
+
+**Never worse, across profiles.** A key the panel applied compares the new profile against its *original* value, not the panel's own. Moving from Aggressive to Conservative therefore lowers keepalive or buffer values the panel raised, but never below what the server had before the panel changed anything. A key that returns to its original value is no longer tracked.
+
+**Small servers.** Below 1.75 GiB of reported memory (a server sold with less than 2 GB), Aggressive keeps the Balanced flow table and buffer sizes and a 32768 backlog; its shorter timeouts and longer queues still apply, and the page says so.
+
+**Port range.** The low end of the wider range never takes a port a service listens on at the time of the change: if `ss` shows a listener between the new and the current low end, the low end stays. Kernel forwards do not bind ports and are unaffected; a relay started later on a port inside the range can collide with an outgoing connection that happens to use it as its source port, so keep relay listeners below 16384 or use another goal.
+
+## Custom values
+
+In the review, **Edit** opens any key's value within safe bounds (for example keepalive 60–7200 s, buffers up to 256 MiB, the flow table up to 25 % of memory, triples ascending, the port range low below high, the queueing discipline and congestion control from a list). The panel checks the bounds as you type and Bash checks them again before writing.
+
+A custom value that is worse than the server's original value (by the same never-worse rule) is marked **Worse than original**, and Apply stays disabled until the operator confirms it. Undo and Reset still return the original.
+
+## After applying
+
+The newest undo step carries its time. When Health monitoring is on and outages begin after the last apply (within a day), the page lists the affected tunnels and offers **Undo last step**. It is a hint, not proof: a destination can fail for its own reasons.
+
 ## Groups and values
+
+The tables below list the Balanced · General values; see [Profiles](#profiles) for the others.
 
 ### Connection tracking (recommended for forwarders)
 
@@ -95,6 +132,7 @@ A key whose live value no longer equals what the panel applied was changed by so
 | `/etc/modules-load.d/gre-manager-optimize.conf` | `nf_conntrack` (and `tcp_bbr` when BBR is applied), loaded before `systemd-sysctl` so the keys exist at boot |
 | `/etc/gre-manager/optimize/journal.tsv` | `key / before / applied / group`, mode 600 |
 | `/etc/gre-manager/optimize/steps/*.tsv` | Undo steps (newest 20) |
+| `/etc/gre-manager/optimize/profile` | The profile applied last (`level goal`); removed by Reset |
 
 Both owned files are rewritten only while they still match what the panel last wrote; an edited file stops the operation and is kept for the operator.
 
@@ -108,4 +146,4 @@ When [ServerTools](https://github.com/Sir-Adnan/server-tools) is installed, the 
 
 ## Verification
 
-Local tests cover memory sizing, every never-worse mode against a provider image with better defaults, apply/undo/group restore/reset, failed-apply recovery, external changes, edited files, the ServerTools report and the v1.3.7 import (`tests/test_advanced.py`), plus the Go parsers and the demo simulation. Boot behavior on a real server (module load order, `systemd-sysctl` ordering) has not been verified on a VPS yet.
+Local tests cover memory sizing for every level, the small-server cap, moving between profiles (never below the original), the port-range listener guard, custom-value bounds and the worse-value confirmation, every never-worse mode against a provider image with better defaults, apply/undo/group restore/reset, failed-apply recovery, external changes, edited files, the ServerTools report and the v1.3.7 import (`tests/test_advanced.py`), plus the Go parsers and the demo simulation. Boot behavior on a real server (module load order, `systemd-sysctl` ordering) has not been verified on a VPS yet.

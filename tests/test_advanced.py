@@ -151,7 +151,8 @@ gtm_haproxy_pid() { printf 123; }; gtm_haproxy_wait() { :; }
                'net.ipv4.tcp_keepalive_probes\t9\nnet.ipv4.tcp_fin_timeout\t60\nnet.ipv4.tcp_tw_reuse\t2\n'
                'net.ipv4.tcp_notsent_lowat\t4294967295\nnet.ipv4.conf.all.rp_filter\t1\nnet.ipv4.conf.default.rp_filter\t1\n'
                'net.ipv4.conf.all.send_redirects\t1\nnet.ipv4.conf.default.send_redirects\t1\n'
-               'net.ipv4.conf.all.accept_redirects\t0\nnet.ipv4.conf.default.accept_redirects\t1\n')
+               'net.ipv4.conf.all.accept_redirects\t0\nnet.ipv4.conf.default.accept_redirects\t1\n'
+               'net.ipv4.ip_local_port_range\t32768 60999\nnet.ipv4.tcp_max_tw_buckets\t262144\n')
 
     def optimize(self, folder, code, memory_kb=4194304):
         (folder/'sysctls.tsv').write_text(self.HOST_DB,newline='\n')
@@ -284,6 +285,106 @@ gtm_optimize_remove all || exit 14
             after=(folder/'after').read_text()
             self.assertIn('\tnet.netfilter.nf_conntrack_tcp_timeout_established\t3600\t432000\t3600\tconntrack\t'+servertools.as_posix()+'\t7200\t3600\tidle-tcp\tsame',after)
             self.assertIn('key\tqueues\tnet.core.somaxconn\t4096\t1024\t4096\tprevious\t-\t-\t8192\taccept-queue\tchange',after)
+
+    def test_optimize_profiles_scale_values_and_return_toward_originals(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+# A relay listens on 20000, inside the wider port range: the low end stays.
+ss() { printf 'tcp LISTEN 0 4096 0.0.0.0:20000 0.0.0.0:*\n'; }
+GTM_OPT_LEVEL=aggressive GTM_OPT_GOAL=users
+gtm_optimize_apply conntrack relay || exit 10
+gtm_optimize_paths
+# 16 % of 4 GiB at 350 bytes per flow rounds down to 2^20.
+[[ $(value net.netfilter.nf_conntrack_max) == 1048576 && $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 1800 ]] || exit 11
+[[ $(value net.core.rmem_max) == 67108864 && $(value net.ipv4.tcp_rmem) == '8192 262144 67108864' && $(value net.ipv4.tcp_keepalive_time) == 300 ]] || exit 12
+[[ $(value net.ipv4.ip_local_port_range) == '32768 65535' && $(value net.ipv4.tcp_max_tw_buckets) == 1048576 ]] || exit 13
+[[ $(cat "$GTM_OPT_DIR/profile") == 'aggressive users' ]] || exit 14
+# A lighter profile moves applied keys back toward, never below, the original.
+GTM_OPT_LEVEL=conservative GTM_OPT_GOAL=general
+gtm_optimize_plan relay > "$GTM_CONFIG_DIR/plan" || exit 15
+gtm_optimize_apply conntrack relay || exit 16
+[[ $(value net.netfilter.nf_conntrack_max) == 262144 && $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 7200 ]] || exit 17
+[[ $(value net.ipv4.tcp_keepalive_time) == 1800 && $(value net.core.rmem_max) == 16777216 ]] || exit 18
+[[ $(value net.ipv4.ip_local_port_range) == '32768 60999' && $(value net.ipv4.tcp_notsent_lowat) == 4294967295 ]] || exit 19
+# Keys back at their original value are no longer tracked.
+! grep -q 'ip_local_port_range\|tcp_notsent_lowat\|tcp_max_tw_buckets' "$GTM_OPT_JOURNAL" "$GTM_OPT_FILE" || exit 20
+gtm_optimize_status > "$GTM_CONFIG_DIR/status" || exit 21
+gtm_optimize_remove all || exit 22
+[[ ! -e $GTM_OPT_DIR/profile && $(value net.netfilter.nf_conntrack_max) == 65536 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            plan=(folder/'plan').read_text()
+            self.assertIn('\tnet.ipv4.ip_local_port_range\t32768 65535\t32768 60999\tports\tchange\t-\t-\tn2 1024 65535',plan)
+            self.assertIn('\tnet.ipv4.tcp_notsent_lowat\t131072\t4294967295\tnotsent\tchange\t',plan)
+            self.assertIn('\tnet.core.default_qdisc\tfq\tfq\tpacing\tsame\t-\t-\tc fq,cake,fq_pie,fq_codel,pfifo_fast',plan)
+            status=(folder/'status').read_text()
+            self.assertIn('meta\tprofile\tconservative general',status)
+            self.assertIn('meta\tcapped\t0',status)
+            self.assertRegex(status,'meta\tlast\t[0-9]+')
+            self.assertIn('\tnet.ipv4.tcp_max_tw_buckets\t262144\t-\t-\t-\t-\t-\t262144\ttw-buckets\toff',status)
+
+    def test_optimize_aggressive_is_capped_on_small_servers_and_latency_goal(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+GTM_OPT_LEVEL=aggressive GTM_OPT_GOAL=latency
+gtm_optimize_status > "$GTM_CONFIG_DIR/status" || exit 9
+gtm_optimize_apply conntrack relay || exit 10
+# 1 GiB: balanced table and buffers, aggressive timeouts, latency extras.
+[[ $(value net.netfilter.nf_conntrack_max) == 131072 && $(value net.core.rmem_max) == 33554432 ]] || exit 11
+[[ $(value net.netfilter.nf_conntrack_tcp_timeout_established) == 1800 && $(value net.ipv4.tcp_keepalive_time) == 300 ]] || exit 12
+[[ $(value net.ipv4.tcp_notsent_lowat) == 16384 && $(value net.netfilter.nf_conntrack_udp_timeout_stream) == 300 ]]
+""", memory_kb=1048576)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            status=(folder/'status').read_text()
+            self.assertIn('meta\tcapped\t1',status)
+            self.assertIn('meta\tview\taggressive latency',status)
+
+    def test_optimize_custom_values_stay_in_bounds_and_worse_needs_confirmation(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+gtm_optimize_custom net.ipv4.tcp_fin_timeout=1 && exit 9
+gtm_optimize_custom 'net.ipv4.tcp_rmem=8192 4096 33554432' && exit 10
+gtm_optimize_custom net.ipv4.ip_forward=1 && exit 11
+gtm_optimize_custom 'net.core.default_qdisc=pfifo' && exit 12
+gtm_optimize_custom net.ipv4.tcp_fin_timeout=20 net.ipv4.tcp_keepalive_probes=10 'net.ipv4.tcp_rmem=4096 262144 67108864' || exit 13
+gtm_optimize_plan relay > "$GTM_CONFIG_DIR/plan" || exit 14
+gtm_optimize_apply relay && exit 15
+[[ $(value net.ipv4.tcp_fin_timeout) == 60 ]] || exit 16
+GTM_OPT_ALLOW_WORSE=1 gtm_optimize_apply relay || exit 17
+[[ $(value net.ipv4.tcp_fin_timeout) == 20 && $(value net.ipv4.tcp_keepalive_probes) == 10 && $(value net.ipv4.tcp_rmem) == '4096 262144 67108864' ]] || exit 18
+gtm_optimize_remove all || exit 19
+[[ $(value net.ipv4.tcp_keepalive_probes) == 9 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            plan=(folder/'plan').read_text()
+            self.assertIn('\tnet.ipv4.tcp_fin_timeout\t60\t20\tfin-timeout\tcustom\t',plan)
+            self.assertIn('\tnet.ipv4.tcp_keepalive_probes\t9\t10\tkeepalive\tworse\t',plan)
+            self.assertIn('worse than the server',result.stderr)
+
+    def test_api_optimize_profile_arguments(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder=Path(directory)
+            result=self.optimize(folder,r"""
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
+gtm_api optimize-plan balanced users relay,queues net.core.somaxconn=20000 > "$GTM_CONFIG_DIR/plan" || exit 9
+gtm_api optimize-status aggressive general > "$GTM_CONFIG_DIR/status" || exit 10
+for bad in 'optimize-plan turbo general relay' 'optimize-plan balanced general relay;id' 'optimize-plan balanced general' \
+    'optimize-apply balanced general relay maybe' 'optimize-apply balanced general rm allow' 'optimize-status balanced' \
+    'optimize-plan balanced general relay net.core.somaxconn=99999999'; do
+    read -r -a words <<< "$bad"
+    gtm_api "${words[@]}" >/dev/null 2>&1; [[ $? == 2 ]] || { echo "accepted: $bad"; exit 11; }
+done
+gtm_api optimize-apply - - queues deny || exit 12
+[[ $(value net.core.somaxconn) == 8192 ]]
+""")
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            plan=(folder/'plan').read_text()
+            self.assertIn('\tnet.core.somaxconn\t4096\t20000\taccept-queue\tcustom\t',plan)
+            self.assertIn('\tnet.ipv4.tcp_max_syn_backlog\t512\t16384\tsyn-queue\tchange\t',plan)
+            self.assertIn('meta\tview\taggressive general',(folder/'status').read_text())
 
     def test_optimize_refuses_edited_files_and_bad_journal(self):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:

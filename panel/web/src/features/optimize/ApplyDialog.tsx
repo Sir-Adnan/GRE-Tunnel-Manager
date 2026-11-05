@@ -1,7 +1,8 @@
-import { useContext, useEffect, useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Loader2, PenLine, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogBody,
@@ -15,72 +16,128 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { trafficBytes } from "@/lib/format";
 import { LocaleContext, useT } from "@/lib/i18n";
-import { flowTableBytes, groups as order, pendingChanges } from "./catalog";
+import {
+  customValid,
+  flowTableBytes,
+  groups as order,
+  pendingChanges,
+} from "./catalog";
+import { CustomField } from "./CustomField";
 import { SettingRow } from "./SettingRow";
-import type { OptimizeChange, OptimizeGroup, OptimizePlan } from "./types";
+import type {
+  OptimizeChange,
+  OptimizeGroup,
+  OptimizePlan,
+  OptimizeProfile,
+} from "./types";
 
-function Rows({ changes }: { changes: OptimizeChange[] }) {
-  return (
-    <ul className="opt-settings">
-      {changes.map((c) => (
-        <SettingRow
-          key={c.key}
-          setting={c.key}
-          current={c.current}
-          value={c.value}
-          note={c.note}
-          reason={c.reason}
-          managed={false}
-          otherFile={c.other_file}
-          otherValue={c.other_value}
-        />
-      ))}
-    </ul>
-  );
+export type ApplyRequest = {
+  groups: OptimizeGroup[];
+  set: Record<string, string>;
+  allowWorse: boolean;
+};
+
+function planPath(
+  groups: OptimizeGroup[],
+  profile: OptimizeProfile,
+  set: Record<string, string>,
+): string {
+  const query = new URLSearchParams({
+    groups: groups.join(","),
+    level: profile.level,
+    goal: profile.goal,
+  });
+  for (const [key, value] of Object.entries(set).sort())
+    query.append("set", `${key}=${value}`);
+  return `optimize/plan?${query.toString()}`;
 }
 
-/** Reads the live plan for one or more groups and applies it after review. */
+/** Waits until the value has been still for a moment (typing custom values). */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), ms);
+    return () => window.clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
+}
+
+/**
+ * Reads the live plan of a profile for one or more groups, lets each value
+ * be customized within its bounds, and applies it after review. Custom
+ * values worse than the server's original need an explicit confirmation.
+ */
 export function ApplyDialog({
   groups,
+  profile,
   onClose,
   apply,
 }: {
   groups?: OptimizeGroup[];
+  profile: OptimizeProfile;
   onClose: () => void;
-  apply: (groups: OptimizeGroup[]) => Promise<void>;
+  apply: (request: ApplyRequest) => Promise<void>;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
-  const key = groups?.join(",") ?? "";
-  // The answer is kept with the selection it belongs to, so a new selection
-  // shows a fresh skeleton without resetting state inside the effect.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // The value each editor opened with: unchanged drafts are not custom.
+  const [starts, setStarts] = useState<Record<string, string>>({});
+  const [accept, setAccept] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showRest, setShowRest] = useState(false);
+  // The answer is kept with the selection it belongs to (base) and the exact
+  // request (path): a new selection shows a skeleton, while a custom value
+  // is checked the last answer stays visible.
   const [result, setResult] = useState<{
-    key: string;
+    base: string;
+    path: string;
     plan?: OptimizePlan;
     error?: string;
   }>();
-  const [busy, setBusy] = useState(false);
-  const [showRest, setShowRest] = useState(false);
+  const base = groups ? planPath(groups, profile, {}) : "";
+  const current = result?.base === base ? result : undefined;
+  const bounds = current?.plan?.changes;
+  // Only drafts inside the server's bounds are sent; others stay local.
+  const valid = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(drafts)) {
+      const change = bounds?.find((c) => c.key === key);
+      if (value !== starts[key] && change && customValid(change, value))
+        out[key] = value;
+    }
+    return out;
+  }, [drafts, starts, bounds]);
+  const settled = useSettled(valid, 350);
+  const path = groups ? planPath(groups, profile, settled) : "";
   useEffect(() => {
-    if (!key) return;
+    if (!path) return;
     const controller = new AbortController();
-    api<OptimizePlan>(
-      `optimize/plan?groups=${key}`,
-      undefined,
-      controller.signal,
-    )
-      .then((plan) => setResult({ key, plan }))
+    api<OptimizePlan>(path, undefined, controller.signal)
+      .then((plan) => setResult({ base, path, plan }))
       .catch((e) => {
         if (!controller.signal.aborted)
-          setResult({ key, error: e instanceof Error ? e.message : String(e) });
+          setResult({
+            base,
+            path,
+            error: e instanceof Error ? e.message : String(e),
+          });
       });
     return () => controller.abort();
-  }, [key]);
-  const current = result?.key === key ? result : undefined;
+  }, [base, path]);
+  const checking = Boolean(
+    current && (current.path !== path || settled !== valid),
+  );
   const plan = current?.plan;
   const changes = plan ? pendingChanges(plan.changes) : [];
-  const rest = plan ? plan.changes.filter((c) => c.note !== "change") : [];
+  const rest = plan ? plan.changes.filter((c) => !changes.includes(c)) : [];
   const kept = rest.filter((c) => c.note === "kept").length;
+  const worse = changes.filter((c) => c.note === "worse");
+  const invalid = plan
+    ? plan.changes.some(
+        (c) => c.key in drafts && !customValid(c, drafts[c.key]),
+      )
+    : false;
   const limit = plan?.changes.find(
     (c) => c.key === "net.netfilter.nf_conntrack_max",
   );
@@ -93,7 +150,62 @@ export function ApplyDialog({
       : t("optRecommendedTitle");
   function close() {
     setShowRest(false);
+    setDrafts({});
+    setStarts({});
+    setAccept(false);
     onClose();
+  }
+  function rows(list: OptimizeChange[]) {
+    return (
+      <ul className="opt-settings">
+        {list.map((c) => {
+          const editing = c.key in drafts;
+          return (
+            <SettingRow
+              key={c.key}
+              setting={c.key}
+              current={c.current}
+              value={c.value}
+              note={c.note}
+              reason={c.reason}
+              managed={false}
+              otherFile={c.other_file}
+              otherValue={c.other_value}
+              action={
+                c.kind && c.note !== "missing" && !editing ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="opt-edit"
+                    onClick={() => {
+                      setDrafts({ ...drafts, [c.key]: c.value });
+                      setStarts({ ...starts, [c.key]: c.value });
+                    }}
+                  >
+                    <PenLine data-icon="inline-start" />
+                    {t("optEdit")}
+                  </Button>
+                ) : undefined
+              }
+            >
+              {editing && (
+                <CustomField
+                  change={c}
+                  draft={drafts[c.key]}
+                  onChange={(value) => setDrafts({ ...drafts, [c.key]: value })}
+                  onReset={() => {
+                    const next = { ...drafts };
+                    delete next[c.key];
+                    setDrafts(next);
+                  }}
+                />
+              )}
+            </SettingRow>
+          );
+        })}
+      </ul>
+    );
   }
   return (
     <Dialog
@@ -107,7 +219,12 @@ export function ApplyDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{t("optApplyBody")}</DialogDescription>
+          <DialogDescription>
+            {t("optApplyProfile")
+              .replace("{level}", t(`optLevel_${profile.level}`))
+              .replace("{goal}", t(`optGoal_${profile.goal}`))}{" "}
+            {t("optApplyBody")}
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-5">
           {current?.error && (
@@ -127,13 +244,14 @@ export function ApplyDialog({
           )}
           {plan && (
             <>
-              <p className="opt-plan-summary">
+              <p className="opt-plan-summary" aria-live="polite">
                 <strong>
                   {t("optPlanChanges").replace("{n}", String(changes.length))}
                 </strong>
                 {kept > 0 && (
                   <span>{t("optPlanKept").replace("{n}", String(kept))}</span>
                 )}
+                <span>{t("optPlanEditHint")}</span>
               </p>
               {changes.length === 0 ? (
                 <Alert>
@@ -147,11 +265,11 @@ export function ApplyDialog({
                       {(groups?.length ?? 0) > 1 && (
                         <h3 className="opt-plan-group">{t(`optGroup_${g}`)}</h3>
                       )}
-                      <Rows changes={changes.filter((c) => c.group === g)} />
+                      {rows(changes.filter((c) => c.group === g))}
                     </section>
                   ))
               )}
-              {limit && buckets && limit.note === "change" && (
+              {limit && buckets && pendingChanges([limit]).length > 0 && (
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {t("optMemoryEstimate").replace(
                     "{v}",
@@ -179,8 +297,27 @@ export function ApplyDialog({
                       aria-hidden
                     />
                   </button>
-                  {showRest && <Rows changes={rest} />}
+                  {showRest && rows(rest)}
                 </section>
+              )}
+              {worse.length > 0 && (
+                <Alert variant="destructive">
+                  <TriangleAlert />
+                  <AlertTitle>
+                    {t("optWorseTitle").replace("{n}", String(worse.length))}
+                  </AlertTitle>
+                  <AlertDescription className="flex flex-col gap-3">
+                    <p>{t("optWorseBody")}</p>
+                    <label className="flex items-start gap-2 text-foreground">
+                      <Checkbox
+                        checked={accept}
+                        onCheckedChange={(v) => setAccept(v === true)}
+                        className="mt-0.5"
+                      />
+                      <span>{t("optWorseAccept")}</span>
+                    </label>
+                  </AlertDescription>
+                </Alert>
               )}
             </>
           )}
@@ -190,17 +327,28 @@ export function ApplyDialog({
             {t("cancel")}
           </Button>
           <Button
-            disabled={!groups || busy || changes.length === 0}
+            disabled={
+              !groups ||
+              busy ||
+              checking ||
+              invalid ||
+              changes.length === 0 ||
+              (worse.length > 0 && !accept)
+            }
             onClick={() => {
               if (!groups) return;
               setBusy(true);
-              apply(groups)
+              apply({
+                groups,
+                set: valid,
+                allowWorse: worse.length > 0 && accept,
+              })
                 .then(close)
                 .catch(() => undefined)
                 .finally(() => setBusy(false));
             }}
           >
-            {busy && (
+            {(busy || checking) && (
               <Loader2 data-icon="inline-start" className="animate-spin" />
             )}
             {t("optApplyButton").replace("{n}", String(changes.length))}

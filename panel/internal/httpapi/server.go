@@ -135,10 +135,24 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == "/api/health/mtu" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "health-mtu", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
 	case r.URL.Path == "/api/optimize" && r.Method == "GET":
-		s.forward(w, r, control.Request{Action: "optimize"})
+		q := r.URL.Query()
+		s.forward(w, r, control.Request{Action: "optimize", Optimize: control.OptimizeInput{Level: q.Get("level"), Goal: q.Get("goal")}})
 	case r.URL.Path == "/api/optimize/plan" && r.Method == "GET":
-		groups := strings.Split(r.URL.Query().Get("groups"), ",")
-		s.forward(w, r, control.Request{Action: "optimize-plan", Optimize: control.OptimizeInput{Groups: groups}})
+		q := r.URL.Query()
+		in := control.OptimizeInput{Groups: strings.Split(q.Get("groups"), ","), Level: q.Get("level"), Goal: q.Get("goal")}
+		// Custom values arrive as repeated set=key=value.
+		for _, pair := range q["set"] {
+			key, value, ok := strings.Cut(pair, "=")
+			if !ok {
+				failure(w, 400, "custom values are key=value")
+				return
+			}
+			if in.Set == nil {
+				in.Set = map[string]string{}
+			}
+			in.Set[key] = value
+		}
+		s.forward(w, r, control.Request{Action: "optimize-plan", Optimize: in})
 	case r.URL.Path == "/api/maintenance" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "maintenance"})
 	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":

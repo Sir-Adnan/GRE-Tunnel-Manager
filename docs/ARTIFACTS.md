@@ -16,7 +16,7 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/backups/legacy-*.sh` | Raw backup before legacy group deletion; executable root data, not a modern restore point |
 | `/etc/gre-manager/generated/F*.conf` | Per-connection Realm/HAProxy config |
 | `/run/gre-manager/haproxy/F*.sock` | HAProxy read-only Unix stats sockets, mode 600 inside mode-700 directory |
-| `/etc/gre-manager/optimize/journal.tsv`, `optimize/steps/*.tsv` | Optimization journal (key, original, applied, group) and the newest 20 undo steps; mode 600 |
+| `/etc/gre-manager/optimize/journal.tsv`, `optimize/steps/*.tsv`, `optimize/profile` | Optimization journal (key, original, applied, group), the newest 20 undo steps and the profile applied last; mode 600 |
 | `/etc/sysctl.d/zz-gre-manager-optimize.conf` | Applied optimization values; sorts after other drop-ins so they win at boot; removed by Reset |
 | `/etc/modules-load.d/gre-manager-optimize.conf` | `nf_conntrack` / `tcp_bbr` loaded before sysctl at boot while those keys are managed |
 | `/run/gre-manager/excluded.tsv` | Runtime-only health failover exclusions (forward, destination list, excluded positions); cleared at boot |

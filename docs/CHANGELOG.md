@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Optimization profiles and custom values
+
+### Panel
+
+- The Optimization page gains **profiles**: an intensity level (Conservative, Balanced, Aggressive) and a goal (General, Many users, Low latency). Choosing one previews its values in every group; nothing changes until a group is applied. Balanced · General is the default and equals v1.4.0. Aggressive is capped to Balanced table and buffer sizes on servers with less than 2 GB of memory, and the page says so.
+- Moving between profiles compares against each key's original value, so a lighter profile lowers what the panel raised but never goes below what the server had; keys a profile does not use return to their original value.
+- **Custom values** in the review: Edit opens any key within safe bounds (one input per field for buffer triples and the port range, a list for qdisc and congestion control). A value worse than the server's original needs an explicit confirmation.
+- When Health records outages that began after the last apply (within a day), the page lists the tunnels and offers Undo.
+
+### Server and tooling
+
+- `optimize.sh` takes the profile from `GTM_OPT_LEVEL`/`GTM_OPT_GOAL`, adds `net.ipv4.ip_local_port_range` (never over a port a service listens on) and `net.ipv4.tcp_max_tw_buckets` for the Many users goal, validates custom values with `gtm_optimize_bounds`, refuses worse custom values unless confirmed, stops tracking keys that return to their original value and records the applied profile. The terminal menu has **Change profile**.
+- Bash API: `optimize-status [LEVEL GOAL]`, `optimize-plan LEVEL GOAL GROUPS [key=value…]`, `optimize-apply LEVEL GOAL GROUPS allow|deny [key=value…]` (`- -` selects the saved profile).
+
+Local evidence only: Python, Go and frontend tests plus browser checks of the demo in both locales and at phone width.
+
 ## v1.4.0 — Failover, server optimization and a leaner terminal
 
 ### Panel

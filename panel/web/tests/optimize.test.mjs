@@ -2,11 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   compactValue,
+  customValid,
   flowTableBytes,
+  goals,
   groupStates,
   groups,
   keyLabel,
+  levels,
   managedKeys,
+  outagesSinceApply,
   pendingChanges,
   recommendedGroups,
   serverFit,
@@ -133,6 +137,70 @@ test("values are compact and only real changes count as pending", () => {
     pendingChanges(changes).map((c) => c.key),
     ["0"],
   );
+  const custom = ["custom", "worse", "off"].map((note) => ({
+    group: "relay",
+    key: note,
+    value: "1",
+    reason: "bbr",
+    note,
+  }));
+  assert.deepEqual(
+    pendingChanges(custom).map((c) => c.key),
+    ["custom", "worse"],
+  );
+  assert.equal(
+    compactValue("net.ipv4.ip_local_port_range", "16384 65535"),
+    "16384–65535",
+  );
+});
+
+test("custom values follow the bounds the server sent", () => {
+  const number = { kind: "number", min: 5, max: 60 };
+  assert.ok(customValid(number, "15"));
+  assert.ok(!customValid(number, "61"));
+  assert.ok(!customValid(number, "1 2"));
+  assert.ok(!customValid(number, "1e3"));
+  const triple = { kind: "triple", min: 4096, max: 268435456 };
+  assert.ok(customValid(triple, "4096 131072 67108864"));
+  assert.ok(!customValid(triple, "8192 4096 33554432"));
+  assert.ok(!customValid(triple, "4096 131072"));
+  const range = { kind: "range", min: 1024, max: 65535 };
+  assert.ok(customValid(range, "16384 65535"));
+  assert.ok(!customValid(range, "2000 2000"));
+  assert.ok(!customValid(range, "80 2000"));
+  const choice = { kind: "choice", choices: ["fq", "cake"] };
+  assert.ok(customValid(choice, "cake"));
+  assert.ok(!customValid(choice, "pfifo"));
+  assert.ok(!customValid({}, "1"));
+});
+
+test("outages after a recent apply suggest undoing it", () => {
+  const last = Date.parse("2026-11-05T10:00:00Z") / 1000;
+  const health = {
+    settings: { enabled: true },
+    outages: [
+      { name: "before", start: "2026-11-05T09:30:00Z" },
+      { name: "after", start: "2026-11-05T10:20:00Z" },
+    ],
+  };
+  const now = Date.parse("2026-11-05T11:00:00Z");
+  assert.deepEqual(
+    outagesSinceApply({ last, steps: 1 }, health, now).map((o) => o.name),
+    ["after"],
+  );
+  assert.equal(outagesSinceApply({ last, steps: 0 }, health, now).length, 0);
+  assert.equal(
+    outagesSinceApply({ last, steps: 1 }, health, now + 86400000).length,
+    0,
+  );
+  assert.equal(
+    outagesSinceApply(
+      { last, steps: 1 },
+      { ...health, settings: { enabled: false } },
+      now,
+    ).length,
+    0,
+  );
 });
 
 test("every group, key label and reason has both languages", () => {
@@ -159,6 +227,8 @@ test("every group, key label and reason has both languages", () => {
     "rp-filter",
     "redirects",
     "accept-redirects",
+    "ports",
+    "tw-buckets",
   ];
   const keys = [
     ...groups.flatMap((g) => [
@@ -168,6 +238,11 @@ test("every group, key label and reason has both languages", () => {
     ]),
     ...Object.values(keyLabel),
     ...reasons.map((r) => `optWhy_${r}`),
+    ...levels.flatMap((l) => [`optLevel_${l}`, `optLevelWhy_${l}`]),
+    ...goals.flatMap((g) => [`optGoal_${g}`, `optGoalWhy_${g}`]),
+    "optAllowed",
+    "optAllowed_triple",
+    "optAllowed_range",
   ];
   for (const key of keys) {
     const pair = optimize[key];

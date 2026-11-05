@@ -139,7 +139,7 @@ func TestOptimizeParsersAndArguments(t *testing.T) {
 	if _, e := parseOptimizeStatus("garbage"); e == nil {
 		t.Fatal("garbage accepted")
 	}
-	plan := parseOptimizePlan([]string{"conntrack"}, "change\tconntrack\tnet.netfilter.nf_conntrack_tcp_timeout_established\t432000\t3600\tidle-tcp\tchange\t/etc/sysctl.d/99-zz-server-tools.conf\t7200\n")
+	plan := parseOptimizePlan([]string{"conntrack"}, OptimizeProfile{}, "change\tconntrack\tnet.netfilter.nf_conntrack_tcp_timeout_established\t432000\t3600\tidle-tcp\tchange\t/etc/sysctl.d/99-zz-server-tools.conf\t7200\n")
 	if len(plan.Changes) != 1 || plan.Changes[0].Note != "change" || plan.Changes[0].OtherValue != "7200" {
 		t.Fatalf("plan: %+v", plan)
 	}

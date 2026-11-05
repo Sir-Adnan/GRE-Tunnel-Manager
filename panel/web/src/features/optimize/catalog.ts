@@ -1,9 +1,13 @@
 // Pure helpers for the Optimization page (no runtime imports; unit-tested).
 import type { Inventory } from "@/lib/api";
+import type { HealthView } from "@/features/operations/types";
 import type {
   OptimizeChange,
+  OptimizeGoal,
   OptimizeGroup,
   OptimizeKey,
+  OptimizeLevel,
+  OptimizeProfile,
   OptimizeView,
 } from "./types";
 
@@ -13,6 +17,17 @@ export const groups: OptimizeGroup[] = [
   "relay",
   "routing",
 ];
+
+export const levels: OptimizeLevel[] = [
+  "conservative",
+  "balanced",
+  "aggressive",
+];
+export const goals: OptimizeGoal[] = ["general", "users", "latency"];
+
+export function sameProfile(a: OptimizeProfile, b: OptimizeProfile): boolean {
+  return a.level === b.level && a.goal === b.goal;
+}
 
 /** Short, human names for sysctl keys; the full key is shown beside them. */
 export const keyLabel: Record<string, string> = {
@@ -43,6 +58,8 @@ export const keyLabel: Record<string, string> = {
   "net.ipv4.tcp_keepalive_probes": "optKeyKeepaliveProbes",
   "net.ipv4.tcp_fin_timeout": "optKeyFinTimeout",
   "net.ipv4.tcp_tw_reuse": "optKeyTwReuse",
+  "net.ipv4.ip_local_port_range": "optKeyPortRange",
+  "net.ipv4.tcp_max_tw_buckets": "optKeyTwBuckets",
   "net.ipv4.conf.all.rp_filter": "optKeyRpFilterAll",
   "net.ipv4.conf.default.rp_filter": "optKeyRpFilterDefault",
   "net.ipv4.conf.all.send_redirects": "optKeySendRedirectsAll",
@@ -175,8 +192,47 @@ export function flowTableBytes(maxFlows: number, buckets: number): number {
   return maxFlows * 350 + buckets * 8;
 }
 
+/** Rows the apply would write: recommendations and custom values. */
 export function pendingChanges(changes: OptimizeChange[]): OptimizeChange[] {
-  return changes.filter((c) => c.note === "change");
+  return changes.filter(
+    (c) => c.note === "change" || c.note === "custom" || c.note === "worse",
+  );
+}
+
+/**
+ * Checks a custom value against the bounds the server sent (Bash checks it
+ * again): numbers in range; triples ascending; ranges low below high; choices.
+ */
+export function customValid(change: OptimizeChange, value: string): boolean {
+  if (change.kind === "choice") return change.choices?.includes(value) ?? false;
+  const fields = value.trim().split(/\s+/);
+  const count = { number: 1, range: 2, triple: 3 }[change.kind ?? "number"];
+  if (!change.kind || fields.length !== count) return false;
+  let previous = -1;
+  for (const field of fields) {
+    if (!/^\d{1,10}$/.test(field)) return false;
+    const n = Number(field);
+    if (n < (change.min ?? 0) || n > (change.max ?? Infinity)) return false;
+    if (n < previous || (change.kind === "range" && n === previous))
+      return false;
+    previous = n;
+  }
+  return true;
+}
+
+/**
+ * Outages that began after the last optimization step, while it is recent
+ * (one day): a hint to undo it if tunnels were fine before.
+ */
+export function outagesSinceApply(
+  view: Pick<OptimizeView, "last" | "steps">,
+  health: Pick<HealthView, "settings" | "outages"> | undefined,
+  now: number,
+): HealthView["outages"] {
+  if (!view.last || !view.steps || !health?.settings.enabled) return [];
+  const applied = view.last * 1000;
+  if (now - applied > 86400000) return [];
+  return health.outages.filter((o) => Date.parse(o.start) >= applied);
 }
 
 function bytes(value: number): string {
@@ -187,6 +243,7 @@ function bytes(value: number): string {
 /** Short value for display: seconds as d/h/m/s, bytes as KiB/MiB, states by name. */
 export function compactValue(key: string, value?: string): string {
   if (value === undefined || value === "") return "—";
+  if (key === "net.ipv4.ip_local_port_range") return value.replace(" ", "–");
   const state = stateKeys[key]?.[value];
   if (state) return state;
   if (secondsKeys.has(key) && /^\d+$/.test(value)) {

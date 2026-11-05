@@ -25,18 +25,25 @@ import { PageTitle } from "@/components/shared";
 import type { Inventory } from "@/lib/api";
 import { number, trafficBytes } from "@/lib/format";
 import { LocaleContext, useT } from "@/lib/i18n";
-import { useOptimizeView } from "@/features/operations/hooks";
+import { useHealthView, useOptimizeView } from "@/features/operations/hooks";
 import { Meter } from "./health/Indicators";
 import { Confirm, type ConfirmRequest } from "./maintenance/Confirm";
-import { ApplyDialog } from "./optimize/ApplyDialog";
+import { ApplyDialog, type ApplyRequest } from "./optimize/ApplyDialog";
 import { GroupRow } from "./optimize/GroupRow";
+import { ProfilePicker } from "./optimize/ProfilePicker";
 import {
   groupStates,
   managedKeys,
+  outagesSinceApply,
   recommendedGroups,
+  sameProfile,
   serverFit,
 } from "./optimize/catalog";
-import type { OptimizeGroup, OptimizeView } from "./optimize/types";
+import type {
+  OptimizeGroup,
+  OptimizeProfile,
+  OptimizeView,
+} from "./optimize/types";
 
 function Fact({
   label,
@@ -99,7 +106,10 @@ export function Optimize({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
-  const { value: view, error, reload } = useOptimizeView();
+  // Unset until the user picks one: the page then shows the saved profile.
+  const [picked, setPicked] = useState<OptimizeProfile>();
+  const { value: view, error, reload } = useOptimizeView(picked);
+  const { value: health } = useHealthView();
   const [review, setReview] = useState<OptimizeGroup[]>();
   const [confirm, setConfirm] = useState<ConfirmRequest>();
   const [open, setOpen] = useState<OptimizeGroup>();
@@ -137,6 +147,14 @@ export function Optimize({
     .reduce((sum, s) => sum + s.pending, 0);
   const applied = states.filter((s) => s.applied > 0).length;
   const managed = managedKeys(view);
+  const selected = picked ?? view.profile;
+  // Rows may still belong to the previous choice while the new one loads.
+  const loading = !sameProfile(view.view, selected);
+  const regressions = outagesSinceApply(
+    view,
+    health,
+    health ? Date.parse(health.time) : 0,
+  );
   const undo = () =>
     setConfirm({
       title: t("optUndoTitle"),
@@ -205,6 +223,9 @@ export function Optimize({
                 : t("optHeroNone")}
             </h2>
             <p className="text-sm text-muted-foreground">
+              {t("optHeroProfile")
+                .replace("{level}", t(`optLevel_${selected.level}`))
+                .replace("{goal}", t(`optGoal_${selected.goal}`))}{" "}
               {t("optHeroDetail")
                 .replace("{a}", String(applied))
                 .replace("{g}", String(states.length))}
@@ -213,7 +234,7 @@ export function Optimize({
           {recommended.length > 0 && (
             <Button
               className="opt-hero-action"
-              disabled={busy}
+              disabled={busy || loading}
               onClick={() => setReview(recommended)}
             >
               <Sparkles data-icon="inline-start" />
@@ -223,6 +244,43 @@ export function Optimize({
         </div>
         <Facts view={view} />
       </section>
+      {regressions.length > 0 && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>
+            {t("optRegressionTitle").replace("{n}", String(regressions.length))}
+          </AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <p>
+              {t("optRegressionBody").replace(
+                "{names}",
+                [...new Set(regressions.map((o) => o.name))].join(
+                  locale === "fa" ? "، " : ", ",
+                ),
+              )}
+            </p>
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={undo}
+              >
+                <Undo2 data-icon="inline-start" />
+                {t("optUndo")}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      <ProfilePicker
+        selected={selected}
+        saved={view.profile}
+        hasApplied={managed.length > 0}
+        capped={view.capped}
+        loading={loading}
+        onChange={setPicked}
+      />
       {view.servertools.length > 0 && (
         <Alert>
           <TriangleAlert />
@@ -240,14 +298,14 @@ export function Optimize({
         </Alert>
       )}
       <div className="opt-layout">
-        <ul className="opt-rows" aria-label={t("optimize")}>
+        <ul className="opt-rows" aria-label={t("optimize")} aria-busy={loading}>
           {states.map((state) => (
             <GroupRow
               key={state.group}
               state={state}
               fits={fit.has(state.group)}
               open={open === state.group}
-              busy={busy}
+              busy={busy || loading}
               toggle={() =>
                 setOpen(open === state.group ? undefined : state.group)
               }
@@ -320,9 +378,19 @@ export function Optimize({
       </div>
       <ApplyDialog
         groups={review}
+        profile={selected}
         onClose={() => setReview(undefined)}
-        apply={(groups) =>
-          change({ action: "optimize-apply", optimize: { groups } })
+        apply={({ groups, set, allowWorse }: ApplyRequest) =>
+          change({
+            action: "optimize-apply",
+            optimize: {
+              groups,
+              level: selected.level,
+              goal: selected.goal,
+              set,
+              allow_worse: allowWorse,
+            },
+          })
         }
       />
       <Confirm request={confirm} onClose={() => setConfirm(undefined)} />
