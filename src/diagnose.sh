@@ -89,11 +89,13 @@ gtm_diagnose_connection() {
             done;;
     esac
     gtm_diag_conntrack
+    if [[ $R_TARGETS =~ (^|,)[a-z0-9.-]*[a-z][a-z0-9.-]*: ]]; then
+        if gtm_resolve_targets; then gtm_diag dns ok "$R_TARGETS"; else gtm_diag dns fail; fi
+    fi
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]:0:8}"; do
-        target=${target%@*}
-        if [[ $target == \[*\]:* ]]; then address=${target%]:*}; address=${address#[}; port=${target##*:}
-        else address=${target%:*}; port=${target##*:}; fi
+        gtm_target "$target" || continue
+        address=$EP_IP port=$EP_PORT
         gtm_diag_route "$address"
         proto=tcp; [[ $R_PROTO != udp ]] || proto=udp
         printf 'probe\t%s\t%s\t%s\tdestination\n' "$proto" "$address" "$port"

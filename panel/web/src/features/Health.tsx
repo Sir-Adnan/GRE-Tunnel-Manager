@@ -139,7 +139,12 @@ export function Health({
   const locale = useContext(LocaleContext);
   const { params, updateParams } = usePanelRoute();
   const { value: view, error, reload } = useHealthView();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // ?settings=1 (from a connection or GRE form) opens the settings at once.
+  const [settingsOpen, setSettingsOpenState] = useState(() => params.get("settings") === "1");
+  const setSettingsOpen = (open: boolean) => {
+    setSettingsOpenState(open);
+    if (!open && params.get("settings")) updateParams({ settings: "" });
+  };
   const [busy, setBusy] = useState(false);
   const tab = tabs.find((x) => x === params.get("tab")) ?? "status";
   // Nodes report what they see from the far end of shared GRE tunnels.

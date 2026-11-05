@@ -23,16 +23,17 @@ const (
 	KindBackup            = "backup"
 	KindBackupFailed      = "backup-failed"
 	KindTest              = "test"
+	KindChangeReverted    = "change-reverted"
 	// kindLimited summarizes deliveries skipped by the rate limit.
 	kindLimited = "limited"
 )
 
 // Kinds lists every kind in the order the settings show them.
-var Kinds = []string{KindDown, KindUp, KindFailover, KindRollback, KindOptimizeKept, KindMaintenanceFailed, KindMaintenance, KindBackupFailed, KindBackup}
+var Kinds = []string{KindDown, KindUp, KindFailover, KindRollback, KindChangeReverted, KindOptimizeKept, KindMaintenanceFailed, KindMaintenance, KindBackupFailed, KindBackup}
 
 // DefaultKinds are delivered externally on a fresh installation: problems
 // and their recovery, not routine successes.
-var DefaultKinds = []string{KindDown, KindUp, KindRollback, KindMaintenanceFailed, KindBackupFailed}
+var DefaultKinds = []string{KindDown, KindUp, KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed}
 
 const (
 	SeverityInfo     = "info"
@@ -69,7 +70,7 @@ func severityOf(kind string) string {
 	switch kind {
 	case KindDown:
 		return SeverityCritical
-	case KindRollback, KindMaintenanceFailed, KindBackupFailed, KindFailover:
+	case KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed, KindFailover:
 		return SeverityWarning
 	}
 	return SeverityInfo
@@ -94,6 +95,7 @@ var titles = map[string][2]string{
 	KindMaintenance:       {"Maintenance finished: %s", "نگهداری انجام شد: %s"},
 	KindMaintenanceFailed: {"Maintenance failed: %s", "نگهداری ناموفق بود: %s"},
 	KindRollback:          {"Optimization was undone automatically", "بهینه‌سازی خودکار برگردانده شد"},
+	KindChangeReverted:    {"Unconfirmed change was reverted", "تغییر تأییدنشده برگردانده شد"},
 	KindOptimizeKept:      {"Optimization kept: tunnels stayed healthy", "بهینه‌سازی ماند: تونل‌ها سالم ماندند"},
 	KindBackup:            {"Scheduled backup saved", "پشتیبان زمان‌بندی‌شده ذخیره شد"},
 	KindBackupFailed:      {"Scheduled backup failed", "پشتیبان زمان‌بندی‌شده ناموفق بود"},

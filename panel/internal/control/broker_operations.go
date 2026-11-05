@@ -178,6 +178,14 @@ func (b *Broker) runSnapshots(ctx context.Context, done <-chan struct{}) {
 			return
 		case <-ticker.C:
 		}
+		if s := ops.pendingSafe(); s != nil && !time.Now().Before(s.Deadline) {
+			step, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			b.mu.Lock()
+			b.Manager.checkSafe(step, time.Now().UTC())
+			b.mu.Unlock()
+			cancel()
+			_ = audit(Request{Action: "change-revert-timeout"}, nil)
+		}
 		if !ops.Snapshots.Due(time.Now().UTC(), ops.Maintenance.Location()) {
 			continue
 		}

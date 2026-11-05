@@ -14,10 +14,13 @@ import (
 	"strings"
 )
 
+// Target is one destination: a literal address or a DNS name, with a port or
+// (kernel range records) a one-to-one port range ending at PortLast.
 type Target struct {
-	IP     string `json:"ip"`
-	Port   int    `json:"port"`
-	Weight int    `json:"weight"`
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	PortLast int    `json:"port_last,omitempty"`
+	Weight   int    `json:"weight"`
 }
 type Connection struct {
 	ID        string            `json:"id"`
@@ -35,6 +38,13 @@ type Connection struct {
 	Revision  string            `json:"revision"`
 	Status    string            `json:"status,omitempty"`
 	Routing   *Routing          `json:"routing,omitempty"`
+	// PortMode maps several local ports or ranges on create: "" uses each
+	// target's port, "same" keeps the local port numbers, "map" uses RemotePorts
+	// in the same order and sizes.
+	PortMode    string `json:"port_mode,omitempty"`
+	RemotePorts string `json:"remote_ports,omitempty"`
+	// Resolved lists the addresses a DNS destination currently uses (read only).
+	Resolved []Target `json:"resolved,omitempty"`
 }
 type Capability struct {
 	ID         string   `json:"id"`
@@ -118,44 +128,6 @@ func (c Connection) Capability() (Capability, error) {
 	}
 	return Capability{}, errors.New("unsupported engine")
 }
-func ParsePorts(value string) ([]int, error) {
-	if len(value) > 1024 {
-		return nil, errors.New("too many ports")
-	}
-	words := strings.Fields(strings.ReplaceAll(value, ",", " "))
-	if len(words) == 0 {
-		return nil, errors.New("enter a local port")
-	}
-	seen := map[int]bool{}
-	ports := []int{}
-	for _, word := range words {
-		limits := strings.Split(word, "-")
-		if len(limits) > 2 {
-			return nil, errors.New("invalid port range")
-		}
-		first, err := strconv.Atoi(limits[0])
-		if err != nil || first < 1 || first > 65535 {
-			return nil, errors.New("invalid port")
-		}
-		last := first
-		if len(limits) == 2 {
-			last, err = strconv.Atoi(limits[1])
-			if err != nil || last < first || last > 65535 || last-first >= 32 {
-				return nil, errors.New("range must contain at most 32 ports")
-			}
-		}
-		for port := first; port <= last; port++ {
-			if !seen[port] {
-				seen[port] = true
-				ports = append(ports, port)
-			}
-			if len(ports) > 32 {
-				return nil, errors.New("at most 32 ports per operation")
-			}
-		}
-	}
-	return ports, nil
-}
 func validIP(value string) (netip.Addr, error) {
 	a, err := netip.ParseAddr(value)
 	if err != nil || a.Zone() != "" || a.Is4In6() {
@@ -174,20 +146,24 @@ func (c Connection) Rows(id string) ([]string, error) {
 	if !contains(cap.Protocols, c.Protocol) || !contains(cap.Strategies, c.Strategy) {
 		return nil, errors.New("protocol or balancing method is unsupported by this engine")
 	}
-	ports, err := ParsePorts(c.Ports)
+	// An unspecified kernel bind (0.0.0.0 or ::) matches every local address of
+	// that family, so servers with additional IPs forward on each of them.
+	kernel := c.Engine == "nftables" || c.Engine == "iptables"
+	spans, err := ParsePortSpans(c.Ports, kernel)
 	if err != nil {
 		return nil, err
 	}
-	if id != "F000000" && len(ports) != 1 {
-		return nil, errors.New("edit one port at a time")
+	if id != "F000000" && len(spans) != 1 {
+		return nil, errors.New("edit one port or range at a time")
+	}
+	remote, err := c.remoteSpans(spans)
+	if err != nil {
+		return nil, err
 	}
 	bind, err := validIP(c.Bind)
 	if err != nil {
 		return nil, err
 	}
-	// An unspecified kernel bind (0.0.0.0 or ::) matches every local address of
-	// that family, so servers with additional IPs forward on each of them.
-	kernel := c.Engine == "nftables" || c.Engine == "iptables"
 	if c.Interface != "any" && !safeInterface.MatchString(c.Interface) {
 		return nil, errors.New("invalid interface")
 	}
@@ -197,30 +173,65 @@ func (c Connection) Rows(id string) ([]string, error) {
 	if len(c.Targets) < 1 || len(c.Targets) > 32 || (c.Strategy == "single" && len(c.Targets) != 1) {
 		return nil, errors.New("select a compatible number of destinations")
 	}
-	targets := []string{}
+	// Per span, the destinations with their port or one-to-one port range.
+	targetsBySpan := make([][]string, len(spans))
 	seen := map[string]bool{}
 	for _, t := range c.Targets {
-		ip, e := validIP(t.IP)
-		if e != nil {
-			return nil, e
-		}
-		if t.Port < 1 || t.Port > 65535 || t.Weight < 1 || t.Weight > 256 || ip.IsUnspecified() || ip.IsMulticast() {
-			return nil, errors.New("invalid destination")
-		}
-		if kernel && ip.Is4() != bind.Is4() {
-			return nil, errors.New("kernel address families must match")
-		}
-		endpoint := netip.AddrPortFrom(ip, uint16(t.Port)).String()
-		if seen[endpoint] {
-			return nil, errors.New("duplicate destination")
-		}
-		seen[endpoint] = true
-		for _, port := range ports {
-			if ip == bind && t.Port == port {
-				return nil, errors.New("destination loops into its own listener")
+		host := ValidHostname(t.IP)
+		var ip netip.Addr
+		if host {
+			if c.Routing != nil {
+				return nil, errors.New("routing rules need literal destination addresses")
+			}
+		} else {
+			var e error
+			if ip, e = validIP(t.IP); e != nil {
+				return nil, errors.New("enter an IPv4 or IPv6 address or a domain name")
+			}
+			if ip.IsUnspecified() || ip.IsMulticast() {
+				return nil, errors.New("invalid destination")
+			}
+			if kernel && ip.Is4() != bind.Is4() {
+				return nil, errors.New("kernel address families must match")
 			}
 		}
-		targets = append(targets, endpoint+"@"+strconv.Itoa(t.Weight))
+		if t.Weight < 1 || t.Weight > 256 {
+			return nil, errors.New("invalid destination weight")
+		}
+		key := t.IP
+		if !host {
+			key = ip.String()
+		}
+		if seen[key+"/"+strconv.Itoa(t.Port)] {
+			return nil, errors.New("duplicate destination")
+		}
+		seen[key+"/"+strconv.Itoa(t.Port)] = true
+		for i, span := range spans {
+			to := Span{t.Port, t.Port}
+			if t.PortLast > t.Port {
+				to.Last = t.PortLast
+			}
+			if remote != nil {
+				to = remote[i]
+			}
+			if to.First < 1 || to.Last > 65535 || to.Last < to.First {
+				return nil, errors.New("invalid destination port")
+			}
+			if to.Len() > 1 && to.Len() != span.Len() {
+				return nil, errors.New("a port range maps to one port or to a range of the same size")
+			}
+			if c.Engine == "iptables" && to.Len() > 1 && to.First != span.First {
+				return nil, errors.New("shifted port ranges need nftables; iptables keeps the same ports")
+			}
+			if !host && ip == bind && to.overlaps(span) {
+				return nil, errors.New("destination loops into its own listener")
+			}
+			out := Target{IP: t.IP, Port: to.First}
+			if to.Len() > 1 {
+				out.PortLast = to.Last
+			}
+			targetsBySpan[i] = append(targetsBySpan[i], out.Endpoint()+"@"+strconv.Itoa(t.Weight))
+		}
 	}
 	version := "1"
 	options := []string{}
@@ -310,11 +321,13 @@ func (c Connection) Rows(id string) ([]string, error) {
 		enabled = "1"
 	}
 	rows := []string{}
-	for _, port := range ports {
+	for i, span := range spans {
+		port := span.First
+		targets := targetsBySpan[i]
 		name := c.Name
 		if name == "" {
 			name = fmt.Sprintf("%s-%d", c.Engine, port)
-		} else if len(ports) > 1 {
+		} else if len(spans) > 1 {
 			if len(name) > 32 {
 				name = name[:32]
 			}
@@ -323,7 +336,7 @@ func (c Connection) Rows(id string) ([]string, error) {
 		if !safeName.MatchString(name) {
 			return nil, errors.New("name must be 1–40 ASCII letters, digits, spaces, dots, dashes or underscores")
 		}
-		row := strings.Join([]string{id, name, c.Engine, c.Protocol, c.Bind, strconv.Itoa(port), c.Strategy, enabled, c.SNAT, c.Interface, strings.Join(targets, ","), version}, "\t")
+		row := strings.Join([]string{id, name, c.Engine, c.Protocol, c.Bind, span.String(), c.Strategy, enabled, c.SNAT, c.Interface, strings.Join(targets, ","), version}, "\t")
 		if version == "2" || version == "3" || version == "4" {
 			row += "\t" + strings.Join(options, ";")
 		}
@@ -334,6 +347,38 @@ func (c Connection) Rows(id string) ([]string, error) {
 	}
 	return rows, nil
 }
+
+// remoteSpans returns the per-span destination ports of PortMode "same" or
+// "map", or nil when each target's own port applies.
+func (c Connection) remoteSpans(spans []Span) ([]Span, error) {
+	switch c.PortMode {
+	case "", "fixed":
+		return nil, nil
+	case "same":
+		return spans, nil
+	case "map":
+		// Remote ports may repeat: several local ranges can go to one port.
+		remote := []Span{}
+		for _, word := range strings.Fields(strings.ReplaceAll(c.RemotePorts, ",", " ")) {
+			s, e := ParseSpan(word)
+			if e != nil {
+				return nil, fmt.Errorf("remote ports: %w", e)
+			}
+			remote = append(remote, s)
+		}
+		if len(remote) != len(spans) {
+			return nil, errors.New("enter as many remote ports or ranges as local ones")
+		}
+		for i := range spans {
+			if remote[i].Len() != spans[i].Len() && remote[i].Len() != 1 {
+				return nil, errors.New("each remote range must be the same size as its local range")
+			}
+		}
+		return remote, nil
+	}
+	return nil, errors.New("invalid port mapping")
+}
+
 func Revision(row string) string {
 	sum := sha256.Sum256([]byte(row))
 	return hex.EncodeToString(sum[:])
@@ -357,19 +402,14 @@ func ParseState(data string) ([]Connection, map[string]string, error) {
 		}
 		c := Connection{ID: f[0], Name: f[1], Engine: f[2], Protocol: f[3], Bind: f[4], Ports: f[5], Strategy: f[6], Enabled: f[7] == "1", SNAT: f[8], Interface: f[9], Targets: []Target{}, Options: map[string]string{}, Revision: Revision(row)}
 		for _, target := range strings.Split(f[10], ",") {
-			parts := strings.Split(target, "@")
-			ep, e := netip.ParseAddrPort(parts[0])
+			t, e := ParseTarget(target)
 			if e != nil {
 				return nil, nil, e
 			}
-			weight := 1
-			if len(parts) == 2 {
-				weight, e = strconv.Atoi(parts[1])
-				if e != nil {
-					return nil, nil, e
-				}
+			if a, e := netip.ParseAddr(t.IP); e == nil {
+				t.IP = a.String()
 			}
-			c.Targets = append(c.Targets, Target{IP: ep.Addr().String(), Port: int(ep.Port()), Weight: weight})
+			c.Targets = append(c.Targets, t)
 		}
 		if len(f) >= 13 {
 			for _, pair := range strings.Split(f[12], ";") {

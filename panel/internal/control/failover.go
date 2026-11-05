@@ -55,11 +55,11 @@ type inventoryConnection struct {
 func connectionsOf(inventory Inventory) map[string]inventoryConnection {
 	out := map[string]inventoryConnection{}
 	for _, c := range inventory.Connections {
-		if !failoverEligible(c.Engine, c.Enabled, len(c.Targets)) {
+		if !failoverEligible(c.Engine, c.Enabled, len(effectiveTargets(c))) {
 			continue
 		}
 		ic := inventoryConnection{id: c.ID}
-		for _, t := range c.Targets {
+		for _, t := range effectiveTargets(c) {
 			ic.targets = append(ic.targets, t.IP+"/"+strconv.Itoa(t.Port)+"@"+strconv.Itoa(t.Weight))
 		}
 		out[c.ID] = ic

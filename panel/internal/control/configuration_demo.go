@@ -34,6 +34,9 @@ func (r demoConfigRunner) Run(_ context.Context, _ string, args []string, input 
 		return "", fmt.Errorf("invalid demo operation")
 	}
 	switch args[2] {
+	case "portfw-rules":
+		// A sample Port Forward Manager installation for the import review.
+		return "1\t2001-2003,2010\t203.0.113.50\t3001-3003,8080\tboth\n2\t9000-9099\tbackend.example.com\t9000-9099\ttcp\n", nil
 	case "recovery-revision":
 		var rows []string
 		for _, c := range r.connections {

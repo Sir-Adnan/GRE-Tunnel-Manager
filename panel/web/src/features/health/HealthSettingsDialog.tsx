@@ -19,7 +19,7 @@ import type { HealthSettings } from "@/features/operations/types";
 
 type NumberSetting = Exclude<
   keyof HealthSettings,
-  "enabled" | "failover" | "failover_interval"
+  "enabled" | "failover" | "failover_interval" | "ignore" | "quiet"
 >;
 
 const limits: Record<

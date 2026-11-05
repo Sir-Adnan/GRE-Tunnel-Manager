@@ -105,13 +105,44 @@ function Facts({ view }: { view: OptimizeView }) {
   );
 }
 
-/** Opt-in, reversible kernel settings for tunnel and forwarding servers. */
+import { Segmented } from "@/components/Segmented";
+import { usePanelRoute } from "@/lib/use-panel-route";
+import { ServerDNS } from "./optimize/ServerDNS";
+
+/** Server optimization: kernel performance and the server's DNS, as tabs (?tab=dns). */
 export function Optimize({
   inventory,
   run,
 }: {
   inventory: Inventory;
   run: (request: unknown) => Promise<void>;
+}) {
+  const t = useT();
+  const { params, updateParams } = usePanelRoute();
+  const tab = params.get("tab") === "dns" ? "dns" : "performance";
+  const tabs = (
+    <Segmented
+      label={t("optimizeTabs")}
+      value={tab}
+      onChange={(value) => updateParams({ tab: value === "dns" ? "dns" : "" })}
+      options={[
+        { value: "performance", label: t("optimizeTabPerformance") },
+        { value: "dns", label: t("optimizeTabDNS") },
+      ]}
+    />
+  );
+  return tab === "dns" ? <ServerDNS run={run} tabs={tabs} /> : <Performance inventory={inventory} run={run} tabs={tabs} />;
+}
+
+/** Opt-in, reversible kernel settings for tunnel and forwarding servers. */
+function Performance({
+  inventory,
+  run,
+  tabs,
+}: {
+  inventory: Inventory;
+  run: (request: unknown) => Promise<void>;
+  tabs: ReactNode;
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -136,6 +167,7 @@ export function Optimize({
     return (
       <div className="page-stack">
         <PageTitle title={t("optimize")} description={t("optimizeIntro")} />
+        {tabs}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -232,6 +264,7 @@ export function Optimize({
           </DropdownMenu>
         }
       />
+      {tabs}
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

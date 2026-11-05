@@ -13,6 +13,12 @@ const MaxFailover = 32
 
 var forwardID = regexp.MustCompile(`^F[0-9]{6}$`)
 
+// MaxOwners bounds the Ignore and Quiet lists.
+const MaxOwners = 512
+
+// ownerID matches connection, GRE and reverse owner IDs.
+var ownerID = regexp.MustCompile(`^(F[0-9]{6}|gre-tun-[0-9]{1,3}|gtm-[a-z]{3,8}-[a-z]{4,12}-[a-zA-Z0-9_-]{1,40})$`)
+
 // Settings are operator choices. The zero value is not valid; use Defaults.
 type Settings struct {
 	Enabled bool `json:"enabled"`
@@ -31,11 +37,15 @@ type Settings struct {
 	// destinations are probed every FailoverInterval seconds.
 	Failover         []string `json:"failover"`
 	FailoverInterval int      `json:"failover_interval"`
+	// Ignore lists owners (connections or resources) that are not probed.
+	Ignore []string `json:"ignore"`
+	// Quiet lists owners whose outages are recorded but not sent externally.
+	Quiet []string `json:"quiet"`
 }
 
 // Defaults are the documented first-run values; monitoring starts disabled.
 func Defaults() Settings {
-	return Settings{Interval: 30, FailThreshold: 3, RecoverThreshold: 2, LatencyWarn: 300, RetentionDays: 30, Failover: []string{}, FailoverInterval: 5}
+	return Settings{Interval: 30, FailThreshold: 3, RecoverThreshold: 2, LatencyWarn: 300, RetentionDays: 30, Failover: []string{}, FailoverInterval: 5, Ignore: []string{}, Quiet: []string{}}
 }
 
 // normalized fills fields that files written by older versions lack.
@@ -46,7 +56,22 @@ func (s Settings) normalized() Settings {
 	if s.Failover == nil {
 		s.Failover = []string{}
 	}
+	if s.Ignore == nil {
+		s.Ignore = []string{}
+	}
+	if s.Quiet == nil {
+		s.Quiet = []string{}
+	}
 	return s
+}
+
+// IgnoreSet reports the owners that are not probed.
+func (s Settings) IgnoreSet() map[string]bool {
+	set := make(map[string]bool, len(s.Ignore))
+	for _, id := range s.Ignore {
+		set[id] = true
+	}
+	return set
 }
 
 // FailoverSet reports the forwards with health failover.
@@ -79,6 +104,18 @@ func (s Settings) Validate() error {
 			return errors.New("invalid failover forward list")
 		}
 		seen[id] = true
+	}
+	for _, list := range [][]string{s.Ignore, s.Quiet} {
+		if len(list) > MaxOwners {
+			return errors.New("too many monitored-owner exceptions")
+		}
+		seen = map[string]bool{}
+		for _, id := range list {
+			if !ownerID.MatchString(id) || seen[id] {
+				return errors.New("invalid monitoring exception list")
+			}
+			seen[id] = true
+		}
 	}
 	return nil
 }

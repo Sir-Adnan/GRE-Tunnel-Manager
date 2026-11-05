@@ -91,7 +91,7 @@ gtm_realm_render() {
     [[ $M_LISTEN_TRANSPORT != ws ]] || printf 'listen_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
     [[ $M_REMOTE_TRANSPORT != ws ]] || printf 'remote_transport = "ws;host=%s;path=%s"\n' "$M_WS_HOST" "$M_WS_PATH"
     for target in "${targets[@]}"; do
-        gtm_endpoint "$target" || return 1; remote=$(gtm_address "$EP_IP" "$EP_PORT")
+        gtm_target "$target" || return 1; remote=$(gtm_address "$EP_IP" "$EP_PORT")
         if (( index == 0 )); then printf 'remote = "%s"\n' "$remote"
         else (( index == 1 )) && printf 'extra_remotes = ['; (( index > 1 )) && printf ', '; printf '"%s"' "$remote"; fi
         weights+="${weights:+, }$EP_WEIGHT"; ((index+=1))
@@ -157,6 +157,8 @@ gtm_relays_apply() {
         [[ $R_ENABLED == 1 && ( $R_ENGINE == realm || $R_ENGINE == haproxy ) ]] || continue
         gtm_need "$R_ENGINE" || return 1
         wanted[$R_ID]=1
+        # A domain that has not resolved yet keeps the relay's current files.
+        gtm_resolve_targets || continue
         config="$GTM_CONFIG_DIR/generated/$R_ID.conf"; unit="$GTM_SERVICE_DIR/gtm-$R_ID.service"
         file=$(mktemp "$GTM_RUN_DIR/relay.XXXXXX") || return 1
         if [[ $R_ENGINE == haproxy ]]; then

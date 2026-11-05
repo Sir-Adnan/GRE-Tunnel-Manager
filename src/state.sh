@@ -14,9 +14,12 @@ gtm_record_validate() {
     elif (( ${#fields} == 12 )) && [[ $R_VERSION == 2 && $R_ENGINE == haproxy ]]; then gtm_haproxy_options_validate "$R_OPTIONS" || return 1
     elif (( ${#fields} == 12 )) && [[ $R_VERSION == 3 && $R_ENGINE == realm ]]; then gtm_realm_options_validate "$R_OPTIONS" || return 1
     else return 1; fi
-    gtm_id "$R_ID" && gtm_name "$R_NAME" && gtm_ip "$R_BIND" && gtm_port "$R_PORT" && gtm_iface "$R_IFACE" || return 1
+    gtm_id "$R_ID" && gtm_name "$R_NAME" && gtm_ip "$R_BIND" && gtm_port_span "$R_PORT" && gtm_iface "$R_IFACE" || return 1
+    R_FIRST=$PS_FIRST R_LAST=$PS_LAST
     [[ $R_ENABLED =~ ^[01]$ && $R_SNAT =~ ^(masquerade|preserve)$ ]] || return 1
     [[ $R_ENGINE =~ ^(iptables|nftables|realm|haproxy)$ && $R_PROTO =~ ^(tcp|udp|both)$ ]] || return 1
+    # Port ranges are one kernel rule; relays keep one record per port.
+    (( R_FIRST == R_LAST )) || [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]] || return 1
     [[ $R_STRATEGY =~ ^(single|random|roundrobin|leastconn|source|failover)$ ]] || return 1
     [[ $R_ENGINE != haproxy || $R_STRATEGY != failover || $H_CHECK_MODE != off ]] || return 1
     [[ $R_TARGETS != ,* && $R_TARGETS != *, && $R_TARGETS != *,,* ]] || return 1
@@ -27,20 +30,32 @@ gtm_record_validate() {
     IFS=, read -r -a targets <<< "$R_TARGETS"
     (( ${#targets[@]} >= 1 && ${#targets[@]} <= 32 )) || return 1
     for target in "${targets[@]}"; do
-        gtm_endpoint "$target" || return 1
+        gtm_target "$target" || return 1
         if [[ $R_ENGINE == haproxy && $H_CHECK_MODE == http ]] && ((10#$EP_PORT == 10#$H_CHECK_PORT)); then
             gtm_error 'HTTP readiness needs a port different from every traffic destination port.'; return 1
         fi
-        gtm_key_of "$EP_IP" || return 1
-        key="$GTM_KEY:$EP_PORT"
+        # A range maps one-to-one (same length) or every port to one remote port.
+        if (( EP_LAST != EP_PORT )); then
+            (( R_LAST > R_FIRST && EP_LAST - EP_PORT == R_LAST - R_FIRST )) || return 1
+            # iptables keeps the original port only; shifted ranges need nftables.
+            [[ $R_ENGINE != iptables ]] || (( EP_PORT == R_FIRST )) || return 1
+        fi
+        if ((EP_HOST)); then
+            # Routing rules name destinations by position; names expand to many.
+            [[ $R_VERSION != 4 ]] || return 1
+            key="$EP_IP:$EP_PORT"
+        else
+            gtm_key_of "$EP_IP" || return 1
+            key="$GTM_KEY:$EP_PORT"
+            # A forward back to its own listener loops or hijacks the relay's socket.
+            [[ $GTM_KEY != "$bind_key" ]] || (( EP_LAST < R_FIRST || EP_PORT > R_LAST )) || return 1
+            if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
+                # An unspecified kernel bind matches every local address of its family.
+                if (( family == 6 )); then [[ $EP_IP == *:* ]] || return 1; else [[ $EP_IP != *:* ]] || return 1; fi
+            fi
+        fi
         [[ ! ${seen_targets[$key]+set} ]] || return 1
         seen_targets[$key]=1
-        # A forward back to its own listener loops or hijacks the relay's socket.
-        [[ $key != "$bind_key:$((10#$R_PORT))" ]] || return 1
-        if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
-            # An unspecified kernel bind matches every local address of its family.
-            if (( family == 6 )); then [[ $EP_IP == *:* ]] || return 1; else [[ $EP_IP != *:* ]] || return 1; fi
-        fi
         ((count+=1))
     done
     [[ $R_STRATEGY != single || $count == 1 ]] || return 1
@@ -60,33 +75,48 @@ gtm_load_records() {
     if [[ ! -e $source && ! -L $source && $# == 0 ]]; then return 0; fi
     [[ -f $source && -r $source ]] || { gtm_error "State file is missing, unreadable or not a regular file: $source"; return 1; }
     local -A ids=() listeners=()
-    local port iface id bind_key entry O_ID O_PROTO O_KEY O_ENGINE O_IFACE
+    local -a spans=()
+    local port iface id bind_key entry span first last
     while IFS= read -r line || [[ -n $line ]]; do
         [[ -z $line || $line == '#'* ]] && continue
         gtm_record_validate "$line" || { gtm_error "Invalid connection record in $source"; return 1; }
-        id=$R_ID; port=$((10#$R_PORT)); iface=$R_IFACE
+        id=$R_ID; iface=$R_IFACE; first=$R_FIRST; last=$R_LAST
         [[ ! ${ids[$id]+set} ]] || { gtm_error "Duplicate ID: $id"; return 1; }; ids[$id]=1
         GTM_RECORDS+=("$line")
         [[ $R_ENABLED == 1 ]] || continue
         gtm_key_of "$R_BIND" || return 1
         bind_key=$GTM_KEY
-        # Reject ambiguous listeners across engines, wildcard binds and interfaces.
-        # Enabled listeners are indexed by port, so loading stays linear.
-        for entry in ${listeners[$port]-}; do
-            IFS=/ read -r O_ID O_PROTO O_KEY O_ENGINE O_IFACE <<< "$entry"
-            [[ $R_PROTO == both || $O_PROTO == both || $R_PROTO == "$O_PROTO" ]] || continue
-            [[ $bind_key == "$O_KEY" ]] || gtm_wildcard_key "$bind_key" || gtm_wildcard_key "$O_KEY" || continue
-            # Relays bind sockets, not entrance interfaces. Only kernel rules can
-            # safely distinguish identical listeners on two explicit interfaces.
-            if [[ $R_ENGINE =~ ^(iptables|nftables)$ && $O_ENGINE =~ ^(iptables|nftables)$ ]]; then
-                # Kernel rules are family-specific: IPv4 and IPv6 listeners never overlap.
-                [[ $bind_key == *.* && $O_KEY != *.* || $bind_key != *.* && $O_KEY == *.* ]] && continue
-                [[ $iface == any || $O_IFACE == any || $iface == "$O_IFACE" ]] || continue
-            fi
-            gtm_error "Listener conflicts: $id and $O_ID"; return 1
+        # Single ports are indexed by port and ranges kept apart, so loading stays
+        # linear in the number of records plus the ports of range records.
+        for span in "${spans[@]}"; do
+            read -r port entry <<< "$span"
+            (( first > ${entry%%/*} || last < port )) && continue
+            gtm_listener_clash "${entry#*/}" || return 1
         done
-        listeners[$port]+="${listeners[$port]:+ }$id/$R_PROTO/$bind_key/$R_ENGINE/$iface"
+        for ((port=first; port<=last; port++)); do
+            for entry in ${listeners[$port]-}; do gtm_listener_clash "$entry" || return 1; done
+        done
+        entry="$id/$R_PROTO/$bind_key/$R_ENGINE/$iface"
+        if (( first == last )); then listeners[$first]+="${listeners[$first]:+ }$entry"
+        else spans+=("$first $last/$entry"); fi
     done < "$source"
+}
+
+# Rejects ambiguous listeners across engines, wildcard binds and interfaces.
+# Uses the current record's R_PROTO/R_ENGINE, bind_key, iface and id.
+gtm_listener_clash() {
+    local O_ID O_PROTO O_KEY O_ENGINE O_IFACE
+    IFS=/ read -r O_ID O_PROTO O_KEY O_ENGINE O_IFACE <<< "$1"
+    [[ $R_PROTO == both || $O_PROTO == both || $R_PROTO == "$O_PROTO" ]] || return 0
+    [[ $bind_key == "$O_KEY" ]] || gtm_wildcard_key "$bind_key" || gtm_wildcard_key "$O_KEY" || return 0
+    # Relays bind sockets, not entrance interfaces. Only kernel rules can
+    # safely distinguish identical listeners on two explicit interfaces.
+    if [[ $R_ENGINE =~ ^(iptables|nftables)$ && $O_ENGINE =~ ^(iptables|nftables)$ ]]; then
+        # Kernel rules are family-specific: IPv4 and IPv6 listeners never overlap.
+        [[ $bind_key == *.* && $O_KEY != *.* || $bind_key != *.* && $O_KEY == *.* ]] && return 0
+        [[ $iface == any || $O_IFACE == any || $iface == "$O_IFACE" ]] || return 0
+    fi
+    gtm_error "Listener conflicts: $id and $O_ID"
 }
 
 gtm_new_id() {
@@ -155,7 +185,7 @@ gtm_install_runner() {
         printf '#!/usr/bin/env bash\n# Generated Traffic Manager kernel reconciler.\n'
         printf 'GTM_CONFIG_DIR=%q\nGTM_RUN_DIR=%q\nGTM_SERVICE_DIR=%q\nGTM_RUNTIME=%q\n' "$GTM_CONFIG_DIR" "$GTM_RUN_DIR" "$GTM_SERVICE_DIR" "$GTM_RUNTIME"
         while IFS= read -r func; do declare -f "$func"; done < <(compgen -A function gtm_)
-        printf '\ngtm_paths\ngtm_prepare && gtm_lock || exit 1\ngtm_kernel_apply\nresult=$?\ngtm_unlock\nexit "$result"\n'
+        printf '\ngtm_paths\nif [[ ${1:-} == --dns-refresh ]]; then gtm_dns_refresh > /dev/null; exit $?; fi\ngtm_prepare && gtm_lock || exit 1\ngtm_kernel_apply\nresult=$?\ngtm_unlock\nexit "$result"\n'
     } > "$tmp"
     bash -n "$tmp" && chmod 700 "$tmp" && mv "$tmp" "$GTM_RUNTIME" || { rm -f "$tmp"; return 1; }
     cat > "$GTM_SERVICE_DIR/gre-manager-forwarding.service" <<EOF
@@ -203,6 +233,7 @@ gtm_commit() {
     else printf '# Traffic Manager state v1\n' > "$backup" || { rm -f "$candidate"; return 1; }; fi
     chmod 600 "$candidate" "$backup" && mv "$candidate" "$GTM_STATE" || { rm -f "$candidate"; return 1; }
     if gtm_install_runner && gtm_kernel_apply && gtm_relays_apply; then
+        gtm_dns_timer_sync || printf 'Warning: the domain refresh timer could not be updated.\n' >&2
         printf 'Saved and applied. Restore point: %s\n' "${backup##*/}"
         gtm_prune_restore_points || printf 'Warning: old restore points could not be pruned.\n' >&2
         return 0

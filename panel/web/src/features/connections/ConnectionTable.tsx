@@ -36,21 +36,44 @@ import {
   statusFilters,
 } from "@/lib/connection-filters";
 import { ConfigurationDialog } from "../configuration/ConfigurationDialog";
-import type { Connection } from "@/lib/api";
+import type { Connection, Inventory } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { toast } from "sonner";
+import { DragHandle, SortableArea, SortableItem } from "@/components/sortable";
+import { applyOrder, mergeOrder, useOrder } from "@/lib/order";
+import { useHealthView } from "@/features/operations/hooks";
+import type { HealthStatus } from "@/features/operations/types";
+
+/** A small health dot: up, degraded, down, unknown or not monitored. */
+function HealthDot({ status }: { status?: HealthStatus | "off" }) {
+  const t = useT();
+  const value = status || "off";
+  const label = value === "off" ? t("routeNotMonitored") : t(`health${value[0].toUpperCase()}${value.slice(1)}`);
+  return <span className="health-dot" data-status={value} role="img" aria-label={label} title={label} />;
+}
 
 export function ConnectionTable({
   connections,
   onAdd,
   onEdit,
+  onDuplicate,
   run,
+  inventory,
 }: {
   connections: Connection[];
   onAdd: () => void;
   onEdit: (value: Connection) => void;
+  onDuplicate?: (value: Connection) => void;
   run: (request: unknown) => Promise<void>;
+  inventory?: Inventory;
 }) {
   const t = useT();
+  const order = useOrder("connections");
+  const health = useHealthView().value;
+  const healthOf = (id: string): HealthStatus | "off" | undefined => {
+    if (!health?.settings.enabled || health.settings.ignore?.includes(id)) return "off";
+    return health.owners.find((o) => o.owner === id)?.status ?? "unknown";
+  };
   const locale = useContext(LocaleContext);
   const [config, setConfig] = useState<Connection>();
   const { params, updateParams } = usePanelRoute();
@@ -63,7 +86,7 @@ export function ConnectionTable({
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
-  const shown = filterConnections(connections, { status, query });
+  const shown = filterConnections(applyOrder(connections, order.ids, (c) => c.id), { status, query });
   const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
     currentPage = Math.min(pageIndex, pageCount - 1);
   const visible = shown.slice(currentPage * 20, (currentPage + 1) * 20);
@@ -74,6 +97,7 @@ export function ConnectionTable({
       onConfig={() => setConfig(row)}
       onDetails={() => updateParams({ connection: row.id }, true)}
       onEdit={onEdit}
+      onDuplicate={onDuplicate}
       onDelete={() => {
         setSelected([row.id]);
         setDeleting(true);
@@ -85,6 +109,15 @@ export function ConnectionTable({
     />
   );
   const picked = connections.filter((row) => selected.includes(row.id));
+  const visibleIds = visible.map((row) => row.id);
+  // Reordering a filtered page moves those rows among their own positions in
+  // the full, saved order (all engines).
+  function move(next: string[]) {
+    const everything = applyOrder(inventory?.connections ?? connections, order.ids, (c) => c.id).map((c) => c.id);
+    void order.save(mergeOrder(everything, visibleIds, next)).then((e) => {
+      if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
+    });
+  }
   async function action(operation: string, rows = picked) {
     setBusy(true);
     try {
@@ -143,14 +176,20 @@ export function ConnectionTable({
         />
       ) : (
         <>
+          <SortableArea ids={visibleIds} onMove={move}>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3 @3xl:hidden">
             {visible.map((row) => (
+              <SortableItem key={row.id} id={row.id}>
+              {(item) => (
               <article
-                key={row.id}
-                className="flex min-w-0 flex-col gap-3 rounded-xl border p-3"
+                ref={item.setNodeRef}
+                style={item.style}
+                data-dragging={item.dragging || undefined}
+                className="sortable-card flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-3"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <DragHandle handle={item.handle} label={row.name} className="!mt-0 -ms-1" />
                     <Checkbox
                       aria-label={`${t("selectConnection")} ${row.name}`}
                       checked={selected.includes(row.id)}
@@ -179,7 +218,10 @@ export function ConnectionTable({
                       </span>
                     </div>
                   </div>
-                  <Status value={connectionStatus(row)} />
+                  <span className="flex items-center gap-2">
+                    <HealthDot status={healthOf(row.id)} />
+                    <Status value={connectionStatus(row)} />
+                  </span>
                 </div>
                 <dl className="grid min-w-0 grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)] gap-3 text-sm">
                   <div className="flex min-w-0 flex-col gap-1">
@@ -206,11 +248,15 @@ export function ConnectionTable({
                 </dl>
                 {actions(row)}
               </article>
+              )}
+              </SortableItem>
             ))}
           </div>
+          </SortableArea>
           <div className="table-frame hidden @3xl:block">
             <Table className="table-fixed">
               <colgroup>
+                <col style={{ width: 36 }} />
                 <col style={{ width: 36 }} />
                 <col style={{ width: "29%" }} />
                 <col style={{ width: "12%" }} />
@@ -220,6 +266,9 @@ export function ConnectionTable({
               </colgroup>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-9">
+                    <span className="sr-only">{t("dragHandle")}</span>
+                  </TableHead>
                   <TableHead className="w-10">
                     <Checkbox
                       aria-label={t("selectAll")}
@@ -255,9 +304,15 @@ export function ConnectionTable({
                   <TableHead className="text-end">{t("actions")}</TableHead>
                 </TableRow>
               </TableHeader>
+              <SortableArea ids={visibleIds} onMove={move}>
               <TableBody>
                 {visible.map((row) => (
-                  <TableRow key={row.id}>
+                  <SortableItem key={row.id} id={row.id}>
+                  {(item) => (
+                  <TableRow ref={item.setNodeRef} style={item.style} data-dragging={item.dragging || undefined} className="sortable-row">
+                    <TableCell className="px-1">
+                      <DragHandle handle={item.handle} label={row.name} className="!mt-0" />
+                    </TableCell>
                     <TableCell>
                       <Checkbox
                         checked={selected.includes(row.id)}
@@ -316,12 +371,18 @@ export function ConnectionTable({
                       <Destinations connection={row} />
                     </TableCell>
                     <TableCell>
-                      <Status value={connectionStatus(row)} />
+                      <span className="flex items-center gap-2">
+                        <HealthDot status={healthOf(row.id)} />
+                        <Status value={connectionStatus(row)} />
+                      </span>
                     </TableCell>
                     <TableCell>{actions(row)}</TableCell>
                   </TableRow>
+                  )}
+                  </SortableItem>
                 ))}
               </TableBody>
+              </SortableArea>
             </Table>
           </div>
         </>

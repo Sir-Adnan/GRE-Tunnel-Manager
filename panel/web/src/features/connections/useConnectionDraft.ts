@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Connection, Inventory, Preset } from "@/lib/api";
 import { creationOptions } from "@/lib/creation-defaults";
+import { parseSpans, targetPorts } from "@/lib/ports";
 const kernelEngines = ["nftables", "iptables"];
 // Every listener defaults to all local addresses. For kernel forwards this keeps
 // servers with additional IPs working on each address; a specific IP stays
@@ -16,19 +17,40 @@ function alignKernelBind(next: Connection): Connection {
     bind: anyAddress(Boolean(next.targets[0]?.ip.includes(":"))),
   };
 }
+/** An edited range record shows its mapping as "same" or "map" when every target agrees. */
+function editMapping(c: Connection): Connection {
+  const next = structuredClone(c);
+  delete next.resolved;
+  if (!c.ports.includes("-")) return next;
+  const specs = new Set(c.targets.map(targetPorts));
+  if (specs.size !== 1) return next;
+  const spec = [...specs][0];
+  if (spec === c.ports) next.port_mode = "same";
+  else if (spec.includes("-")) {
+    next.port_mode = "map";
+    next.remote_ports = spec;
+  }
+  return next;
+}
+
 export function useConnectionDraft({
   inventory,
   engine,
   original,
+  copy,
 }: {
   inventory: Inventory;
   engine: string;
   original?: Connection;
+  /** A connection to duplicate as a new one. */
+  copy?: Connection;
 }) {
   const [value, setValue] = useState<Connection>(() =>
     original
-      ? structuredClone(original)
-      : {
+      ? editMapping(original)
+      : copy
+        ? { ...editMapping(copy), id: "", revision: "", status: undefined }
+        : {
           id: "",
           name: "",
           engine,
@@ -42,8 +64,12 @@ export function useConnectionDraft({
           targets: [{ ip: "", port: 443, weight: 1 }],
           options: creationOptions(engine),
           revision: "",
+          port_mode: "",
         },
   );
+  // Several ports or a range default to the same remote port numbers until
+  // the person picks a mapping.
+  const [modeTouched, setModeTouched] = useState(Boolean(original));
   const [baseline] = useState(() => JSON.stringify(value));
   const [preset, setPreset] = useState("custom");
   const capability = inventory.capabilities.find(
@@ -53,10 +79,19 @@ export function useConnectionDraft({
     (item) => item.id === value.engine,
   )?.installed;
   function patch<K extends keyof Connection>(key: K, next: Connection[K]) {
+    if (key === "port_mode") setModeTouched(true);
     setValue((current) => {
+      const kernel = kernelEngines.includes(current.engine);
+      const spans =
+        key === "ports" ? parseSpans(String(next), kernel).spans : [];
+      const several =
+        spans.length > 1 || spans.some((s) => s.last > s.first);
       const updated = {
         ...current,
         [key]: next,
+        ...(key === "ports" && !modeTouched
+          ? { port_mode: several ? ("same" as const) : ("" as const) }
+          : {}),
         ...(key === "strategy" &&
         next === "failover" &&
         current.options.check_mode === "off"
@@ -159,9 +194,17 @@ export function useConnectionDraft({
     }));
     if (!compatible) setPreset("custom");
   }
+  /** Moves a destination (its order is its priority for failover). */
+  function moveTargets(order: number[]) {
+    setValue((current) => ({
+      ...current,
+      targets: order.map((i) => current.targets[i]),
+    }));
+  }
   return {
     value,
     patch,
+    moveTargets,
     preset,
     applyPreset,
     resetDefaults,

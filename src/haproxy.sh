@@ -106,7 +106,7 @@ gtm_haproxy_servers() {
     fi
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]}"; do
-        gtm_endpoint "$target" || return 1; ((index+=1))
+        gtm_target "$target" || return 1; ((index+=1))
         ((selected==0 || index==10#$selected)) || continue
         printf '    server target%d %s weight %d' "$index" "$(gtm_address "$EP_IP" "$EP_PORT")" "$EP_WEIGHT"
         if [[ $H_CHECK_MODE != off ]]; then

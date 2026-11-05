@@ -9,6 +9,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Choice } from "@/components/shared";
+import { targetPorts } from "@/lib/ports";
 import { HelpTip } from "@/components/help";
 import {
   Dialog,
@@ -150,6 +151,9 @@ export function ConfigurationImport({
                         ? [{ value: method, label: t("nativeEditor") }]
                         : []),
                       { value: "json", label: t("managedEditor") },
+                      ...(["iptables", "nftables"].includes(method)
+                        ? [{ value: "portfw", label: t("importPortfw") }]
+                        : []),
                     ]}
                     onChange={(v) => {
                       setFormat(v);
@@ -157,6 +161,16 @@ export function ConfigurationImport({
                     }}
                   />
                 </FieldGroup>
+                {format === "portfw" ? (
+                  <Alert>
+                    <AlertDescription className="flex flex-col gap-2">
+                      <span>{t("importPortfwHelp")}</span>
+                      <code dir="ltr" className="text-xs">/etc/iptables-forward-manager/rules.db</code>
+                      {method === "iptables" && <span className="text-xs">{t("importPortfwIptables")}</span>}
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                <>
                 <Field>
                   <div className="flex items-center gap-2">
                     <FieldLabel htmlFor="import-file">
@@ -205,6 +219,8 @@ export function ConfigurationImport({
                     }
                   />
                 </Field>
+                </>
+                )}
                 <Field orientation="horizontal">
                   <FieldLabel htmlFor="import-activate">
                     {t("startAfterSave")}
@@ -242,7 +258,7 @@ export function ConfigurationImport({
                             dir="ltr"
                             className="break-all font-mono text-xs"
                           >
-                            {endpoint(a.ip, a.port)}
+                            {endpoint(a.ip, c.port_mode === "map" && c.remote_ports ? c.remote_ports : targetPorts(a))}
                           </bdi>
                         ))}
                       </div>
@@ -308,7 +324,7 @@ export function ConfigurationImport({
               {t("cancel")}
             </Button>
             <Button
-              disabled={busy || !text.trim()}
+              disabled={busy || (format !== "portfw" && !text.trim())}
               onClick={review ? apply : check}
             >
               <Check data-icon="inline-start" />

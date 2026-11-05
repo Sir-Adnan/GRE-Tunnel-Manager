@@ -20,13 +20,13 @@ gtm_legacy_listener_check() {
             [[ ${#words[@]} == 13 && ${words[0]} =~ ^(iptables|ip6tables)$ && ${words[1]} == -t && ${words[2]} == nat && ${words[3]} == -A && ${words[4]} == PREROUTING && ${words[5]} == -p && ${words[7]} == --dport && ${words[9]} == -j && ${words[10]} == DNAT && ${words[11]} == --to-destination ]] || continue
             if [[ $bind == *:* ]]; then [[ ${words[0]} == ip6tables ]] || continue; else [[ ${words[0]} == iptables ]] || continue; fi
             [[ $protocol == both || $protocol == "${words[6]}" ]] || continue
-            gtm_port "${words[8]}" || continue
-            ((10#${words[8]} == 10#$port)) || continue
+            gtm_port "${words[8]}" && gtm_port_span "$port" || continue
+            ((PS_FIRST <= 10#${words[8]} && 10#${words[8]} <= PS_LAST)) || continue
             gtm_error "An existing legacy forward already uses this entrance port. Retire it under Tools -> Retire old installation first."
             return 1
         done < "$file"
     done
-    return 0
+    gtm_portfw_listener_check "$protocol" "$bind" "$port"
 }
 
 # Strictly recognize generator-owned legacy DNAT syntax. Unknown/manual lines stay.
@@ -259,7 +259,8 @@ gtm_simple_dependencies() {
         [[ $R_IFACE != gre_simp ]] || { gtm_error "Simple GRE is referenced by $R_ID."; return 1; }
         IFS=, read -r -a targets <<< "$R_TARGETS"; targets+=("$(gtm_address "$R_BIND" "$R_PORT")")
         for target in "${targets[@]}"; do
-            gtm_endpoint "$target" || return 1
+            gtm_target "$target" || return 1
+            ((EP_HOST == 0)) || continue
             [[ $EP_IP != 172.16.200.[0-3] ]] || { gtm_error "Simple GRE address is referenced by $R_ID (disabled records count)."; return 1; }
         done
     done

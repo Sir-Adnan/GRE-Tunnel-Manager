@@ -1,4 +1,10 @@
-export type Target = { ip: string; port: number; weight: number };
+/** A destination: a literal address or a DNS name; port_last marks a one-to-one kernel port range. */
+export type Target = {
+  ip: string;
+  port: number;
+  port_last?: number;
+  weight: number;
+};
 export type Connection = {
   id: string;
   name: string;
@@ -15,6 +21,19 @@ export type Connection = {
   revision: string;
   status?: string;
   routing?: Routing;
+  /** Create only: how several local ports map ("" each target's port, same, map). */
+  port_mode?: "" | "same" | "map";
+  remote_ports?: string;
+  /** Addresses a DNS destination uses now (read only). */
+  resolved?: Target[];
+};
+export type DNSName = {
+  name: string;
+  family: number;
+  checked: number;
+  every: number;
+  mode: "all" | "first";
+  addresses: string[];
 };
 export type Routing = {
   version: 1;
@@ -29,6 +48,8 @@ export type Resource = {
   role: string;
   status: string;
   interface?: string;
+  /** GRE: the far end's inner address. */
+  peer?: string;
   description: string;
   configured: boolean;
   port?: number;
@@ -84,6 +105,7 @@ export type Inventory = {
   };
   version: string;
   demo: boolean;
+  dns?: DNSName[];
 };
 
 export type Preset = {

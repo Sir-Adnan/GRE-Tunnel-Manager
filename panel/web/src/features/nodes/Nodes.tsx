@@ -30,6 +30,10 @@ import { NodeCard } from "./NodeCard";
 import { NodeDetails } from "./NodeDetails";
 import { PairedConnections } from "./PairedConnections";
 
+import { toast } from "sonner";
+import { SortableArea, SortableItem } from "@/components/sortable";
+import { applyOrder, useOrder } from "@/lib/order";
+
 export function Nodes() {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -44,6 +48,8 @@ export function Nodes() {
   const [details, setDetails] = useState<Node>();
   const [revoking, setRevoking] = useState<Node>();
   const [help, setHelp] = useState(false);
+  const nodeOrder = useOrder("nodes");
+  const orderedNodes = applyOrder(list?.nodes ?? [], nodeOrder.ids, (n) => n.id);
   const refresh = useCallback(async () => {
     const value = await api<Listing>("nodes");
     setList(value);
@@ -167,17 +173,30 @@ export function Nodes() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="servers">
-          <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
-            {list?.nodes.map((node) => (
-              <NodeCard
-                key={node.id}
-                node={node}
-                busy={busy}
-                onDetails={() => setDetails(node)}
-                onRevoke={() => setRevoking(node)}
-              />
-            ))}
-          </div>
+          <SortableArea
+            ids={orderedNodes.map((n) => n.id)}
+            onMove={(next) =>
+              void nodeOrder.save(next).then((e) => {
+                if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
+              })
+            }
+          >
+            <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+              {orderedNodes.map((node) => (
+                <SortableItem key={node.id} id={node.id}>
+                  {(item) => (
+                    <NodeCard
+                      node={node}
+                      busy={busy}
+                      onDetails={() => setDetails(node)}
+                      onRevoke={() => setRevoking(node)}
+                      sortable={{ item, label: node.name }}
+                    />
+                  )}
+                </SortableItem>
+              ))}
+            </div>
+          </SortableArea>
         </TabsContent>
         <TabsContent value="pairs">
           {list?.enabled && <PairedConnections nodes={list.nodes} />}

@@ -18,6 +18,11 @@ import { TextField, Choice, Address } from "@/components/shared";
 import { useT } from "@/lib/i18n";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
 import type { Inventory, Preset } from "@/lib/api";
+import { useLoaded } from "@/features/operations/hooks";
+import type { HealthView } from "@/features/operations/types";
+import { ProtectionFields } from "@/features/connections/ProtectionFields";
+import { protectionOf, type Protection } from "@/features/connections/protection";
+
 export function ResourceForm({
   inventory,
   engine,
@@ -57,6 +62,8 @@ export function ResourceForm({
     internal: 7001,
   });
   const [profile, setProfile] = useState("custom");
+  const health = useLoaded<HealthView>(engine === "gre" ? "health" : "", () => 0).value;
+  const [protect, setProtect] = useState<Protection>(() => protectionOf(undefined));
   function applyProfile(p: Preset | undefined) {
     setProfile(p?.id || "custom");
     if (!p) return;
@@ -92,7 +99,7 @@ export function ResourceForm({
     try {
       await run(
         engine === "gre"
-          ? { action: "gre-create", gre }
+          ? { action: "gre-create", gre, protect }
           : {
               action: "reverse-create",
               reverse: {
@@ -171,6 +178,11 @@ export function ResourceForm({
                     </div>
                   ))}
                 </dl>
+                {engine === "gre" && (
+                  <div className="mt-5">
+                    <ProtectionFields settings={health?.settings} value={protect} onChange={setProtect} />
+                  </div>
+                )}
               </div>
             ) : (
               <form

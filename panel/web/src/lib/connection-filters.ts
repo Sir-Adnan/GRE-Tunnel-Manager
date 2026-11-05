@@ -1,3 +1,5 @@
+import { portIn } from "./ports.ts";
+
 // Connection list filters shared by the Connections page, the overview and the command palette.
 // Framework-free; the filtered list is only ever a view and is never what a mutation saves.
 
@@ -19,6 +21,7 @@ type Listable = {
   enabled: boolean;
   status?: string;
   targets: { ip: string }[];
+  resolved?: { ip: string }[];
 };
 
 export const kernelEngines = ["nftables", "iptables"];
@@ -54,12 +57,15 @@ export function filterConnections<T extends Listable>(
   }: { engine?: EngineFilter; status?: StatusFilter; query?: string },
 ): T[] {
   const needle = query.trim().toLowerCase();
+  // A port number also finds the ranges that contain it.
+  const port = /^\d{1,5}$/.test(needle) ? Number(needle) : 0;
   return rows.filter(
     (row) =>
       matchesEngine(row.engine, engine) &&
       (status === "all" || connectionStatus(row) === status) &&
       (!needle ||
-        `${row.name} ${row.id} ${row.engine} ${row.ports} ${row.targets.map((target) => target.ip).join(" ")}`
+        (port > 0 && portIn(row.ports, port)) ||
+        `${row.name} ${row.id} ${row.engine} ${row.ports} ${[...row.targets, ...(row.resolved || [])].map((target) => target.ip).join(" ")}`
           .toLowerCase()
           .includes(needle)),
   );

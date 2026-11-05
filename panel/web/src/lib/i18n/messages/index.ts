@@ -14,6 +14,8 @@ import { optimize } from "./optimize";
 import { notifications } from "./notifications";
 import { history } from "./history";
 import { tunnels } from "./tunnels";
+import { forwarding } from "./forwarding";
+import { serverdns } from "./serverdns";
 
 export const modules = {
   common,
@@ -31,6 +33,8 @@ export const modules = {
   notifications,
   history,
   tunnels,
+  forwarding,
+  serverdns,
 };
 
 export const messages = {
@@ -49,4 +53,6 @@ export const messages = {
   ...notifications,
   ...history,
   ...tunnels,
+  ...forwarding,
+  ...serverdns,
 };

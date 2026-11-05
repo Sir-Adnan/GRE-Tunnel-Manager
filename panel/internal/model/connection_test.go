@@ -88,7 +88,7 @@ func TestRoundTripOptionsAndIPv6(t *testing.T) {
 	}
 }
 func TestCapabilitiesFailClosed(t *testing.T) {
-	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "1000001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "example.org" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine, c.Bind = "nftables", "::" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
+	cases := []func(*Connection){func(c *Connection) { c.Protocol = "udp" }, func(c *Connection) { c.Options = map[string]string{"raw": "exec sh"} }, func(c *Connection) { c.Options = map[string]string{"maxconn": "1000001"} }, func(c *Connection) { c.Options = map[string]string{"idle": "$(id)"} }, func(c *Connection) { c.Targets[0].IP = "Example.org" }, func(c *Connection) { c.Targets[0].IP = "localhost" }, func(c *Connection) { c.Name = "test\nexec" }, func(c *Connection) { c.Interface = "eth0;id" }, func(c *Connection) { c.Targets = append(c.Targets, c.Targets[0]) }, func(c *Connection) { c.Engine, c.Bind = "nftables", "::" }, func(c *Connection) { c.Bind = "198.51.100.20" }}
 	for i, modify := range cases {
 		c := example()
 		modify(&c)

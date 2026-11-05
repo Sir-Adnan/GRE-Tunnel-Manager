@@ -36,11 +36,13 @@ export function ConnectionWorkspace({
   inventory,
   add,
   edit,
+  duplicate,
   run,
 }: {
   inventory: Inventory;
   add: (engine: string, engines?: string[]) => void;
   edit: (connection: Connection) => void;
+  duplicate: (connection: Connection) => void;
   run: (request: unknown) => Promise<void>;
 }) {
   const t = useT();
@@ -105,7 +107,9 @@ export function ConnectionWorkspace({
             connections={connections}
             onAdd={create}
             onEdit={edit}
+            onDuplicate={duplicate}
             run={run}
+            inventory={inventory}
           />
         </CardContent>
       </Card>

@@ -28,6 +28,7 @@ type Demo struct {
 	points    []demoPoint
 	snaps     *demoSnapshots
 	prom      *Prometheus
+	extra     *demoExtras
 }
 
 func NewDemo() *Demo {
@@ -55,8 +56,13 @@ func NewDemo() *Demo {
 	return d
 }
 func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
+	if r.Protect != nil || r.SafeMinutes != 0 {
+		return d.guarded(ctx, r)
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.demoExpire(time.Now().UTC())
+	d.demoResolve()
 	var result any = "Demo operation completed. No server settings were changed."
 	if oneOf(r.Action, "create", "update", "enable", "disable", "delete", "configuration-apply", "configuration-import-apply") {
 		if d.points == nil {
@@ -77,6 +83,14 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		return d.historyDemo(r)
 	case "diagnose":
 		return d.diagnoseDemo(r.Health.Owner)
+	case "dns", "dns-test", "dns-resolve", "dns-apply", "dns-restore", "dns-policy", "dns-refresh":
+		return d.dnsDemo(r)
+	case "ui-order", "ui-order-save":
+		return d.orderDemo(r)
+	case "change-pending", "change-confirm", "change-revert":
+		return d.safeDemo(r)
+	case "health-protect":
+		return json.Marshal(map[string]bool{"ok": true})
 	case "gre-quality":
 		if !greID.MatchString(r.Health.Owner) {
 			return nil, errors.New("the quality test runs on GRE tunnels")

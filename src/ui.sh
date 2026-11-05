@@ -146,7 +146,7 @@ gtm_connection_card() {
     local -a destinations=()
     IFS=, read -r -a destinations <<< "$R_TARGETS"
     for target in "${destinations[@]}"; do
-        gtm_endpoint "$target" || return 1
+        gtm_target "$target" || return 1
         gtm_panel_wrap "Remote: $(gtm_address "$EP_IP" "$EP_PORT")"
     done
     gtm_panel_rule

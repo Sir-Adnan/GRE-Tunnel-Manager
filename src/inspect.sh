@@ -6,7 +6,7 @@ gtm_port_available() {
     key=$(gtm_ip_key "$bind") || return 1
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
-        [[ $R_ENABLED == 1 ]] && ((10#$R_PORT == 10#$port)) || continue
+        [[ $R_ENABLED == 1 ]] && ((R_FIRST <= 10#$port && 10#$port <= R_LAST)) || continue
         [[ $protocol == both || $R_PROTO == both || $protocol == "$R_PROTO" ]] || continue
         other=$(gtm_ip_key "$R_BIND") || return 1
         if [[ $key == "$other" || $key == 0.0.0.0 || $other == 0.0.0.0 || $key == 00000000000000000000000000000000 || $other == 00000000000000000000000000000000 ]]; then
@@ -45,8 +45,9 @@ gtm_relay_loop_check() {
     listing=''
     IFS=, read -r -a targets <<< "$R_TARGETS"
     for target in "${targets[@]}"; do
-        gtm_endpoint "$target" || return 1
-        ((10#$EP_PORT == 10#$R_PORT)) || continue
+        gtm_target "$target" || return 1
+        # Overlapping port spans loop; unresolved names cannot be checked here.
+        (( EP_HOST == 0 && EP_PORT <= R_LAST && EP_LAST >= R_FIRST )) || continue
         key=$(gtm_relay_address_key "$EP_IP") || return 1
         if [[ $bind_key != 0.0.0.0 && $bind_key != 00000000000000000000000000000000 ]]; then
             [[ $bind_key != "$key" ]] || { gtm_error "Tunnel $R_ID points back to its own listening port."; return 1; }
@@ -69,10 +70,11 @@ gtm_relay_loop_check() {
 # Called before replacing desired state. Temporary files contain no executable input.
 gtm_preflight_checks() {
     local file=$1 line family table tool has4=0 has6=0 hasnft=0
-    gtm_kernel_dependencies || return 1
+    gtm_kernel_dependencies && gtm_dns_ensure || return 1
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
         [[ $R_ENABLED == 1 ]] || continue
+        gtm_resolve_targets || { gtm_error "$R_ID has no resolved destination."; return 1; }
         gtm_need ip && gtm_local_address "$R_BIND" || return 1
         if [[ $R_ENGINE == haproxy || $R_ENGINE == realm ]]; then gtm_relay_loop_check || return 1; fi
         if [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]]; then
@@ -262,7 +264,8 @@ gtm_link_dependents() {
         IFS=, read -r -a targets <<< "$R_TARGETS"
         targets+=("$(gtm_address "$R_BIND" "$R_PORT")")
         for target in "${targets[@]}"; do
-            gtm_endpoint "$target" || return 1
+            gtm_target "$target" || return 1
+            ((EP_HOST == 0)) || continue
             key=$(gtm_ip_key "$EP_IP") || return 1
             if [[ $key == "10.0.$tid."[0-3] || ( $EP_IP == *:* && ${key:0:16} == "$prefix" ) ]]; then reason=address; fi
         done

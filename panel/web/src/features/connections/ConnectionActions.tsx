@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   Info,
   Stethoscope,
+  CopyPlus,
 } from "lucide-react";
 import { useContext, useState } from "react";
 import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
@@ -36,6 +37,7 @@ export function ConnectionActions({
   onConfig,
   onDetails,
   onEdit,
+  onDuplicate,
   onDelete,
   onToggle,
   run,
@@ -45,6 +47,7 @@ export function ConnectionActions({
   onConfig: () => void;
   onDetails: () => void;
   onEdit: (c: Connection) => void;
+  onDuplicate?: (c: Connection) => void;
   onDelete: () => void;
   onToggle: () => void;
   run: (r: unknown) => Promise<void>;
@@ -103,6 +106,12 @@ export function ConnectionActions({
               <Code2 />
               {t("viewConfig")}
             </DropdownMenuItem>
+            {onDuplicate && (
+              <DropdownMenuItem onSelect={() => onDuplicate(row)}>
+                <CopyPlus />
+                {t("duplicate")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => setDiagnosing(true)}>
               <Stethoscope />
               {t("diagOpen")}

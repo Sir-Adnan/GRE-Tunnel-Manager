@@ -1,38 +1,39 @@
-# GRE Tunnel Manager v1.4.1
+# GRE Tunnel Manager v1.5.0
 
-Know when something breaks, why, and how good a tunnel is — and undo a change in one click. Everything new is off or on demand until you turn it on.
+Large port ranges in one kernel rule, domains as destinations, the server's own DNS, and a new connection editor with health and safe apply built in.
 
-## Notifications
+## Ports and destinations
 
-- A **notification center** behind the bell in the header: outages and recoveries, failover changes, automatic undo, maintenance results and scheduled backups, grouped by day, with unread counts. Selecting an event opens its page.
-- **Settings → Notification channels** sends selected events to a **webhook** (JSON for n8n, Discord, Slack or your own service, optionally signed with HMAC-SHA256) and a **Telegram bot** (optionally through your own Bot API relay), in English or Persian. Three attempts per message, at most 20 messages per 10 minutes, and a test button. Secrets are stored root-only and never shown again.
+- **Port ranges:** a range such as `2000-2999` (up to 4096 ports) is one nftables/iptables record and one rule, so 1,000 ports cost the same as one. HAProxy and Realm still take one listener per port.
+- **Remote ports:** *Same port*, *One port* (every port to one destination port) or *Mapped* in order, such as `2000-2999 → 3000-3999` (nftables), with a live preview.
+- **Domain destinations:** a destination can be a name such as `backend.example.com:443`. It is checked when you leave the field, and its addresses are shown. Rules always use cached addresses, so nothing in the packet path waits for DNS. A minute timer re-checks each name every 1–60 minutes (default 5) and changes rules only when an address changes; a failed lookup keeps the last addresses. *All addresses* makes each one a balanced, health-checked destination; *Only the first* keeps one stable address.
+- **Search** finds a port inside a range and a connection by its resolved addresses.
 
-## Change history and backups
+## Server DNS
 
-- **Change history** shows every forwarding change as a timeline: which connections were added, removed or changed. **Restore to before this** reviews what restoring changes now and applies it; the current state is saved first, so a restore can itself be undone.
-- **Backups → Schedule** saves recovery snapshots on the server daily or weekly, keeps the newest 1–60, and downloads any of them as a password-protected `.gtm-backup`.
+**Optimization → DNS** sets the resolvers the server itself uses: international presets (Cloudflare, Google, Quad9, AdGuard, OpenDNS) and Iranian presets (Shecan, Electro, Radar Game, 403.online, Begzar), or up to four manual servers. A speed test runs from the server and marks the fastest. The setting survives reboots and DHCP renewals (a systemd-resolved drop-in, or a boot unit for a plain `resolv.conf`), and **Restore original** puts the exact previous configuration back. Hosts whose DNS is owned by resolvconf or NetworkManager are reported and left unchanged. The terminal has the same choices under **Tools → Server DNS**.
 
-## Diagnosis and tunnel tests
+## A new connection editor
 
-- **Diagnose** (Health details and the connection or GRE menus) answers "why isn't it working?" with a read-only checklist — forwarding, rules, services, ports, routes, connection-table pressure, GRE firewall policy, reachability — problems first, each with a fix.
-- **Quality test** for GRE: 20 pings through the tunnel with latency, jitter and loss.
-- **Through Nodes:** v1.4.1 Agents report their load and whether each GRE peer answers from their side. Health shows "Far side ✓/✗" beside local tunnels, so one-way blocks stand out, and Node details offer a **speed test** through the tunnel in both directions.
-- **Metrics export:** an opt-in Prometheus `/metrics` endpoint with a bearer token shown once.
+- Three steps — **Entrance**, **Destinations**, **Protection & review** — beside a live **route map**; on phones the map folds into the summary bar.
+- **Health and protection in the form:** turn health checks on if they are off, and choose *Monitor this connection*, *Automatic failover* and *Notify me* per connection. GRE forms and a shield button on GRE cards offer the same, and lists show a health dot per row.
+- **Safe apply:** a change reverts itself after 2, 5 or 10 minutes unless you press *Keep changes* in the banner. The server reverts on its own, even with the browser closed, and only if nothing else changed meanwhile.
+- **Duplicate** a connection onto the next free port or range.
 
-## Optimization
+## Drag and drop
 
-- A redesigned page: one control center with progress, the profile (a three-stop intensity and goal cards), server facts and **Apply all**, which reviews and applies every group with changes at once.
-- **Profiles:** Conservative, Balanced or Aggressive for general use, many users or low latency. Balanced · General equals v1.4.0. Moving between profiles never goes below the server's original values; Aggressive is capped on servers under 2 GB.
-- **Custom values** within safe bounds, with a confirmation for anything worse than the original.
-- **Network card:** packet steering (RPS) across every CPU for single-queue virtual cards and a longer transmit queue, replayed at boot by a small unit.
-- **Automatic undo:** watch tunnel health for 5–60 minutes after an apply and undo the step if a healthy connection goes down.
+Reorder connections, destinations (their order is the failover priority), GRE and reverse tunnels, Nodes and the Overview blocks with the mouse, by touch, or with the arrow keys on a focused handle. The order is saved on the server for every device and never changes configuration.
 
-See [Monitoring](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/MONITORING.md) and [Server optimization](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/OPTIMIZATION.md).
+## Moving from Port Forward Manager
+
+**Connections → Import → Port Forward Manager (this server)** turns its rules into range records, keeping port mapping and domains, behind the usual review. While its NAT is active, the panel refuses listeners that overlap its ports instead of DNATing the same port twice. Its files and tables are never changed.
+
+See [Port ranges, domain destinations and server DNS](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/PORTS-AND-DNS.md).
 
 ## Upgrade and verification
 
-Run the current panel installer to install the matching v1.4.1 package, then refresh the browser. Existing credentials, certificates and managed tunnel settings are kept. Upgrade Agents to v1.4.1 for far-side checks and speed tests; older Agents keep working without them.
+Run the current panel installer to install the matching v1.5.0 package, then refresh the browser. Existing credentials, certificates and managed tunnel settings are kept. Range records cannot be read by v1.4.1 or older; to downgrade, restore a point taken before the first range was saved.
 
 Linux amd64/arm64 archives contain the executable, embedded frontend, matching Bash helper and dependency notices. Verify `SHA256SUMS`. Managed servers do not need Node.js, Python or a compiler.
 
-Checked locally with Python, Go (race, vet) and frontend tests, ShellCheck and browser checks in both languages on desktop and phone. Not yet checked on real servers: boot replay of network-card settings, speed tests between two VPSs, far-side checks through real firewalls and delivery to real webhook and Telegram endpoints.
+Checked locally with Python, Go (race, vet) and frontend tests, ShellCheck, isolated network-namespace tests, `nft -c` and `iptables-restore` of range rules, and browser checks in both languages on desktop and phone. Not yet checked on real servers: domain refresh against a changing DNS record, server DNS on real systemd-resolved and DHCP hosts, an import from a live Port Forward Manager installation and traffic through range rules.

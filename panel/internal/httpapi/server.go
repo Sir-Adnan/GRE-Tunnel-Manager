@@ -179,6 +179,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.forward(w, r, control.Request{Action: "notifications-read", Notify: control.NotifyInput{IDs: input.IDs, All: input.All}})
 	case r.URL.Path == "/api/notifications/clear" && r.Method == "POST":
 		s.forward(w, r, control.Request{Action: "notifications-clear"})
+	case r.URL.Path == "/api/dns" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "dns"})
+	case r.URL.Path == "/api/dns/test" && r.Method == "POST":
+		var input control.DNSInput
+		if !decode(w, r, &input) {
+			return
+		}
+		s.forward(w, r, control.Request{Action: "dns-test", DNS: control.DNSInput{Servers: input.Servers}})
+	case r.URL.Path == "/api/dns/resolve" && r.Method == "GET":
+		family, _ := strconv.Atoi(r.URL.Query().Get("family"))
+		s.forward(w, r, control.Request{Action: "dns-resolve", DNS: control.DNSInput{Name: r.URL.Query().Get("name"), Family: family}})
+	case r.URL.Path == "/api/order" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "ui-order"})
+	case r.URL.Path == "/api/order" && r.Method == "POST":
+		var input control.OrderInput
+		if !decode(w, r, &input) {
+			return
+		}
+		s.forward(w, r, control.Request{Action: "ui-order-save", Order: input})
+	case r.URL.Path == "/api/changes/pending" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "change-pending"})
 	case r.URL.Path == "/api/maintenance" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "maintenance"})
 	case r.URL.Path == "/api/engines/releases" && r.Method == "GET":

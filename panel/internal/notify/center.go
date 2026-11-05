@@ -38,6 +38,7 @@ type Center struct {
 	path  string
 	data  stateFile
 	queue chan uint64
+	quiet map[string]bool
 	// Host labels external messages.
 	Host string
 }
@@ -98,6 +99,21 @@ func (c *Center) saveLocked() error {
 
 // Emit records an event and queues it for external channels when its kind
 // is selected. It never blocks: a full queue marks the event failed.
+// SetQuiet lists owners whose events stay in the panel and are never sent
+// to the webhook or Telegram (health settings own the list).
+func (c *Center) SetQuiet(owners []string) {
+	if c == nil {
+		return
+	}
+	set := make(map[string]bool, len(owners))
+	for _, o := range owners {
+		set[o] = true
+	}
+	c.mu.Lock()
+	c.quiet = set
+	c.mu.Unlock()
+}
+
 func (c *Center) Emit(e Event) Event {
 	if c == nil {
 		return e
@@ -119,7 +135,7 @@ func (c *Center) Emit(e Event) Event {
 		e.Args[k] = clip(v, 200)
 	}
 	c.data.Next++
-	if c.data.Settings.external(e.Kind) {
+	if c.data.Settings.external(e.Kind) && (e.Owner == "" || !c.quiet[e.Owner]) {
 		e.Delivery = DeliveryPending
 		select {
 		case c.queue <- e.ID:

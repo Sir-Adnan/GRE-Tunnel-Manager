@@ -15,6 +15,8 @@ export function eventTarget(e: NotifyEvent): {
     case "optimize-rollback":
     case "optimize-kept":
       return { page: "optimize" };
+    case "change-reverted":
+      return { page: "history" };
     case "maintenance":
     case "maintenance-failed":
       return { page: "maintenance", params: { tab: "history" } };
@@ -110,6 +112,10 @@ export function eventDetail(
       break;
     case "optimize-rollback":
       if (a.names && !a.error) return t("ntfDetail_rollback").replace("{names}", a.names);
+      break;
+    case "change-reverted":
+      if (a.skipped) return t("ntfDetail_revertSkipped");
+      if (a.reason && !a.error) return t(a.reason === "timeout" ? "ntfDetail_revertTimeout" : "ntfDetail_revertManual");
       break;
     case "backup":
       if (a.name) return t("ntfDetail_backup").replace("{name}", a.name).replace("{c}", a.connections ?? "0");

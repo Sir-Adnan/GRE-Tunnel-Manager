@@ -117,7 +117,7 @@ func parseHistory(out string) (historyData, error) {
 func targetsText(c model.Connection) string {
 	parts := make([]string, len(c.Targets))
 	for i, t := range c.Targets {
-		parts[i] = fmt.Sprintf("%s:%d@%d", t.IP, t.Port, t.Weight)
+		parts[i] = fmt.Sprintf("%s@%d", t.Endpoint(), t.Weight)
 	}
 	return strings.Join(parts, ",")
 }

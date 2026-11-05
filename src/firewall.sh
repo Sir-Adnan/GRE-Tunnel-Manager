@@ -134,7 +134,7 @@ gtm_active_targets() {
 }
 
 gtm_iptables_render() {
-    local family=$1 table=$2 line proto target total remaining probability index address mark position
+    local family=$1 table=$2 line proto target total remaining probability index address mark position listen remote
     local -a targets protocols
     local -A active=()
     printf '*%s\n' "$table"
@@ -151,6 +151,8 @@ gtm_iptables_render() {
         gtm_record_validate "$line" || return 1
         [[ $R_ENGINE == iptables && $R_ENABLED == 1 ]] || continue
         if [[ $family == 4 ]]; then [[ $R_BIND != *:* ]] || continue; else [[ $R_BIND == *:* ]] || continue; fi
+        gtm_resolve_targets || continue
+        listen=$(gtm_span_text "$R_FIRST" "$R_LAST" :)
         IFS=, read -r -a targets <<< "$R_TARGETS"
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
         gtm_iptables_scope || return 1
@@ -158,38 +160,42 @@ gtm_iptables_render() {
         # rules stay so established flows continue if the destination answers.
         gtm_active_targets "${#targets[@]}"
         active=(); total=0
-        for index in "${GTM_ACTIVE[@]}"; do active[$index]=1; gtm_endpoint "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
+        for index in "${GTM_ACTIVE[@]}"; do active[$index]=1; gtm_target "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
         for proto in "${protocols[@]}"; do
             remaining=$total; index=0; position=0
             for target in "${targets[@]}"; do
-                gtm_endpoint "$target" || return 1
+                gtm_target "$target" || return 1
+                remote=$(gtm_span_text "$EP_PORT" "$EP_LAST" :)
                 if [[ $table == nat ]]; then
                     if ((index == 0)); then
                         while read -r address mark; do
                             printf -- '-A GTM_PRE -d %s' "$address"
                             [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
-                            printf ' -p %s --dport %d -m comment --comment gtm-%s -j CONNMARK --set-xmark %s/0xf000000\n' "$proto" "$((10#$R_PORT))" "$R_ID" "$mark"
+                            printf ' -p %s --dport %s -m comment --comment gtm-%s -j CONNMARK --set-xmark %s/0xf000000\n' "$proto" "$listen" "$R_ID" "$mark"
                         done < <(gtm_return_marks "$family")
                     fi
                     if [[ ${active[$index]+set} ]]; then
                         printf -- '-A GTM_PRE %s' "$GTM_IPT_ENTRANCE"
                         [[ $R_IFACE == any ]] || printf ' -i %s' "$R_IFACE"
-                        printf ' -p %s --dport %d -m comment --comment gtm-%s' "$proto" "$((10#$R_PORT))" "$R_ID"
+                        printf ' -p %s --dport %s -m comment --comment gtm-%s' "$proto" "$listen" "$R_ID"
                         if (( position < ${#GTM_ACTIVE[@]}-1 )); then
                             probability=$(awk -v weight="$EP_WEIGHT" -v rest="$remaining" 'BEGIN {printf "%.10f", weight/rest}')
                             printf ' -m statistic --mode random --probability %s' "$probability"
                         fi
-                        printf ' -j DNAT --to-destination %s\n' "$(gtm_address "$EP_IP" "$EP_PORT")"
+                        # A one-to-one range keeps each original port (validation
+                        # allows only same-port ranges for iptables).
+                        if (( EP_LAST > EP_PORT )); then printf ' -j DNAT --to-destination %s\n' "$EP_IP"
+                        else printf ' -j DNAT --to-destination %s\n' "$(gtm_address "$EP_IP" "$EP_PORT")"; fi
                         ((remaining-=EP_WEIGHT)); ((position+=1))
                     fi
                     if [[ $R_SNAT == masquerade ]]; then
-                        printf -- '-A GTM_POST -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %d -m comment --comment gtm-%s -j MASQUERADE\n' "$proto" "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))" "$R_ID"
+                        printf -- '-A GTM_POST -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -m comment --comment gtm-%s -j MASQUERADE\n' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
                     fi
                 elif [[ $table == filter ]]; then
-                    printf -- '-A GTM_FWD -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %d -m comment --comment gtm-%s -j ACCEPT\n' "$proto" "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))" "$R_ID"
-                    printf -- '-A GTM_FWD -p %s -s %s --sport %s -m conntrack --ctstate ESTABLISHED --ctdir REPLY %s--ctorigdstport %d -m comment --comment gtm-%s -j ACCEPT\n' "$proto" "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))" "$R_ID"
+                    printf -- '-A GTM_FWD -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -m comment --comment gtm-%s -j ACCEPT\n' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
+                    printf -- '-A GTM_FWD -p %s -s %s --sport %s -m conntrack --ctstate ESTABLISHED --ctdir REPLY %s--ctorigdstport %s -m comment --comment gtm-%s -j ACCEPT\n' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
                 elif [[ $proto == tcp ]]; then
-                    printf -- '-A GTM_MSS -p tcp -d %s --dport %s --tcp-flags SYN,RST SYN -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %d -j TCPMSS --clamp-mss-to-pmtu\n' "$EP_IP" "$EP_PORT" "$GTM_IPT_ORIGIN" "$((10#$R_PORT))"
+                    printf -- '-A GTM_MSS -p tcp -d %s --dport %s --tcp-flags SYN,RST SYN -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -j TCPMSS --clamp-mss-to-pmtu\n' "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen"
                 fi
                 ((index+=1))
             done
@@ -217,8 +223,22 @@ gtm_iptables_apply() {
     done
 }
 
+# Prints the DNAT statement for the current target (EP_*) of record R_*:
+# a single port, every port to one remote port, the same ports, or a shifted
+# one-to-one range through an anonymous port map.
+gtm_nft_dnat() {
+    local family=$1 proto=$2 port sep='' address=$EP_IP
+    if (( EP_LAST == EP_PORT )); then printf 'dnat %s to %s' "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"; return; fi
+    if (( EP_PORT == R_FIRST )); then printf 'dnat %s to %s' "$family" "$address"; return; fi
+    printf 'dnat %s to %s dport map { ' "$family" "$proto"
+    for ((port=R_FIRST; port<=R_LAST; port++)); do
+        printf '%s%d : %s . %d' "$sep" "$port" "$address" "$((EP_PORT + port - R_FIRST))"; sep=', '
+    done
+    printf ' }'
+}
+
 gtm_nft_render() {
-    local line family number proto target index total offset end entrance origin address mark created=0
+    local line family number proto target index total offset end entrance origin address mark listen remote created=0
     local -a targets protocols
     # One atomic batch replaces only our table. Deleting it (instead of flushing)
     # also removes balancing chains left by deleted records or removed targets.
@@ -227,6 +247,8 @@ gtm_nft_render() {
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
         [[ $R_ENGINE == nftables && $R_ENABLED == 1 ]] || continue
+        gtm_resolve_targets || continue
+        listen=$(gtm_span_text "$R_FIRST" "$R_LAST")
         if ((created == 0)); then
             created=1
             printf 'add table inet gre_manager\n'
@@ -252,31 +274,32 @@ gtm_nft_render() {
         # Excluded destinations keep their chain (and their established flows)
         # but leave the distribution map until the panel restores them.
         gtm_active_targets "${#targets[@]}"
-        total=0; for index in "${GTM_ACTIVE[@]}"; do gtm_endpoint "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
+        total=0; for index in "${GTM_ACTIVE[@]}"; do gtm_target "${targets[$index]}" || return 1; ((total+=EP_WEIGHT)); done
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
         for proto in "${protocols[@]}"; do
             if (( ${#targets[@]} > 1 )); then
                 index=0
                 for target in "${targets[@]}"; do
-                    gtm_endpoint "$target" || return 1
+                    gtm_target "$target" || return 1
                     # The counter sees each flow's first packet only (NAT hook),
                     # so it counts new connections per destination since apply.
                     printf 'add chain inet gre_manager b_%s_%s_%d\n' "$R_ID" "$proto" "$index"
-                    printf 'add rule inet gre_manager b_%s_%s_%d meta l4proto %s counter dnat %s to %s\n' "$R_ID" "$proto" "$index" "$proto" "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
+                    printf 'add rule inet gre_manager b_%s_%s_%d meta l4proto %s counter ' "$R_ID" "$proto" "$index" "$proto"
+                    gtm_nft_dnat "$family" "$proto"; printf '\n'
                     ((index+=1))
                 done
             fi
             while read -r address mark; do
                 printf 'add rule inet gre_manager pre %s daddr %s' "$family" "$address"
                 [[ $R_IFACE == any ]] || printf ' iifname "%s"' "$R_IFACE"
-                printf ' %s dport %d ct mark set ct mark and 0xf0ffffff or %s comment "gtm-%s"\n' "$proto" "$((10#$R_PORT))" "$mark" "$R_ID"
+                printf ' %s dport %s ct mark set ct mark and 0xf0ffffff or %s comment "gtm-%s"\n' "$proto" "$listen" "$mark" "$R_ID"
             done < <(gtm_return_marks "$number")
             printf 'add rule inet gre_manager pre %s' "$entrance"
             [[ $R_IFACE == any ]] || printf ' iifname "%s"' "$R_IFACE"
-            printf ' %s dport %d counter ' "$proto" "$((10#$R_PORT))"
+            printf ' %s dport %s counter ' "$proto" "$listen"
             if (( ${#targets[@]} == 1 )); then
-                gtm_endpoint "${targets[0]}" || return 1
-                printf 'dnat %s to %s' "$family" "$(gtm_address "$EP_IP" "$EP_PORT")"
+                gtm_target "${targets[0]}" || return 1
+                gtm_nft_dnat "$family" "$proto"
             else
                 case $R_STRATEGY in
                     source) printf 'jhash %s saddr mod %d seed 0 vmap { ' "$family" "$total";;
@@ -285,7 +308,7 @@ gtm_nft_render() {
                 esac
                 offset=0
                 for index in "${GTM_ACTIVE[@]}"; do
-                    gtm_endpoint "${targets[$index]}" || return 1; (( offset > 0 )) && printf ', '
+                    gtm_target "${targets[$index]}" || return 1; (( offset > 0 )) && printf ', '
                     end=$((offset+EP_WEIGHT-1)); if (( offset == end )); then printf '%d' "$offset"; else printf '%d-%d' "$offset" "$end"; fi
                     printf ' : jump b_%s_%s_%d' "$R_ID" "$proto" "$index"; offset=$((end+1))
                 done
@@ -293,17 +316,18 @@ gtm_nft_render() {
             fi
             printf ' comment "gtm-%s"\n' "$R_ID"
             for target in "${targets[@]}"; do
-                gtm_endpoint "$target" || return 1
+                gtm_target "$target" || return 1
+                remote=$(gtm_span_text "$EP_PORT" "$EP_LAST")
                 if [[ $proto == tcp ]]; then
                     # Match only owned DNAT flows and reduce (never increase) an
                     # existing MSS using the outgoing route's advertised MSS.
-                    printf 'add rule inet gre_manager mss meta l4proto tcp %s daddr %s tcp dport %s ct status dnat ct direction original %sct original proto-dst %d tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu counter comment "gtm-%s"\n' "$family" "$EP_IP" "$EP_PORT" "$origin" "$((10#$R_PORT))" "$R_ID"
+                    printf 'add rule inet gre_manager mss meta l4proto tcp %s daddr %s tcp dport %s ct status dnat ct direction original %sct original proto-dst %s tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu counter comment "gtm-%s"\n' "$family" "$EP_IP" "$remote" "$origin" "$listen" "$R_ID"
                 fi
                 if [[ $R_SNAT == masquerade ]]; then
-                    printf 'add rule inet gre_manager post meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %d counter masquerade comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$EP_PORT" "$origin" "$((10#$R_PORT))" "$R_ID"
+                    printf 'add rule inet gre_manager post meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter masquerade comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
                 fi
-                printf 'add rule inet gre_manager forward meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %d counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$EP_PORT" "$origin" "$((10#$R_PORT))" "$R_ID"
-                printf 'add rule inet gre_manager forward meta l4proto %s %s saddr %s %s sport %s ct state established ct direction reply %sct original proto-dst %d counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$EP_PORT" "$origin" "$((10#$R_PORT))" "$R_ID"
+                printf 'add rule inet gre_manager forward meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
+                printf 'add rule inet gre_manager forward meta l4proto %s %s saddr %s %s sport %s ct state established ct direction reply %sct original proto-dst %s counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
             done
         done
     done
@@ -314,8 +338,21 @@ gtm_nft_render() {
 # wildcard) plus the target as reply source. Other host flows are untouched.
 # An optional comma-separated list of 1-based destination positions limits the
 # reset to those destinations (health failover clears flows of a dead one).
+# Prints the original destination ports inside the current range record that
+# have tracked flows answered by the current destination (EP_IP).
+gtm_flows_ports() {
+    local family=$1 proto=$2 line
+    local -A seen=()
+    while IFS= read -r line; do
+        [[ $line =~ dport=([0-9]+) ]] || continue
+        (( BASH_REMATCH[1] >= R_FIRST && BASH_REMATCH[1] <= R_LAST )) || continue
+        [[ ${seen[${BASH_REMATCH[1]}]+set} ]] && continue
+        seen[${BASH_REMATCH[1]}]=1; printf '%d\n' "${BASH_REMATCH[1]}"
+    done < <(conntrack -L -f "$family" -p "$proto" --reply-src "$EP_IP" 2>/dev/null)
+}
+
 gtm_flows_reset() {
-    local id=$1 only=${2:-} line proto target family output count total=0 matched=0 index
+    local id=$1 only=${2:-} line proto target family output count total=0 matched=0 index port
     local -a targets protocols args
     gtm_id "$id" || { gtm_error 'Invalid connection ID.'; return 2; }
     [[ -z $only || $only =~ ^[0-9]{1,2}(,[0-9]{1,2}){0,31}$ ]] || { gtm_error 'Invalid destination list.'; return 2; }
@@ -329,22 +366,30 @@ gtm_flows_reset() {
         [[ $R_ENABLED == 1 ]] || { gtm_error 'Connection is disabled.'; return 1; }
         family=ipv4; [[ $R_BIND == *:* ]] && family=ipv6
         protocols=("$R_PROTO"); [[ $R_PROTO == both ]] && protocols=(tcp udp)
+        gtm_resolve_targets || { gtm_error 'No resolved destination.'; return 1; }
         IFS=, read -r -a targets <<< "$R_TARGETS"
         for proto in "${protocols[@]}"; do
             index=0
             for target in "${targets[@]}"; do
                 ((index+=1))
                 [[ -z $only || ,$only, == *",$index,"* ]] || continue
-                gtm_endpoint "$target" || return 1
-                args=(-D -f "$family" -p "$proto" --orig-port-dst "$((10#$R_PORT))" --reply-src "$EP_IP" --reply-port-src "$((10#$EP_PORT))")
-                gtm_wildcard "$R_BIND" || args+=(--orig-dst "$R_BIND")
-                # conntrack exits non-zero when nothing matched; the count is authoritative.
-                output=$(conntrack "${args[@]}" 2>&1 >/dev/null) || true
-                if [[ $output =~ ([0-9]+)\ flow\ entries\ have\ been\ deleted ]]; then
-                    count=${BASH_REMATCH[1]}; total=$((total + count))
-                else
-                    gtm_error "conntrack failed: ${output:0:200}"; return 1
-                fi
+                gtm_target "$target" || return 1
+                local -a ports=("$R_FIRST")
+                # conntrack filters one original port; a range record clears the
+                # ports that currently have flows to this destination.
+                (( R_LAST == R_FIRST )) || mapfile -t ports < <(gtm_flows_ports "$family" "$proto")
+                for port in "${ports[@]}"; do
+                    args=(-D -f "$family" -p "$proto" --orig-port-dst "$port" --reply-src "$EP_IP")
+                    (( EP_LAST > EP_PORT )) || args+=(--reply-port-src "$EP_PORT")
+                    gtm_wildcard "$R_BIND" || args+=(--orig-dst "$R_BIND")
+                    # conntrack exits non-zero when nothing matched; the count is authoritative.
+                    output=$(conntrack "${args[@]}" 2>&1 >/dev/null) || true
+                    if [[ $output =~ ([0-9]+)\ flow\ entries\ have\ been\ deleted ]]; then
+                        count=${BASH_REMATCH[1]}; total=$((total + count))
+                    else
+                        gtm_error "conntrack failed: ${output:0:200}"; return 1
+                    fi
+                done
             done
         done
         break
@@ -368,6 +413,8 @@ gtm_forward_exclude() {
     done
     ((matched)) || { gtm_error 'Connection not found.'; return 1; }
     [[ ( $R_ENGINE == nftables || $R_ENGINE == iptables ) && $R_ENABLED == 1 ]] || { gtm_error 'Failover applies to enabled kernel forwards.'; return 1; }
+    # Positions refer to the resolved destinations (a DNS name may be several).
+    gtm_resolve_targets || { gtm_error 'No resolved destination.'; return 1; }
     saved=$R_TARGETS
     IFS=, read -r -a parts <<< "$saved"; count=${#parts[@]}
     parts=()

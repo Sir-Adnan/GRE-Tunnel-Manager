@@ -12,6 +12,10 @@ export type HealthSettings = {
   /** Kernel forwards whose dead destinations stop getting new flows. */
   failover: string[];
   failover_interval: number;
+  /** Owners that are not probed. */
+  ignore?: string[];
+  /** Owners whose outages are not sent to the webhook or Telegram. */
+  quiet?: string[];
 };
 
 export type HealthPoint = { t: number; r: number };

@@ -90,6 +90,8 @@ type Inventory struct {
 	Host           Host                  `json:"host"`
 	Version        string                `json:"version"`
 	Demo           bool                  `json:"demo"`
+	// DNS lists cached domain destinations (only when a connection uses one).
+	DNS []DNSName `json:"dns,omitempty"`
 }
 type Request struct {
 	EngineRevision  string           `json:"engine_revision,omitempty"`
@@ -116,6 +118,12 @@ type Request struct {
 	History         HistoryInput     `json:"history,omitzero"`
 	Snapshot        SnapshotInput    `json:"snapshot,omitzero"`
 	Prometheus      PrometheusInput  `json:"prometheus,omitzero"`
+	DNS             DNSInput         `json:"dns,omitzero"`
+	Order           OrderInput       `json:"order,omitzero"`
+	// Protect applies health monitoring choices made in a connection or GRE form.
+	Protect *Protection `json:"protect,omitempty"`
+	// SafeMinutes arms an automatic revert of this change unless confirmed.
+	SafeMinutes int `json:"safe_minutes,omitempty"`
 }
 type Manager struct {
 	telemetry hostSampler
@@ -260,10 +268,19 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 			resources[i].Status = value
 		}
 	}
-	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: version.Number}, nil
+	dns := m.fillResolved(ctx, connections)
+	return Inventory{Presets: model.Presets(), Connections: connections, Resources: resources, Components: m.components(ctx), Capabilities: model.Capabilities(), EngineProfiles: model.EngineProfiles(), Host: hostInfo(), Version: version.Number, DNS: dns}, nil
 }
 func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
+	if r.Protect != nil || r.SafeMinutes != 0 {
+		return m.executeGuarded(ctx, r)
+	}
 	switch r.Action {
+	case "health-protect":
+		if len(r.Selected) < 1 || len(r.Selected) > 128 {
+			return nil, errors.New("select 1–128 connections or tunnels")
+		}
+		return map[string]bool{"ok": true}, nil
 	case "host-telemetry":
 		return m.telemetry.Sample(), nil
 	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
@@ -285,6 +302,12 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return m.greQuality(ctx, r.Health.Owner)
 	case "node-probes":
 		return m.nodeProbes(ctx), nil
+	case "dns", "dns-test", "dns-resolve", "dns-apply", "dns-restore", "dns-policy", "dns-refresh":
+		return m.dns(ctx, r)
+	case "ui-order", "ui-order-save":
+		return m.order(r)
+	case "change-pending", "change-confirm", "change-revert":
+		return m.safeChange(ctx, r)
 	case "notifications", "notifications-read", "notifications-clear", "notifications-configure", "notifications-test":
 		return m.notifications(ctx, r)
 	case "engine-releases":

@@ -35,14 +35,17 @@ gtm_show_records() {
 }
 
 gtm_listener_check() {
-    local protocol=$1 bind=$2 port=$3 flag listing address key wanted
+    local protocol=$1 bind=$2 port=$3 flag listing address key wanted filter
     local -a fields=()
     command -v ss >/dev/null 2>&1 || return 0
     wanted=$(gtm_ip_key "$bind") || return 1
+    gtm_port_span "$port" || return 1
+    filter="( sport = :$PS_FIRST )"
+    (( PS_LAST == PS_FIRST )) || filter="( sport >= :$PS_FIRST and sport <= :$PS_LAST )"
     for flag in -t -u; do
         [[ $protocol != tcp || $flag == -t ]] || continue
         [[ $protocol != udp || $flag == -u ]] || continue
-        listing=$(ss -H -n -l "$flag" "( sport = :$port )") || { gtm_error 'Could not inspect local listeners.'; return 1; }
+        listing=$(ss -H -n -l "$flag" "$filter") || { gtm_error 'Could not inspect local listeners.'; return 1; }
         while read -r -a fields; do
             (( ${#fields[@]} >= 4 )) || continue
             address=${fields[3]%:*}; address=${address#\[}; address=${address%\]}; address=${address%%%*}
@@ -348,6 +351,7 @@ gtm_tools_menu() {
         gtm_option 7 'Show Configuration'
         gtm_option 8 'Refresh Server Info'
         gtm_option 9 'Install Tunnel Engines'
+        gtm_option 10 'Server DNS' 'Presets, manual, speed test, restore'
         gtm_option 0 Back
         gtm_read 'Choose: ' choice || return
         case $choice in
@@ -361,6 +365,7 @@ gtm_tools_menu() {
             7) if [[ ${GTM_DEMO:-0} == 1 ]]; then printf 'Use --plan --state-file FILE to inspect a saved configuration.\n'; else gtm_plan; fi; gtm_pause;;
             8) GTM_SERVER_INFO_READY=0;;
             9) gtm_dependencies_menu;;
+            10) gtm_sysdns_menu;;
             *) gtm_error 'Choose one of the shown options.';;
         esac
     done

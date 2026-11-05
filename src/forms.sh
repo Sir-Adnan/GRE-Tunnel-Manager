@@ -1,17 +1,24 @@
 # Numbered, staged forms. Collection is read-only; saving reloads full state under lock.
+# With "spans" (kernel engines) a range stays one item of up to 4096 ports;
+# otherwise ranges expand to single ports. Either way at most 32 items.
 gtm_parse_ports() {
-    local input=$1 word first last port
+    local input=$1 spans=${2:-} repeat=${3:-} word first last port
     local -a words=()
     local -A seen=()
     GTM_PORTS=()
     [[ -n $input && ${#input} -le 1024 && $input != ,* && $input != *, && $input != *,,* ]] || return 1
     read -r -a words <<< "${input//,/ }"
     for word in "${words[@]}"; do
-        if [[ $word =~ ^([0-9]+)-([0-9]+)$ ]]; then first=${BASH_REMATCH[1]}; last=${BASH_REMATCH[2]}
-        else first=$word; last=$word; fi
-        gtm_port "$first" && gtm_port "$last" || return 1
-        first=$((10#$first)); last=$((10#$last))
-        ((first<=last && last-first<32)) || return 1
+        gtm_port_span "$word" || return 1
+        first=$PS_FIRST; last=$PS_LAST
+        if [[ -n $spans ]]; then
+            # Remote ports may repeat (several local ranges to one port).
+            [[ -n $repeat ]] || for ((port=first; port<=last; port++)); do [[ ! ${seen[$port]+set} ]] || return 1; seen[$port]=1; done
+            GTM_PORTS+=("$(gtm_span_text "$first" "$last")")
+            ((${#GTM_PORTS[@]}<=32)) || return 1
+            continue
+        fi
+        ((last-first<32)) || return 1
         for ((port=first; port<=last; port++)); do
             [[ ! ${seen[$port]+set} ]] || continue
             GTM_PORTS+=("$port"); seen[$port]=1
@@ -43,32 +50,47 @@ gtm_ask_ip() {
 
 gtm_form_ports() {
     local input
+    local spans=''
+    [[ $W_ENGINE != iptables && $W_ENGINE != nftables ]] || spans=1
     gtm_step 1 3 'Local port(s)'
-    printf '  Example: 443, 8443 or 8000-8003. Enter 0 to cancel.\n'
+    if [[ -n $spans ]]; then printf '  Example: 443, 8443 or 2000-2999 (up to 4096 ports in one rule). Enter 0 to cancel.\n'
+    else printf '  Example: 443, 8443 or 8000-8003. Enter 0 to cancel.\n'; fi
     while true; do
-        gtm_default 'Local port(s)' input "${W_PORTS[*]:-443}" || return 1
+        gtm_default 'Local port(s)' input "$(IFS=,; printf '%s' "${W_PORTS[*]:-443}")" || return 1
         [[ $input != 0 ]] || return 1
-        if gtm_parse_ports "$input"; then
+        if gtm_parse_ports "$input" "$spans"; then
             if [[ -n $W_EDIT && ${#GTM_PORTS[@]} != 1 ]]; then gtm_error 'Edit one port at a time. Use Add tunnel for more ports.'; continue; fi
             W_PORTS=("${GTM_PORTS[@]}"); return 0
         fi
-        gtm_error 'Use ports 1-65535; up to 32 ports per setup.'
+        if [[ -n $spans ]]; then gtm_error 'Use ports 1-65535; up to 32 ports or ranges, without overlaps.'
+        else gtm_error 'Use ports 1-65535; up to 32 ports per setup.'; fi
     done
 }
 
 gtm_form_target() {
     local input port_default=$1
+    port_default=${port_default%-*}
     while true; do
-        gtm_default 'Remote IP (IP:port also works)' input '' || return 1
+        gtm_default 'Remote IP or domain (IP:port also works)' input '' || return 1
         [[ $input != 0 ]] || return 1
-        if gtm_ip "$input"; then
+        input=${input,,}
+        if gtm_ip "$input" || gtm_hostname "$input"; then
             W_REMOTE_IP=$input
             gtm_ask_port 'Remote port' "$port_default" || return 1
-            W_REMOTE_PORT=$GTM_REPLY; W_REMOTE_WEIGHT=1; return 0
-        elif gtm_endpoint "$input"; then
-            W_REMOTE_IP=$EP_IP; W_REMOTE_PORT=$EP_PORT; W_REMOTE_WEIGHT=$EP_WEIGHT; return 0
+            W_REMOTE_PORT=$GTM_REPLY; W_REMOTE_WEIGHT=1
+        elif gtm_target "$input" && ((EP_LAST == EP_PORT)); then
+            W_REMOTE_IP=$EP_IP; W_REMOTE_PORT=$EP_PORT; W_REMOTE_WEIGHT=$EP_WEIGHT
+        else
+            gtm_error 'Enter a valid IP, domain or IP:port. IPv6 with a port: [2001:db8::1]:443.'; continue
         fi
-        gtm_error 'Enter a valid IP or IP:port. IPv6 with a port: [2001:db8::1]:443.'
+        if gtm_hostname "$W_REMOTE_IP" && [[ $W_REMOTE_IP != *:* ]]; then
+            printf '  Checking %s ...\n' "$W_REMOTE_IP"
+            if ! gtm_dns_lookup "$W_REMOTE_IP" 4 | paste -sd' ' - | grep -q .; then
+                gtm_error "$W_REMOTE_IP does not resolve to an IPv4 address."; continue
+            fi
+            printf '  Resolves to: %s (refreshed every 5 minutes)\n' "$(gtm_dns_lookup "$W_REMOTE_IP" 4 | paste -sd' ' -)"
+        fi
+        return 0
     done
 }
 
@@ -85,11 +107,12 @@ gtm_form_targets() {
     while true; do
         gtm_form_target "${W_PORTS[0]}" || return 1
         current_family=4; [[ $W_REMOTE_IP != *:* ]] || current_family=6
-        if [[ $W_ENGINE == iptables || $W_ENGINE == nftables ]]; then
+        if [[ $W_ENGINE == iptables || $W_ENGINE == nftables ]] && ! gtm_hostname "$W_REMOTE_IP"; then
             if [[ -n $family && $family != "$current_family" ]]; then gtm_error 'Use the same IP version for all kernel targets.'; continue; fi
             family=$current_family
         fi
-        key="$(gtm_ip_key "$W_REMOTE_IP"):$W_REMOTE_PORT"
+        key=$W_REMOTE_IP; gtm_hostname "$key" || key=$(gtm_ip_key "$W_REMOTE_IP")
+        key+=":$W_REMOTE_PORT"
         if [[ ${seen[$key]+set} ]]; then gtm_error 'That server and port are already in the list.'; continue; fi
         seen[$key]=1
         W_TARGETS+="${W_TARGETS:+,}$(gtm_address "$W_REMOTE_IP" "$W_REMOTE_PORT")@$W_REMOTE_WEIGHT"
@@ -111,10 +134,34 @@ gtm_form_targets() {
             *) W_STRATEGY=random;;
         esac
     else W_STRATEGY=single; fi
-    if ((${#W_PORTS[@]}>1)); then
-        gtm_choose 'Remote ports' one 'Use the remote port(s) entered above' one 'Use the same port number as local' same || return 1
+    if ((${#W_PORTS[@]}>1)) || [[ ${W_PORTS[0]} == *-* ]]; then
+        if [[ $W_ENGINE == nftables ]]; then
+            gtm_choose 'Remote ports' one 'Use the remote port(s) entered above' one 'Use the same port number as local' same 'Mapped: enter remote ports in the same order' map || return 1
+        else
+            gtm_choose 'Remote ports' one 'Use the remote port(s) entered above' one 'Use the same port number as local' same || return 1
+        fi
         W_MAP=$GTM_REPLY
+        [[ $W_MAP != map ]] || gtm_form_mapped || return 1
     fi
+}
+
+# One-to-one remote ports: the same number of items, each the same length.
+gtm_form_mapped() {
+    local input index local_first local_last
+    printf '  Local: %s\n' "$(IFS=,; printf '%s' "${W_PORTS[*]}")"
+    while true; do
+        gtm_default 'Remote ports (same order)' input "$(IFS=,; printf '%s' "${W_MAPPED[*]}")" || return 1
+        [[ $input != 0 ]] || return 1
+        if gtm_parse_ports "$input" 1 1 && ((${#GTM_PORTS[@]} == ${#W_PORTS[@]})); then
+            for ((index=0; index<${#W_PORTS[@]}; index++)); do
+                gtm_port_span "${W_PORTS[$index]}"; local_first=$PS_FIRST local_last=$PS_LAST
+                gtm_port_span "${GTM_PORTS[$index]}"
+                ((PS_LAST - PS_FIRST == local_last - local_first)) || break
+            done
+            if ((index == ${#W_PORTS[@]})); then W_MAPPED=("${GTM_PORTS[@]}"); return 0; fi
+        fi
+        gtm_error 'Enter the same number of ports or ranges as local, each the same size (2000-2999 -> 3000-3999).'
+    done
 }
 
 # Kernel forwards default to every local address of the destination family, so
@@ -123,7 +170,7 @@ gtm_form_targets() {
 gtm_form_bind() {
     local family=4 any=0.0.0.0 first=${W_TARGETS%%,*}
     if [[ $W_ENGINE == haproxy || $W_ENGINE == realm ]]; then W_BIND=${W_BIND:-0.0.0.0}; return 0; fi
-    gtm_endpoint "$first" || return 1
+    gtm_target "$first" || return 1
     [[ $EP_IP != *:* ]] || { family=6; any=::; }
     if [[ -n $W_BIND ]] && { [[ $family == 6 && $W_BIND != *:* ]] || [[ $family == 4 && $W_BIND == *:* ]]; }; then W_BIND=''; fi
     W_BIND=${W_BIND:-$any}
@@ -186,17 +233,19 @@ gtm_form_advanced() {
 }
 
 gtm_form_rows() {
-    local port target targets name
+    local port target targets name index=0 remote
     local -a destinations=()
     GTM_FORM_ROWS=()
     IFS=, read -r -a destinations <<< "$W_TARGETS"
     for port in "${W_PORTS[@]}"; do
-        targets=$W_TARGETS
-        if [[ $W_MAP == same ]]; then
+        targets=$W_TARGETS remote=''
+        case $W_MAP in same) remote=$port;; map) remote=${W_MAPPED[$index]};; esac
+        ((index+=1))
+        if [[ -n $remote ]]; then
             targets=''
             for target in "${destinations[@]}"; do
-                gtm_endpoint "$target" || return 1
-                targets+="${targets:+,}$(gtm_address "$EP_IP" "$port")@$EP_WEIGHT"
+                gtm_target "$target" || return 1
+                targets+="${targets:+,}$(gtm_address "$EP_IP" "$remote")@$EP_WEIGHT"
             done
         fi
         name=$W_NAME
@@ -246,6 +295,7 @@ gtm_form_save() {
 gtm_new_forward() {
     local W_ENGINE=${1:-iptables} W_EDIT=${2:-} W_MODE=${3:-single} W_TITLE line target choice result
     local W_NAME='' W_BIND='' W_TARGETS='' W_PROTO=tcp W_STRATEGY=single W_ENABLED=1 W_SNAT=masquerade W_IFACE=any W_VERSION=1 W_OPTIONS='' W_ROUTING='' W_MAP=one
+    local -a W_MAPPED=()
     local W_ORIGINAL='' W_OLD_BIND='' W_OLD_PORT='' W_OLD_PROTO=''
     local W_REMOTE_IP W_REMOTE_PORT W_REMOTE_WEIGHT
     local -a W_PORTS=() review_targets=()
@@ -279,8 +329,8 @@ gtm_new_forward() {
             gtm_record_validate "$line" || return 1
             IFS=, read -r -a review_targets <<< "$R_TARGETS"
             for target in "${review_targets[@]}"; do
-                gtm_endpoint "$target" || return 1
-                gtm_panel_wrap "Local $R_PORT  ->  $(gtm_address "$EP_IP" "$EP_PORT")"
+                gtm_target "$target" || return 1
+                gtm_panel_wrap "Local $R_PORT  ->  $(gtm_address "$EP_IP" "$(gtm_span_text "$EP_PORT" "$EP_LAST")")"
                 ((EP_WEIGHT==1)) || gtm_panel_wrap "  Target weight: $EP_WEIGHT"
             done
         done

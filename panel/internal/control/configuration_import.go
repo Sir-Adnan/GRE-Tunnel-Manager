@@ -41,6 +41,8 @@ func parseImport(in ImportInput) ([]model.Connection, []string, error) {
 		cs, warnings, e = parseHAImport(in.Text)
 	case in.Format == "realm" && in.Engine == "realm":
 		cs, e = parseRealmImport(in.Text)
+	case in.Format == "portfw":
+		cs, warnings, e = parsePortfwImport(in.Text, in.Engine)
 	case in.Format == "json" && oneOf(in.Engine, "haproxy", "realm", "iptables", "nftables"):
 		d := json.NewDecoder(strings.NewReader(in.Text))
 		d.DisallowUnknownFields()
@@ -117,6 +119,14 @@ func importDigest(in ImportInput, generation string) string {
 	return hex.EncodeToString(s[:])
 }
 func (m *Manager) importConfiguration(ctx context.Context, in ImportInput, apply bool) (any, error) {
+	if in.Format == "portfw" {
+		// The rules come from the server, never from the browser.
+		out, e := m.call(ctx, "portfw-rules", "")
+		if e != nil {
+			return nil, e
+		}
+		in.Text = out
+	}
 	cs, warnings, e := parseImport(in)
 	if e != nil {
 		return nil, e

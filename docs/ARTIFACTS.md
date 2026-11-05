@@ -73,6 +73,11 @@ The v13.x scripts created the artifacts below. Current versions create only `gre
 | `/usr/local/bin/igre` | setup_shortcut | self-download of gre.sh from REPO_URL | menu 5 re-installs |
 | `/run/gre-manager/{v4,v6}.cache` | detect_local_ips | public IP cache, 60 min TTL | menu 6, reboot (tmpfs) |
 | `/run/gre-manager/{v4,v6}.miss` | detect_local_ips | negative cache, 10 min TTL | menu 6, reboot |
+| `/etc/gre-manager/dns-cache.tsv`, `dns-policy.tsv` | domain destinations | last addresses per name/family; refresh interval and mode per name (mode 600) | names no record uses are dropped at the next refresh |
+| `/etc/systemd/system/gre-manager-dns.{service,timer}` | first domain destination | minute timer running `apply.sh --dns-refresh` | removed when no record uses a domain |
+| `/etc/systemd/resolved.conf.d/90-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.` | Server DNS → Restore original |
+| `/etc/gre-manager/dns/` (`servers`, `original`, `resolv.conf.orig`) | Server DNS | chosen servers and the exact original | Restore original |
+| `/usr/local/lib/gre-manager/resolv.sh`, `gre-manager-resolv.service` | Server DNS on plain resolv.conf | writes `/etc/resolv.conf` again after network-online | Restore original |
 
 ## Runtime iptables/ip6tables rules
 
@@ -110,6 +115,8 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 | `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |
 | `/var/lib/gre-manager-panel/audit.jsonl{,.1}` | Root-only bounded action metadata; no tokens, keys, passwords or request bodies |
 | `/var/lib/gre-manager-panel/health.json` | Root-only optional health settings, current probe state, hourly rollups and outages, mode 600; bounded by the retention setting (1–90 days, 128 targets, 1,000 outages, 32 MiB) |
+| `/var/lib/gre-manager-panel/ui-order.json` | List order set by drag and drop (connections, GRE, reverse, Nodes, Overview), at most 1,024 IDs per list; presentation only |
+| `/var/lib/gre-manager-panel/safe-change.json` | The pending safe-apply change (restore point, revision, deadline); removed when kept, reverted or cancelled |
 | `/var/lib/gre-manager-panel/maintenance.json` | Root-only maintenance settings, at most 32 plans, their schedule state and the newest 1,000 history entries, mode 600 |
 | `inet gtm_panel_metrics` | Optional separate nftables counters; removed when accounting is disabled |
 | `grepanel` system user/group | Restricted panel service account, no login shell |

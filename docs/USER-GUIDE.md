@@ -32,7 +32,9 @@ Open the engine manager and its add action. Kernel forwards offer **Add iptables
 3. Select TCP/UDP/both numerically for Realm or kernel forwarding. HAProxy is TCP-only.
 4. Review the mapping and save. Names are automatic unless specified; additional settings are optional.
 
-Up to 32 ports are accepted in one setup. Choose whether all map to the entered destination port or preserve their local port numbers. Each local port has its own record/ID; creation uses one apply step and restore point. Existing records are edited individually.
+Up to 32 ports or ranges are accepted in one setup. For iptables/nftables a range such as `2000-2999` (up to 4096 ports) stays one record and one rule; HAProxy and Realm get one record per port. Choose whether all map to the entered destination port, keep their local port numbers, or (nftables) map in order to other ports such as `3000-3999`. The destination can be a domain name: it is checked when entered and refreshed every 5 minutes. Creation uses one apply step and restore point; existing records are edited individually. See [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md).
+
+**Tools → Server DNS** chooses the server's own resolvers (presets or manual), runs a speed test and restores the original.
 
 ## Listen addresses and source policy
 

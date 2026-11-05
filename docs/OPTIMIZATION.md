@@ -63,6 +63,10 @@ The newest undo step carries its time. When Health monitoring is on and outages 
 
 With Health monitoring on, the review offers **Undo automatically if tunnels go down** for 5, 10 (default), 15, 30 or 60 minutes. The broker records the connections that are up or degraded at apply time; if one of them goes down (an outage that starts after the apply) before the window ends, it undoes the step, sends a notification and the page shows which connections went down. When the window passes without an outage the step is kept. The watch guards one step: a later apply, undo, restore or reset, or turning monitoring off, cancels it, and it never undoes a step other than the one it guards. The watch survives a broker restart (`/var/lib/gre-manager-panel/optimize-watch.json`).
 
+## Server DNS
+
+The page's **DNS** tab sets the server's own resolvers. It is not a kernel group: **Apply all**, **Undo** and **Reset** never change DNS, and it has its own restore. See [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md#server-dns-optimization--dns).
+
 ## Groups and values
 
 The tables below list the Balanced · General values; see [Profiles](#profiles) for the others.

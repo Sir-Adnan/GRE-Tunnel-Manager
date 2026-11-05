@@ -73,7 +73,7 @@ func healthTargets(inventory Inventory) []health.Target {
 		// One probe per distinct endpoint; it stands for every position
 		// (1-based, as the Bash state numbers them) with that endpoint.
 		seen := map[string]int{}
-		for i, t := range c.Targets {
+		for i, t := range effectiveTargets(c) {
 			address, e := netip.ParseAddr(t.IP)
 			if e != nil || address.Zone() != "" {
 				continue

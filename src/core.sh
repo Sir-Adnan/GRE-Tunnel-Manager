@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.4.1
+GTM_VERSION=1.5.0
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
@@ -84,6 +84,51 @@ gtm_endpoint() {
 }
 
 gtm_address() { if [[ $1 == *:* ]]; then printf '[%s]:%s' "$1" "$2"; else printf '%s:%s' "$1" "$2"; fi; }
+
+# A port or an ascending range of at most GTM_SPAN_MAX ports; sets PS_FIRST/PS_LAST.
+GTM_SPAN_MAX=4096
+gtm_port_span() {
+    PS_FIRST='' PS_LAST=''
+    if [[ $1 =~ ^([0-9]{1,5})-([0-9]{1,5})$ ]]; then
+        local first=${BASH_REMATCH[1]} last=${BASH_REMATCH[2]}
+        gtm_port "$first" && gtm_port "$last" || return 1
+        PS_FIRST=$((10#$first)); PS_LAST=$((10#$last))
+        (( PS_FIRST < PS_LAST && PS_LAST - PS_FIRST < GTM_SPAN_MAX ))
+    else
+        gtm_port "$1" || return 1
+        PS_FIRST=$((10#$1)); PS_LAST=$PS_FIRST
+    fi
+}
+
+# Lowercase DNS name with a letter top-level label; never an address in disguise.
+gtm_hostname() {
+    [[ ${#1} -le 253 && $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$ ]]
+}
+
+# Record destinations: gtm_endpoint plus a DNS name (EP_HOST=1) and a port range
+# (EP_LAST). Legacy parsers keep the strict gtm_endpoint.
+gtm_target() {
+    local value=$1 address port weight=1
+    EP_HOST=0
+    if [[ $value == *@* ]]; then weight=${value##*@}; value=${value%@*}; fi
+    gtm_uint "$weight" 1 256 || return 1
+    if [[ $value =~ ^\[([0-9a-fA-F:]+)\]:([0-9-]+)$ ]]; then
+        address=${BASH_REMATCH[1]}; port=${BASH_REMATCH[2]}
+        gtm_ipv6 "$address" || return 1
+    elif [[ $value =~ ^([0-9.]+):([0-9-]+)$ ]]; then
+        address=${BASH_REMATCH[1]}; port=${BASH_REMATCH[2]}
+        gtm_ipv4 "$address" || return 1
+    elif [[ $value =~ ^([a-z0-9.-]+):([0-9-]+)$ ]]; then
+        address=${BASH_REMATCH[1]}; port=${BASH_REMATCH[2]}
+        gtm_hostname "$address" && [[ ! $address =~ ^[0-9.]+$ ]] || return 1
+        EP_HOST=1
+    else return 1; fi
+    gtm_port_span "$port" || return 1
+    EP_IP=$address; EP_PORT=$PS_FIRST; EP_LAST=$PS_LAST; EP_WEIGHT=$((10#$weight))
+}
+
+# Port text for rules: "443" or "2000-2999" (nft) / "2000:2999" (iptables).
+gtm_span_text() { if (( $1 == $2 )); then printf '%d' "$1"; else printf '%d%s%d' "$1" "${3:--}" "$2"; fi; }
 
 gtm_need() { command -v "$1" >/dev/null 2>&1 || gtm_error "Install the required tool first: $1"; }
 

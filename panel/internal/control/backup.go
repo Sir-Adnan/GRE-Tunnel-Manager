@@ -273,9 +273,9 @@ func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, Bac
 		rows = append(rows, emitted[0])
 		var targets []string
 		for _, target := range c.Targets {
-			targets = append(targets, netip.AddrPortFrom(netip.MustParseAddr(target.IP), uint16(target.Port)).String())
+			targets = append(targets, target.Endpoint())
 		}
-		if e = add(c.ID, c.Name, c.Engine, c.Protocol+" "+recoveryEndpoint(c.Bind, c.Ports)+" → "+strings.Join(targets, ", ")); e != nil {
+		if e = add(c.ID, c.Name, c.Engine, c.Protocol+" "+recoveryEndpoint(c.Bind, c.Ports)+" â†’ "+strings.Join(targets, ", ")); e != nil {
 			return d, v, e
 		}
 	}
@@ -302,7 +302,7 @@ func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, Bac
 			if name == "" {
 				name = fmt.Sprintf("gre-tun-%d", g.ID)
 			}
-			if e = add(fmt.Sprintf("gre-tun-%d", g.ID), name, "gre", g.Bind+" → "+g.Remote); e != nil {
+			if e = add(fmt.Sprintf("gre-tun-%d", g.ID), name, "gre", g.Bind+" â†’ "+g.Remote); e != nil {
 				return d, v, e
 			}
 		} else {
@@ -317,7 +317,7 @@ func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, Bac
 			if r.Reverse.Certificate != "" && r.Reverse.Certificate != "-" {
 				certificates[r.Reverse.Certificate] = true
 			}
-			summary := recoveryEndpoint(r.Reverse.Host, strconv.Itoa(r.Reverse.Control)) + " → " + recoveryEndpoint(r.Reverse.LocalIP, strconv.Itoa(r.Reverse.LocalPort))
+			summary := recoveryEndpoint(r.Reverse.Host, strconv.Itoa(r.Reverse.Control)) + " â†’ " + recoveryEndpoint(r.Reverse.LocalIP, strconv.Itoa(r.Reverse.LocalPort))
 			if r.Reverse.Role == "entrance" {
 				summary = recoveryEndpoint(r.Reverse.Host, strconv.Itoa(r.Reverse.Control)) + " / " + recoveryEndpoint(r.Reverse.Host, strconv.Itoa(r.Reverse.Public))
 			}

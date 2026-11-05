@@ -26,6 +26,16 @@ The page shows:
 - **Weekly report**: calendar weeks in the maintenance time zone, starting Saturday in Persian and Monday in English. It shows uptime, outages (overlapping destinations are merged, not summed), downtime, latency average, peak and jitter, server load and conntrack peak, maintenance runs and, when [traffic accounting](TRAFFIC-ACCOUNTING.md) history exists, per-tunnel traffic. Export it as CSV or print it. Hourly rollups are UTC hours, so a week boundary in a half-hour time zone is accurate to 30 minutes.
 - **Server**: conntrack usage, hash buckets, idle-TCP timeout and drops since the previous check, plus CPU, steal, softirq and I/O wait shares, all read from `/proc` and `/sys`.
 
+### Choices in the forms
+
+Connection and GRE forms have a **Health and protection** section, and GRE cards a shield button with the same choices:
+
+- When health checks are off, one switch turns them on with the current settings as the form is saved.
+- **Monitor this connection** (on by default) adds or removes the owner from the `ignore` list; ignored owners are not probed and show a grey dot.
+- **Automatic failover** adds a kernel forward that ends up with two or more destinations (domains count their resolved addresses) to the failover list.
+- **Notify me** removes the owner from the `quiet` list; quiet owners' outages stay in the notification center but are not sent to the webhook or Telegram.
+- **Safe apply** (connections) keeps the restore point taken before the change and reverts to it after 2, 5 or 10 minutes unless *Keep changes* is pressed in the banner. The broker checks every 30 seconds, reverts through the change history only if the configuration revision is still the one right after the change, and emits a `change-reverted` notification either way. The pending change survives a broker restart in `safe-change.json`.
+
 ### Failover for kernel forwards
 
 nftables and iptables spread new connections with a fixed rule (`numgen`, `jhash` or `statistic`) and do not check destinations, so a dead destination keeps its share of new connections. With a source-hash spread its users stay on the dead one. Health failover fixes this per forward (**Settings → Failover for kernel forwards**, off by default):

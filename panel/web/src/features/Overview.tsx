@@ -64,6 +64,41 @@ function Kpi({
 }
 
 /** Status first: what runs on this server, what needs attention, and live host load. */
+import type { ReactNode } from "react";
+import { toast } from "sonner";
+import { DragHandle, SortableArea, SortableItem } from "@/components/sortable";
+import { applyOrder, useOrder } from "@/lib/order";
+
+const blockNames: Record<string, string> = { kpi: "overviewBlockKpi", status: "overviewBlockStatus", recent: "recent" };
+
+/** The overview's main blocks in the order people set (drag the handle at the side). */
+function OverviewBlocks({ blocks }: { blocks: Record<string, ReactNode> }) {
+  const t = useT();
+  const order = useOrder("overview");
+  const ids = applyOrder(Object.keys(blocks), order.ids, (id) => id);
+  return (
+    <SortableArea
+      ids={ids}
+      onMove={(next) =>
+        void order.save(next).then((e) => {
+          if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
+        })
+      }
+    >
+      {ids.map((id) => (
+        <SortableItem key={id} id={id}>
+          {(item) => (
+            <section ref={item.setNodeRef} style={item.style} className="overview-block" data-dragging={item.dragging || undefined} aria-label={t(blockNames[id])}>
+              <DragHandle handle={item.handle} label={t(blockNames[id])} className="overview-block-handle" />
+              {blocks[id]}
+            </section>
+          )}
+        </SortableItem>
+      ))}
+    </SortableArea>
+  );
+}
+
 export function Overview({
   inventory,
   add,
@@ -136,6 +171,9 @@ export function Overview({
           </Button>
         </div>
       </header>
+      <OverviewBlocks
+        blocks={{
+          kpi: (
       <div className="kpi-grid">
         <Kpi
           icon={Layers3}
@@ -164,10 +202,14 @@ export function Overview({
           detail={h.load ? `${t("load")} ${h.load}` : h.os}
         />
       </div>
+          ),
+          status: (
       <div className="overview-grid">
         <LiveTelemetry />
         <AttentionPanel items={issues} navigate={navigate} />
       </div>
+          ),
+          recent: (
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -203,6 +245,9 @@ export function Overview({
           />
         </CardContent>
       </Card>
+          ),
+        }}
+      />
     </div>
   );
 }

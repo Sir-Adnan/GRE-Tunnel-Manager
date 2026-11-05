@@ -15,6 +15,8 @@ import { PanelFooter } from "@/components/PanelFooter";
 import { CommandPalette } from "@/components/CommandPalette";
 import { usePanelRoute } from "@/lib/use-panel-route";
 import { ConnectionWorkspace } from "@/features/connections/ConnectionWorkspace";
+import { duplicatePorts } from "@/lib/ports";
+import { SafeChangeBanner } from "@/features/connections/SafeChangeBanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -85,7 +87,7 @@ const Backups = lazy(() =>
 );
 
 const styleIds = Object.keys(registry.styles);
-type FormState = { engine: string; engines?: string[]; original?: Connection };
+type FormState = { engine: string; engines?: string[]; original?: Connection; copy?: Connection };
 
 function usePreferences() {
   const [preferences, setPreferences] = useState(() =>
@@ -186,6 +188,17 @@ export default function App() {
   );
   const edit = (original: Connection) =>
     setForm({ engine: original.engine, original });
+  // Duplicate: the same settings on the next free port (or range).
+  const duplicate = (source: Connection) =>
+    setForm({
+      engine: source.engine,
+      copy: {
+        ...source,
+        name: source.name ? `${source.name.slice(0, 34)} copy` : "",
+        ports: duplicatePorts(source.ports, inventory?.connections.map((c) => c.ports) ?? []),
+        port_mode: source.ports.includes("-") ? "same" : "",
+      },
+    });
   const refreshPage = useCallback(
     () =>
       page === "nodes"
@@ -269,6 +282,7 @@ export default function App() {
                   <AlertDescription>{t("demo")}</AlertDescription>
                 </Alert>
               )}
+              {inventory && <SafeChangeBanner run={run} refreshKey={String(inventory.connections.reduce((h, c) => (h * 31 + c.revision.charCodeAt(0) + c.revision.charCodeAt(9)) % 1e9, inventory.connections.length))} />}
               {inventoryError && (
                 <Alert className="mb-5" variant="destructive">
                   <AlertDescription>{inventoryError}</AlertDescription>
@@ -308,6 +322,7 @@ export default function App() {
                             inventory={inventory}
                             add={add}
                             edit={edit}
+                            duplicate={duplicate}
                             run={run}
                           />
                         ) : page === "gre" || page === "reverse" ? (
@@ -374,6 +389,7 @@ export default function App() {
               engines={form.original ? undefined : form.engines}
               engine={form.engine}
               original={form.original}
+              copy={form.copy}
               onClose={() => setForm(undefined)}
               onSubmit={run}
             />

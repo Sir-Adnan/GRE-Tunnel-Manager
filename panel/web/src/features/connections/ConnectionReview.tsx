@@ -1,13 +1,24 @@
 import { endpoint } from "@/lib/api";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
-export function ConnectionReview({ value }: { value: Connection }) {
+import { isHostname, parseSpans, remoteSpans, spanText, targetPorts } from "@/lib/ports";
+export function ConnectionReview({
+  value,
+  resolved = {},
+}: {
+  value: Connection;
+  resolved?: Record<string, string[] | null | undefined>;
+}) {
   const t = useT();
+  const kernel = value.engine === "nftables" || value.engine === "iptables";
+  const spans = parseSpans(value.ports, kernel).spans;
+  const remote = remoteSpans(spans, value.port_mode || "", value.remote_ports || "", 0);
+  const mapped = value.port_mode ? remote.spans.map(spanText).join(", ") : "";
   return (
     <div className="review-block">
       <dl className="review-grid">
         <dt>{t("name")}</dt>
-        <dd>{value.name || `${value.engine}-${value.ports}`}</dd>
+        <dd>{value.name || `${value.engine}-${value.ports.split(/[-,\s]/)[0]}`}</dd>
         <dt>{t("listener")}</dt>
         <dd>
           <code dir="ltr">
@@ -17,9 +28,21 @@ export function ConnectionReview({ value }: { value: Connection }) {
         <dt>{t("destination")}</dt>
         <dd className="flex flex-col gap-2">
           {value.targets.map((target, index) => (
-            <code key={index} dir="ltr">
-              {endpoint(target.ip, target.port)} · {t("weight")} {target.weight}
-            </code>
+            <div key={index} className="flex min-w-0 flex-col gap-0.5">
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <code dir="ltr">{endpoint(target.ip, mapped || targetPorts(target))}</code>
+                {value.targets.length > 1 && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("weight")} {target.weight}
+                  </span>
+                )}
+              </span>
+              {isHostname(target.ip) && (
+                <span className="text-xs text-muted-foreground" dir="ltr">
+                  {(resolved[target.ip] || []).join(", ") || t("dnsNoAddress")}
+                </span>
+              )}
+            </div>
           ))}
         </dd>
         <dt>{t("strategy")}</dt>

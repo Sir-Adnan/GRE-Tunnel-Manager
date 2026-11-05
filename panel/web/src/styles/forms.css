@@ -99,3 +99,265 @@
     flex: 1;
   }
 }
+
+/* v1.5.0 editor: steps beside a live route map, port-mapping cards, sortable
+   destinations and the health and protection panel. */
+@layer components {
+  .form-step-button {
+    @apply flex items-center gap-2 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default;
+  }
+  .form-steps li[data-state="done"] .form-step-button {
+    @apply cursor-pointer hover:text-foreground;
+  }
+  .connection-editor-grid {
+    @apply grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_17.5rem];
+  }
+  .connection-editor-aside {
+    @apply hidden lg:block;
+  }
+  .route-map {
+    @apply sticky top-0 flex flex-col gap-2 rounded-xl border p-4;
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+  }
+  .route-map-title {
+    @apply mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase;
+  }
+  .route-node {
+    @apply flex min-w-0 items-start gap-3 rounded-lg border bg-background p-3;
+  }
+  .route-node > svg {
+    @apply mt-0.5 size-4 shrink-0 text-muted-foreground;
+  }
+  .route-node.is-server {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+  .route-node.is-server > svg {
+    color: var(--primary-text);
+  }
+  .route-arrow {
+    @apply mx-auto size-4 text-muted-foreground;
+  }
+  .route-targets {
+    @apply flex flex-col gap-2;
+  }
+  .route-target {
+    @apply flex min-w-0 items-start gap-2 rounded-lg border bg-background p-2.5;
+  }
+  .route-index {
+    @apply flex size-6 shrink-0 items-center justify-center rounded-full border bg-background text-[11px] font-medium tabular-nums text-muted-foreground;
+  }
+  .route-badges {
+    @apply mt-2 flex flex-wrap gap-1.5;
+  }
+  .route-badges li {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground [&_svg]:size-3;
+  }
+  .route-badges li[data-on] {
+    @apply border-success text-success-text;
+  }
+  .choice-cards {
+    @apply grid grid-cols-1 gap-2 sm:grid-cols-3;
+  }
+  .choice-card {
+    @apply relative flex cursor-pointer flex-col gap-1 rounded-xl border p-3 transition-colors hover:bg-muted/40;
+  }
+  .choice-card:has(input:focus-visible) {
+    @apply ring-2 ring-ring;
+  }
+  .choice-card[data-checked] {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
+  }
+  .choice-card-icon {
+    @apply mb-1 size-4 text-muted-foreground;
+  }
+  .choice-card[data-checked] .choice-card-icon {
+    color: var(--primary-text);
+  }
+  .mapping-preview {
+    @apply flex flex-wrap gap-2 font-mono text-xs;
+  }
+  .mapping-preview li {
+    @apply inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1;
+  }
+  .target-card {
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border bg-background p-3;
+  }
+  .target-card[data-dragging] {
+    box-shadow: var(--elevation-3);
+  }
+  .target-card-head {
+    @apply flex min-w-0 items-start gap-2;
+  }
+  .target-card-head > .route-index {
+    @apply mt-7;
+  }
+  .drag-handle {
+    @apply mt-7 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing [&_svg]:size-4;
+  }
+  .dns-preview {
+    @apply flex min-w-0 items-start gap-1.5 text-xs break-all;
+  }
+  .dns-preview svg {
+    @apply mt-0.5 shrink-0;
+  }
+  .dns-preview[data-state="ok"] {
+    @apply text-success-text;
+  }
+  .dns-preview[data-state="bad"] {
+    @apply text-destructive;
+  }
+  .dns-preview[data-state="loading"] {
+    @apply text-muted-foreground;
+  }
+  .advanced-block {
+    @apply rounded-xl border p-3;
+  }
+  .advanced-block > summary {
+    @apply cursor-pointer text-sm font-medium;
+  }
+  .protect-panel {
+    @apply flex flex-col gap-3 rounded-xl border p-4;
+  }
+  .protect-row {
+    @apply flex min-w-0 cursor-pointer items-center gap-3 border-t py-3 first:border-t-0;
+  }
+  .protect-row[data-disabled] {
+    @apply cursor-default opacity-60;
+  }
+  .protect-icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted [&_svg]:size-4;
+    color: var(--primary-text);
+  }
+  .protect-callout {
+    @apply flex items-center gap-3 rounded-lg border border-dashed p-3;
+    border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+  }
+  .protect-callout[data-on] {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--success) 60%, var(--border));
+    background: color-mix(in srgb, var(--success) 8%, transparent);
+  }
+  .protect-safe {
+    @apply flex items-start gap-3 border-t pt-3;
+  }
+  .protect-safe .protect-icon {
+    @apply mt-6;
+  }
+}
+@media (max-width: 639px) {
+  .drag-handle {
+    @apply size-11;
+  }
+}
+
+@layer components {
+  .health-dot {
+    @apply inline-block size-2 shrink-0 rounded-full;
+    background: var(--muted-foreground);
+    opacity: 0.45;
+  }
+  .health-dot[data-status="up"] {
+    background: var(--success);
+    opacity: 1;
+  }
+  .health-dot[data-status="degraded"] {
+    background: var(--warning);
+    opacity: 1;
+  }
+  .health-dot[data-status="down"] {
+    background: var(--destructive);
+    opacity: 1;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 22%, transparent);
+  }
+  .sortable-card[data-dragging],
+  .sortable-row[data-dragging] {
+    box-shadow: var(--elevation-3);
+    background: var(--card);
+  }
+  .sortable-row[data-dragging] {
+    display: table-row;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sortable-card,
+  .sortable-row,
+  .target-card {
+    transition: none !important;
+  }
+}
+
+@layer components {
+  .overview-block {
+    @apply relative flex min-w-0 flex-col gap-4;
+  }
+  .overview-block-handle {
+    @apply absolute -start-9 top-0 !mt-0 opacity-0 transition-opacity focus-visible:opacity-100;
+  }
+  .overview-block:hover > .overview-block-handle,
+  .overview-block[data-dragging] > .overview-block-handle {
+    @apply opacity-100;
+  }
+  @media (max-width: 1279px) {
+    .overview-block-handle {
+      @apply relative start-auto top-auto self-end -mb-3 opacity-60;
+    }
+  }
+}
+
+/* Optimization → DNS and the safe-apply banner. */
+@layer components {
+  .dns-layout {
+    @apply grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)];
+  }
+  .dns-row {
+    @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/40;
+  }
+  .dns-row[data-static] {
+    @apply cursor-default py-2 hover:bg-transparent;
+  }
+  .dns-row:has(input:focus-visible) {
+    @apply ring-2 ring-ring;
+  }
+  .dns-row[data-checked] {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
+  }
+  .dns-radio {
+    @apply size-4 shrink-0 rounded-full border-2;
+  }
+  .dns-row[data-checked] .dns-radio {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 3px var(--background);
+    background: var(--primary);
+  }
+  .dns-latency {
+    @apply relative inline-flex min-w-24 shrink-0 items-center justify-end gap-1 text-xs tabular-nums;
+  }
+  .dns-latency-bar {
+    @apply absolute -bottom-1 end-0 h-0.5 rounded-full;
+    background: currentColor;
+    opacity: 0.5;
+  }
+  .dns-latency[data-state="good"] {
+    @apply text-success-text;
+  }
+  .dns-latency[data-state="ok"] {
+    color: var(--foreground);
+  }
+  .dns-latency[data-state="slow"] {
+    color: var(--warning-text);
+  }
+  .dns-latency[data-state="bad"] {
+    @apply text-destructive;
+  }
+  .dns-textarea {
+    @apply min-h-20 w-full rounded-lg border border-input bg-background p-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive;
+  }
+  .safe-banner {
+    @apply mb-5 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3;
+    border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
+    background: color-mix(in srgb, var(--warning) 10%, var(--background));
+  }
+}

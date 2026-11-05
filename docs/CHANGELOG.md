@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.5.0 — Port ranges, domain destinations, server DNS and a new connection editor
+
+### Panel
+
+- **Connection editor** in three steps — Entrance, Destinations, Protection & review — beside a live route map (ports → this server → destinations, what a domain resolves to, monitoring and safe apply). Steps validate before moving on; finished steps can be reopened; on phones the map folds into the summary bar.
+- **Port ranges and mapping:** a range such as `2000-2999` is one nftables/iptables record and rule (up to 4096 ports). Remote ports: *Same port*, *One port* or *Mapped* (`2000-2999 → 3000-3999`, nftables), with a live preview. Search finds a port inside a range.
+- **Domain destinations:** an address field takes a domain, checks it as you leave it and shows its addresses; refresh interval (1–60 min) and *all addresses / only the first* per name. Rules use the cached addresses; a refresh changes rules only when an address changes.
+- **Health and protection in the forms:** connection and GRE forms show whether health checks are on (one switch turns them on), and set *Monitor this connection*, *Automatic failover* (kernel forwards with two or more destinations, domains included) and *Notify me*. GRE cards get the same choices from a shield button. Lists show a health dot per row.
+- **Safe apply:** a change can revert itself after 2, 5 or 10 minutes unless confirmed; a banner counts down with *Keep changes* and *Revert now*. The server reverts on its own (through the change history) only if nothing else changed meanwhile, and sends a notification.
+- **Drag and drop** with a handle (mouse, touch, or arrow keys on the focused handle; announced to screen readers) for connections, destinations (failover priority), GRE and reverse tunnels, Nodes and the Overview blocks. List order is saved on the server for every device and never changes configuration.
+- **Duplicate** a connection onto the next free port or range.
+- **Optimization → DNS** tab: international and Iranian presets or manual servers, a speed test from the server, apply that survives reboots and DHCP, and restore of the original. See [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md).
+- **Import from Port Forward Manager** (portfw / portfw-nft) on the same server, with range and mapping conversion.
+
+### Server and tooling
+
+- `state.sh`/`firewall.sh`: range ports and one-to-one target ranges (`gtm_port_span`, `gtm_target`), range-aware listener conflicts, nftables port maps, iptables `--dport A:B`, range-aware flow reset. Strict legacy parsers keep `gtm_endpoint`.
+- New modules: `resolve.sh` (DNS cache and policy, expansion, `--dns-refresh` timer), `sysdns.sh` (server DNS for systemd-resolved and plain resolv.conf; Tools → Server DNS), `portfw.sh` (rule export and listener guard).
+- Terminal forms accept ranges for kernel engines, mapped remote ports (nftables) and domain destinations.
+- Broker: `dns`, `dns-test`, `dns-resolve`, `dns-apply`, `dns-restore`, `dns-policy`, `dns-refresh`, `ui-order`/`ui-order-save`, `change-pending`/`change-confirm`/`change-revert`, `health-protect`; health settings gain `ignore` and `quiet`; notification kind `change-reverted`.
+- New files: `/etc/gre-manager/dns-cache.tsv`, `dns-policy.tsv`, `dns/`; `gre-manager-dns.{service,timer}`; `gre-manager-resolv.service` with `/usr/local/lib/gre-manager/resolv.sh` or `/etc/systemd/resolved.conf.d/90-gre-manager.conf`; `/var/lib/gre-manager-panel/ui-order.json` and `safe-change.json`.
+
+Local evidence only: Python, Go (race, vet) and frontend tests, ShellCheck, `nft -c` and `iptables-restore` of range rules in an isolated namespace, and browser checks of the demo in both languages at desktop and phone width. Not yet run on real servers: domain refresh against changing records, server DNS on real systemd-resolved/DHCP hosts and an import from a live portfw installation.
+
 ## v1.4.1 — Notifications, change history, scheduled backups and tunnel tests
 
 ### Panel

@@ -90,6 +90,13 @@ type Operations struct {
 	// watch guards the newest optimization step (optional auto-undo).
 	watchPath string
 	watch     watchState
+
+	// orderPath keeps the list order people set by drag and drop.
+	orderPath string
+	orderMu   sync.Mutex
+	// safePath keeps the pending confirm-or-revert change.
+	safePath string
+	safe     *SafeChange
 }
 
 func NewOperations(directory string) (*Operations, error) {
@@ -111,8 +118,12 @@ func NewOperations(directory string) (*Operations, error) {
 	if o.Prometheus, e = OpenPrometheus(filepath.Join(directory, "prometheus.json")); e != nil {
 		return nil, fmt.Errorf("metrics export: %w", e)
 	}
+	o.Notify.SetQuiet(h.Settings().Quiet)
 	o.watchPath = filepath.Join(directory, "optimize-watch.json")
 	o.loadWatch()
+	o.orderPath = filepath.Join(directory, "ui-order.json")
+	o.safePath = filepath.Join(directory, "safe-change.json")
+	o.loadSafe()
 	if up, ok := o.uptime(); ok {
 		_ = s.ResolveReboots(time.Now().Add(-up))
 	}
@@ -176,6 +187,15 @@ func (o *Operations) healthRound(ctx context.Context, m *Manager, now time.Time,
 		return Inventory{}, e
 	}
 	targets := healthTargets(inventory)
+	if ignore := settings.IgnoreSet(); len(ignore) > 0 {
+		kept := targets[:0:0]
+		for _, t := range targets {
+			if !ignore[t.Owner] {
+				kept = append(kept, t)
+			}
+		}
+		targets = kept
+	}
 	probe := targets
 	if !full {
 		selected := settings.FailoverSet()
@@ -277,6 +297,7 @@ func (o *Operations) execute(now time.Time, r Request, metrics *Metrics) (any, e
 		if e := o.Health.Configure(now, r.Health.Settings, r.Health.Revision); e != nil {
 			return nil, e
 		}
+		o.Notify.SetQuiet(o.Health.Settings().Quiet)
 		return o.healthView(now), nil
 	case "maintenance":
 		return o.maintenanceView(now), nil
