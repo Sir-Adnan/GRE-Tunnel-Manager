@@ -356,10 +356,38 @@
     @apply rounded bg-muted px-1 font-mono text-xs font-normal;
   }
 
+  .access-summary {
+    @apply flex flex-wrap items-start gap-3 rounded-lg border bg-muted/30 p-4;
+    border-inline-start: 3px solid var(--primary);
+  }
+  .access-summary[data-state="expired"],
+  .access-summary[data-state="http"] {
+    border-inline-start-color: var(--destructive);
+  }
+  .access-summary[data-state="expiring"] {
+    border-inline-start-color: var(--warning);
+  }
+  .access-facts {
+    @apply grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2;
+  }
+  .access-facts > div {
+    min-width: 0;
+  }
+  .access-facts dt {
+    @apply mb-1 text-xs text-muted-foreground;
+  }
+  .access-facts dd {
+    @apply text-sm;
+    overflow-wrap: anywhere;
+    margin-inline-start: 0;
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .ntf-item,
     .hist-card {
-      transition: background-color 150ms ease-out, border-color 150ms ease-out;
+      transition:
+        background-color 150ms ease-out,
+        border-color 150ms ease-out;
     }
   }
 }

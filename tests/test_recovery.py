@@ -7,6 +7,24 @@ from test_manager import ROOT, bash, record
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_domain_policy_restore_preserves_other_names_and_rolls_back_on_failure(self):
+        for fail in (False, True):
+            with self.subTest(fail=fail), tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+                extra = 'printf "retained.example\\t10\\tall\\n" > "$GTM_CONFIG_DIR/dns-policy.tsv"\n'
+                if fail:
+                    extra += 'systemctl() { [[ $1 != is-active && $1 != daemon-reload ]]; }\n'
+                rows = 'I\t1\nD\ta.example\t15\tfirst\nC\t' + record(enabled='0', targets='a.example:443@1') + '\n'
+                result = self.restore(directory, rows, extra)
+                policy = (Path(directory)/'config/dns-policy.tsv').read_text()
+                self.assertIn('retained.example\t10\tall', policy)
+                if fail:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn('a.example\t15\tfirst', policy)
+                    self.assertFalse((Path(directory)/'config/connections.tsv').exists())
+                else:
+                    self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+                    self.assertIn('a.example\t15\tfirst', policy)
+
     def setup_script(self, directory):
         base = Path(directory).as_posix()
         return ('GTM_CONFIG_DIR=' + shlex.quote(base + '/config') + '\n'

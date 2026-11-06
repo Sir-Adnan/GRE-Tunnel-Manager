@@ -51,27 +51,28 @@ export function useConnectionDraft({
       : copy
         ? { ...editMapping(copy), id: "", revision: "", status: undefined }
         : {
-          id: "",
-          name: "",
-          engine,
-          protocol: "tcp",
-          bind: anyAddress(false),
-          ports: "",
-          strategy: "single",
-          enabled: true,
-          snat: "masquerade",
-          interface: "any",
-          targets: [{ ip: "", port: 443, weight: 1 }],
-          options: creationOptions(engine),
-          revision: "",
-          port_mode: "",
-        },
+            id: "",
+            name: "",
+            engine,
+            protocol: "tcp",
+            bind: anyAddress(false),
+            ports: "",
+            strategy: "single",
+            enabled: true,
+            snat: "masquerade",
+            interface: "any",
+            targets: [{ ip: "", port: 443, weight: 1 }],
+            options: creationOptions(engine),
+            revision: "",
+            port_mode: "",
+          },
   );
   // Several ports or a range default to the same remote port numbers until
   // the person picks a mapping.
   const [modeTouched, setModeTouched] = useState(Boolean(original));
   const [baseline] = useState(() => JSON.stringify(value));
   const [preset, setPreset] = useState("custom");
+  const [advancedTab, setAdvancedTab] = useState("limits");
   const capability = inventory.capabilities.find(
     (item) => item.id === value.engine,
   )!;
@@ -84,8 +85,7 @@ export function useConnectionDraft({
       const kernel = kernelEngines.includes(current.engine);
       const spans =
         key === "ports" ? parseSpans(String(next), kernel).spans : [];
-      const several =
-        spans.length > 1 || spans.some((s) => s.last > s.first);
+      const several = spans.length > 1 || spans.some((s) => s.last > s.first);
       const updated = {
         ...current,
         [key]: next,
@@ -202,6 +202,8 @@ export function useConnectionDraft({
     }));
   }
   return {
+    advancedTab,
+    setAdvancedTab,
     value,
     patch,
     moveTargets,

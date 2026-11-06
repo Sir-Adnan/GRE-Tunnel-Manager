@@ -110,6 +110,17 @@ func (m *Manager) executeGuarded(ctx context.Context, r Request) (any, error) {
 	if e != nil {
 		return result, e
 	}
+	// Arm recovery before optional health writes: a failed health save must not
+	// leave an already-applied forwarding change without its requested safeguard.
+	if minutes != 0 {
+		text, ok := result.(string)
+		if !ok {
+			return result, errors.New("saved, but the exact automatic-revert receipt is unavailable")
+		}
+		if e := m.armSafe(ctx, r, time.Now().UTC(), text); e != nil {
+			return result, errors.New("saved, but automatic revert could not be armed: " + e.Error())
+		}
+	}
 	if protect != nil {
 		owners := []string{}
 		switch r.Action {
@@ -134,12 +145,6 @@ func (m *Manager) executeGuarded(ctx context.Context, r Request) (any, error) {
 		}
 		if e := m.applyProtection(ctx, owners, *protect); e != nil {
 			return result, errors.New("saved, but the health choices were not applied: " + e.Error())
-		}
-	}
-	if minutes != 0 {
-		r.SafeMinutes = minutes
-		if e := m.armSafe(ctx, r, time.Now().UTC()); e != nil {
-			return result, errors.New("saved, but automatic revert could not be armed: " + e.Error())
 		}
 	}
 	return result, nil

@@ -19,6 +19,7 @@ The `.gtm-backup` file contains managed configuration data, not an operating-sys
 | Reverse tunnels | Generated FRP/rathole definitions, tokens and existing Noise keys |
 | Display names | GRE/reverse names, rebound to the regenerated unit fingerprint |
 | Connection allocation | The monotonic connection counter |
+| Domain DNS policies | Refresh interval and all/first mode for referenced names, including disabled connections; addresses resolve again on activation |
 | Optional accounting | Saved totals, cycle baselines, labels, quotas and bounded histories |
 
 Export stops when it encounters unsupported custom GRE commands or reverse configuration. It also rejects drift between enabled relay records and existing generated files. Resolve that drift or retain a separate manual copy; an incomplete backup must not be presented as complete. The backup captures the last saved traffic sample, not bytes still in live kernel counters.
@@ -44,6 +45,8 @@ All imported forwards are saved disabled. GRE/reverse units are regenerated from
 Lifetime traffic totals and cycle baselines survive optional accounting recovery. Raw operating-system sample baselines are reset, because counters on the new machine cannot be compared with those on the old one. Existing advisory quotas remain advisory.
 
 ## Protection and failure handling
+
+Historical schema-1 backups without `dns_policies` remain readable and use the normal DNS defaults. Current backups optionally include typed policies; they preserve unrelated destination-side policy names during paused publication and roll them back on a checked write failure. Live DNS cache entries and the server's own resolver configuration are not migrated. Domains are retained as names and are not offered as literal-IP replacement fields.
 
 - Recovery envelope/schema version `1` is independent of the application release. Unknown envelope/schema versions fail closed; supported connection options are validated by the installed release.
 - AES-256-GCM authenticates the payload, with a fresh 16-byte salt, 12-byte nonce and PBKDF2-HMAC-SHA256 at 600000 iterations. The backup password is separate from the panel password. There is no password reset for recovery files.

@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext } from "react";
 import { FieldGroup } from "@/components/ui/field";
 import { TextField, Choice } from "@/components/shared";
 import { LocaleContext, useT } from "@/lib/i18n";
@@ -11,8 +11,14 @@ import type { ConnectionDraft } from "./useConnectionDraft";
 export function ConnectionAdvanced({ draft }: { draft: ConnectionDraft }) {
   const t = useT(),
     locale = useContext(LocaleContext);
-  const [advancedTab, setAdvancedTab] = useState("limits");
-  const { value, patch, capability, bindSuggestions } = draft;
+  const {
+    value,
+    patch,
+    capability,
+    bindSuggestions,
+    advancedTab,
+    setAdvancedTab,
+  } = draft;
   return (
     <Tabs
       dir={locale === "fa" ? "rtl" : "ltr"}

@@ -2,6 +2,8 @@
 
 # GRE Tunnel Manager
 
+v1.5.2 groups Settings into four tabs, improves narrow-screen connection forms and supports externally renewed HTTPS certificates. The HTTPS installer option starts with a self-signed certificate; see [HTTPS setup and renewal](docs/HTTPS.md).
+
 ### Server links. Port forwarding. One place to manage them.
 
 A Bash manager with an optional web panel — built for TCP/UDP relays, VPN traffic and multi-server setups.
@@ -40,6 +42,8 @@ Already root? Omit `sudo`. On IPv6-only servers, remove `--ipv4`. See the [user 
 GRE is optional and does not encrypt traffic. It requires IP protocol **47** to pass through the network. For WireGuard or AmneziaWG traffic, use a UDP-capable method; the HAProxy adapter handles TCP.
 
 ## Web panel
+
+Quick HTTPS setup uses a self-signed certificate. To use trusted HTTPS with automatic renewal, connect an external Certbot/acme.sh client through the validated certificate install command and renewal hook. The panel displays the loaded certificate and supports reload without interrupting tunnels; see [HTTPS and certificate renewal](docs/HTTPS.md).
 
 Install directly, or select **Web Panel** in the terminal menu:
 

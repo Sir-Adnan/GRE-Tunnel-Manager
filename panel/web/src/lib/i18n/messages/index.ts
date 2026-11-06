@@ -16,8 +16,10 @@ import { history } from "./history";
 import { tunnels } from "./tunnels";
 import { forwarding } from "./forwarding";
 import { serverdns } from "./serverdns";
+import { access } from "./access";
 
 export const modules = {
+  access,
   common,
   overview,
   connections,
@@ -38,6 +40,7 @@ export const modules = {
 };
 
 export const messages = {
+  ...access,
   ...common,
   ...overview,
   ...connections,

@@ -28,6 +28,7 @@
   html {
     color-scheme: dark;
     -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   html[data-mode="light"] {
     color-scheme: light;

@@ -51,6 +51,9 @@ The suite creates private parent/child namespaces and veth paths. It checks real
 
 ## Fixtures and contracts
 
+- Reliability regressions in `test_reliability.py` execute a generated runner in a fresh empty environment, check non-keyword nftables identifiers and same-second history/pruning. `test_forwarding.py` covers resolver publication/recovery and pending DNS reconciliation; `test_recovery.py` covers policy merging and rollback. Installer fixtures include all current state files and reject unknown snapshot entries/links.
+- `internal/certificates` exercises actual TLS handshakes across renewal, invalid renewal retention and concurrent status/handshake reads. CLI publication tests inject activation failure and check the previous configuration and private bundle. HTTP tests keep metadata/reload authenticated and CSRF/Origin-protected. None of these obtains a live CA certificate or proves VPS timer/systemd behavior.
+
 - Form tests cover numbered choices, cancellation, auto names, endpoint formats, multi-port batches and preservation of unrelated state/options. Header tests mock metadata requests; they must not geolocate the development machine.
 - Installer tests redirect system paths and fake accounts/services. They cover version/checksum rejection, lock/config failures and upgrade preservation. Never run host-wide installation fixtures on an ordinary development host.
 - Go tests cover real local TLS enrollment, identity separation, revocation/renewal, protocol negotiation, reconnect and bounded reports. Paired operations need stale revision, repeated delivery, restart, expiry and fingerprint-preserving rollback coverage.
@@ -76,3 +79,5 @@ Use MAJOR.MINOR.PATCH for application releases; state schemas and Node protocols
 `control/host_telemetry_test.go` checks aggregate CPU deltas without guest double-counting, cache cadence, default-route deduplication, IPv6-only routes, missing files and counter/idle-gap resets. `traffic_quota_test.go` checks explicit opt-in, cycle reset, persistence, bidirectional scoped rules and collection-selection guards. Linux root runs additionally execute `TestQuotaKernelStopsEstablishedRelayAndResumes` in a new private network namespace; normal unprivileged runs skip that test. CI compiles its test executable and runs this one isolated fixture with sudo.
 
 Browser checks should cover numeric quota/progress at 320–1920px in both locales/modes, policy-switch prerequisites, policy save/reopen, reset/resume help, dashboard polling pause/resume and no live requests after leaving the dashboard. Simulated UI counters must not be reported as real traffic tests.
+
+The v1.5.2 responsive acceptance matrix covers 320, 360, 390, 412, 430, 768, 1024 and 1440 CSS-pixel widths in both locales. Measure inner modal overflow and address input width, not only document overflow. Exercise three destinations, tab keyboard/history behavior, retained notification drafts, help by tap/Escape and GRE/reverse forms. These are desktop-browser viewport simulations, not physical-device certification.

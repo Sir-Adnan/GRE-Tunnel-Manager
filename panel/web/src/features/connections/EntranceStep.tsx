@@ -2,7 +2,12 @@
 // rule), protocol and how several ports map to the remote side.
 import { useContext } from "react";
 import { ArrowRight, Equal, Repeat, Waypoints } from "lucide-react";
-import { Field, FieldGroup, FieldLabel, FieldContent } from "@/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldContent,
+} from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from "@/components/ui/switch";
 import { TextField, Choice } from "@/components/shared";
@@ -10,11 +15,22 @@ import { HelpTip } from "@/components/help";
 import { LocaleContext, useT } from "@/lib/i18n";
 import { engineName, number } from "@/lib/format";
 import type { Inventory } from "@/lib/api";
-import { mappingSamples, parseSpans, remoteSpans, totalPorts, type PortMode } from "@/lib/ports";
+import {
+  mappingSamples,
+  parseSpans,
+  remoteSpans,
+  totalPorts,
+  type PortMode,
+} from "@/lib/ports";
 import { ProfilePicker } from "./ProfilePicker";
 import type { ConnectionDraft } from "./useConnectionDraft";
 
-const modes: { id: PortMode; icon: typeof Equal; title: string; help: string }[] = [
+const modes: {
+  id: PortMode;
+  icon: typeof Equal;
+  title: string;
+  help: string;
+}[] = [
   { id: "same", icon: Equal, title: "portModeSame", help: "portModeSameHelp" },
   { id: "", icon: Waypoints, title: "portModeOne", help: "portModeOneHelp" },
   { id: "map", icon: Repeat, title: "portModeMap", help: "portModeMapHelp" },
@@ -36,10 +52,17 @@ export function EntranceStep({
   const { value, patch, capability } = draft;
   const kernel = value.engine === "nftables" || value.engine === "iptables";
   const parsed = parseSpans(value.ports, kernel);
-  const several = parsed.spans.length > 1 || parsed.spans.some((s) => s.last > s.first);
+  const several =
+    parsed.spans.length > 1 || parsed.spans.some((s) => s.last > s.first);
   const mode = value.port_mode || "";
-  const remote = remoteSpans(parsed.spans, mode, value.remote_ports || "", value.targets[0]?.port || 443);
-  const portsError = value.ports && parsed.error ? t(`portsError_${parsed.error}`) : "";
+  const remote = remoteSpans(
+    parsed.spans,
+    mode,
+    value.remote_ports || "",
+    value.targets[0]?.port || 443,
+  );
+  const portsError =
+    value.ports && parsed.error ? t(`portsError_${parsed.error}`) : "";
   const total = totalPorts(parsed.spans);
   return (
     <FieldGroup>
@@ -73,7 +96,7 @@ export function EntranceStep({
           aria-invalid={portsError ? true : undefined}
         />
         <Field>
-          <FieldLabel>{t("protocol")}</FieldLabel>
+          <FieldLabel className="min-h-8">{t("protocol")}</FieldLabel>
           <ToggleGroup
             type="single"
             variant="outline"
@@ -82,19 +105,33 @@ export function EntranceStep({
             onValueChange={(next) => next && patch("protocol", next)}
           >
             {capability.protocols.map((protocol) => (
-              <ToggleGroupItem key={protocol} value={protocol} aria-label={t(protocol)}>
+              <ToggleGroupItem
+                key={protocol}
+                value={protocol}
+                aria-label={t(protocol)}
+              >
                 {t(protocol)}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
         </Field>
       </div>
-      <p className={portsError ? "text-xs text-destructive" : "text-xs text-muted-foreground"} role={portsError ? "alert" : undefined}>
+      <p
+        className={
+          portsError
+            ? "text-xs text-destructive"
+            : "text-xs text-muted-foreground"
+        }
+        role={portsError ? "alert" : undefined}
+      >
         {portsError ||
           (total > 0
             ? t(kernel ? "portsSummaryKernel" : "portsSummary")
                 .replace("{n}", number(total, locale))
-                .replace("{r}", number(kernel ? parsed.spans.length : total, locale))
+                .replace(
+                  "{r}",
+                  number(kernel ? parsed.spans.length : total, locale),
+                )
             : t("localServerScope"))}
       </p>
       {several && (
@@ -103,11 +140,19 @@ export function EntranceStep({
             {t("portMapping")}
             <HelpTip>{t("portMappingHelp")}</HelpTip>
           </legend>
-          <div className="choice-cards" role="radiogroup" aria-label={t("portMapping")}>
+          <div
+            className="choice-cards"
+            role="radiogroup"
+            aria-label={t("portMapping")}
+          >
             {modes
               .filter((m) => m.id !== "map" || value.engine !== "iptables")
               .map(({ id, icon: Icon, title, help }) => (
-                <label key={id || "one"} className="choice-card" data-checked={mode === id || undefined}>
+                <label
+                  key={id || "one"}
+                  className="choice-card"
+                  data-checked={mode === id || undefined}
+                >
                   <input
                     type="radio"
                     name="port-mode"
@@ -117,11 +162,17 @@ export function EntranceStep({
                   />
                   <Icon className="choice-card-icon" aria-hidden />
                   <span className="text-sm font-medium">{t(title)}</span>
-                  <span className="text-xs text-muted-foreground">{t(help)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(help)}
+                  </span>
                 </label>
               ))}
           </div>
-          {value.engine === "iptables" && <p className="text-xs text-muted-foreground">{t("portModeMapNft")}</p>}
+          {value.engine === "iptables" && (
+            <p className="text-xs text-muted-foreground">
+              {t("portModeMapNft")}
+            </p>
+          )}
           {mode === "map" && (
             <TextField
               id="remote-ports"
@@ -134,18 +185,30 @@ export function EntranceStep({
                 event.target.setCustomValidity("");
                 patch("remote_ports", event.target.value);
               }}
-              onBlur={(event) => event.target.setCustomValidity(remote.error ? t(`portsError_${remote.error}`) : "")}
+              onBlur={(event) =>
+                event.target.setCustomValidity(
+                  remote.error ? t(`portsError_${remote.error}`) : "",
+                )
+              }
               required
               maxLength={1024}
             />
           )}
           {!parsed.error && !remote.error && parsed.spans.length > 0 && (
-            <ul className="mapping-preview" dir="ltr" aria-label={t("portMappingPreview")}>
+            <ul
+              className="mapping-preview"
+              dir="ltr"
+              aria-label={t("portMappingPreview")}
+            >
               {mappingSamples(parsed.spans, remote.spans).map((pair, i) => (
                 <li key={i}>
                   <span>{pair.from}</span>
                   <ArrowRight aria-hidden className="size-3" />
-                  <span>{mode === "" ? `${pair.to} (${t("portModeOneShort")})` : pair.to}</span>
+                  <span>
+                    {mode === ""
+                      ? `${pair.to} (${t("portModeOneShort")})`
+                      : pair.to}
+                  </span>
                 </li>
               ))}
               {parsed.spans.length > 4 && <li>… +{parsed.spans.length - 4}</li>}
@@ -162,14 +225,16 @@ export function EntranceStep({
         <TextField
           id="connection-name"
           label={`${t("name")} · ${t("optional")}`}
-          placeholder={`${value.engine}-${(value.ports.split(/[-,\s]/)[0] || "443")}`}
+          placeholder={`${value.engine}-${value.ports.split(/[-,\s]/)[0] || "443"}`}
           help={t("autoName")}
           value={value.name}
           onChange={(event) => patch("name", event.target.value)}
           maxLength={40}
         />
         <ProfilePicker
-          presets={(inventory.presets || []).filter((p) => p.engine === value.engine)}
+          presets={(inventory.presets || []).filter(
+            (p) => p.engine === value.engine,
+          )}
           value={draft.preset}
           onChange={draft.applyPreset}
           onReset={draft.resetDefaults}
@@ -179,11 +244,17 @@ export function EntranceStep({
       <Field orientation="horizontal" className="items-center">
         <FieldContent>
           <div className="flex items-center gap-1">
-            <FieldLabel htmlFor="connection-enabled">{t("startAfterSave")}</FieldLabel>
+            <FieldLabel htmlFor="connection-enabled">
+              {t("startAfterSave")}
+            </FieldLabel>
             <HelpTip>{t("startAfterSaveHelp")}</HelpTip>
           </div>
         </FieldContent>
-        <Switch id="connection-enabled" checked={value.enabled} onCheckedChange={(next) => patch("enabled", next)} />
+        <Switch
+          id="connection-enabled"
+          checked={value.enabled}
+          onCheckedChange={(next) => patch("enabled", next)}
+        />
       </Field>
     </FieldGroup>
   );

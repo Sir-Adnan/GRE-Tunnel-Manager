@@ -20,6 +20,9 @@ func retirePanel(ctx context.Context) error {
 	if len(os.Args) != 2 {
 		return errors.New("uninstall-prepare accepts no arguments")
 	}
+	if e := control.CheckPanelRetirement("/var/lib/gre-manager-panel"); e != nil {
+		return e
+	}
 	if _, e := os.Lstat(nodes.DefaultControllerDir); e == nil {
 		// Do not leave a new root-owned lock blocking grepanel if preparation
 		// later refuses and the installer restarts the previous service.

@@ -1,6 +1,7 @@
 # Noninteractive control boundary. Input is validated TSV data, never shell code.
 # The privileged local broker is the only web-panel caller; the CLI can use it too.
 gtm_api_rows() {
+    local GTM_COMMIT_RECEIPT=1
     local line id component result=1 count=0 expected=${1:-} actual
     local -a incoming=()
     while IFS= read -r line || [[ -n $line ]]; do
@@ -29,6 +30,7 @@ gtm_api_rows() {
 }
 
 gtm_api_change() {
+    local GTM_COMMIT_RECEIPT=1
     local operation=$1 expected replacement='' line result=1 found=0 previous_bind previous_port previous_proto previous_enabled
     local -a originals=() updated=()
     while IFS= read -r line || [[ -n $line ]]; do
@@ -104,7 +106,9 @@ gtm_api() {
         dns-resolve) (($#==2)) && [[ $2 == 4 || $2 == 6 ]] && gtm_dns_lookup "$1" "$2";;
         dns-cache) (($#==0)) && gtm_dns_view;;
         dns-policy) (($#==3)) || return 2; gtm_prepare && gtm_lock || return 1
-            gtm_dns_policy_set "$@"; local result=$?; gtm_unlock; return "$result";;
+            gtm_dns_policy_set "$@"; local result=$?; gtm_unlock
+            ((result == 0)) || return "$result"
+            gtm_dns_refresh --force;;
         dns-refresh) (($#==0)) && gtm_dns_refresh --force;;
         dns-status|dns-apply|dns-restore) gtm_sysdns_api "$operation" "$@";;
         portfw-rules) (($#==0)) && gtm_portfw_rules;;

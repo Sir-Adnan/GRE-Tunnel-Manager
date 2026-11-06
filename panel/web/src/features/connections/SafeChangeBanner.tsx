@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 import { useLoaded, useNow } from "@/features/operations/hooks";
 import { useT } from "@/lib/i18n";
 
-type Pending = { pending: null | { action: string; summary: string; deadline: string; started: string } };
+type Pending = {
+  pending: null | {
+    action: string;
+    summary: string;
+    deadline: string;
+    started: string;
+    last_error?: string;
+  };
+};
 
 export function SafeChangeBanner({
   run,
@@ -18,18 +26,29 @@ export function SafeChangeBanner({
 }) {
   const t = useT();
   // A new key is a new path, which loads at once (the query is ignored by the server).
-  const { value, reload } = useLoaded<Pending>(`changes/pending?v=${refreshKey}`, (v) => (v?.pending ? 5 : 60));
+  const { value, reload } = useLoaded<Pending>(
+    `changes/pending?v=${refreshKey}`,
+    (v) => (v?.pending ? 5 : 60),
+  );
   const now = useNow(Boolean(value?.pending));
   const pending = value?.pending;
   if (!pending) return null;
-  const left = Math.max(0, Math.round((new Date(pending.deadline).getTime() - now) / 1000));
+  const left = Math.max(
+    0,
+    Math.round((new Date(pending.deadline).getTime() - now) / 1000),
+  );
   const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-  const act = (action: string) => void run({ action }).finally(() => void reload());
+  const act = (action: string) =>
+    void run({ action }).finally(() => void reload());
   return (
     <div className="safe-banner" role="status" aria-live="polite">
       <Undo2 className="size-4 shrink-0" aria-hidden />
       <p className="min-w-0 flex-1 text-sm">
-        <span className="font-medium">{t("safeBannerTitle").replace("{t}", clock)}</span>{" "}
+        <span className="font-medium">
+          {pending.last_error
+            ? t("safeRetryFailed")
+            : t("safeBannerTitle").replace("{t}", clock)}
+        </span>{" "}
         <span className="text-muted-foreground">
           {t(`safeAction_${pending.action}`)}
           {pending.summary && (
@@ -39,9 +58,18 @@ export function SafeChangeBanner({
             </>
           )}
         </span>
+        {pending.last_error && (
+          <span className="block break-words text-xs text-destructive">
+            {pending.last_error}
+          </span>
+        )}
       </p>
       <div className="flex shrink-0 gap-2">
-        <Button size="sm" variant="outline" onClick={() => act("change-revert")}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => act("change-revert")}
+        >
           {t("safeBannerRevert")}
         </Button>
         <Button size="sm" onClick={() => act("change-confirm")}>

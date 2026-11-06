@@ -118,6 +118,7 @@ exit 0
     def test_refresh_keeps_last_answer_and_reapplies_only_on_change(self):
         result = self.run_in(r'''
 gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
+gtm_preflight() { :; }
 gtm_kernel_apply() { printf 'kernel\n' >> "$GTM_CONFIG_DIR/applied"; }; gtm_relays_apply() { :; }
 gtm_dns_refresh --force | grep -q $'^a.example\t4\tchanged\t203.0.113.10,203.0.113.11$' || exit 9
 [[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 1 ]] || exit 10
@@ -132,6 +133,50 @@ gtm_dns_refresh --force | grep -q $'\tchanged\t203.0.113.12$' || exit 15
 gtm_dns_view | grep -qx $'record\tF000001\t203.0.113.12:443@1' || exit 17
 exit 0
 ''', [record(targets='a.example:443@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_failed_refresh_restores_cache_and_retries_unchanged_answer(self):
+        result = self.run_in(r'''
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }; gtm_preflight() { :; }
+gtm_relays_apply() { :; }
+gtm_kernel_apply() { printf 'apply\n' >> "$GTM_CONFIG_DIR/applied"; [[ ! -e $GTM_CONFIG_DIR/fail ]]; }
+gtm_load_records && gtm_dns_ensure || exit 10
+printf '203.0.113.12 STREAM\n' > "$GTM_CONFIG_DIR/answer"
+touch "$GTM_CONFIG_DIR/fail"
+gtm_dns_refresh --force && exit 11
+grep -q '203.0.113.10,203.0.113.11' "$GTM_CONFIG_DIR/dns-cache.tsv" || exit 12
+[[ -f $GTM_CONFIG_DIR/dns-pending ]] || exit 13
+rm "$GTM_CONFIG_DIR/fail"
+gtm_dns_refresh --force || exit 14
+grep -q '203.0.113.12' "$GTM_CONFIG_DIR/dns-cache.tsv" && [[ ! -e $GTM_CONFIG_DIR/dns-pending ]] || exit 15
+[[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 3 ]] || exit 16
+''', [record(targets='a.example:443@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_dns_policy_reconciles_even_when_addresses_are_unchanged(self):
+        result = self.run_in(r'''
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }; gtm_preflight() { :; }
+gtm_kernel_apply() { gtm_record_validate "${GTM_RECORDS[0]}" && gtm_resolve_targets; printf '%s\n' "$R_TARGETS" > "$GTM_CONFIG_DIR/applied"; }
+gtm_relays_apply() { :; }
+gtm_load_records && gtm_dns_ensure || exit 10
+gtm_api dns-policy a.example 5 first || exit 11
+[[ $(cat "$GTM_CONFIG_DIR/applied") == 203.0.113.10:443@1 ]] || exit 12
+gtm_api dns-policy a.example 5 all || exit 13
+[[ $(cat "$GTM_CONFIG_DIR/applied") == 203.0.113.10:443@1,203.0.113.11:443@1 ]] || exit 14
+''', [record(strategy='roundrobin', targets='a.example:443@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_refresh_rejects_a_dns_change_back_to_its_listener(self):
+        result = self.run_in(r'''
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
+gtm_preflight() { gtm_record_validate "${GTM_RECORDS[0]}" && gtm_resolve_targets && gtm_relay_loop_check; }
+gtm_kernel_apply() { touch "$GTM_CONFIG_DIR/applied"; }; gtm_relays_apply() { :; }
+gtm_load_records && gtm_dns_ensure || exit 10
+printf '192.0.2.10 STREAM\n' > "$GTM_CONFIG_DIR/answer"
+gtm_dns_refresh --force && exit 11
+[[ ! -e $GTM_CONFIG_DIR/applied ]] || exit 12
+grep -q '203.0.113.10,203.0.113.11' "$GTM_CONFIG_DIR/dns-cache.tsv" || exit 13
+''', [record(engine='realm', targets='a.example:443@1')])
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
     def test_timer_follows_domain_records(self):
@@ -156,6 +201,7 @@ GTM_RESOLV=$GTM_CONFIG_DIR/resolv.conf GTM_RESOLVED_DIR=$GTM_CONFIG_DIR/resolved
 GTM_RUNTIME=$GTM_CONFIG_DIR/lib/apply.sh
 gtm_root() { :; }; gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
 systemctl() { printf '%s\n' "$*" >> "$GTM_CONFIG_DIR/calls"; [[ $* != 'is-active --quiet systemd-resolved' ]] || [[ -f $GTM_CONFIG_DIR/resolved-on ]]; }
+gtm_sysdns_resolved_query() { awk -F= '$1 == "DNS" && $2 != "" {print $2}' "$GTM_RESOLVED_DIR/90-gre-manager.conf" 2>/dev/null; }
 '''+code)
 
     def test_plain_file_is_rewritten_kept_at_boot_and_restored(self):
@@ -193,6 +239,28 @@ ln -s "$GTM_CONFIG_DIR/run/resolvconf/resolv.conf" "$GTM_RESOLV"
 gtm_api dns-apply 1.1.1.1 2> "$GTM_CONFIG_DIR/err" && exit 14
 grep -q 'managed by resolvconf' "$GTM_CONFIG_DIR/err" || exit 15
 exit 0
+''')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_resolved_resets_inherited_lists_and_recovers_failed_restart(self):
+        result = self.run_in(r'''
+mkdir -p "$GTM_CONFIG_DIR/run/systemd/resolve" "$GTM_RESOLVED_DIR"
+touch "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_CONFIG_DIR/resolved-on"
+ln -s "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_RESOLV"
+printf 'nameserver 10.0.0.53\n' > "$GTM_RESOLVED_UPSTREAM"
+printf '[Resolve]\nDNS=10.0.0.53\n' > "$GTM_RESOLVED_DIR/90-gre-manager.conf"
+cp "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before"
+systemctl() {
+    if [[ $* == 'restart systemd-resolved' && ! -f $GTM_CONFIG_DIR/retried ]]; then touch "$GTM_CONFIG_DIR/retried"; return 1; fi
+    return 0
+}
+gtm_api dns-apply 1.1.1.1 && exit 10
+cmp -s "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 11
+[[ ! -e $GTM_CONFIG_DIR/dns/servers ]] || exit 12
+gtm_api dns-apply 1.1.1.1 || exit 13
+grep -qx 'DNS=' "$GTM_RESOLVED_DIR/90-gre-manager.conf" && grep -qx 'Domains=' "$GTM_RESOLVED_DIR/90-gre-manager.conf" || exit 14
+gtm_api dns-restore || exit 15
+cmp -s "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 16
 ''')
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 

@@ -184,6 +184,7 @@ gtm_install_runner() {
     {
         printf '#!/usr/bin/env bash\n# Generated Traffic Manager kernel reconciler.\n'
         printf 'GTM_CONFIG_DIR=%q\nGTM_RUN_DIR=%q\nGTM_SERVICE_DIR=%q\nGTM_RUNTIME=%q\n' "$GTM_CONFIG_DIR" "$GTM_RUN_DIR" "$GTM_SERVICE_DIR" "$GTM_RUNTIME"
+        declare -p GTM_VERSION GTM_SPAN_MAX GTM_DNS_MAX GTM_DNS_UNIT GTM_SYSDNS_UNIT
         while IFS= read -r func; do declare -f "$func"; done < <(compgen -A function gtm_)
         printf '\ngtm_paths\nif [[ ${1:-} == --dns-refresh ]]; then gtm_dns_refresh > /dev/null; exit $?; fi\ngtm_prepare && gtm_lock || exit 1\ngtm_kernel_apply\nresult=$?\ngtm_unlock\nexit "$result"\n'
     } > "$tmp"
@@ -211,23 +212,32 @@ gtm_prune_restore_points() {
     local -a points=()
     gtm_uint "$keep" 0 100000 || { gtm_error 'GTM_RESTORE_POINTS must be 0-100000.'; return 1; }
     ((10#$keep > 0)) || return 0
-    for file in "$GTM_CONFIG_DIR"/backups/*.tsv; do
-        [[ -f $file && ! -L $file && ${file##*/} =~ ^[0-9]{8}T[0-9]{6}-[0-9]+-[0-9]+\.tsv$ ]] || continue
-        points+=("$file")
-    done
-    # Names start with a UTC timestamp, so glob order is chronological.
-    for ((index=0; index < ${#points[@]} - 10#$keep; index++)); do
+    mapfile -t points < <(gtm_history_points)
+    for ((index=10#$keep; index < ${#points[@]}; index++)); do
         rm -f -- "${points[$index]}" || return 1
     done
 }
 
 # Caller holds the manager lock. Restore only owned resources on failure.
+gtm_restore_point_path() {
+    local counter="$GTM_CONFIG_DIR/restore-counter" serial previous=0 tmp stamp
+    serial=$(date +%s%N) && [[ $serial =~ ^[0-8][0-9]{18}$ ]] || return 1
+    if [[ -e $counter || -L $counter ]]; then
+        [[ -f $counter && ! -L $counter ]] && IFS= read -r previous < "$counter" && [[ $previous =~ ^[0-8][0-9]{18}$ ]] || return 1
+    fi
+    ((10#$serial > 10#$previous)) || serial=$((10#$previous + 1))
+    stamp=$(date -u -d "@$((10#$serial / 1000000000))" +%Y%m%dT%H%M%S) || return 1
+    tmp=$(mktemp "$counter.XXXXXX") || return 1
+    printf '%019d\n' "$((10#$serial))" > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$counter" || { rm -f "$tmp"; return 1; }
+    printf '%s/backups/%s-%019d-%d.tsv\n' "$GTM_CONFIG_DIR" "$stamp" "$((10#$serial))" "$$"
+}
+
 gtm_commit() {
-    local backup candidate recovery=0
-    backup="$GTM_CONFIG_DIR/backups/$(date -u +%Y%m%dT%H%M%S)-$$-$RANDOM.tsv"
+    local backup candidate revision recovery=0
     candidate=$(mktemp "$GTM_CONFIG_DIR/state.XXXXXX") || return 1
     gtm_write_records "$candidate" && gtm_load_records "$candidate" || { rm -f "$candidate"; return 1; }
     if ! gtm_preflight; then rm -f "$candidate"; return 1; fi
+    backup=$(gtm_restore_point_path) || { rm -f "$candidate"; return 1; }
     if [[ -f $GTM_STATE ]]; then
         cp "$GTM_STATE" "$backup" || { rm -f "$candidate"; return 1; }
     else printf '# Traffic Manager state v1\n' > "$backup" || { rm -f "$candidate"; return 1; }; fi
@@ -235,6 +245,10 @@ gtm_commit() {
     if gtm_install_runner && gtm_kernel_apply && gtm_relays_apply; then
         gtm_dns_timer_sync || printf 'Warning: the domain refresh timer could not be updated.\n' >&2
         printf 'Saved and applied. Restore point: %s\n' "${backup##*/}"
+        if [[ ${GTM_COMMIT_RECEIPT:-0} == 1 ]]; then
+            revision=$(gtm_recovery_revision) && [[ $revision =~ ^[a-f0-9]{64}$ ]] || { gtm_error 'Saved, but the change receipt could not be read.'; return 1; }
+            printf 'receipt\t%s\t%s\n' "${backup##*/}" "$revision"
+        fi
         gtm_prune_restore_points || printf 'Warning: old restore points could not be pruned.\n' >&2
         return 0
     fi

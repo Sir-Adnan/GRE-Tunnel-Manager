@@ -378,3 +378,48 @@
     min-height: 44px;
   }
 }
+
+/* Responsive information, measured in available space rather than device models. */
+@layer components {
+  .field-label-row {
+    @apply flex min-h-8 items-center gap-1;
+  }
+  .field-label-row > [data-slot="field-label"] {
+    @apply min-w-0;
+  }
+  .field-label-row > button {
+    @apply shrink-0;
+  }
+  .connection-card-header {
+    @apply flex flex-wrap items-start gap-2;
+  }
+  .connection-card-identity {
+    @apply flex min-w-0 flex-1 items-start gap-2;
+    flex-basis: 10rem;
+  }
+  .connection-card-facts {
+    @apply flex min-w-0 flex-col gap-2 text-sm;
+  }
+  .connection-card-facts > div {
+    @apply grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-2;
+  }
+  .endpoint-value {
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+  .endpoint-value > span:last-child {
+    white-space: nowrap;
+  }
+  .settings-workspace {
+    @apply min-w-0 gap-5;
+  }
+  .settings-tabs {
+    @apply gap-1 p-1;
+  }
+  .settings-panel {
+    @apply flex min-w-0 flex-col gap-5;
+  }
+  .settings-panel[data-state="inactive"] {
+    display: none;
+  }
+}

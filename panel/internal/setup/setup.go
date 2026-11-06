@@ -107,7 +107,7 @@ func (c Console) Run(ctx context.Context, args []string) error {
 	if *protocol == "" {
 		*protocol = "https"
 		if !nonInteractive {
-			fmt.Fprintln(c.Out, "\n  [1] HTTPS (recommended)\n  [2] HTTP  (unencrypted)")
+			fmt.Fprintln(c.Out, "\n  [1] HTTPS (self-signed; external certificates supported)\n  [2] HTTP  (unencrypted)")
 			value, e := ask("Access", "1", choice("1", "2"))
 			if e != nil {
 				return e

@@ -2,6 +2,13 @@
 import type { Messages } from "./types";
 
 export const system = {
+  settingsSecurity: ["Security & access", "امنیت و دسترسی"],
+  settingsNotifications: ["Notifications", "اعلان‌ها"],
+  settingsMetrics: ["Metrics", "متریک‌ها"],
+  settingsIntro: [
+    "Manage access, appearance and integrations.",
+    "مدیریت دسترسی، ظاهر و یکپارچه‌سازی‌ها.",
+  ],
   engineMaintenance: ["Versions & updates", "نسخه‌ها و به‌روزرسانی"],
   engineMaintenanceHelp: [
     "Check only when needed; results are cached for 5 minutes. Binary engines use official GitHub releases and only verified, checksum-pinned versions can be installed. System packages use your distribution's existing package metadata. Newer upstream releases may need an adapter update first.",

@@ -13,9 +13,19 @@ import {
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { HelpTip } from "@/components/help";
-import { endpoint } from "@/lib/api";
+
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+
+function Endpoint({ ip, port }: { ip: string; port: number }) {
+  return (
+    <bdi dir="ltr" className="endpoint-value">
+      <span>{ip.includes(":") ? `[${ip}]` : ip}</span>
+      <wbr />
+      <span>:{port}</span>
+    </bdi>
+  );
+}
 
 export function Destinations({ connection }: { connection: Connection }) {
   const t = useT(),
@@ -30,7 +40,7 @@ export function Destinations({ connection }: { connection: Connection }) {
           dir="ltr"
           className="min-w-0 break-all whitespace-normal font-mono text-xs"
         >
-          {endpoint(first.ip, first.port)}
+          <Endpoint ip={first.ip} port={first.port} />
         </bdi>
       </span>
     );
@@ -50,7 +60,7 @@ export function Destinations({ connection }: { connection: Connection }) {
               dir="ltr"
               className="max-w-full break-all whitespace-normal font-mono text-xs"
             >
-              {endpoint(target.ip, target.port)}
+              <Endpoint ip={target.ip} port={target.port} />
             </bdi>
           </span>
           <span className="text-xs text-muted-foreground">
@@ -74,14 +84,14 @@ export function Destinations({ connection }: { connection: Connection }) {
               type="button"
               variant="endpoint"
               size="sm"
-              className="h-auto max-w-full px-0 py-1"
+              className="h-auto min-w-0 max-w-full flex-wrap justify-start gap-x-1.5 px-0 py-1"
               aria-label={`${t("viewDestinations")} · ${connection.name}`}
             >
               <bdi
                 dir="ltr"
                 className="max-w-full break-all whitespace-normal font-mono text-xs"
               >
-                {endpoint(first.ip, first.port)}
+                <Endpoint ip={first.ip} port={first.port} />
               </bdi>
               <Badge variant="secondary">
                 <bdi>+{connection.targets.length - 1}</bdi>

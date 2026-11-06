@@ -48,15 +48,43 @@ function TargetRow({
   const { setNodeRef, style, dragging, handle } = useSortableItem(id);
   const host = isHostname(target.ip);
   return (
-    <li ref={setNodeRef} style={style} className="target-card" data-dragging={dragging || undefined}>
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="target-card"
+      data-dragging={dragging || undefined}
+    >
       <div className="target-card-head">
         {count > 1 ? (
-          <DragHandle handle={handle} label={target.ip || `${t("destination")} ${index + 1}`} />
+          <DragHandle
+            handle={handle}
+            label={target.ip || `${t("destination")} ${index + 1}`}
+          />
         ) : null}
         <span className="route-index" title={t("targetPriority")}>
           {index + 1}
         </span>
-        <div className={portShown ? "target-address min-w-0 flex-1" : "min-w-0 flex-1"}>
+        <span className="flex-1 text-xs font-medium text-muted-foreground">
+          {t("destination")} {index + 1}
+        </span>
+        {count > 1 && (
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="icon"
+            label={`${t("removeDestination")} ${index + 1}`}
+            onClick={onRemove}
+          >
+            <Trash2 />
+          </ActionButton>
+        )}
+      </div>
+      <FieldGroup
+        className="target-fields grid gap-3"
+        data-port={portShown || undefined}
+        data-weight={count > 1 || undefined}
+      >
+        <div className="target-host">
           <TextField
             id={`ip-${index}`}
             label={`${t("remoteAddress")}${count > 1 ? ` ${index + 1}` : ""}`}
@@ -66,7 +94,9 @@ function TargetRow({
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            onChange={(event) => onChange({ ...target, ip: event.target.value.trim() })}
+            onChange={(event) =>
+              onChange({ ...target, ip: event.target.value.trim() })
+            }
             onBlur={(event) => {
               const v = event.target.value.trim().toLowerCase();
               onBlurIP(v);
@@ -75,33 +105,65 @@ function TargetRow({
             required
             maxLength={253}
           />
-          {portShown && (
+        </div>
+        {portShown && (
+          <TextField
+            id={`port-${index}`}
+            label={t("remotePort")}
+            type="number"
+            min={1}
+            max={65535}
+            dir="ltr"
+            value={target.port}
+            onChange={(event) =>
+              onChange({
+                ...target,
+                port: Number(event.target.value),
+                port_last: undefined,
+              })
+            }
+            required
+          />
+        )}
+        {count > 1 && (
+          <div className="min-w-0">
             <TextField
-              id={`port-${index}`}
-              label={t("remotePort")}
+              id={`weight-${index}`}
+              label={t("weight")}
+              help={t("weightHelp")}
               type="number"
               min={1}
-              max={65535}
-              dir="ltr"
-              value={target.port}
-              onChange={(event) => onChange({ ...target, port: Number(event.target.value), port_last: undefined })}
+              max={256}
               required
+              dir="ltr"
+              value={target.weight}
+              onChange={(event) =>
+                onChange({ ...target, weight: Number(event.target.value) })
+              }
             />
-          )}
-        </div>
-        {count > 1 && (
-          <ActionButton type="button" variant="ghost" size="icon" className="self-end" label={`${t("removeDestination")} ${index + 1}`} onClick={onRemove}>
-            <Trash2 />
-          </ActionButton>
+          </div>
         )}
-      </div>
+      </FieldGroup>
       {!portShown && (
         <p className="text-xs text-muted-foreground" dir="auto">
-          {t("remotePort")}: <bdi dir="ltr" className="font-mono">{portText}</bdi>
+          {t("remotePort")}:{" "}
+          <bdi dir="ltr" className="font-mono">
+            {portText}
+          </bdi>
         </p>
       )}
       {host && (
-        <p className="dns-preview" data-state={resolved === undefined ? "loading" : resolved === null || resolved.length === 0 ? "bad" : "ok"} aria-live="polite">
+        <p
+          className="dns-preview"
+          data-state={
+            resolved === undefined
+              ? "loading"
+              : resolved === null || resolved.length === 0
+                ? "bad"
+                : "ok"
+          }
+          aria-live="polite"
+        >
           {resolved === undefined ? (
             <Loader2 className="size-3.5 animate-spin" aria-hidden />
           ) : resolved === null || resolved.length === 0 ? (
@@ -114,7 +176,10 @@ function TargetRow({
               ? t("dnsChecking")
               : resolved === null || resolved.length === 0
                 ? t("dnsNoAddress")
-                : t("dnsResolves").replace("{n}", number(resolved.length, locale))}
+                : t("dnsResolves").replace(
+                    "{n}",
+                    number(resolved.length, locale),
+                  )}
             {resolved && resolved.length > 0 && (
               <bdi dir="ltr" className="ms-1 font-mono">
                 {resolved.join(", ")}
@@ -122,22 +187,6 @@ function TargetRow({
             )}
           </span>
         </p>
-      )}
-      {count > 1 && (
-        <div className="w-36">
-          <TextField
-            id={`weight-${index}`}
-            label={t("weight")}
-            help={t("weightHelp")}
-            type="number"
-            min={1}
-            max={256}
-            required
-            dir="ltr"
-            value={target.weight}
-            onChange={(event) => onChange({ ...target, weight: Number(event.target.value) })}
-          />
-        </div>
       )}
     </li>
   );
@@ -163,13 +212,16 @@ export function DestinationsStep({
   const { value, patch, capability } = draft;
   const ids = value.targets.map((_, i) => `target-${i}`);
   const hosts = value.targets.some((target) => isHostname(target.ip));
-  const balancing = value.targets.length > 1 || (hosts && policy.mode === "all");
+  const balancing =
+    value.targets.length > 1 || (hosts && policy.mode === "all");
   const portShown = !value.port_mode;
   return (
     <FieldGroup>
       <SortableArea
         ids={ids}
-        onMove={(next) => draft.moveTargets(next.map((id) => Number(id.slice(7))))}
+        onMove={(next) =>
+          draft.moveTargets(next.map((id) => Number(id.slice(7))))
+        }
       >
         <ol className="flex flex-col gap-3" aria-label={t("destinations")}>
           {value.targets.map((target, index) => (
@@ -184,15 +236,32 @@ export function DestinationsStep({
               resolved={isHostname(target.ip) ? resolved[target.ip] : undefined}
               onResolve={onResolve}
               onBlurIP={(v) => draft.parseCombinedIP(index, v)}
-              onChange={(next) => patch("targets", value.targets.map((item, i) => (i === index ? next : item)))}
-              onRemove={() => patch("targets", value.targets.filter((_, i) => i !== index))}
+              onChange={(next) =>
+                patch(
+                  "targets",
+                  value.targets.map((item, i) => (i === index ? next : item)),
+                )
+              }
+              onRemove={() =>
+                patch(
+                  "targets",
+                  value.targets.filter((_, i) => i !== index),
+                )
+              }
             />
           ))}
         </ol>
       </SortableArea>
-      {value.targets.length > 1 && <p className="text-xs text-muted-foreground">{t("targetOrderHelp")}</p>}
+      {value.targets.length > 1 && (
+        <p className="text-xs text-muted-foreground">{t("targetOrderHelp")}</p>
+      )}
       {value.targets.length < 32 && value.routing === undefined && (
-        <Button type="button" variant="outline" className="self-start" onClick={draft.addTarget}>
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          onClick={draft.addTarget}
+        >
           <Plus data-icon="inline-start" />
           {t("addTarget")}
         </Button>
@@ -204,7 +273,10 @@ export function DestinationsStep({
             label={t("dnsRefresh")}
             help={t("dnsRefreshHelp")}
             value={String(policy.every)}
-            choices={[1, 2, 5, 10, 15, 30, 60].map((m) => ({ value: String(m), label: t("dnsEvery").replace("{n}", String(m)) }))}
+            choices={[1, 2, 5, 10, 15, 30, 60].map((m) => ({
+              value: String(m),
+              label: t("dnsEvery").replace("{n}", String(m)),
+            }))}
             onChange={(next) => onPolicy({ ...policy, every: Number(next) })}
           />
           <Choice
@@ -216,7 +288,9 @@ export function DestinationsStep({
               { value: "all", label: t("dnsModeAll") },
               { value: "first", label: t("dnsModeFirst") },
             ]}
-            onChange={(next) => onPolicy({ ...policy, mode: next as DNSPolicy["mode"] })}
+            onChange={(next) =>
+              onPolicy({ ...policy, mode: next as DNSPolicy["mode"] })
+            }
           />
         </FieldGroup>
       )}
@@ -225,8 +299,14 @@ export function DestinationsStep({
           id="strategy"
           label={t("strategy")}
           help={t("strategyHelp")}
-          value={value.strategy === "single" ? capability.strategies[1] : value.strategy}
-          choices={capability.strategies.filter((s) => s !== "single").map((s) => ({ value: s, label: t(s) }))}
+          value={
+            value.strategy === "single"
+              ? capability.strategies[1]
+              : value.strategy
+          }
+          choices={capability.strategies
+            .filter((s) => s !== "single")
+            .map((s) => ({ value: s, label: t(s) }))}
           onChange={(next) => patch("strategy", next)}
         />
       )}

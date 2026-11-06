@@ -7,6 +7,7 @@ GTM_DNS_UNIT=gre-manager-dns
 gtm_dns_paths() {
     GTM_DNS_CACHE="$GTM_CONFIG_DIR/dns-cache.tsv"
     GTM_DNS_POLICY="$GTM_CONFIG_DIR/dns-policy.tsv"
+    GTM_DNS_PENDING="$GTM_CONFIG_DIR/dns-pending"
 }
 
 # Prints the usable addresses of NAME in FAMILY (4 or 6), sorted and unique.
@@ -74,6 +75,8 @@ gtm_dns_policy_set() {
     for key in "${!GTM_DNS_EVERY[@]}"; do
         printf '%s\t%s\t%s\n' "$key" "${GTM_DNS_EVERY[$key]}" "${GTM_DNS_MODE[$key]:-all}"
     done | sort > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$GTM_DNS_POLICY" || { rm -f "$tmp"; return 1; }
+    # Desired policy must be reconciled even when the address list is unchanged.
+    [[ ! -L $GTM_DNS_PENDING && ( ! -e $GTM_DNS_PENDING || -f $GTM_DNS_PENDING ) ]] && : > "$GTM_DNS_PENDING"
 }
 
 # The address family a record's names resolve in: kernel rules follow the bind;
@@ -152,11 +155,13 @@ gtm_dns_ensure() {
 # failure and reapplies rules and relays only when an address changed.
 # Prints "name<TAB>family<TAB>status<TAB>addresses" per name.
 gtm_dns_refresh() {
-    local force=${1:-} name family list now due every changed=0 result=0 key
-    local -A needed=()
+    local force=${1:-} name family list now due every changed=0 result=0 key attempted=0
+    local -A needed=() previous_addr=() previous_checked=()
     gtm_prepare && gtm_lock || return 1
     if ! gtm_load_records; then gtm_unlock; return 1; fi
     GTM_DNS_LOADED=''; gtm_dns_load || { gtm_unlock; return 1; }
+    for key in "${!GTM_DNS_ADDR[@]}"; do previous_addr[$key]=${GTM_DNS_ADDR[$key]}; previous_checked[$key]=${GTM_DNS_CHECKED[$key]}; done
+    [[ ! -e $GTM_DNS_PENDING ]] || changed=1
     now=$(date +%s)
     while IFS=$'\t' read -r name family; do
         [[ -n $name ]] || continue
@@ -180,8 +185,24 @@ gtm_dns_refresh() {
     for key in "${!GTM_DNS_ADDR[@]}"; do
         [[ ${needed[$key]+set} ]] || { unset 'GTM_DNS_ADDR[$key]' 'GTM_DNS_CHECKED[$key]'; }
     done
-    gtm_dns_save || result=1
-    if ((changed && result == 0)); then gtm_kernel_apply && gtm_relays_apply || result=1; fi
+    if ((changed)); then
+        [[ ! -L $GTM_DNS_PENDING && ( ! -e $GTM_DNS_PENDING || -f $GTM_DNS_PENDING ) ]] && : > "$GTM_DNS_PENDING" || result=1
+        # Validate resolved endpoints as well as native syntax before publication.
+        if ((result == 0)) && gtm_preflight && gtm_dns_save; then
+            attempted=1
+            gtm_kernel_apply && gtm_relays_apply || result=1
+        else result=1; fi
+        if ((result)); then
+            GTM_DNS_ADDR=(); GTM_DNS_CHECKED=()
+            for key in "${!previous_addr[@]}"; do GTM_DNS_ADDR[$key]=${previous_addr[$key]}; GTM_DNS_CHECKED[$key]=${previous_checked[$key]}; done
+            gtm_dns_save || gtm_error 'DNS cache recovery failed; inspect dns-cache.tsv.'
+            if ((attempted)); then
+                gtm_kernel_apply || gtm_error 'DNS kernel recovery needs attention.'
+                gtm_relays_apply || gtm_error 'DNS relay recovery needs attention.'
+            fi
+            gtm_error 'DNS reconciliation failed; it remains pending for retry.'
+        else rm -f "$GTM_DNS_PENDING" || result=1; fi
+    else gtm_dns_save || result=1; fi
     gtm_unlock
     return "$result"
 }

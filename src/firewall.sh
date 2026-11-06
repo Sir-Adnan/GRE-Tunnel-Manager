@@ -255,7 +255,8 @@ gtm_nft_render() {
             printf 'add chain inet gre_manager pre { type nat hook prerouting priority -105; policy accept; }\n'
             printf 'add chain inet gre_manager post { type nat hook postrouting priority 95; policy accept; }\n'
             printf 'add chain inet gre_manager forward { type filter hook forward priority -5; policy accept; }\n'
-            printf 'add chain inet gre_manager mss { type filter hook forward priority -150; policy accept; }\n'
+            # Avoid reserved parser tokens; some releases reject quoted names too.
+            printf 'add chain inet gre_manager gtm_mss { type filter hook forward priority -150; policy accept; }\n'
             # Replies of marked flows take their entrance address's routing table.
             while read -r mark; do
                 ((created == 2)) || { created=2; printf 'add chain inet gre_manager rtmark { type filter hook prerouting priority -150; policy accept; }\n'; }
@@ -321,7 +322,7 @@ gtm_nft_render() {
                 if [[ $proto == tcp ]]; then
                     # Match only owned DNAT flows and reduce (never increase) an
                     # existing MSS using the outgoing route's advertised MSS.
-                    printf 'add rule inet gre_manager mss meta l4proto tcp %s daddr %s tcp dport %s ct status dnat ct direction original %sct original proto-dst %s tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu counter comment "gtm-%s"\n' "$family" "$EP_IP" "$remote" "$origin" "$listen" "$R_ID"
+                    printf 'add rule inet gre_manager gtm_mss meta l4proto tcp %s daddr %s tcp dport %s ct status dnat ct direction original %sct original proto-dst %s tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu counter comment "gtm-%s"\n' "$family" "$EP_IP" "$remote" "$origin" "$listen" "$R_ID"
                 fi
                 if [[ $R_SNAT == masquerade ]]; then
                     printf 'add rule inet gre_manager post meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter masquerade comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"

@@ -8,6 +8,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | --- | --- |
 | [User guide](USER-GUIDE.md) | Choosing a method, creating connections and everyday actions |
 | [Web panel](WEB-PANEL.md) | Installation, HTTP/HTTPS, upgrades and access recovery |
+| [HTTPS and certificate renewal](HTTPS.md) | Self-signed setup, Certbot/acme.sh hooks, validated installation and reload |
 | [Nodes and Agents](NODES.md) | Local-only operation, Controller setup and enrollment |
 | [Connect two servers](PAIRED-CONNECTIONS.md) | Coordinated GRE/FRP setup and failure recovery |
 | [Operations](OPERATIONS.md) | Validation, backups, restoration and deployment checks |

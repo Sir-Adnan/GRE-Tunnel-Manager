@@ -91,6 +91,7 @@ func (m *Manager) flowCounts(ctx context.Context, id string) (FlowCounts, error)
 	if e != nil {
 		return FlowCounts{}, e
 	}
+	m.fillResolved(ctx, connections)
 	for _, c := range connections {
 		if c.ID != id {
 			continue
@@ -102,7 +103,11 @@ func (m *Manager) flowCounts(ctx context.Context, id string) (FlowCounts, error)
 		if e != nil {
 			return FlowCounts{}, errors.New("cannot read the owned nftables table")
 		}
-		return parseFlowCounts(id, len(c.Targets), []byte(out))
+		targets := effectiveTargets(c)
+		if len(targets) == 0 {
+			return FlowCounts{}, errors.New("resolved destinations are unavailable; refresh inventory")
+		}
+		return parseFlowCounts(id, len(targets), []byte(out))
 	}
 	return FlowCounts{}, errors.New("connection not found")
 }

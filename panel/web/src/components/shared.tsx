@@ -79,7 +79,7 @@ export function TextField({
 }: { label: string; help?: string } & ComponentProps<typeof Input>) {
   return (
     <Field>
-      <div className="flex items-center gap-1">
+      <div className="field-label-row">
         <FieldLabel htmlFor={props.id}>{label}</FieldLabel>
         {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
       </div>

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/auth"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/certificates"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/config"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/control"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/httpapi"
@@ -43,6 +44,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	switch os.Args[1] {
+	case "certificate":
+		return certificateCommand(ctx, os.Args[2:])
 	case "uninstall-version":
 		fmt.Println("1")
 		return nil
@@ -174,10 +177,25 @@ func run() error {
 			}()
 		}
 		var result error
+		server.Access = func() certificates.Status { return certificates.Status{Protocol: c.Scheme(), Host: certificateHost(c)} }
 		if c.Scheme() == "http" {
 			result = serve(serviceCtx, c.Listen, server, "", "")
 		} else {
-			result = serve(serviceCtx, c.Listen, server, c.Certificate, c.PrivateKey)
+			reloader, e := certificates.New(func() (certificates.Source, error) {
+				latest, e := config.Load(*path)
+				if e != nil {
+					return certificates.Source{}, e
+				}
+				if latest.Scheme() != "https" || latest.Listen != c.Listen {
+					return certificates.Source{}, errors.New("listener/protocol changes require a public-panel restart")
+				}
+				return certificates.Source{Certificate: latest.Certificate, Key: latest.PrivateKey, Host: certificateHost(latest)}, nil
+			})
+			if e != nil {
+				return e
+			}
+			server.Access, server.ReloadCertificate = reloader.Status, reloader.Reload
+			result = serve(serviceCtx, c.Listen, server, c.Certificate, c.PrivateKey, reloader)
 		}
 		select {
 		case e := <-nodeStopped:
@@ -208,8 +226,32 @@ func run() error {
 		return errors.New("unknown command")
 	}
 }
-func serve(ctx context.Context, address string, handler http.Handler, certificate, key string) error {
+func serve(ctx context.Context, address string, handler http.Handler, certificate, key string, reloaders ...*certificates.Reloader) error {
 	server := &http.Server{Addr: address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16384, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	reloads := make(chan os.Signal, 1)
+	signal.Notify(reloads, syscall.SIGHUP)
+	defer signal.Stop(reloads)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-reloads:
+				// The same service unit supports HTTP; a reload there is a no-op,
+				// never a default SIGHUP termination of the public process.
+				if len(reloaders) > 0 {
+					if e := reloaders[0].Reload(); e != nil {
+						log.Printf("TLS reload rejected; previous certificate retained: %v", e)
+					}
+				}
+			}
+		}
+	}()
+	if len(reloaders) > 0 {
+		reloader := reloaders[0]
+		server.TLSConfig.GetCertificate = reloader.GetCertificate
+		certificate, key = "", ""
+	}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -217,7 +259,7 @@ func serve(ctx context.Context, address string, handler http.Handler, certificat
 		server.Shutdown(shutdown)
 	}()
 	var e error
-	if certificate == "" {
+	if certificate == "" && len(reloaders) == 0 {
 		e = server.ListenAndServe()
 	} else {
 		e = server.ListenAndServeTLS(certificate, key)

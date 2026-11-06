@@ -2,6 +2,7 @@
 // and review) beside a live route map. On phones it is a full-height sheet
 // and the map folds into the summary bar.
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { EngineGlyph } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { ConnectionReview } from "./ConnectionReview";
 import { ProtectionFields } from "./ProtectionFields";
 import { protectionOf, sameProtection, type Protection } from "./protection";
 import { RouteMap } from "./RouteMap";
+import { revealInvalidField } from "@/lib/form-validation";
 
 type Props = {
   inventory: Inventory;
@@ -45,7 +47,15 @@ type Props = {
 const steps = ["stepEntrance", "stepDestinations", "stepProtection"] as const;
 const kernelEngines = ["nftables", "iptables"];
 
-export function ConnectionForm({ inventory, engine, engines, original, copy, onClose, onSubmit }: Props) {
+export function ConnectionForm({
+  inventory,
+  engine,
+  engines,
+  original,
+  copy,
+  onClose,
+  onSubmit,
+}: Props) {
   const t = useT();
   const { navigate } = usePanelRoute();
   const draft = useConnectionDraft({ inventory, engine, original, copy });
@@ -60,7 +70,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
   const protect = protection || initialProtection;
   const [safeMinutes, setSafeMinutes] = useState(0);
   // Domain lookups: undefined = checking, null = failed, [] = no address.
-  const [resolved, setResolved] = useState<Record<string, string[] | null | undefined>>(() => {
+  const [resolved, setResolved] = useState<
+    Record<string, string[] | null | undefined>
+  >(() => {
     const known: Record<string, string[]> = {};
     for (const n of inventory.dns || []) known[n.name] = n.addresses;
     return known;
@@ -68,15 +80,23 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
   const firstHost = value.targets.find((x) => isHostname(x.ip))?.ip;
   const stored = inventory.dns?.find((n) => n.name === firstHost);
   const [policy, setPolicy] = useState<DNSPolicy>();
-  const dnsPolicy: DNSPolicy = policy || { every: stored?.every || 5, mode: stored?.mode || "all" };
-  const { requestClose, confirmation } = useDiscardChanges(draft.dirty && !busy, onClose);
+  const dnsPolicy: DNSPolicy = policy || {
+    every: stored?.every || 5,
+    mode: stored?.mode || "all",
+  };
+  const { requestClose, confirmation } = useDiscardChanges(
+    draft.dirty && !busy,
+    onClose,
+  );
 
   async function resolve(host: string) {
     if (resolved[host] !== undefined && resolved[host] !== null) return;
     setResolved((r) => ({ ...r, [host]: undefined }));
     try {
       const family = value.bind.includes(":") ? 6 : 4;
-      const out = await api<{ addresses: string[] }>(`dns/resolve?name=${encodeURIComponent(host)}&family=${family}`);
+      const out = await api<{ addresses: string[] }>(
+        `dns/resolve?name=${encodeURIComponent(host)}&family=${family}`,
+      );
       setResolved((r) => ({ ...r, [host]: out.addresses }));
     } catch {
       setResolved((r) => ({ ...r, [host]: null }));
@@ -85,36 +105,52 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
 
   const kernel = kernelEngines.includes(value.engine);
   const spans = parseSpans(value.ports, kernel).spans;
-  const remote = remoteSpans(spans, value.port_mode || "", value.remote_ports || "", value.targets[0]?.port || 0);
-  const portText = value.port_mode === "same" ? t("portModeSameShort") : remote.spans.map(spanText).join(", ") || "—";
+  const remote = remoteSpans(
+    spans,
+    value.port_mode || "",
+    value.remote_ports || "",
+    value.targets[0]?.port || 0,
+  );
+  const portText =
+    value.port_mode === "same"
+      ? t("portModeSameShort")
+      : remote.spans.map(spanText).join(", ") || "—";
   // Failover needs a kernel forward that ends up with two or more destinations.
   const destinationCount = value.targets.reduce(
-    (sum, x) => sum + (isHostname(x.ip) ? (dnsPolicy.mode === "all" ? Math.max(1, resolved[x.ip]?.length || 1) : 1) : 1),
+    (sum, x) =>
+      sum +
+      (isHostname(x.ip)
+        ? dnsPolicy.mode === "all"
+          ? Math.max(1, resolved[x.ip]?.length || 1)
+          : 1
+        : 1),
     0,
   );
   const failoverEligible = kernel && destinationCount > 1;
   // A domain with several addresses balances even with one destination row:
   // save the method the destinations step shows instead of "single".
   const final: Connection =
-    destinationCount > 1 && value.strategy === "single" && draft.capability.strategies.length > 1
+    destinationCount > 1 &&
+    value.strategy === "single" &&
+    draft.capability.strategies.length > 1
       ? { ...value, strategy: draft.capability.strategies[1] }
       : value;
-  const unresolved = value.targets.some((x) => isHostname(x.ip) && (resolved[x.ip] === null || resolved[x.ip]?.length === 0));
+  const unresolved = value.targets.some(
+    (x) =>
+      isHostname(x.ip) &&
+      (resolved[x.ip] === null || resolved[x.ip]?.length === 0),
+  );
 
   /** Checks the current step's fields; focuses the first problem. */
   function validStep() {
     const form = formRef.current;
     if (!form) return true;
-    const invalid = form.querySelector<HTMLInputElement>("input:invalid,select:invalid,textarea:invalid");
+    const invalid = form.querySelector<HTMLInputElement>(
+      "input:invalid,select:invalid,textarea:invalid",
+    );
     if (!invalid) return true;
-    invalid.closest("details")?.setAttribute("open", "");
-    invalid.setAttribute("aria-invalid", "true");
-    invalid.closest("[data-slot=field]")?.setAttribute("data-invalid", "true");
     setError(t("checkFields"));
-    requestAnimationFrame(() => {
-      invalid.focus();
-      invalid.reportValidity();
-    });
+    revealInvalidField(invalid, draft.setAdvancedTab);
     return false;
   }
 
@@ -138,15 +174,34 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
       await onSubmit({
         action: original ? "update" : "create",
         connection,
-        ...(original ? { selected: [{ id: original.id, revision: original.revision }] } : {}),
+        ...(original
+          ? { selected: [{ id: original.id, revision: original.revision }] }
+          : {}),
         ...(changed || !original ? { protect } : {}),
         ...(safeMinutes ? { safe_minutes: safeMinutes } : {}),
       });
-      const hosts = [...new Set(value.targets.map((x) => x.ip).filter(isHostname))];
+      const hosts = [
+        ...new Set(value.targets.map((x) => x.ip).filter(isHostname)),
+      ];
       for (const name of hosts) {
         const saved = inventory.dns?.find((n) => n.name === name);
-        const wanted = saved ? saved.every !== dnsPolicy.every || saved.mode !== dnsPolicy.mode : dnsPolicy.every !== 5 || dnsPolicy.mode !== "all";
-        if (wanted) await onSubmit({ action: "dns-policy", dns: { policy: { name, every: dnsPolicy.every, mode: dnsPolicy.mode } } });
+        const wanted = saved
+          ? saved.every !== dnsPolicy.every || saved.mode !== dnsPolicy.mode
+          : dnsPolicy.every !== 5 || dnsPolicy.mode !== "all";
+        if (wanted) {
+          try {
+            await onSubmit({
+              action: "dns-policy",
+              dns: {
+                policy: { name, every: dnsPolicy.every, mode: dnsPolicy.mode },
+              },
+            });
+          } catch {
+            toast.warning(t("savedDNSPolicyFailed"));
+            onClose();
+            return;
+          }
+        }
       }
       onClose();
     } catch (e) {
@@ -160,7 +215,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
     <RouteMap
       value={value}
       hostname={inventory.host.hostname}
-      resolved={Object.fromEntries(Object.entries(resolved).map(([k, v]) => [k, v === null ? [] : v]))}
+      resolved={Object.fromEntries(
+        Object.entries(resolved).map(([k, v]) => [k, v === null ? [] : v]),
+      )}
       protection={protect}
       healthOn={Boolean(health?.settings.enabled) || protect.enable_health}
       safeMinutes={safeMinutes}
@@ -181,9 +238,18 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                 <EngineGlyph engine={value.engine} />
               </span>
               <div className="min-w-0">
-                <DialogTitle>{t(original ? "edit" : copy ? "duplicateConnection" : "newConnection")}</DialogTitle>
+                <DialogTitle>
+                  {t(
+                    original
+                      ? "edit"
+                      : copy
+                        ? "duplicateConnection"
+                        : "newConnection",
+                  )}
+                </DialogTitle>
                 <DialogDescription>
-                  <bdi>{engineName(value.engine)}</bdi> · {inventory.host.hostname}
+                  <bdi>{engineName(value.engine)}</bdi> ·{" "}
+                  {inventory.host.hostname}
                 </DialogDescription>
               </div>
             </div>
@@ -192,7 +258,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                 <li
                   key={key}
                   aria-current={index === step ? "step" : undefined}
-                  data-state={index < step ? "done" : index === step ? "current" : "next"}
+                  data-state={
+                    index < step ? "done" : index === step ? "current" : "next"
+                  }
                 >
                   <button
                     type="button"
@@ -200,7 +268,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                     disabled={index > step}
                     onClick={() => index < step && setStep(index)}
                   >
-                    <span className="form-step-index">{index < step ? <Check /> : index + 1}</span>
+                    <span className="form-step-index">
+                      {index < step ? <Check /> : index + 1}
+                    </span>
                     {t(key)}
                   </button>
                 </li>
@@ -227,7 +297,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                   onInput={(event) => {
                     const input = event.target as HTMLInputElement;
                     input.removeAttribute("aria-invalid");
-                    input.closest("[data-slot=field]")?.removeAttribute("data-invalid");
+                    input
+                      .closest("[data-slot=field]")
+                      ?.removeAttribute("data-invalid");
                   }}
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -235,7 +307,14 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                     else void submit();
                   }}
                 >
-                  {step === 0 && <EntranceStep draft={draft} inventory={inventory} engines={engines} editing={Boolean(original)} />}
+                  {step === 0 && (
+                    <EntranceStep
+                      draft={draft}
+                      inventory={inventory}
+                      engines={engines}
+                      editing={Boolean(original)}
+                    />
+                  )}
                   {step === 1 && (
                     <DestinationsStep
                       draft={draft}
@@ -253,7 +332,9 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                         value={protect}
                         onChange={setProtection}
                         failoverEligible={failoverEligible}
-                        failoverHint={kernel ? undefined : t("protectFailoverRelay")}
+                        failoverHint={
+                          kernel ? undefined : t("protectFailoverRelay")
+                        }
                         safeMinutes={safeMinutes}
                         onSafeMinutes={setSafeMinutes}
                         onAdvanced={() => navigate("health", { settings: "1" })}
@@ -278,22 +359,44 @@ export function ConnectionForm({ inventory, engine, engines, original, copy, onC
                   {t("destinations")}: {value.targets.length}
                 </span>
               </div>
-              <p className="mt-1">{t(value.enabled ? "willStart" : "willSaveDisabled")}</p>
+              <p className="mt-1">
+                {t(value.enabled ? "willStart" : "willSaveDisabled")}
+              </p>
             </div>
             <div className="flex shrink-0 gap-2">
-              <Button variant="outline" disabled={busy} onClick={() => (step ? setStep(step - 1) : requestClose())}>
-                {step > 0 && <ArrowLeft data-icon="inline-start" className="rtl:rotate-180" />}
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => (step ? setStep(step - 1) : requestClose())}
+              >
+                {step > 0 && (
+                  <ArrowLeft
+                    data-icon="inline-start"
+                    className="rtl:rotate-180"
+                  />
+                )}
                 {t(step ? "back" : "cancel")}
               </Button>
               {step === steps.length - 1 ? (
-                <Button type="submit" form="connection-form" disabled={busy || !installed}>
+                <Button
+                  type="submit"
+                  form="connection-form"
+                  disabled={busy || !installed}
+                >
                   <Check data-icon="inline-start" />
                   {t(busy ? "working" : "save")}
                 </Button>
               ) : (
-                <Button type="submit" form="connection-form" disabled={!installed}>
+                <Button
+                  type="submit"
+                  form="connection-form"
+                  disabled={!installed}
+                >
                   {t("next")}
-                  <ArrowRight data-icon="inline-end" className="rtl:rotate-180" />
+                  <ArrowRight
+                    data-icon="inline-end"
+                    className="rtl:rotate-180"
+                  />
                 </Button>
               )}
             </div>

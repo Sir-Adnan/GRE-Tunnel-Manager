@@ -182,15 +182,36 @@
   }
   .target-card {
     @apply flex min-w-0 flex-col gap-3 rounded-xl border bg-background p-3;
+    container-type: inline-size;
   }
   .target-card[data-dragging] {
     box-shadow: var(--elevation-3);
   }
   .target-card-head {
-    @apply flex min-w-0 items-start gap-2;
+    @apply flex min-w-0 items-center gap-2;
   }
   .target-card-head > .route-index {
-    @apply mt-7;
+    @apply m-0;
+  }
+  .target-card-head > .drag-handle {
+    @apply m-0;
+  }
+  .target-fields {
+    @apply grid grid-cols-2 items-end gap-3;
+  }
+  .target-host {
+    @apply col-span-2 min-w-0;
+  }
+  @container (min-width: 30rem) {
+    .target-fields {
+      grid-template-columns: minmax(0, 1fr) 6.5rem;
+    }
+    .target-fields[data-port][data-weight] {
+      grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem;
+    }
+    .target-host {
+      grid-column: auto;
+    }
   }
   .drag-handle {
     @apply mt-7 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing [&_svg]:size-4;
@@ -269,7 +290,8 @@
   .health-dot[data-status="down"] {
     background: var(--destructive);
     opacity: 1;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 22%, transparent);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--destructive) 22%, transparent);
   }
   .sortable-card[data-dragging],
   .sortable-row[data-dragging] {
@@ -359,5 +381,41 @@
     @apply mb-5 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3;
     border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
     background: color-mix(in srgb, var(--warning) 10%, var(--background));
+  }
+}
+
+@media (max-width: 639px) {
+  .form-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .form-steps li + li::before {
+    display: none;
+  }
+  .form-step-button {
+    min-height: 44px;
+    width: 100%;
+    align-items: start;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .form-step-index {
+    flex-shrink: 0;
+  }
+  .connection-editor-footer {
+    gap: 0.5rem;
+  }
+  .connection-editor-footer > :first-child > p {
+    display: none;
+  }
+  .dialog-shell {
+    max-height: calc(
+      100dvh - max(1rem, env(safe-area-inset-top)) - env(safe-area-inset-bottom)
+    );
+  }
+  .dns-textarea,
+  textarea {
+    font-size: 16px;
   }
 }

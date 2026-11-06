@@ -241,6 +241,14 @@ export function RestoreBackup({
               setReviewed(false);
             }}
           />
+          {Boolean(review.dns_policies) && (
+            <p className="text-sm text-muted-foreground">
+              {t("backupDNSPolicies").replace(
+                "{n}",
+                String(review.dns_policies),
+              )}
+            </p>
+          )}
           {review.traffic && (
             <Field orientation="horizontal" className="rounded-lg border p-3">
               <FieldContent>

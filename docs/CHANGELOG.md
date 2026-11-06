@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.5.2 — Reliability, certificate renewal and responsive workspace
+
+- Rename the owned nftables MSS chain to the non-keyword identifier `gtm_mss`; some parsers reject `mss` and quoted identifiers. Saved records and peers are unchanged.
+- Initialize boot runners for port ranges and multi-answer DNS. Refresh validates resolved endpoints, rejects self-loops, retains pending reconciliation after failure and applies policy changes immediately.
+- Server DNS resets inherited systemd-resolved lists, verifies active global servers where supported, recovers prior files on failure and distinguishes active, configured and local-stub addresses.
+- Update the closed panel-removal manifest for current owned state and scheduled snapshots. Unknown files/links stay protected; pending Safe Apply or an active optimization watch blocks removal.
+- Bind Safe Apply to exact mutation receipts; order new restore points with a locked monotonic sequence, with write-time fallback for legacy names; retain failed rollback with bounded retries and visible recovery errors.
+- Add external certificate installation for Certbot/acme.sh, validated private bundles, SIGHUP reload, explicit HTTP-to-HTTPS conversion and bilingual certificate status. See [HTTPS](HTTPS.md).
+- Preserve domain DNS policies in portable backups, read historical archives without that optional field, exclude domains from IP migration and clarify local snapshots versus downloaded recovery.
+- Reveal hidden invalid advanced fields; prevent duplicate submission after a saved connection's DNS-policy failure. Distribution counts use resolved backends.
+- Recognize interrupted `.panel-<digits>` / `.tls-<digits>` writes only in their owned private directories during panel removal; unknown files and symlinks remain blockers.
+- Organize Settings into Security & access, Appearance, Notifications and Metrics tabs with history/bookmark support and retained in-memory drafts. Move optional DNS guidance into hover/focus/tap help.
+- Reflow destination editing by available card width; separate ordering/actions from address fields, align labels and numeric inputs, compact the phone step header/footer and protect endpoint port digits from wrapping.
+- Verify responsive geometry in both locales; real CA renewal, VPS reboot and real DHCP/resolver validation remain deployment checks.
+
 ## v1.5.1 — Package license notice
 
 - Panel packages now include the MIT license notice of dnd kit (`LICENSES/DndKit-MIT.txt`), the drag-and-drop library added in v1.5.0, and `NOTICE.md` names it. No functional changes.

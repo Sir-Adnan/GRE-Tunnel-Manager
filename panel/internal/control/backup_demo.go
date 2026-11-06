@@ -14,6 +14,12 @@ import (
 func (d *Demo) backup(_ context.Context, r Request) (json.RawMessage, error) {
 	if r.Action == "backup-export" || r.Action == "backup-snapshot" {
 		doc := recoveryDocument{Version: 1, Created: time.Now().UTC(), ManagerVersion: d.inventory.Version, Host: d.inventory.Host.Hostname, Counter: d.counter, Connections: d.inventory.Connections, Resources: []BackupResource{}}
+		used := backupDomainNames(doc.Connections)
+		for name, p := range d.extras().policies {
+			if used[name] {
+				doc.DNSPolicies = append(doc.DNSPolicies, p)
+			}
+		}
 		if len(d.inventory.Resources) > 0 {
 			return nil, errors.New("demo backup cannot export simulated GRE/reverse secrets; use a clean demo inventory")
 		}
@@ -45,6 +51,9 @@ func (d *Demo) backup(_ context.Context, r Request) (json.RawMessage, error) {
 		return nil, errors.New("review again on an empty demo installation")
 	}
 	d.inventory.Connections = doc.Connections
+	for _, p := range doc.DNSPolicies {
+		d.extras().policies[p.Name] = p
+	}
 	d.counter = doc.Counter
 	for i := range d.inventory.Connections {
 		c := &d.inventory.Connections[i]

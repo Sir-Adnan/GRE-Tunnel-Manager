@@ -50,7 +50,7 @@ gtm_recovery_publish() {
 # Complete validation/staging precedes the first persistent configuration write.
 gtm_recovery_import() (
     local expected actual line kind data id tmp file result=0 maximum=0 value name hash count=0 counter_seen=0 resources=0
-    local -a rows=() staged=() names=()
+    local -a rows=() staged=() names=() state_files=(connections.tsv id-counter resource-names.tsv)
     IFS= read -r expected && [[ $expected =~ ^[a-f0-9]{64}$ ]] && gtm_prepare && gtm_lock || return 1
     actual=$(gtm_recovery_revision) && [[ $actual == "$expected" ]] || { gtm_error 'Server configuration changed; review the backup again.'; return 1; }
     gtm_load_records && ((${#GTM_RECORDS[@]}==0)) || { gtm_error 'Restore requires an empty managed installation.'; return 1; }
@@ -59,13 +59,19 @@ gtm_recovery_import() (
     done
     tmp=$(mktemp -d "$GTM_RUN_DIR/recovery.XXXXXX") || return 1
     trap 'rm -f "$tmp"/*; rmdir "$tmp"; gtm_unlock' EXIT
-    local -A seen=() named=()
+    local -A seen=() named=() policies=() imported_policies=()
     while IFS= read -r line || [[ -n $line ]]; do
         ((count+=1)); ((${#line}<=16384 && count<=4096)) || return 1
         [[ $line == *$'\t'* ]] || return 1
         kind=${line%%$'\t'*}; data=${line#*$'\t'}
         case $kind in
             I) ((counter_seen==0 && count==1)) && gtm_uint "$data" 0 999999 || return 1; counter_seen=1; maximum=$((10#$data));;
+            D)
+                local dns_name every mode extra
+                IFS=$'\t' read -r dns_name every mode extra <<< "$data"
+                gtm_hostname "$dns_name" && [[ -z $extra && ! ${imported_policies[$dns_name]+set} ]] && gtm_uint "$every" 1 60 && [[ $mode == all || $mode == first ]] || return 1
+                imported_policies[$dns_name]="$every"$'\t'"$mode"
+                ((${#imported_policies[@]}<=128)) || return 1;;
             C)
                 gtm_record_validate "$data" && [[ $R_ENABLED == 0 && $R_ID != F000000 && ! ${seen[$R_ID]+set} ]] || return 1
                 seen[$R_ID]=1; value=$((10#${R_ID#F})); ((value<=maximum)) || maximum=$value
@@ -109,6 +115,30 @@ gtm_recovery_import() (
     done
     GTM_RECORDS=("${rows[@]}")
     gtm_write_records "$tmp/connections.tsv" && gtm_load_records "$tmp/connections.tsv" || return 1
+    if ((${#imported_policies[@]})); then
+        local policy_line target
+        local -a dns_targets=()
+        local -A used_names=()
+        for line in "${GTM_RECORDS[@]}"; do
+            gtm_record_validate "$line" || return 1
+            IFS=, read -r -a dns_targets <<< "$R_TARGETS"
+            for target in "${dns_targets[@]}"; do gtm_target "$target" || return 1; ((EP_HOST==0)) || used_names[$EP_IP]=1; done
+        done
+        [[ ! -L $GTM_CONFIG_DIR/dns-policy.tsv ]] || return 1
+        if [[ -e $GTM_CONFIG_DIR/dns-policy.tsv ]]; then
+            [[ -f $GTM_CONFIG_DIR/dns-policy.tsv ]] || return 1
+            while IFS=$'\t' read -r dns_name every mode extra; do
+                gtm_hostname "$dns_name" && [[ -z $extra && ! ${policies[$dns_name]+set} ]] && gtm_uint "$every" 1 60 && [[ $mode == all || $mode == first ]] || return 1
+                policies[$dns_name]="$every"$'\t'"$mode"
+            done < "$GTM_CONFIG_DIR/dns-policy.tsv"
+        fi
+        for dns_name in "${!imported_policies[@]}"; do
+            [[ ${used_names[$dns_name]+set} ]] || return 1
+            policies[$dns_name]=${imported_policies[$dns_name]}
+        done
+        for dns_name in "${!policies[@]}"; do printf '%s\t%s\n' "$dns_name" "${policies[$dns_name]}"; done | sort > "$tmp/dns-policy.tsv" || return 1
+        state_files+=(dns-policy.tsv)
+    fi
     # Never clobber orphaned files, gateway configs or symbolic links.
     for file in "${staged[@]}"; do
         local root=$GTM_CONFIG_DIR; [[ $file != *.service ]] || root=$GTM_SERVICE_DIR
@@ -119,7 +149,7 @@ gtm_recovery_import() (
     [[ ! -L $GTM_CONFIG_DIR/id-counter && ! -L $GTM_CONFIG_DIR/resource-names.tsv ]] || return 1
     # Recovery saves desired data only: it starts no services or firewall rules.
     # Keep previous state/counter/metadata for a checked rollback on write failure.
-    for file in connections.tsv id-counter resource-names.tsv; do
+    for file in "${state_files[@]}"; do
         [[ ! -e $GTM_CONFIG_DIR/$file ]] || cp -p "$GTM_CONFIG_DIR/$file" "$tmp/old-$file" || return 1
     done
     local -a written=()
@@ -136,14 +166,14 @@ gtm_recovery_import() (
         printf '%s\n' "$maximum" > "$tmp/id-counter"
         : > "$tmp/resource-names.tsv"
         ((${#names[@]}==0)) || printf '%s\n' "${names[@]}" > "$tmp/resource-names.tsv"
-        for file in connections.tsv id-counter resource-names.tsv; do
+        for file in "${state_files[@]}"; do
             ((result==0)) && gtm_recovery_publish "$tmp/$file" "$GTM_CONFIG_DIR/$file" 600 || { result=1; break; }
         done
         ((result!=0)) || systemctl daemon-reload || result=1
     fi
     if ((result)); then
         for file in "${written[@]}"; do rm -f "$file" || gtm_error 'Recovery cleanup needs attention.'; done
-        for file in connections.tsv id-counter resource-names.tsv; do
+        for file in "${state_files[@]}"; do
             if [[ -f $tmp/old-$file ]]; then gtm_recovery_publish "$tmp/old-$file" "$GTM_CONFIG_DIR/$file" 600 || gtm_error 'Recovery rollback needs attention.'
             else rm -f "$GTM_CONFIG_DIR/$file" || gtm_error 'Recovery rollback needs attention.'; fi
         done

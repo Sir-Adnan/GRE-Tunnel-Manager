@@ -48,8 +48,19 @@ import type { HealthStatus } from "@/features/operations/types";
 function HealthDot({ status }: { status?: HealthStatus | "off" }) {
   const t = useT();
   const value = status || "off";
-  const label = value === "off" ? t("routeNotMonitored") : t(`health${value[0].toUpperCase()}${value.slice(1)}`);
-  return <span className="health-dot" data-status={value} role="img" aria-label={label} title={label} />;
+  const label =
+    value === "off"
+      ? t("routeNotMonitored")
+      : t(`health${value[0].toUpperCase()}${value.slice(1)}`);
+  return (
+    <span
+      className="health-dot"
+      data-status={value}
+      role="img"
+      aria-label={label}
+      title={label}
+    />
+  );
 }
 
 export function ConnectionTable({
@@ -71,7 +82,8 @@ export function ConnectionTable({
   const order = useOrder("connections");
   const health = useHealthView().value;
   const healthOf = (id: string): HealthStatus | "off" | undefined => {
-    if (!health?.settings.enabled || health.settings.ignore?.includes(id)) return "off";
+    if (!health?.settings.enabled || health.settings.ignore?.includes(id))
+      return "off";
     return health.owners.find((o) => o.owner === id)?.status ?? "unknown";
   };
   const locale = useContext(LocaleContext);
@@ -86,7 +98,10 @@ export function ConnectionTable({
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
-  const shown = filterConnections(applyOrder(connections, order.ids, (c) => c.id), { status, query });
+  const shown = filterConnections(
+    applyOrder(connections, order.ids, (c) => c.id),
+    { status, query },
+  );
   const pageCount = Math.max(1, Math.ceil(shown.length / 20)),
     currentPage = Math.min(pageIndex, pageCount - 1);
   const visible = shown.slice(currentPage * 20, (currentPage + 1) * 20);
@@ -113,7 +128,11 @@ export function ConnectionTable({
   // Reordering a filtered page moves those rows among their own positions in
   // the full, saved order (all engines).
   function move(next: string[]) {
-    const everything = applyOrder(inventory?.connections ?? connections, order.ids, (c) => c.id).map((c) => c.id);
+    const everything = applyOrder(
+      inventory?.connections ?? connections,
+      order.ids,
+      (c) => c.id,
+    ).map((c) => c.id);
     void order.save(mergeOrder(everything, visibleIds, next)).then((e) => {
       if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
     });
@@ -177,81 +196,85 @@ export function ConnectionTable({
       ) : (
         <>
           <SortableArea ids={visibleIds} onMove={move}>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3 @3xl:hidden">
-            {visible.map((row) => (
-              <SortableItem key={row.id} id={row.id}>
-              {(item) => (
-              <article
-                ref={item.setNodeRef}
-                style={item.style}
-                data-dragging={item.dragging || undefined}
-                className="sortable-card flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <DragHandle handle={item.handle} label={row.name} className="!mt-0 -ms-1" />
-                    <Checkbox
-                      aria-label={`${t("selectConnection")} ${row.name}`}
-                      checked={selected.includes(row.id)}
-                      onCheckedChange={(v) =>
-                        setSelected(
-                          v
-                            ? [...new Set([...selected, row.id])]
-                            : selected.filter((id) => id !== row.id),
-                        )
-                      }
-                    />
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3 @3xl:hidden">
+              {visible.map((row) => (
+                <SortableItem key={row.id} id={row.id}>
+                  {(item) => (
+                    <article
+                      ref={item.setNodeRef}
+                      style={item.style}
+                      data-dragging={item.dragging || undefined}
+                      className="sortable-card flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-3"
+                    >
+                      <div className="connection-card-header">
+                        <div className="connection-card-identity">
+                          <DragHandle
+                            handle={item.handle}
+                            label={row.name}
+                            className="!mt-0 -ms-1"
+                          />
+                          <Checkbox
+                            aria-label={`${t("selectConnection")} ${row.name}`}
+                            checked={selected.includes(row.id)}
+                            onCheckedChange={(v) =>
+                              setSelected(
+                                v
+                                  ? [...new Set([...selected, row.id])]
+                                  : selected.filter((id) => id !== row.id),
+                              )
+                            }
+                          />
 
-                    <div className="flex min-w-0 flex-col items-start gap-1">
-                      <button
-                        type="button"
-                        className="connection-name"
-                        onClick={() =>
-                          updateParams({ connection: row.id }, true)
-                        }
-                      >
-                        {row.name}
-                      </button>
-                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <EngineGlyph engine={row.engine} />
-                        <bdi>{engineName(row.engine)}</bdi>
-                      </span>
-                    </div>
-                  </div>
-                  <span className="flex items-center gap-2">
-                    <HealthDot status={healthOf(row.id)} />
-                    <Status value={connectionStatus(row)} />
-                  </span>
-                </div>
-                <dl className="grid min-w-0 grid-cols-[minmax(0,0.65fr)_minmax(0,1.35fr)] gap-3 text-sm">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <dt className="text-xs text-muted-foreground">
-                      {t("listener")}
-                    </dt>
-                    <dd className="flex flex-wrap items-baseline gap-2">
-                      <bdi dir="ltr" className="font-mono">
-                        {row.ports}
-                      </bdi>
-                      <span className="text-xs text-muted-foreground">
-                        {row.protocol.toUpperCase()}
-                      </span>
-                    </dd>
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <dt className="text-xs text-muted-foreground">
-                      {t("destination")}
-                    </dt>
-                    <dd className="min-w-0">
-                      <Destinations connection={row} />
-                    </dd>
-                  </div>
-                </dl>
-                {actions(row)}
-              </article>
-              )}
-              </SortableItem>
-            ))}
-          </div>
+                          <div className="flex min-w-0 flex-col items-start gap-1">
+                            <button
+                              type="button"
+                              className="connection-name"
+                              onClick={() =>
+                                updateParams({ connection: row.id }, true)
+                              }
+                            >
+                              {row.name}
+                            </button>
+                            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <EngineGlyph engine={row.engine} />
+                              <bdi>{engineName(row.engine)}</bdi>
+                            </span>
+                          </div>
+                        </div>
+                        <span className="ms-auto flex shrink-0 items-center gap-2">
+                          <HealthDot status={healthOf(row.id)} />
+                          <Status value={connectionStatus(row)} />
+                        </span>
+                      </div>
+                      <dl className="connection-card-facts">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            {t("listener")}
+                          </dt>
+                          <dd className="flex flex-wrap items-baseline gap-2">
+                            <bdi dir="ltr" className="font-mono">
+                              {row.ports}
+                            </bdi>
+                            <span className="text-xs text-muted-foreground">
+                              {row.protocol.toUpperCase()}
+                            </span>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            {t("destination")}
+                          </dt>
+                          <dd className="min-w-0">
+                            <Destinations connection={row} />
+                          </dd>
+                        </div>
+                      </dl>
+                      {actions(row)}
+                    </article>
+                  )}
+                </SortableItem>
+              ))}
+            </div>
           </SortableArea>
           <div className="table-frame hidden @3xl:block">
             <Table className="table-fixed">
@@ -305,83 +328,92 @@ export function ConnectionTable({
                 </TableRow>
               </TableHeader>
               <SortableArea ids={visibleIds} onMove={move}>
-              <TableBody>
-                {visible.map((row) => (
-                  <SortableItem key={row.id} id={row.id}>
-                  {(item) => (
-                  <TableRow ref={item.setNodeRef} style={item.style} data-dragging={item.dragging || undefined} className="sortable-row">
-                    <TableCell className="px-1">
-                      <DragHandle handle={item.handle} label={row.name} className="!mt-0" />
-                    </TableCell>
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.includes(row.id)}
-                        aria-label={`${t("selectConnection")} ${row.name}`}
-                        onCheckedChange={(checked) =>
-                          setSelected(
-                            checked
-                              ? [...selected, row.id]
-                              : selected.filter((id) => id !== row.id),
-                          )
-                        }
-                      />
-                    </TableCell>
+                <TableBody>
+                  {visible.map((row) => (
+                    <SortableItem key={row.id} id={row.id}>
+                      {(item) => (
+                        <TableRow
+                          ref={item.setNodeRef}
+                          style={item.style}
+                          data-dragging={item.dragging || undefined}
+                          className="sortable-row"
+                        >
+                          <TableCell className="px-1">
+                            <DragHandle
+                              handle={item.handle}
+                              label={row.name}
+                              className="!mt-0"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Checkbox
+                              checked={selected.includes(row.id)}
+                              aria-label={`${t("selectConnection")} ${row.name}`}
+                              onCheckedChange={(checked) =>
+                                setSelected(
+                                  checked
+                                    ? [...selected, row.id]
+                                    : selected.filter((id) => id !== row.id),
+                                )
+                              }
+                            />
+                          </TableCell>
 
-                    <TableCell>
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="engine-icon" aria-hidden>
-                          <EngineGlyph engine={row.engine} />
-                        </span>
-                        <div className="flex min-w-0 flex-col items-start gap-1">
-                          <button
-                            type="button"
-                            className="connection-name"
-                            onClick={() =>
-                              updateParams({ connection: row.id }, true)
-                            }
-                          >
-                            {row.name}
-                          </button>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <bdi>{engineName(row.engine)}</bdi>
-                            <HelpTip
-                              label={t("connectionID")}
-                            >{`${t("connectionID")}: ${row.id}`}</HelpTip>
-                          </span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex min-w-0 flex-col items-start gap-1">
-                        <bdi
-                          dir="ltr"
-                          className="break-all whitespace-normal font-mono text-sm"
-                        >
-                          {row.ports}
-                        </bdi>
-                        <span
-                          className="text-xs text-muted-foreground"
-                          dir="ltr"
-                        >
-                          {row.protocol.toUpperCase()}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Destinations connection={row} />
-                    </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2">
-                        <HealthDot status={healthOf(row.id)} />
-                        <Status value={connectionStatus(row)} />
-                      </span>
-                    </TableCell>
-                    <TableCell>{actions(row)}</TableCell>
-                  </TableRow>
-                  )}
-                  </SortableItem>
-                ))}
-              </TableBody>
+                          <TableCell>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="engine-icon" aria-hidden>
+                                <EngineGlyph engine={row.engine} />
+                              </span>
+                              <div className="flex min-w-0 flex-col items-start gap-1">
+                                <button
+                                  type="button"
+                                  className="connection-name"
+                                  onClick={() =>
+                                    updateParams({ connection: row.id }, true)
+                                  }
+                                >
+                                  {row.name}
+                                </button>
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <bdi>{engineName(row.engine)}</bdi>
+                                  <HelpTip
+                                    label={t("connectionID")}
+                                  >{`${t("connectionID")}: ${row.id}`}</HelpTip>
+                                </span>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex min-w-0 flex-col items-start gap-1">
+                              <bdi
+                                dir="ltr"
+                                className="break-all whitespace-normal font-mono text-sm"
+                              >
+                                {row.ports}
+                              </bdi>
+                              <span
+                                className="text-xs text-muted-foreground"
+                                dir="ltr"
+                              >
+                                {row.protocol.toUpperCase()}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Destinations connection={row} />
+                          </TableCell>
+                          <TableCell>
+                            <span className="flex items-center gap-2">
+                              <HealthDot status={healthOf(row.id)} />
+                              <Status value={connectionStatus(row)} />
+                            </span>
+                          </TableCell>
+                          <TableCell>{actions(row)}</TableCell>
+                        </TableRow>
+                      )}
+                    </SortableItem>
+                  ))}
+                </TableBody>
               </SortableArea>
             </Table>
           </div>

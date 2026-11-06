@@ -50,6 +50,15 @@ export function Backups({
             {t("snapTab")}
           </TabsTrigger>
         </TabsList>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          {t(
+            tab === "schedule"
+              ? "backupScheduleScope"
+              : tab === "restore"
+                ? "backupRestoreScope"
+                : "backupDownloadScope",
+          )}
+        </p>
         <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
           <div className="min-w-0 rounded-xl border bg-card p-4 sm:p-6">
             <TabsContent
@@ -66,7 +75,10 @@ export function Backups({
             >
               <RestoreBackup inventory={inventory} refreshed={refreshed} />
             </TabsContent>
-            <TabsContent value="schedule" className="data-[state=inactive]:hidden">
+            <TabsContent
+              value="schedule"
+              className="data-[state=inactive]:hidden"
+            >
               <Snapshots run={run} />
             </TabsContent>
           </div>

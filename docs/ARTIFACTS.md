@@ -12,6 +12,7 @@ Header server information is cached only in process memory. It creates no files 
 | `/etc/gre-manager/preferences.tsv` | Historical appearance preferences; ignored by v1.2.2+, retained if already present |
 | `/etc/gre-manager/manager.lock` | Exclusive mutation lock |
 | `/etc/gre-manager/id-counter` | Monotonic connection ID allocation, retained across deletion/restore |
+| `/etc/gre-manager/restore-counter` | Locked monotonic nanosecond sequence for new restore-point names, including same-second changes and backward clock adjustments; local ordering metadata |
 | `/etc/gre-manager/backups/*.tsv` | Forwarding restore points; sensitive topology data. The newest `GTM_RESTORE_POINTS` (default 100) automatic `YYYYMMDDTHHMMSS-PID-N.tsv` files are kept; other names are never pruned |
 | `/etc/gre-manager/backups/legacy-*.sh` | Raw backup before legacy group deletion; executable root data, not a modern restore point |
 | `/etc/gre-manager/generated/F*.conf` | Per-connection Realm/HAProxy config |
@@ -74,9 +75,11 @@ The v13.x scripts created the artifacts below. Current versions create only `gre
 | `/run/gre-manager/{v4,v6}.cache` | detect_local_ips | public IP cache, 60 min TTL | menu 6, reboot (tmpfs) |
 | `/run/gre-manager/{v4,v6}.miss` | detect_local_ips | negative cache, 10 min TTL | menu 6, reboot |
 | `/etc/gre-manager/dns-cache.tsv`, `dns-policy.tsv` | domain destinations | last addresses per name/family; refresh interval and mode per name (mode 600) | names no record uses are dropped at the next refresh |
+| `/etc/gre-manager/dns-pending` | domain destinations | private retry marker for a DNS/policy reconciliation interrupted or not successfully applied | removed only after successful reconciliation |
 | `/etc/systemd/system/gre-manager-dns.{service,timer}` | first domain destination | minute timer running `apply.sh --dns-refresh` | removed when no record uses a domain |
 | `/etc/systemd/resolved.conf.d/90-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.` | Server DNS → Restore original |
 | `/etc/gre-manager/dns/` (`servers`, `original`, `resolv.conf.orig`) | Server DNS | chosen servers and the exact original | Restore original |
+| `/etc/gre-manager/dns/resolved.conf.{orig,present}` | Server DNS | original owned-path drop-in and presence marker; checked transactions stage/restore known files only | Restore original |
 | `/usr/local/lib/gre-manager/resolv.sh`, `gre-manager-resolv.service` | Server DNS on plain resolv.conf | writes `/etc/resolv.conf` again after network-online | Restore original |
 
 ## Runtime iptables/ip6tables rules
@@ -108,6 +111,7 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 | `/usr/local/lib/gre-manager/manager.sh` | Matching root-only Bash API helper |
 | `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths |
 | `/etc/gre-manager-panel/server.{crt,key}` | Initial IP/domain-SAN self-signed certificate/key for HTTPS; key mode 640, root:grepanel |
+| `/etc/gre-manager-panel/https.pem` | Optional externally issued full-chain/private-key bundle installed locally; root:grepanel mode 640, atomic replacement; loaded on validated reload. ACME account/source files remain outside panel ownership |
 | `gre-manager-panel.service` | Public HTTP/HTTPS process as grepanel; explicit optional installation, enabled at boot |
 | `gre-manager-panel-broker.service` | Private root broker with grepanel group; enabled at boot independently of the public panel, so traffic sampling and opt-in quota pauses continue while the panel is stopped |
 | `/run/gre-manager-panel-install.lock` | Root-owned installer lock; prevents concurrent panel installation |

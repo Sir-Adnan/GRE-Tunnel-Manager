@@ -9,19 +9,22 @@ import (
 	"strings"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/auth"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/certificates"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/control"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/nodes"
 )
 
 type Server struct {
-	Auth       *auth.Store
-	Client     control.Client
-	Jobs       *Jobs
-	Assets     http.Handler
-	Demo       bool
-	Nodes      *nodes.Hub
-	gate       chan struct{}
-	backupGate chan struct{}
+	Auth              *auth.Store
+	Client            control.Client
+	Jobs              *Jobs
+	Assets            http.Handler
+	Demo              bool
+	Nodes             *nodes.Hub
+	Access            func() certificates.Status
+	ReloadCertificate func() error
+	gate              chan struct{}
+	backupGate        chan struct{}
 }
 
 func New(ctx context.Context, a *auth.Store, c control.Client, assets http.Handler, demo bool) *Server {
@@ -122,6 +125,26 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/api/access" && r.Method == "GET":
+		if s.Access != nil {
+			reply(w, 200, s.Access())
+		} else {
+			reply(w, 200, certificates.Status{Protocol: "http"})
+		}
+	case r.URL.Path == "/api/access/reload" && r.Method == "POST":
+		var input struct{}
+		if !decodeLimit(w, r, &input, 1024) {
+			return
+		}
+		if s.ReloadCertificate == nil {
+			failure(w, 409, "certificate reload is available on the HTTPS panel only")
+			return
+		}
+		if e := s.ReloadCertificate(); e != nil {
+			failure(w, 409, "certificate reload failed; the previous certificate remains loaded; check the certificate files and public host")
+			return
+		}
+		reply(w, 200, s.Access())
 	case r.URL.Path == "/api/host/telemetry" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "host-telemetry"})
 	case r.URL.Path == "/api/health" && r.Method == "GET":

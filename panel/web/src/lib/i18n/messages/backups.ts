@@ -2,6 +2,22 @@
 import type { Messages } from "./types";
 
 export const backups = {
+  backupDownloadScope: [
+    "An encrypted recovery file you keep outside this server. Open it here to inspect and verify it before you need to restore.",
+    "فایل بازیابی رمزنگاری‌شده‌ای که خارج از این سرور نگه می‌دارید. می‌توانید همین‌جا آن را باز و بررسی کنید تا پیش از نیاز به بازیابی از آن مطمئن شوید.",
+  ],
+  backupScheduleScope: [
+    "Automatic snapshots stay on this server and contain private tunnel data. Download an encrypted copy for protection against disk loss or reinstall.",
+    "نسخه‌های خودکار روی همین سرور می‌مانند و داده‌های خصوصی تونل را دارند. برای خرابی دیسک یا نصب مجدد، یک کپی رمزنگاری‌شده دانلود کنید.",
+  ],
+  backupRestoreScope: [
+    "Inspect any supported backup safely. Applying it requires an empty managed installation, and restored connections remain paused until you enable them.",
+    "هر بکاپ پشتیبانی‌شده را با خیال راحت بررسی کنید. اعمال آن به تنظیمات مدیریت‌شدهٔ خالی نیاز دارد و اتصال‌ها تا فعال‌سازی شما متوقف می‌مانند.",
+  ],
+  backupDNSPolicies: [
+    "Includes {n} domain DNS policies. The destination server keeps its own host resolver settings.",
+    "شامل {n} سیاست DNS دامنه‌ها است. تنظیمات DNS خودِ سرور مقصد حفظ می‌شود.",
+  ],
   backupsIntro: [
     "Keep a recovery copy. Move your setup when you need to.",
     "نسخهٔ پشتیبان بگیرید و تنظیمات را به سرور جدید منتقل کنید.",

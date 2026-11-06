@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePanelRoute } from "@/lib/use-panel-route";
-import { Download, LogOut } from "lucide-react";
+import {
+  Download,
+  LogOut,
+  ShieldCheck,
+  Palette,
+  Bell,
+  Activity,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,23 +19,19 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldDescription,
-} from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Choice, PageTitle } from "@/components/shared";
-import { ThemePicker } from "@/components/ThemePicker";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { PageTitle } from "@/components/shared";
 import { useT } from "@/lib/i18n";
-import type { Locale, Preferences } from "@/lib/preferences";
+import type { Preferences } from "@/lib/preferences";
 import type { Inventory } from "@/lib/api";
 import { EngineDetails } from "./EngineDetails";
 import { EngineUpdates } from "./engines/EngineUpdates";
 import { NotificationSettings } from "./notifications/NotificationSettings";
 import { MetricsExport } from "./settings/MetricsExport";
+import { AccessSecurity } from "./settings/AccessSecurity";
+import { AppearanceSettings } from "./settings/AppearanceSettings";
+import { settingsTab } from "./settings/navigation";
 
 export function Settings({
   run,
@@ -42,118 +45,76 @@ export function Settings({
   logout: () => void;
 }) {
   const t = useT();
-  const { params } = usePanelRoute();
-  const section = params.get("section");
-  useEffect(() => {
-    if (!section) return;
-    // Sections load their state first; scroll once they exist.
-    const timer = window.setTimeout(
-      () => document.getElementById(section)?.scrollIntoView({ block: "start" }),
-      300,
-    );
-    return () => window.clearTimeout(timer);
-  }, [section]);
+  const { params, updateParams } = usePanelRoute();
+  const tab = settingsTab(params);
+  const sections = [
+    { id: "security", title: "settingsSecurity", icon: ShieldCheck },
+    { id: "appearance", title: "appearance", icon: Palette },
+    { id: "notifications", title: "settingsNotifications", icon: Bell },
+    { id: "metrics", title: "settingsMetrics", icon: Activity },
+  ];
   return (
     <div className="page-stack">
-      <PageTitle title={t("settings")} description={t("appearanceDesc")} />
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("style")}</CardTitle>
-          <CardDescription>{t("styleHelp")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ThemePicker
-            value={preferences.style}
-            locale={preferences.locale}
-            onChange={(style) => setPreferences({ ...preferences, style })}
+      <PageTitle title={t("settings")} description={t("settingsIntro")} />
+      <Tabs
+        value={tab}
+        onValueChange={(tab) => updateParams({ tab, section: "" }, true)}
+        className="settings-workspace"
+        dir={preferences.locale === "fa" ? "rtl" : "ltr"}
+      >
+        <TabsList
+          className="settings-tabs grid h-auto w-full grid-cols-2 group-data-[orientation=horizontal]/tabs:h-auto sm:flex sm:w-fit"
+          aria-label={t("settings")}
+        >
+          {sections.map(({ id, title, icon: Icon }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              className="h-auto min-h-11 whitespace-normal px-3 py-2"
+            >
+              <Icon />
+              <span>{t(title)}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="security" forceMount className="settings-panel">
+          <AccessSecurity />
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("account")}</CardTitle>
+              <CardDescription>{t("passwordHelp")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <pre className="code-block" dir="ltr">
+                sudo gtm-panel reset-password{`\n`}sudo systemctl restart
+                gre-manager-panel
+              </pre>
+            </CardContent>
+            <CardFooter>
+              <Button variant="outline" onClick={logout}>
+                <LogOut data-icon="inline-start" />
+                {t("signOut")}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        <TabsContent value="appearance" forceMount className="settings-panel">
+          <AppearanceSettings
+            preferences={preferences}
+            setPreferences={setPreferences}
           />
-        </CardContent>
-        <CardFooter>
-          <p className="text-xs leading-6 text-muted-foreground">
-            {t("exactTheme")}
-          </p>
-        </CardFooter>
-      </Card>
-      <div className="grid items-start gap-5 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("appearance")}</CardTitle>
-            <CardDescription>{t("appearanceDesc")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup>
-              <Choice
-                id="language"
-                label={t("language")}
-                value={preferences.locale}
-                onChange={(value) =>
-                  setPreferences({ ...preferences, locale: value as Locale })
-                }
-                choices={[
-                  { value: "fa", label: "فارسی" },
-                  { value: "en", label: "English" },
-                ]}
-              />
-              <Field>
-                <FieldLabel>{t("mode")}</FieldLabel>
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  value={preferences.mode}
-                  onValueChange={(value) =>
-                    value &&
-                    setPreferences({
-                      ...preferences,
-                      mode: value as Preferences["mode"],
-                    })
-                  }
-                >
-                  {["light", "dark", "system"].map((mode) => (
-                    <ToggleGroupItem value={mode} key={mode}>
-                      {t(mode)}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </Field>
-              <Field orientation="horizontal">
-                <div>
-                  <FieldLabel htmlFor="auto-refresh">
-                    {t("autoRefresh")}
-                  </FieldLabel>
-                  <FieldDescription>{t("autoRefreshHelp")}</FieldDescription>
-                </div>
-                <Switch
-                  id="auto-refresh"
-                  checked={preferences.refresh}
-                  onCheckedChange={(value) =>
-                    setPreferences({ ...preferences, refresh: value })
-                  }
-                />
-              </Field>
-            </FieldGroup>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("account")}</CardTitle>
-            <CardDescription>{t("passwordHelp")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="code-block" dir="ltr">
-              sudo gtm-panel reset-password{`\n`}sudo systemctl restart
-              gre-manager-panel
-            </pre>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" onClick={logout}>
-              <LogOut data-icon="inline-start" />
-              {t("signOut")}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-      <NotificationSettings run={run} />
-      <MetricsExport />
+        </TabsContent>
+        <TabsContent
+          value="notifications"
+          forceMount
+          className="settings-panel"
+        >
+          <NotificationSettings run={run} />
+        </TabsContent>
+        <TabsContent value="metrics" forceMount className="settings-panel">
+          <MetricsExport />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

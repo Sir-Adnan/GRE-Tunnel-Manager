@@ -17,6 +17,7 @@ export type BackupReview = {
   certificates: string[];
   traffic: boolean;
   blockers: string[];
+  dns_policies?: number;
 };
 export const maxBackupBytes = 28 * 1024 * 1024;
 

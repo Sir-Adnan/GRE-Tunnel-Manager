@@ -5,12 +5,21 @@
 
 gtm_history_name_valid() { [[ $1 =~ ^[0-9]{8}T[0-9]{6}-[0-9]+-[0-9]+\.tsv$ ]]; }
 
-# Restore point paths, newest first (names start with a UTC timestamp).
+# New names contain a locked monotonic nanosecond sequence. Historical PID/random
+# names use their write time as a best-effort tie-breaker within the named second.
 gtm_history_points() {
-    local file
+    local file name modified
     for file in "$GTM_CONFIG_DIR"/backups/*.tsv; do
-        [[ -f $file && ! -L $file ]] && gtm_history_name_valid "${file##*/}" && printf '%s\n' "$file"
-    done | LC_ALL=C sort -r
+        [[ -f $file && ! -L $file ]] && gtm_history_name_valid "${file##*/}" || continue
+        name=${file##*/}
+        if [[ $name =~ ^[0-9]{8}T[0-9]{6}-([0-8][0-9]{18})-[0-9]+\.tsv$ ]]; then
+            modified=${BASH_REMATCH[1]: -9}
+        else
+            modified=$(stat -c '%y' -- "$file") || return 1
+            modified=${modified#*.}; modified=${modified:0:9}
+        fi
+        printf '%s\t%s\t%s\n' "${name:0:15}" "$modified" "$file"
+    done | LC_ALL=C sort -r | cut -f 3-
 }
 
 # Read-only: "revision", "total", then per point "point NAME" followed by

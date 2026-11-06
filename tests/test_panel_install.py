@@ -66,7 +66,7 @@ stop) [[ ! -f "$TEST_ROOT/fail-stop" ]];; *) exit 0;; esac""")
         executable = """#!/bin/bash
 set -euo pipefail
 case "$1" in
-version) printf '%s\\n' "${TEST_BINARY_VERSION:-v1.5.1}";;
+version) printf '%s\\n' "${TEST_BINARY_VERSION:-v1.5.2}";;
 setup-version) printf '%s\\n' "$TEST_SETUP_VERSION";;
 uninstall-version) printf '%s\\n' "${TEST_UNINSTALL_VERSION:-1}";;
 uninstall-prepare)
@@ -87,7 +87,7 @@ address)
 esac
 """
         arch = {'x86_64':'amd64', 'aarch64':'arm64'}[platform.machine()]
-        archive = self.packages / f'gtm-panel-v1.5.1-linux-{arch}.tar.gz'
+        archive = self.packages / f'gtm-panel-v1.5.2-linux-{arch}.tar.gz'
         with tarfile.open(archive, 'w:gz') as tar:
             for name, body in [('gtm-panel', executable), ('gre.sh', '#!/bin/bash\nexit 0\n')]:
                 data = body.encode()
@@ -146,6 +146,59 @@ esac
         result=self.uninstall(); self.assertNotEqual(result.returncode,0)
         self.assertNotIn('systemctl stop',self.calls())
         self.assertTrue(self.config.exists())
+
+    def test_uninstall_accepts_current_panel_state_and_scoped_snapshots(self):
+        result = self.run_installer('--quick')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = self.root / 'var/lib/gre-manager-panel'
+        state.mkdir(exist_ok=True)
+        for name in ('metrics', 'health', 'maintenance', 'notifications', 'snapshots',
+                     'prometheus', 'optimize-watch', 'ui-order', 'safe-change'):
+            (state / (name + '.json')).write_text('{}')
+        snapshots = state / 'snapshots'
+        snapshots.mkdir()
+        (snapshots / 'gtm-20261106T120000.json').write_text('{}')
+        unknown = snapshots / 'operator-backup.json'
+        unknown.write_text('keep')
+        result = self.uninstall()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((state / 'health.json').exists())
+        unknown.unlink()
+        external = self.root / 'external-snapshot'
+        external.write_text('keep external')
+        link = snapshots / 'gtm-20261106T120001.json'
+        link.symlink_to(external)
+        self.assertNotEqual(self.uninstall().returncode, 0)
+        link.unlink()
+        result = self.uninstall()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(state.exists())
+        self.assertEqual(external.read_text(), 'keep external')
+
+    def test_uninstall_recognizes_interrupted_private_writes_only(self):
+        result = self.run_installer('--quick')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = self.root / 'var/lib/gre-manager-panel'
+        state.mkdir(exist_ok=True)
+        for directory in (state, self.config.parent):
+            (directory / '.panel-1130669761').write_text('interrupted write')
+        (self.config.parent / '.tls-12345').write_text('interrupted certificate')
+        unknown = state / '.panel-operator'
+        unknown.write_text('keep')
+        self.assertNotEqual(self.uninstall().returncode, 0)
+        self.assertEqual(unknown.read_text(), 'keep')
+        unknown.unlink()
+        external = self.root / 'external-temp'
+        external.write_text('keep external')
+        link = state / '.panel-12345'
+        link.symlink_to(external)
+        self.assertNotEqual(self.uninstall().returncode, 0)
+        link.unlink()
+        result = self.uninstall()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(state.exists())
+        self.assertFalse(self.config.parent.exists())
+        self.assertEqual(external.read_text(), 'keep external')
 
     def test_uninstall_recovery_refusal_preserves_files_and_restarts_services(self):
         result=self.run_installer('--quick'); self.assertEqual(result.returncode,0,result.stderr)

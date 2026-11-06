@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,12 +17,15 @@ import (
 // configuration right after it. Anything else changing the configuration
 // first cancels the revert (it would undo that too).
 type SafeChange struct {
-	Action   string    `json:"action"`
-	Summary  string    `json:"summary"`
-	Point    string    `json:"point"`
-	Revision string    `json:"revision"`
-	Started  time.Time `json:"started"`
-	Deadline time.Time `json:"deadline"`
+	Action    string     `json:"action"`
+	Summary   string     `json:"summary"`
+	Point     string     `json:"point"`
+	Revision  string     `json:"revision"`
+	Started   time.Time  `json:"started"`
+	Deadline  time.Time  `json:"deadline"`
+	Attempts  int        `json:"attempts,omitempty"`
+	LastError string     `json:"last_error,omitempty"`
+	RetryAt   *time.Time `json:"retry_at,omitempty"`
 }
 
 // safeActions may arm a revert: they all save a restore point through gtm_commit.
@@ -52,26 +56,16 @@ func (o *Operations) saveSafe() error {
 	return writePrivate(o.safePath, data)
 }
 
-// newestPoint is the newest restore point and the current revision.
-func (m *Manager) newestPoint(ctx context.Context) (string, string, error) {
-	out, e := m.call(ctx, "history", "", "1")
-	if e != nil {
-		return "", "", e
-	}
-	d, e := parseHistory(out)
-	if e != nil || len(d.points) == 0 || !digestValid(d.revision) {
-		return "", "", errors.New("no restore point to return to")
-	}
-	return d.points[0].name, d.revision, nil
-}
-
 // armSafe records the change just applied; it reverts after minutes.
-func (m *Manager) armSafe(ctx context.Context, r Request, now time.Time) error {
+var changeReceipt = regexp.MustCompile(`(?m)^receipt\t([0-9]{8}T[0-9]{6}-[0-9]+-[0-9]+\.tsv)\t([a-f0-9]{64})$`)
+
+func (m *Manager) armSafe(_ context.Context, r Request, now time.Time, receipt string) error {
 	o := m.Ops
-	point, revision, e := m.newestPoint(ctx)
-	if e != nil {
-		return e
+	match := changeReceipt.FindStringSubmatch(receipt)
+	if match == nil {
+		return errors.New("the engine did not return an exact change receipt; update the matching Bash helper")
 	}
+	point, revision := match[1], match[2]
 	// The panel names the action in its own language; the summary is data.
 	summary := strings.TrimSpace(r.Connection.Name + " " + r.Connection.Ports)
 	if summary == "" && len(r.Selected) > 0 {
@@ -83,8 +77,13 @@ func (m *Manager) armSafe(ctx context.Context, r Request, now time.Time) error {
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	previous := o.safe
 	o.safe = &SafeChange{Action: r.Action, Summary: truncate(summary, 120), Point: point, Revision: revision, Started: now, Deadline: now.Add(time.Duration(r.SafeMinutes) * time.Minute)}
-	return o.saveSafe()
+	if e := o.saveSafe(); e != nil {
+		o.safe = previous
+		return e
+	}
+	return nil
 }
 
 func (o *Operations) pendingSafe() *SafeChange {
@@ -100,8 +99,24 @@ func (o *Operations) pendingSafe() *SafeChange {
 func (o *Operations) clearSafe() error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	previous := o.safe
 	o.safe = nil
-	return o.saveSafe()
+	if e := o.saveSafe(); e != nil {
+		o.safe = previous
+		return e
+	}
+	return nil
+}
+
+func (o *Operations) failedSafe(s SafeChange, failure error) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	s.Attempts++
+	s.LastError = truncate(failure.Error(), 240)
+	retry := time.Now().UTC().Add(time.Minute)
+	s.RetryAt = &retry
+	o.safe = &s
+	return errors.Join(failure, o.saveSafe())
 }
 
 // revertSafe restores the point when nothing else changed since the change.
@@ -109,15 +124,21 @@ func (m *Manager) revertSafe(ctx context.Context, s SafeChange, reason string) e
 	o := m.Ops
 	current, e := m.call(ctx, "recovery-revision", "")
 	if e != nil {
-		return e
+		return o.failedSafe(s, e)
 	}
 	if strings.TrimSpace(current) != s.Revision {
-		_ = o.clearSafe()
+		if e := o.clearSafe(); e != nil {
+			return e
+		}
 		o.Notify.Emit(notify.Event{Kind: notify.KindChangeReverted, Name: s.Summary, Detail: "not reverted: the configuration changed again", Args: map[string]string{"skipped": "1"}})
 		return errors.New("the configuration changed again; nothing was reverted")
 	}
 	_, e = m.call(ctx, "history-restore", "", s.Point, s.Revision)
-	_ = o.clearSafe()
+	if e == nil {
+		e = o.clearSafe()
+	} else {
+		e = o.failedSafe(s, e)
+	}
 	o.invalidate()
 	args := map[string]string{"reason": reason}
 	detail := "restored the configuration from before the change"
@@ -156,7 +177,7 @@ func (m *Manager) safeChange(ctx context.Context, r Request) (any, error) {
 // under the mutation lock.
 func (m *Manager) checkSafe(ctx context.Context, now time.Time) {
 	s := m.Ops.pendingSafe()
-	if s == nil || now.Before(s.Deadline) {
+	if s == nil || now.Before(s.Deadline) || s.Attempts >= 3 || (s.RetryAt != nil && now.Before(*s.RetryAt)) {
 		return
 	}
 	_ = m.revertSafe(ctx, *s, "timeout")

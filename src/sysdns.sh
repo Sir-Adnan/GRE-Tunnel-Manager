@@ -48,9 +48,27 @@ gtm_sysdns_mode() {
 
 gtm_sysdns_nameservers() { [[ -r $1 ]] && awk '$1 == "nameserver" && NF >= 2 {print $2}' "$1" | head -n 8 | paste -sd' ' -; }
 
+gtm_sysdns_resolved_query() {
+    command -v resolvectl >/dev/null 2>&1 || return 2
+    local output
+    output=$(LC_ALL=C timeout 3 resolvectl dns 2>/dev/null) || return 1
+    awk '$1 == "Global:" {$1=""; sub(/^ /, ""); print; found=1; exit} END {if (!found) exit 1}' <<< "$output"
+}
+
+gtm_sysdns_resolved_verify() {
+    local actual status address key wanted='' observed=''
+    actual=$(gtm_sysdns_resolved_query); status=$?
+    ((status != 2)) || return 0 # Older hosts may not ship the optional status CLI.
+    ((status == 0)) || { gtm_error 'Could not verify the active global DNS settings.'; return 1; }
+    for address in "$@"; do key=$(gtm_ip_key "$address") || return 1; wanted+="$key"$'\n'; done
+    for address in $actual; do key=$(gtm_ip_key "$address") || return 1; observed+="$key"$'\n'; done
+    [[ $(sort -u <<< "$wanted") == "$(sort -u <<< "$observed")" ]] || { gtm_error 'The resolver did not activate the selected DNS servers; inspect later resolved drop-ins.'; return 1; }
+}
+
 # Prints: mode, managed (0/1), current, upstream (resolved only), servers, original.
 gtm_sysdns_status() {
-    local mode managed=0 saved='' original=''
+    local mode managed=0 saved='' original='' active=''
+    gtm_sysdns_paths
     mode=$(gtm_sysdns_mode)
     [[ -f $GTM_SYSDNS_DIR/servers ]] && { managed=1; saved=$(head -n 1 "$GTM_SYSDNS_DIR/servers"); }
     [[ -f $GTM_SYSDNS_DIR/resolv.conf.orig ]] && original=$(gtm_sysdns_nameservers "$GTM_SYSDNS_DIR/resolv.conf.orig")
@@ -58,6 +76,10 @@ gtm_sysdns_status() {
     printf 'mode\t%s\nmanaged\t%s\n' "$mode" "$managed"
     printf 'current\t%s\n' "$(gtm_sysdns_nameservers "$GTM_RESOLV")"
     [[ $mode != resolved ]] || printf 'upstream\t%s\n' "$(gtm_sysdns_nameservers "$GTM_RESOLVED_UPSTREAM")"
+    if [[ $mode == resolved ]]; then
+        active=$(gtm_sysdns_resolved_query) || active=''
+    elif [[ $mode == file ]]; then active=$(gtm_sysdns_nameservers "$GTM_RESOLV"); fi
+    printf 'active\t%s\n' "$active"
     printf 'servers\t%s\noriginal\t%s\n' "$saved" "$original"
 }
 
@@ -70,7 +92,7 @@ gtm_sysdns_resolv_render() {
     return 0
 }
 
-gtm_sysdns_apply() {
+gtm_sysdns_apply_checked() {
     local mode server tmp
     local -a servers=()
     (( $# >= 1 && $# <= 4 )) || { gtm_error 'Choose one to four DNS servers.'; return 2; }
@@ -85,11 +107,17 @@ gtm_sysdns_apply() {
         resolved)
             [[ -f $GTM_SYSDNS_DIR/original ]] || gtm_sysdns_nameservers "$GTM_RESOLVED_UPSTREAM" > "$GTM_SYSDNS_DIR/original" || return 1
             mkdir -p "$GTM_RESOLVED_DIR" || return 1
+            if [[ ! -f $GTM_SYSDNS_DIR/resolved.conf.present ]]; then
+                if [[ -f $GTM_SYSDNS_DROPIN && ! -f $GTM_SYSDNS_DIR/servers ]]; then
+                    cp -p "$GTM_SYSDNS_DROPIN" "$GTM_SYSDNS_DIR/resolved.conf.orig" && printf '1\n' > "$GTM_SYSDNS_DIR/resolved.conf.present" || return 1
+                else printf '0\n' > "$GTM_SYSDNS_DIR/resolved.conf.present" || return 1; fi
+            fi
             tmp=$(mktemp "$GTM_SYSDNS_DROPIN.XXXXXX") || return 1
             # "~." routes every domain to these servers ahead of DHCP-provided ones.
-            printf '# Managed by Traffic Manager (Optimization -> DNS).\n[Resolve]\nDNS=%s\nDomains=~.\n' "${servers[*]}" > "$tmp" &&
+            # List settings accumulate across drop-ins unless explicitly reset.
+            printf '# Managed by Traffic Manager (Optimization -> DNS).\n[Resolve]\nDNS=\nDNS=%s\nFallbackDNS=\nDomains=\nDomains=~.\n' "${servers[*]}" > "$tmp" &&
                 chmod 644 "$tmp" && mv "$tmp" "$GTM_SYSDNS_DROPIN" || { rm -f "$tmp"; return 1; }
-            systemctl restart systemd-resolved || return 1 ;;
+            systemctl restart systemd-resolved && gtm_sysdns_resolved_verify "${servers[@]}" || return 1 ;;
         file)
             [[ -f $GTM_SYSDNS_DIR/resolv.conf.orig ]] || cp -p "$GTM_RESOLV" "$GTM_SYSDNS_DIR/resolv.conf.orig" || return 1
             gtm_sysdns_publish "${servers[@]}" || return 1 ;;
@@ -129,12 +157,15 @@ EOF
     systemctl daemon-reload && systemctl enable "$GTM_SYSDNS_UNIT.service" >/dev/null
 }
 
-gtm_sysdns_restore() {
+gtm_sysdns_restore_checked() {
     local tmp
     gtm_root || return 1
     [[ -f $GTM_SYSDNS_DIR/servers ]] || { printf 'DNS is not managed here; nothing to restore.\n'; return 0; }
     if [[ -e $GTM_SYSDNS_DROPIN ]]; then
-        rm -f "$GTM_SYSDNS_DROPIN" && systemctl restart systemd-resolved || return 1
+        if [[ -f $GTM_SYSDNS_DIR/resolved.conf.orig ]]; then
+            cp -p "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DROPIN" || return 1
+        else rm -f "$GTM_SYSDNS_DROPIN" || return 1; fi
+        systemctl restart systemd-resolved || return 1
     fi
     if [[ -e $GTM_SYSDNS_SERVICE ]]; then
         systemctl disable "$GTM_SYSDNS_UNIT.service" >/dev/null 2>&1 || true
@@ -144,9 +175,57 @@ gtm_sysdns_restore() {
         tmp=$(mktemp "$GTM_RESOLV.XXXXXX") || return 1
         cp -p "$GTM_SYSDNS_DIR/resolv.conf.orig" "$tmp" && mv "$tmp" "$GTM_RESOLV" || { rm -f "$tmp"; return 1; }
     fi
-    rm -f "$GTM_SYSDNS_DIR/servers" "$GTM_SYSDNS_DIR/original" "$GTM_SYSDNS_DIR/resolv.conf.orig" || return 1
+    rm -f "$GTM_SYSDNS_DIR/servers" "$GTM_SYSDNS_DIR/original" "$GTM_SYSDNS_DIR/resolv.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.present" || return 1
     printf 'Original DNS configuration restored.\n'
 }
+
+# Capture only the exact files owned by this operation. A failed restart or boot
+# unit publication restores the configuration from immediately before the request.
+gtm_sysdns_transaction() {
+    local operation=$1 stage file index mode had_service=0 enabled=0 result recovery=0
+    shift
+    gtm_root || return 1
+    gtm_sysdns_paths
+    mode=$(gtm_sysdns_mode)
+    for file in "$GTM_SYSDNS_DIR" "$GTM_RESOLVED_DIR" "${GTM_SYSDNS_SCRIPT%/*}" "$GTM_SERVICE_DIR"; do
+        [[ ! -L $file && ( ! -e $file || -d $file ) ]] || { gtm_error "Unsafe DNS directory: $file"; return 1; }
+    done
+    local -a files=("$GTM_SYSDNS_DROPIN" "$GTM_SYSDNS_SCRIPT" "$GTM_SYSDNS_SERVICE" "$GTM_SYSDNS_DIR/servers" "$GTM_SYSDNS_DIR/original" "$GTM_SYSDNS_DIR/resolv.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.present")
+    [[ $mode != file ]] || files+=("$GTM_RESOLV")
+    [[ ! -f $GTM_SYSDNS_SERVICE ]] || { had_service=1; systemctl is-enabled --quiet "$GTM_SYSDNS_UNIT.service" && enabled=1; }
+    stage=$(mktemp -d "$GTM_RUN_DIR/sysdns.XXXXXX") || return 1
+    chmod 700 "$stage" || return 1
+    for index in "${!files[@]}"; do
+        file=${files[$index]}
+        if [[ -L $file || ( -e $file && ! -f $file ) ]]; then gtm_error "Unsafe DNS artifact: $file"; rmdir "$stage" 2>/dev/null || true; return 1; fi
+        [[ ! -f $file ]] || cp -p "$file" "$stage/$index" || return 1
+    done
+    case $operation in
+        apply) gtm_sysdns_apply_checked "$@"; result=$?;;
+        restore) gtm_sysdns_restore_checked; result=$?;;
+        *) return 2;;
+    esac
+    if ((result)); then
+        for index in "${!files[@]}"; do
+            file=${files[$index]}
+            if [[ -f $stage/$index ]]; then cp -p "$stage/$index" "$file" || recovery=1
+            else rm -f -- "$file" || recovery=1; fi
+        done
+        if [[ $mode == resolved ]]; then systemctl restart systemd-resolved || recovery=1; fi
+        if ((had_service)); then
+            systemctl daemon-reload || recovery=1
+            if ((enabled)); then systemctl enable "$GTM_SYSDNS_UNIT.service" >/dev/null || recovery=1; fi
+        else systemctl disable "$GTM_SYSDNS_UNIT.service" >/dev/null 2>&1 || true; systemctl daemon-reload || recovery=1; fi
+        gtm_error 'DNS change failed; the previous configuration was restored.'
+        ((recovery == 0)) || gtm_error 'DNS recovery needs attention; inspect the resolver service.'
+    fi
+    for index in "${!files[@]}"; do rm -f -- "$stage/$index" || return 1; done
+    rmdir "$stage" || return 1
+    return "$result"
+}
+
+gtm_sysdns_apply() { gtm_sysdns_transaction apply "$@"; }
+gtm_sysdns_restore() { gtm_sysdns_transaction restore; }
 
 # Same presets as panel/internal/model/dns_presets.json (a test keeps them equal).
 GTM_SYSDNS_PRESETS=(

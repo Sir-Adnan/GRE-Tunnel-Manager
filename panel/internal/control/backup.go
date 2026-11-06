@@ -39,6 +39,7 @@ type recoveryDocument struct {
 	Connections    []model.Connection `json:"connections"`
 	Resources      []BackupResource   `json:"resources"`
 	Traffic        *MetricsView       `json:"traffic,omitempty"`
+	DNSPolicies    []DNSPolicy        `json:"dns_policies,omitempty"`
 }
 type BackupItem struct {
 	ID      string `json:"id"`
@@ -56,6 +57,7 @@ type BackupReview struct {
 	Interfaces   []string     `json:"interfaces"`
 	Certificates []string     `json:"certificates"`
 	Traffic      bool         `json:"traffic"`
+	DNSPolicies  int          `json:"dns_policies,omitempty"`
 	Blockers     []string     `json:"blockers"`
 }
 type BackupDownload struct {
@@ -80,6 +82,9 @@ func (m *Manager) recoverySnapshot(ctx context.Context, traffic bool) (recoveryD
 		return d, e
 	}
 	d.Connections = i.Connections
+	if d.DNSPolicies, e = m.backupDNSPolicies(d.Connections); e != nil {
+		return d, e
+	}
 	if len(d.Connections) > 128 || len(i.Resources) > 512 {
 		return d, errors.New("recovery supports at most 128 forwards and 512 tunnels")
 	}
@@ -97,6 +102,7 @@ func (m *Manager) recoverySnapshot(ctx context.Context, traffic bool) (recoveryD
 		}
 		d.Connections[n].Revision = ""
 		d.Connections[n].Status = ""
+		d.Connections[n].Resolved = nil
 	}
 	for _, resource := range i.Resources {
 		unit, e := boundedConfig(m.UnitDir, resource.ID+".service")
@@ -202,10 +208,11 @@ func prepareRecovery(in BackupInput) (recoveryDocument, BackupReview, error) {
 }
 func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, BackupReview, error) {
 	v := BackupReview{Items: []BackupItem{}, Addresses: []string{}, Interfaces: []string{}, Certificates: []string{}, Blockers: []string{}}
-	if d.Version != 1 || d.Created.IsZero() || d.Counter < 0 || d.Counter > 999999 || len(d.Connections) > 128 || len(d.Resources) > 512 || len(d.ManagerVersion) > 32 || len(d.Host) > 255 {
+	if d.Version != 1 || d.Created.IsZero() || d.Counter < 0 || d.Counter > 999999 || len(d.Connections) > 128 || len(d.Resources) > 512 || len(d.DNSPolicies) > 128 || len(d.ManagerVersion) > 32 || len(d.Host) > 255 {
 		return d, v, errors.New("unsupported recovery schema or resource count")
 	}
 	v.Created, v.Host, v.Version, v.Traffic = d.Created, d.Host, d.ManagerVersion, d.Traffic != nil
+	v.DNSPolicies = len(d.DNSPolicies)
 	addresses, interfaces, certificates := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	if len(in.Addresses) > 1024 || len(in.Interfaces) > 128 {
 		return d, v, errors.New("too many migration mappings")
@@ -228,9 +235,11 @@ func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, Bac
 		}
 	}
 	mapIP := func(ip string) string {
+		parsed, e := netip.ParseAddr(ip)
+		if e != nil {
+			return ip
+		} // Domain names are not IP migration fields.
 		addresses[ip] = true
-
-		parsed, _ := netip.ParseAddr(ip)
 		if replacement, ok := replacements[parsed]; ok {
 			return replacement
 		}
@@ -280,6 +289,9 @@ func validateRecovery(d recoveryDocument, in BackupInput) (recoveryDocument, Bac
 		}
 	}
 	if _, _, e := model.ParseState(strings.Join(rows, "\n")); e != nil {
+		return d, v, e
+	}
+	if e := validateBackupPolicies(d.DNSPolicies, d.Connections); e != nil {
 		return d, v, e
 	}
 	for n := range d.Resources {
@@ -452,6 +464,9 @@ func recoveryPayload(d recoveryDocument, revision string) (string, error) {
 	var b strings.Builder
 	b.WriteString(strings.SplitN(revision, ":", 2)[0] + "\n")
 	fmt.Fprintf(&b, "I\t%d\n", d.Counter)
+	for _, p := range d.DNSPolicies {
+		fmt.Fprintf(&b, "D\t%s\t%d\t%s\n", p.Name, p.Every, p.Mode)
+	}
 	for _, c := range d.Connections {
 		c.Enabled = false
 		rows, e := c.Rows(c.ID)

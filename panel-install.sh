@@ -1,25 +1,42 @@
 #!/usr/bin/env bash
 # Optional prebuilt Go panel installer. Never changes tunnel configurations.
 set -euo pipefail
-PANEL_VERSION=1.5.1
+PANEL_VERSION=1.5.2
 PANEL_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 # Closed uninstall manifest. Unknown files and links require operator inspection;
 # there is intentionally no recursive deletion and no tunnel removal.
+panel_uninstall_owned_file() {
+    # Interrupted config.Save writes use Go's numeric CreateTemp suffix. Limit
+    # cleanup to the exact private directories; the manifest rejects links.
+    if [[ ${1##*/} =~ ^\.panel-[0-9]{1,10}$ && ( ${1%/*} == /etc/gre-manager-panel || ${1%/*} == /var/lib/gre-manager-panel ) ]]; then return 0; fi
+    if [[ ${1##*/} =~ ^\.tls-[0-9]{1,10}$ && ${1%/*} == /etc/gre-manager-panel ]]; then return 0; fi
+    case $1 in
+        /etc/gre-manager-panel/config.json|/etc/gre-manager-panel/server.crt|/etc/gre-manager-panel/server.key|/etc/gre-manager-panel/https.pem|/var/lib/gre-manager-panel/audit.jsonl|/var/lib/gre-manager-panel/audit.jsonl.1|/var/lib/gre-manager-nodes/controller.json|/var/lib/gre-manager-nodes/controller.lock|/var/lib/gre-manager-nodes/pairs.json|/var/lib/gre-manager-node-operations/broker.lock|/etc/systemd/system/gre-manager-panel.service.d/nodes.conf) return 0;;
+        /var/lib/gre-manager-panel/*)
+            case ${1##*/} in
+                metrics.json|health.json|maintenance.json|notifications.json|snapshots.json|prometheus.json|optimize-watch.json|ui-order.json|safe-change.json) [[ ${1%/*} == /var/lib/gre-manager-panel ]] && return 0;;
+                gtm-*.json) [[ ${1%/*} == /var/lib/gre-manager-panel/snapshots && ${1##*/} =~ ^gtm-[0-9]{8}T[0-9]{6}\.json$ ]] && return 0;;
+            esac;;
+        /var/lib/gre-manager-node-operations/*) [[ ${1##*/} =~ ^[a-f0-9]{32}\.json$ ]] && return 0;;
+    esac
+    return 1
+}
+
+panel_uninstall_directories() {
+    printf '%s\n' /etc/gre-manager-panel /var/lib/gre-manager-panel/snapshots /var/lib/gre-manager-panel /var/lib/gre-manager-nodes /var/lib/gre-manager-node-operations /etc/systemd/system/gre-manager-panel.service.d
+}
+
 panel_uninstall_manifest() {
     local dir file name allowed
-    for dir in /etc/gre-manager-panel /var/lib/gre-manager-panel /var/lib/gre-manager-nodes /var/lib/gre-manager-node-operations /etc/systemd/system/gre-manager-panel.service.d; do
+    while IFS= read -r dir; do
         [[ ! -L $dir && ( ! -e $dir || -d $dir ) ]] || { printf 'Unsafe panel directory: %s\n' "$dir" >&2; return 1; }
         [[ -d $dir ]] || continue
         while IFS= read -r -d '' file; do
-            name=${file##*/}; allowed=false
-            case $dir:$name in
-                /etc/gre-manager-panel:config.json|/etc/gre-manager-panel:server.crt|/etc/gre-manager-panel:server.key|/var/lib/gre-manager-panel:metrics.json|/var/lib/gre-manager-panel:audit.jsonl|/var/lib/gre-manager-panel:audit.jsonl.1|/var/lib/gre-manager-nodes:controller.json|/var/lib/gre-manager-nodes:controller.lock|/var/lib/gre-manager-nodes:pairs.json|/var/lib/gre-manager-node-operations:broker.lock|/etc/systemd/system/gre-manager-panel.service.d:nodes.conf) allowed=true;;
-                /var/lib/gre-manager-node-operations:*) [[ $name =~ ^[a-f0-9]{32}\.json$ ]] && allowed=true;;
-            esac
-            [[ $allowed == true && -f $file && ! -L $file ]] || { printf 'Unrecognized panel file; inspect before removal: %q\n' "$file" >&2; return 1; }
+            [[ $file != /var/lib/gre-manager-panel/snapshots || ! -d $file || -L $file ]] || continue
+            [[ -f $file && ! -L $file ]] && panel_uninstall_owned_file "$file" || { printf 'Unrecognized panel file; inspect before removal: %q\n' "$file" >&2; return 1; }
         done < <(find "$dir" -mindepth 1 -maxdepth 1 -print0)
-    done
+    done < <(panel_uninstall_directories)
     for file in /usr/local/bin/gtm-panel /usr/local/lib/gre-manager/manager.sh /etc/systemd/system/gre-manager-panel.service /etc/systemd/system/gre-manager-panel-broker.service; do
         [[ ! -L $file && ( ! -e $file || -f $file ) ]] || { printf 'Unsafe panel file: %s\n' "$file" >&2; return 1; }
     done
@@ -86,13 +103,20 @@ panel_uninstall() {
     for item in gre-manager-panel gre-manager-panel-broker; do
         if [[ -f /etc/systemd/system/$item.service ]]; then systemctl disable "$item.service" || return 1; fi
     done
-    for item in /etc/systemd/system/gre-manager-panel.service /etc/systemd/system/gre-manager-panel-broker.service /etc/systemd/system/gre-manager-panel.service.d/nodes.conf /etc/gre-manager-panel/config.json /etc/gre-manager-panel/server.crt /etc/gre-manager-panel/server.key /var/lib/gre-manager-panel/metrics.json /var/lib/gre-manager-panel/audit.jsonl /var/lib/gre-manager-panel/audit.jsonl.1 /var/lib/gre-manager-nodes/controller.json /var/lib/gre-manager-nodes/controller.lock /var/lib/gre-manager-nodes/pairs.json /var/lib/gre-manager-node-operations/broker.lock; do
+    for item in /etc/systemd/system/gre-manager-panel.service /etc/systemd/system/gre-manager-panel-broker.service; do
         rm -f -- "$item" || return 1
     done
-    for item in /var/lib/gre-manager-node-operations/*.json; do [[ ! -f $item ]] || rm -f -- "$item" || return 1; done
-    for item in /etc/gre-manager-panel /var/lib/gre-manager-panel /var/lib/gre-manager-nodes /var/lib/gre-manager-node-operations /etc/systemd/system/gre-manager-panel.service.d; do
+    local dir file
+    while IFS= read -r dir; do
+        [[ -d $dir ]] || continue
+        while IFS= read -r -d '' file; do
+            [[ $file != /var/lib/gre-manager-panel/snapshots || ! -d $file || -L $file ]] || continue
+            [[ -f $file && ! -L $file ]] && panel_uninstall_owned_file "$file" && rm -f -- "$file" || return 1
+        done < <(find "$dir" -mindepth 1 -maxdepth 1 -print0)
+    done < <(panel_uninstall_directories)
+    while IFS= read -r item; do
         [[ ! -d $item ]] || rmdir -- "$item" || return 1
-    done
+    done < <(panel_uninstall_directories)
     systemctl daemon-reload || return 1
     rm -f -- /usr/local/lib/gre-manager/manager.sh /usr/local/bin/gtm-panel || return 1
     printf '\nWeb Panel removed. Existing tunnels and forwarding continue independently.\n'
@@ -242,6 +266,7 @@ User=grepanel
 Group=grepanel
 UMask=0077
 ExecStart=/usr/local/bin/gtm-panel serve
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=3
 Environment=GOMEMLIMIT=64MiB

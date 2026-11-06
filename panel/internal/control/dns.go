@@ -122,6 +122,7 @@ type ServerDNS struct {
 	Managed  bool              `json:"managed"`
 	Current  []string          `json:"current"`
 	Upstream []string          `json:"upstream"`
+	Active   []string          `json:"active"`
 	Servers  []string          `json:"servers"`
 	Original []string          `json:"original"`
 	Presets  []model.DNSPreset `json:"presets"`
@@ -154,6 +155,8 @@ func parseServerDNS(out string) ServerDNS {
 			v.Current = list(value)
 		case "upstream":
 			v.Upstream = list(value)
+		case "active":
+			v.Active = list(value)
 		case "servers":
 			v.Servers = list(value)
 		case "original":

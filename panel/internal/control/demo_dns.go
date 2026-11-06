@@ -16,15 +16,16 @@ import (
 
 // demoExtras holds the simulated server DNS, list order and pending change.
 type demoExtras struct {
-	dns    ServerDNS
-	order  map[string][]string
-	safe   *SafeChange
-	before []model.Connection
+	dns      ServerDNS
+	order    map[string][]string
+	safe     *SafeChange
+	before   []model.Connection
+	policies map[string]DNSPolicy
 }
 
 func (d *Demo) extras() *demoExtras {
 	if d.extra == nil {
-		d.extra = &demoExtras{dns: ServerDNS{Mode: "resolved", Current: []string{"127.0.0.53"}, Upstream: []string{"185.51.200.2", "8.8.8.8"}, Servers: []string{}, Original: []string{}, Presets: dnsPresets}, order: map[string][]string{}}
+		d.extra = &demoExtras{dns: ServerDNS{Mode: "resolved", Current: []string{"127.0.0.53"}, Upstream: []string{"185.51.200.2", "8.8.8.8"}, Active: []string{"185.51.200.2", "8.8.8.8"}, Servers: []string{}, Original: []string{}, Presets: dnsPresets}, order: map[string][]string{}, policies: map[string]DNSPolicy{}}
 	}
 	return d.extra
 }
@@ -59,6 +60,7 @@ func demoLatency(server string) (float64, bool) {
 // demoResolve fills Resolved for connections with DNS names.
 func (d *Demo) demoResolve() {
 	names := []DNSName{}
+	policies := d.extras().policies
 	seen := map[string]bool{}
 	for i, c := range d.inventory.Connections {
 		if !hasHosts(c) {
@@ -75,12 +77,20 @@ func (d *Demo) demoResolve() {
 				resolved = append(resolved, t)
 				continue
 			}
-			for _, a := range demoAddresses(t.IP, family) {
+			policy, ok := policies[t.IP]
+			if !ok {
+				policy = DNSPolicy{Name: t.IP, Every: 5, Mode: "all"}
+			}
+			addresses := demoAddresses(t.IP, family)
+			if policy.Mode == "first" {
+				addresses = addresses[:1]
+			}
+			for _, a := range addresses {
 				resolved = append(resolved, model.Target{IP: a, Port: t.Port, PortLast: t.PortLast, Weight: t.Weight})
 			}
 			if !seen[t.IP] {
 				seen[t.IP] = true
-				names = append(names, DNSName{Name: t.IP, Family: family, Checked: time.Now().Unix() - 90, Every: 5, Mode: "all", Addresses: demoAddresses(t.IP, family)})
+				names = append(names, DNSName{Name: t.IP, Family: family, Checked: time.Now().Unix() - 90, Every: policy.Every, Mode: policy.Mode, Addresses: demoAddresses(t.IP, family)})
 			}
 		}
 		d.inventory.Connections[i].Resolved = resolved
@@ -134,10 +144,12 @@ func (d *Demo) dnsDemo(r Request) (json.RawMessage, error) {
 			x.dns.Original = slices.Clone(x.dns.Upstream)
 		}
 		x.dns.Managed, x.dns.Servers, x.dns.Upstream = true, servers, servers
+		x.dns.Active = slices.Clone(servers)
 		return json.Marshal("Demo: DNS servers set to " + strings.Join(servers, " ") + ". No server settings were changed.")
 	case "dns-restore":
 		if x.dns.Managed {
 			x.dns.Upstream = x.dns.Original
+			x.dns.Active = slices.Clone(x.dns.Original)
 		}
 		x.dns.Managed, x.dns.Servers, x.dns.Original = false, []string{}, []string{}
 		return json.Marshal("Demo: original DNS restored.")
@@ -145,6 +157,8 @@ func (d *Demo) dnsDemo(r Request) (json.RawMessage, error) {
 		if in.Policy == nil || !in.Policy.valid() {
 			return nil, errors.New("choose a refresh interval of 1–60 minutes and all or first address")
 		}
+		x.policies[in.Policy.Name] = *in.Policy
+		d.demoResolve()
 		return json.Marshal("Demo: refresh policy saved.")
 	case "dns-refresh":
 		d.demoResolve()

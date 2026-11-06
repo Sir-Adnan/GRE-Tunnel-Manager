@@ -49,6 +49,28 @@ func TestDomainConnectionsUseResolvedTargetsForHealthAndFailover(t *testing.T) {
 	}
 }
 
+func TestDemoDNSPoliciesAndActiveResolversFollowTheCurrentContract(t *testing.T) {
+	d := NewDemo()
+	ctx := context.Background()
+	if _, e := d.Do(ctx, Request{Action: "dns-apply", DNS: DNSInput{Servers: []string{"1.1.1.1"}}}); e != nil {
+		t.Fatal(e)
+	}
+	if d.extras().dns.Active[0] != "1.1.1.1" {
+		t.Fatal(d.extras().dns)
+	}
+	cs, _, e := model.ParseState(domainRow())
+	if e != nil {
+		t.Fatal(e)
+	}
+	d.inventory.Connections = cs
+	if _, e = d.Do(ctx, Request{Action: "dns-policy", DNS: DNSInput{Policy: &DNSPolicy{Name: "a.example", Every: 15, Mode: "first"}}}); e != nil {
+		t.Fatal(e)
+	}
+	if len(d.inventory.Connections[0].Resolved) != 1 || d.inventory.DNS[0].Every != 15 || d.inventory.DNS[0].Mode != "first" {
+		t.Fatal(d.inventory.Connections, d.inventory.DNS)
+	}
+}
+
 func TestServerDNSParsingValidationAndResolverTest(t *testing.T) {
 	v := parseServerDNS("mode\tresolved\nmanaged\t1\ncurrent\t127.0.0.53\nupstream\t1.1.1.1 8.8.8.8 x\nservers\t1.1.1.1 8.8.8.8\noriginal\t10.0.0.2\n")
 	if v.Mode != "resolved" || !v.Managed || len(v.Upstream) != 2 || v.Original[0] != "10.0.0.2" || len(v.Presets) < 10 {
@@ -163,7 +185,7 @@ func TestOrderSafeChangeAndProtection(t *testing.T) {
 		t.Fatal("1 minute accepted")
 	}
 	now := time.Now().UTC()
-	if e := m.armSafe(context.Background(), Request{Action: "update", SafeMinutes: 5, Connection: model.Connection{Name: "A", Ports: "443"}}, now); e != nil {
+	if e := m.armSafe(context.Background(), Request{Action: "update", SafeMinutes: 5, Connection: model.Connection{Name: "A", Ports: "443"}}, now, "receipt\t20260102T030000-1-1.tsv\t"+strings.Repeat("b", 64)); e != nil {
 		t.Fatal(e)
 	}
 	again, _ := NewOperations(dir)
@@ -183,7 +205,7 @@ func TestOrderSafeChangeAndProtection(t *testing.T) {
 		t.Fatal(events)
 	}
 	// A later change by someone else cancels the revert instead.
-	_ = m.armSafe(context.Background(), Request{Action: "update", SafeMinutes: 5}, now)
+	_ = m.armSafe(context.Background(), Request{Action: "update", SafeMinutes: 5}, now, "receipt\t20260102T030000-1-1.tsv\t"+strings.Repeat("b", 64))
 	r.answers["recovery-revision"] = strings.Repeat("c", 64)
 	r.calls = nil
 	m.checkSafe(context.Background(), now.Add(6*time.Minute))
