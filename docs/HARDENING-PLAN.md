@@ -6,9 +6,9 @@ This work follows the v1.5.1 review and reported production failures. Implementa
 
 All four phases below are implemented in the v1.5.2 source. Local validation passed: 171 Python tests (including matching-binary PTY tests), 63 frontend tests, clean frontend installation/build/lint, Go race tests and vet, modern ShellCheck, isolated network/component-publication tests and the isolated established-flow quota test. Generated script and whitespace checks passed. Both Linux package architectures were built with checksums and the exact matching Bash helper.
 
-Browser checks covered English/Persian, 1440/390/320 px layouts, certificate metadata fixtures, advanced-field focus, simulated DNS apply/restore and a downloaded/encrypted Demo backup restored to an empty Demo with all four records paused. Actual TLS handshakes and HTTP reload signals were tested separately in Go. Demo results are not real-server network evidence.
+Browser checks covered English/Persian, 320/360/390/412/430/768/1024/1440 px layouts, certificate metadata fixtures, advanced-field focus, simulated DNS apply/restore and a downloaded/encrypted Demo backup restored to an empty Demo with all four records paused. Actual TLS handshakes and HTTP reload signals were tested separately in Go. Demo results are not real-server network evidence.
 
-Remaining rollout checks: real-VPS systemd/reboot ordering, actual DHCP/systemd-resolved integration, live CA issuance and unattended Certbot/acme.sh renewal. No server was deployed and no release was published.
+Remaining rollout checks: real-VPS systemd/reboot ordering, actual DHCP/systemd-resolved integration, live CA issuance and unattended Certbot/acme.sh renewal. No production server was deployed. Published package availability is recorded on the GitHub Releases page.
 
 ## Phase 1 — Restore ordinary operations
 
