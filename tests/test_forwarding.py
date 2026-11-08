@@ -76,6 +76,99 @@ def sh(value):
     return "$'" + value.replace('\\', '\\\\').replace("'", "\\'").replace('\t', '\\t') + "'"
 
 
+# A host like a Hetzner Cloud server: eth0 holds the DHCP address and, first in
+# the list, an additional/old address. Route lookups name the DHCP source.
+MULTI_ADDRESS_HOST = r'''
+ip() {
+    case "$*" in
+        '-o -4 route get 203.0.113.5') printf '203.0.113.5 via 172.31.1.1 dev eth0 src 78.47.250.5 uid 0 \\    cache\n';;
+        '-o -4 route get 198.51.100.7') printf '198.51.100.7 via 10.0.0.1 dev eth1 src 10.0.0.2 uid 0 \\    cache\n';;
+        '-o -4 address show dev eth0 scope global') cat "$GTM_CONFIG_DIR/eth0" 2>/dev/null || printf '2: eth0    inet 192.0.2.99/32 scope global eth0\n2: eth0    inet 78.47.250.5/32 scope global dynamic eth0\n';;
+        '-o -4 address show dev eth1 scope global') printf '3: eth1    inet 10.0.0.2/24 scope global eth1\n';;
+        *) return 1;;
+    esac
+}
+'''
+
+
+class SourceAddressTests(unittest.TestCase):
+    def run_in(self, code, rows):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder = Path(directory)
+            (folder/'connections.tsv').write_text('\n'.join(rows)+'\n', newline='\n')
+            return bash(paths(folder)+MULTI_ADDRESS_HOST+code)
+
+    def test_masquerade_pins_the_route_source_only_on_multi_address_interfaces(self):
+        rows = [record(bind='0.0.0.0', targets='203.0.113.5:443@1'),
+                record(id='F000002', engine='iptables', bind='0.0.0.0', port='8443', targets='198.51.100.7:443@1'),
+                record(id='F000003', bind='0.0.0.0', port='9443', snat='preserve', targets='203.0.113.5:9443@1')]
+        result = self.run_in(r'''
+gtm_load_records && gtm_snat_detect || exit 9
+[[ $(gtm_snat_list) == $'203.0.113.5\t78.47.250.5' ]] || exit 10
+gtm_return_marks() { :; }; gtm_return_family_marks() { :; }
+out=$(gtm_nft_render; gtm_iptables_render 4 nat) || exit 11
+grep -q 'ct original proto-dst 443 counter snat ip to 78.47.250.5 comment "gtm-F000001"' <<< "$out" || exit 12
+grep -q -- '-d 198.51.100.7 .* -j MASQUERADE$' <<< "$out" || exit 13
+# Preserve keeps the client's address: no SNAT at all.
+grep -q 'post .*"gtm-F000003"' <<< "$out" && exit 14
+# Offline previews never probe routes and keep masquerade.
+unset GTM_SNAT_SRC
+gtm_nft_render | grep -q 'proto-dst 443 counter masquerade comment "gtm-F000001"' || exit 15
+exit 0
+''', rows)
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_address_changes_are_detected_as_drift(self):
+        result = self.run_in(r'''
+gtm_load_records || exit 9
+gtm_snat_drift || exit 10
+gtm_snat_save || exit 11
+gtm_snat_drift && exit 12
+# The additional address is removed: masquerade is right again.
+printf '2: eth0    inet 78.47.250.5/32 scope global dynamic eth0\n' > "$GTM_CONFIG_DIR/eth0"
+gtm_snat_drift || exit 13
+gtm_snat_save && ! gtm_snat_drift || exit 14
+exit 0
+''', [record(bind='0.0.0.0', targets='203.0.113.5:443@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_refresh_reapplies_kernel_rules_after_an_address_change(self):
+        result = self.run_in(r'''
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
+gtm_kernel_apply() { printf 'kernel\n' >> "$GTM_CONFIG_DIR/applied"; gtm_snat_detect && gtm_snat_save; }
+gtm_dns_refresh 2>/dev/null || exit 9
+[[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 1 ]] || exit 10
+gtm_dns_refresh || exit 11
+[[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 1 ]] || exit 12
+# A pinned source keeps the refresh timer even without domain destinations.
+systemctl() { printf '%s\n' "$*" >> "$GTM_CONFIG_DIR/calls"; }
+gtm_dns_timer_sync && grep -qx 'enable --now gre-manager-dns.timer' "$GTM_CONFIG_DIR/calls" || exit 13
+exit 0
+''', [record(bind='0.0.0.0', targets='203.0.113.5:443@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_nftables_forwards_get_an_iptables_forward_accept(self):
+        rows = [record(bind='0.0.0.0', port='2000-2002', targets='203.0.113.5:3000-3002@1'),
+                record(id='F000002', bind='2001:db8::1', port='443', targets='[2001:db8::20]:443@1')]
+        result = self.run_in(r'''
+gtm_load_records || exit 9
+gtm_return_marks() { :; }; gtm_return_family_marks() { :; }
+filter=$(gtm_iptables_render 4 filter) && nat=$(gtm_iptables_render 4 nat) || exit 10
+grep -q -- '-A GTM_FWD -p tcp -d 203.0.113.5 --dport 3000:3002 -m conntrack --ctstate DNAT --ctdir ORIGINAL --ctorigdstport 2000:2002 -m comment --comment gtm-F000001 -j ACCEPT' <<< "$filter" || exit 11
+grep -q -- '-A GTM_FWD -p tcp -s 203.0.113.5 --sport 3000:3002 -m conntrack --ctstate ESTABLISHED --ctdir REPLY' <<< "$filter" || exit 12
+# nftables keeps NAT, MSS and IPv6 to itself.
+grep -q 'gtm-F000001' <<< "$nat" && exit 13
+gtm_iptables_render 4 filter | grep -q 'F000002' && exit 14
+gtm_iptables_render 6 filter | grep -q 'gtm-F000002 -j ACCEPT' || exit 15
+# The guard is wanted while the tools exist; without them nothing is required.
+iptables() { return 1; }; iptables-restore() { :; }
+gtm_iptables_wanted 4 || exit 16
+GTM_RECORDS=(); gtm_iptables_wanted 4 && exit 17
+exit 0
+''', rows)
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+
 class DomainTests(unittest.TestCase):
     def run_in(self, code, rows=()):
         with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
@@ -201,7 +294,7 @@ GTM_RESOLV=$GTM_CONFIG_DIR/resolv.conf GTM_RESOLVED_DIR=$GTM_CONFIG_DIR/resolved
 GTM_RUNTIME=$GTM_CONFIG_DIR/lib/apply.sh
 gtm_root() { :; }; gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
 systemctl() { printf '%s\n' "$*" >> "$GTM_CONFIG_DIR/calls"; [[ $* != 'is-active --quiet systemd-resolved' ]] || [[ -f $GTM_CONFIG_DIR/resolved-on ]]; }
-gtm_sysdns_resolved_query() { awk -F= '$1 == "DNS" && $2 != "" {print $2}' "$GTM_RESOLVED_DIR/90-gre-manager.conf" 2>/dev/null; }
+gtm_sysdns_resolved_query() { awk -F= '$1 == "DNS" && $2 != "" {print $2}' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" 2>/dev/null; }
 '''+code)
 
     def test_plain_file_is_rewritten_kept_at_boot_and_restored(self):
@@ -231,9 +324,9 @@ ln -s "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_RESOLV"
 printf 'nameserver 10.0.0.53\n' > "$GTM_RESOLVED_UPSTREAM"
 gtm_api dns-status | grep -qx $'mode\tresolved' || exit 9
 gtm_api dns-apply 1.1.1.1 1.0.0.1 || exit 10
-grep -qx 'DNS=1.1.1.1 1.0.0.1' "$GTM_RESOLVED_DIR/90-gre-manager.conf" && grep -qx 'Domains=~.' "$GTM_RESOLVED_DIR/90-gre-manager.conf" || exit 11
+grep -qx 'DNS=1.1.1.1 1.0.0.1' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" && grep -qx 'Domains=~.' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" || exit 11
 grep -qx 'restart systemd-resolved' "$GTM_CONFIG_DIR/calls" || exit 12
-gtm_api dns-restore && [[ ! -e $GTM_RESOLVED_DIR/90-gre-manager.conf && -L $GTM_RESOLV ]] || exit 13
+gtm_api dns-restore && [[ ! -e $GTM_RESOLVED_DIR/zz-gre-manager.conf && -L $GTM_RESOLV ]] || exit 13
 rm "$GTM_RESOLV"; mkdir -p "$GTM_CONFIG_DIR/run/resolvconf"; touch "$GTM_CONFIG_DIR/run/resolvconf/resolv.conf"
 ln -s "$GTM_CONFIG_DIR/run/resolvconf/resolv.conf" "$GTM_RESOLV"
 gtm_api dns-apply 1.1.1.1 2> "$GTM_CONFIG_DIR/err" && exit 14
@@ -248,19 +341,49 @@ mkdir -p "$GTM_CONFIG_DIR/run/systemd/resolve" "$GTM_RESOLVED_DIR"
 touch "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_CONFIG_DIR/resolved-on"
 ln -s "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_RESOLV"
 printf 'nameserver 10.0.0.53\n' > "$GTM_RESOLVED_UPSTREAM"
-printf '[Resolve]\nDNS=10.0.0.53\n' > "$GTM_RESOLVED_DIR/90-gre-manager.conf"
-cp "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before"
+printf '[Resolve]\nDNS=10.0.0.53\n' > "$GTM_RESOLVED_DIR/zz-gre-manager.conf"
+cp "$GTM_RESOLVED_DIR/zz-gre-manager.conf" "$GTM_CONFIG_DIR/before"
 systemctl() {
     if [[ $* == 'restart systemd-resolved' && ! -f $GTM_CONFIG_DIR/retried ]]; then touch "$GTM_CONFIG_DIR/retried"; return 1; fi
     return 0
 }
 gtm_api dns-apply 1.1.1.1 && exit 10
-cmp -s "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 11
+cmp -s "$GTM_RESOLVED_DIR/zz-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 11
 [[ ! -e $GTM_CONFIG_DIR/dns/servers ]] || exit 12
 gtm_api dns-apply 1.1.1.1 || exit 13
-grep -qx 'DNS=' "$GTM_RESOLVED_DIR/90-gre-manager.conf" && grep -qx 'Domains=' "$GTM_RESOLVED_DIR/90-gre-manager.conf" || exit 14
+grep -qx 'DNS=' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" && grep -qx 'Domains=' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" || exit 14
 gtm_api dns-restore || exit 15
-cmp -s "$GTM_RESOLVED_DIR/90-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 16
+cmp -s "$GTM_RESOLVED_DIR/zz-gre-manager.conf" "$GTM_CONFIG_DIR/before" || exit 16
+''')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_resolved_drop_in_sorts_last_and_migrates_the_old_name(self):
+        result = self.run_in(r'''
+mkdir -p "$GTM_CONFIG_DIR/run/systemd/resolve" "$GTM_RESOLVED_DIR" "$GTM_CONFIG_DIR/dns"
+touch "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_CONFIG_DIR/resolved-on"
+ln -s "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_RESOLV"
+printf 'nameserver 10.0.0.53\n' > "$GTM_RESOLVED_UPSTREAM"
+# A named drop-in (as DNS scripts write) sorts after 90- but before zz-.
+printf '[Resolve]\nDNS=8.8.8.8\n' > "$GTM_RESOLVED_DIR/dns.conf"
+[[ zz-gre-manager.conf > dns.conf && 90-gre-manager.conf < dns.conf ]] || exit 9
+# An install managed by an earlier release.
+printf '# Managed by Traffic Manager (Optimization -> DNS).\n[Resolve]\nDNS=\nDNS=9.9.9.9\n' > "$GTM_RESOLVED_DIR/90-gre-manager.conf"
+printf '9.9.9.9\n' > "$GTM_CONFIG_DIR/dns/servers"; printf '0\n' > "$GTM_CONFIG_DIR/dns/resolved.conf.present"
+gtm_api dns-apply 1.1.1.1 1.0.0.1 || exit 10
+[[ ! -e $GTM_RESOLVED_DIR/90-gre-manager.conf ]] && grep -qx 'DNS=1.1.1.1 1.0.0.1' "$GTM_RESOLVED_DIR/zz-gre-manager.conf" || exit 11
+cmp -s <(printf '[Resolve]\nDNS=8.8.8.8\n') "$GTM_RESOLVED_DIR/dns.conf" || exit 12
+gtm_api dns-restore && [[ ! -e $GTM_RESOLVED_DIR/zz-gre-manager.conf && -f $GTM_RESOLVED_DIR/dns.conf ]] || exit 13
+# A resolver that keeps other servers names the overriding drop-in and rolls back.
+GTM_SYSDNS_SETTLE=0
+gtm_sysdns_resolved_query() { printf '1.1.1.1 8.8.8.8#dns.google\n'; }
+printf '[Resolve]\nDNS=8.8.8.8\n' > "$GTM_RESOLVED_DIR/zzz-other.conf"
+gtm_api dns-apply 1.1.1.1 2> "$GTM_CONFIG_DIR/err" && exit 14
+grep -q "zzz-other.conf" "$GTM_CONFIG_DIR/err" && grep -q 'previous configuration was restored' "$GTM_CONFIG_DIR/err" || exit 15
+[[ ! -e $GTM_RESOLVED_DIR/zz-gre-manager.conf && ! -e $GTM_CONFIG_DIR/dns/servers ]] || exit 16
+# Ports, interfaces and TLS names in newer resolvectl output still verify.
+gtm_sysdns_resolved_query() { printf '1.1.1.1:53 1.0.0.1#cloudflare-dns.com\n'; }
+gtm_api dns-apply 1.1.1.1 1.0.0.1 || exit 17
+exit 0
 ''')
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 

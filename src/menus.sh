@@ -318,7 +318,7 @@ gtm_diagnostics() {
     else
         printf 'Demo: read-only host report is available with --doctor.\n'
     fi
-    printf '\n  With nftables, an ACCEPT in this table cannot override a DROP\n  in another base chain. Check UFW / Docker forwarding policies.\n'
+    printf '\n  nftables forwards also get an owned iptables FORWARD accept, so a\n  Docker/UFW DROP policy does not block them. Other nftables base chains\n  (firewalld, custom tables) that drop forwarded packets still need a rule.\n'
     printf '  Kernel balancing has no health checks. Use HAProxy for checked TCP failover.\n'
     gtm_pause
 }

@@ -92,6 +92,17 @@ export const history = {
   "diag_gre-input": ["GRE in the input firewall", "GRE در فایروال ورودی"],
   "diag_peer-public": ["Peer server reachability", "دسترسی به سرور مقابل"],
   "diag_peer-inner": ["Reachability through the tunnel", "دسترسی از داخل تونل"],
+  diag_entrance: ["Entrance address", "آدرس ورودی"],
+  "diag_forward-policy": ["Forward firewall policy", "سیاست فایروال فوروارد"],
+  "diag_source-address": ["Source address seen by the destination", "آدرس مبدأ از دید مقصد"],
+  diagFix_entrance: [
+    "The listen address is no longer on this server (an IP change?). Edit the connection and choose All local addresses, or the current IP.",
+    "آدرس شنود دیگر روی این سرور نیست (تغییر IP؟). اتصال را ویرایش کنید و «همهٔ آدرس‌های محلی» یا IP فعلی را انتخاب کنید.",
+  ],
+  "diagFix_forward-policy": [
+    "Docker or UFW drops forwarded packets and this forward's owned accept is missing. Run Refresh kernel rules from Maintenance.",
+    "Docker یا UFW بسته‌های فورواردی را رد می‌کند و قانون پذیرش این فوروارد وجود ندارد. از نگهداری «بازاعمال قوانین هسته» را اجرا کنید.",
+  ],
   diagFix_enabled: ["Turn the connection on from Connections.", "اتصال را از صفحهٔ اتصال‌ها روشن کنید."],
   diagFix_forwarding: [
     "Kernel forwarding is off. Reapply from Maintenance (refresh) or set net.ipv4.ip_forward=1; IPv6 forwarding is the operator's choice.",

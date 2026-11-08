@@ -10,7 +10,12 @@ gtm_sysdns_paths() {
     GTM_RESOLVED_DIR=${GTM_RESOLVED_DIR:-/etc/systemd/resolved.conf.d}
     GTM_RESOLVED_UPSTREAM=${GTM_RESOLVED_UPSTREAM:-/run/systemd/resolve/resolv.conf}
     GTM_SYSDNS_DIR="$GTM_CONFIG_DIR/dns"
-    GTM_SYSDNS_DROPIN="$GTM_RESOLVED_DIR/90-gre-manager.conf"
+    # resolved reads drop-ins in file-name order across /etc, /run and /usr/lib
+    # and the last list assignment wins. "zz-" sorts after numbered and named
+    # drop-ins (dns.conf, adguardhome.conf), so our reset and servers apply.
+    GTM_SYSDNS_DROPIN="$GTM_RESOLVED_DIR/zz-gre-manager.conf"
+    # Releases before 1.5.3 wrote 90-gre-manager.conf; it is migrated on apply.
+    GTM_SYSDNS_LEGACY_DROPIN="$GTM_RESOLVED_DIR/90-gre-manager.conf"
     GTM_SYSDNS_SCRIPT="${GTM_RUNTIME%/*}/resolv.sh"
     GTM_SYSDNS_SERVICE="$GTM_SERVICE_DIR/$GTM_SYSDNS_UNIT.service"
 }
@@ -55,14 +60,45 @@ gtm_sysdns_resolved_query() {
     awk '$1 == "Global:" {$1=""; sub(/^ /, ""); print; found=1; exit} END {if (!found) exit 1}' <<< "$output"
 }
 
+# Drop-ins that set DNS= and sort after ours (they would override it).
+gtm_sysdns_later_dropins() {
+    local dir file name ours=${GTM_SYSDNS_DROPIN##*/} LC_ALL=C
+    for dir in "$GTM_RESOLVED_DIR" /run/systemd/resolved.conf.d /usr/local/lib/systemd/resolved.conf.d /usr/lib/systemd/resolved.conf.d; do
+        for file in "$dir"/*.conf; do
+            [[ -f $file ]] || continue
+            name=${file##*/}
+            [[ $name != "$ours" && $name > $ours ]] || continue
+            grep -Eq '^[[:space:]]*DNS[[:space:]]*=' "$file" 2>/dev/null && printf '%s\n' "$file"
+        done
+    done
+}
+
 gtm_sysdns_resolved_verify() {
-    local actual status address key wanted='' observed=''
-    actual=$(gtm_sysdns_resolved_query); status=$?
-    ((status != 2)) || return 0 # Older hosts may not ship the optional status CLI.
-    ((status == 0)) || { gtm_error 'Could not verify the active global DNS settings.'; return 1; }
+    local actual='' status address key wanted='' observed='' attempt later
     for address in "$@"; do key=$(gtm_ip_key "$address") || return 1; wanted+="$key"$'\n'; done
-    for address in $actual; do key=$(gtm_ip_key "$address") || return 1; observed+="$key"$'\n'; done
-    [[ $(sort -u <<< "$wanted") == "$(sort -u <<< "$observed")" ]] || { gtm_error 'The resolver did not activate the selected DNS servers; inspect later resolved drop-ins.'; return 1; }
+    wanted=$(sort -u <<< "$wanted")
+    # resolved can report the previous list for a moment after a restart.
+    for attempt in 1 2 3 4 5; do
+        actual=$(gtm_sysdns_resolved_query); status=$?
+        ((status != 2)) || return 0 # Older hosts may not ship the optional status CLI.
+        if ((status == 0)); then
+            observed=''
+            for address in $actual; do
+                # Newer releases may print a port, interface or TLS name.
+                address=${address%%#*}; address=${address%%%*}
+                [[ $address =~ ^\[(.*)\](:[0-9]+)?$ ]] && address=${BASH_REMATCH[1]}
+                [[ $address == *.*:* ]] && address=${address%:*}
+                key=$(gtm_ip_key "$address") || continue
+                observed+="$key"$'\n'
+            done
+            [[ $(sort -u <<< "$observed") != "$wanted" ]] || return 0
+        fi
+        ((attempt == 5)) || sleep "${GTM_SYSDNS_SETTLE:-1}"
+    done
+    ((status == 0)) || { gtm_error 'Could not verify the active global DNS settings.'; return 1; }
+    later=$(gtm_sysdns_later_dropins | paste -sd' ' -)
+    gtm_error "The resolver reports global DNS '${actual:-none}' instead of the selected servers.${later:+ Later drop-ins override it: $later.}"
+    return 1
 }
 
 # Prints: mode, managed (0/1), current, upstream (resolved only), servers, original.
@@ -107,6 +143,10 @@ gtm_sysdns_apply_checked() {
         resolved)
             [[ -f $GTM_SYSDNS_DIR/original ]] || gtm_sysdns_nameservers "$GTM_RESOLVED_UPSTREAM" > "$GTM_SYSDNS_DIR/original" || return 1
             mkdir -p "$GTM_RESOLVED_DIR" || return 1
+            # An earlier release's managed drop-in is ours; replace it here.
+            if [[ -f $GTM_SYSDNS_LEGACY_DROPIN && -f $GTM_SYSDNS_DIR/servers ]] && grep -q '^# Managed by Traffic Manager' "$GTM_SYSDNS_LEGACY_DROPIN"; then
+                rm -f "$GTM_SYSDNS_LEGACY_DROPIN" || return 1
+            fi
             if [[ ! -f $GTM_SYSDNS_DIR/resolved.conf.present ]]; then
                 if [[ -f $GTM_SYSDNS_DROPIN && ! -f $GTM_SYSDNS_DIR/servers ]]; then
                     cp -p "$GTM_SYSDNS_DROPIN" "$GTM_SYSDNS_DIR/resolved.conf.orig" && printf '1\n' > "$GTM_SYSDNS_DIR/resolved.conf.present" || return 1
@@ -161,6 +201,10 @@ gtm_sysdns_restore_checked() {
     local tmp
     gtm_root || return 1
     [[ -f $GTM_SYSDNS_DIR/servers ]] || { printf 'DNS is not managed here; nothing to restore.\n'; return 0; }
+    if [[ -f $GTM_SYSDNS_LEGACY_DROPIN ]] && grep -q '^# Managed by Traffic Manager' "$GTM_SYSDNS_LEGACY_DROPIN"; then
+        rm -f "$GTM_SYSDNS_LEGACY_DROPIN" || return 1
+        [[ -e $GTM_SYSDNS_DROPIN ]] || systemctl restart systemd-resolved || return 1
+    fi
     if [[ -e $GTM_SYSDNS_DROPIN ]]; then
         if [[ -f $GTM_SYSDNS_DIR/resolved.conf.orig ]]; then
             cp -p "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DROPIN" || return 1
@@ -190,7 +234,7 @@ gtm_sysdns_transaction() {
     for file in "$GTM_SYSDNS_DIR" "$GTM_RESOLVED_DIR" "${GTM_SYSDNS_SCRIPT%/*}" "$GTM_SERVICE_DIR"; do
         [[ ! -L $file && ( ! -e $file || -d $file ) ]] || { gtm_error "Unsafe DNS directory: $file"; return 1; }
     done
-    local -a files=("$GTM_SYSDNS_DROPIN" "$GTM_SYSDNS_SCRIPT" "$GTM_SYSDNS_SERVICE" "$GTM_SYSDNS_DIR/servers" "$GTM_SYSDNS_DIR/original" "$GTM_SYSDNS_DIR/resolv.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.present")
+    local -a files=("$GTM_SYSDNS_DROPIN" "$GTM_SYSDNS_LEGACY_DROPIN" "$GTM_SYSDNS_SCRIPT" "$GTM_SYSDNS_SERVICE" "$GTM_SYSDNS_DIR/servers" "$GTM_SYSDNS_DIR/original" "$GTM_SYSDNS_DIR/resolv.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.orig" "$GTM_SYSDNS_DIR/resolved.conf.present")
     [[ $mode != file ]] || files+=("$GTM_RESOLV")
     [[ ! -f $GTM_SYSDNS_SERVICE ]] || { had_service=1; systemctl is-enabled --quiet "$GTM_SYSDNS_UNIT.service" && enabled=1; }
     stage=$(mktemp -d "$GTM_RUN_DIR/sysdns.XXXXXX") || return 1

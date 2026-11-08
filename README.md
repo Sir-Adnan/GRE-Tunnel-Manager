@@ -2,7 +2,7 @@
 
 # GRE Tunnel Manager
 
-v1.5.2 groups Settings into four tabs, improves narrow-screen connection forms and supports externally renewed HTTPS certificates. The HTTPS installer option starts with a self-signed certificate; see [HTTPS setup and renewal](docs/HTTPS.md).
+v1.5.3 fixes nftables forwards on servers with Docker or UFW, forwards on servers with additional IPs or a changed IP, and applying server DNS on systemd-resolved. See the [Changelog](docs/CHANGELOG.md).
 
 ### Server links. Port forwarding. One place to manage them.
 

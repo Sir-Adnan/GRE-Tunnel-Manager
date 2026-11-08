@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.3 — Forwarding on multi-address and Docker/UFW hosts, server DNS ordering
+
+- **nftables forwards behind Docker/UFW:** both set the iptables `FORWARD` policy to `DROP`, which an accept in the manager's nftables table cannot override, so nftables forwards silently stopped (iptables forwards were unaffected). When iptables is installed, nftables forwards now also get scoped accepts in the owned `GTM_FWD` chain. A namespace packet test covers TCP/UDP through an nftables forward under `FORWARD DROP`.
+- **Multi-address uplinks and IP changes:** kernel `masquerade` used the first address of the egress interface, not the route's preferred source. With an additional/floating IP or an old address still assigned, the destination (a VPN server abroad, for example) answered an address that never returned here. Forwards that masquerade now SNAT to the route's preferred source when the egress interface has several global IPv4 addresses; single-address hosts keep masquerade. The refresh timer reapplies kernel rules when those sources drift.
+- **Server DNS on systemd-resolved:** the managed drop-in is now `zz-gre-manager.conf`, so named drop-ins such as `dns.conf` no longer override it (the cause of "The resolver did not activate the selected DNS servers"). The old `90-gre-manager.conf` is migrated. Verification waits for resolved to settle, accepts `resolvectl` port/interface/TLS-name suffixes and names any overriding drop-in.
+- **Diagnosis:** kernel connections report the entrance address (fails when a specific listen IP left the server), the `FORWARD` policy with the owned accept, and the source address the destination sees. The terminal diagnostics note is updated.
+- **Panel addresses:** server addresses list the default-route interface first and container bridges last. Pairing defaults to the saved public IP only while it is still assigned, otherwise to the uplink's IPv4 address, so a changed server IP no longer pre-fills a GRE source that preflight rejects.
+- Local evidence: Python unit suite, Go race tests, web lint/tests, ShellCheck and `tests/linux_namespace.sh` in WSL namespaces (nftables 1.1.6, iptables-nft 1.8.11). Real Docker/UFW hosts, provider additional IPs and a real systemd-resolved restart remain deployment checks.
+
 ## v1.5.2 — Reliability, certificate renewal and responsive workspace
 
 - Rename the owned nftables MSS chain to the non-keyword identifier `gtm_mss`; some parsers reject `mss` and quoted identifiers. Saved records and peers are unchanged.

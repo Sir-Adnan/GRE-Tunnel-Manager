@@ -76,8 +76,9 @@ The v13.x scripts created the artifacts below. Current versions create only `gre
 | `/run/gre-manager/{v4,v6}.miss` | detect_local_ips | negative cache, 10 min TTL | menu 6, reboot |
 | `/etc/gre-manager/dns-cache.tsv`, `dns-policy.tsv` | domain destinations | last addresses per name/family; refresh interval and mode per name (mode 600) | names no record uses are dropped at the next refresh |
 | `/etc/gre-manager/dns-pending` | domain destinations | private retry marker for a DNS/policy reconciliation interrupted or not successfully applied | removed only after successful reconciliation |
-| `/etc/systemd/system/gre-manager-dns.{service,timer}` | first domain destination | minute timer running `apply.sh --dns-refresh` | removed when no record uses a domain |
-| `/etc/systemd/resolved.conf.d/90-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.` | Server DNS → Restore original |
+| `/etc/systemd/system/gre-manager-dns.{service,timer}` | first domain destination, or a pinned SNAT source | minute timer running `apply.sh --dns-refresh`; also reapplies kernel rules when pinned source addresses drift | removed when no record uses a domain and no source is pinned |
+| `/run/gre-manager/snat-sources.tsv` | kernel apply | IPv4 destinations whose SNAT source is pinned on a multi-address uplink, and that source | every apply; reboot (tmpfs) |
+| `/etc/systemd/resolved.conf.d/zz-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.`; sorts after other drop-ins. A managed `90-gre-manager.conf` from before v1.5.3 is removed on the next apply/restore | Server DNS → Restore original |
 | `/etc/gre-manager/dns/` (`servers`, `original`, `resolv.conf.orig`) | Server DNS | chosen servers and the exact original | Restore original |
 | `/etc/gre-manager/dns/resolved.conf.{orig,present}` | Server DNS | original owned-path drop-in and presence marker; checked transactions stage/restore known files only | Restore original |
 | `/usr/local/lib/gre-manager/resolv.sh`, `gre-manager-resolv.service` | Server DNS on plain resolv.conf | writes `/etc/resolv.conf` again after network-online | Restore original |

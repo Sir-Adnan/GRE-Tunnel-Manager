@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optional Controller or outbound Agent. Writes require explicit --operations.
 set -euo pipefail
-NODE_VERSION=1.5.2
+NODE_VERSION=1.5.3
 NODE_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 node_install_main() {

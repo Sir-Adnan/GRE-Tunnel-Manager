@@ -96,11 +96,11 @@ gtm_preflight_checks() {
     done
     # Check the same return-route marks that apply will install.
     GTM_RT_ADDRS=(); GTM_RT_RULES=()
-    if ((has4 || has6 || hasnft)); then gtm_return_routes_detect || return 1; fi
+    declare -gA GTM_SNAT_SRC=()
+    if ((has4 || has6 || hasnft)); then gtm_return_routes_detect && gtm_snat_detect || return 1; fi
     for family in 4 6; do
         tool=iptables; [[ $family == 4 ]] || tool=ip6tables
-        if { [[ $family == 4 ]] && ((has4)); } || { [[ $family == 6 ]] && ((has6)); } ||
-            { command -v "$tool" >/dev/null && "$tool" -t nat -S GTM_PRE >/dev/null 2>&1; }; then
+        if { [[ $family == 4 ]] && ((has4)); } || { [[ $family == 6 ]] && ((has6)); } || gtm_iptables_wanted "$family"; then
             gtm_need "$tool-restore" || return 1
             for table in nat filter mangle; do
                 gtm_iptables_render "$family" "$table" > "$file" && "$tool-restore" -w 5 --noflush --test < "$file" || return 1

@@ -47,6 +47,47 @@ gtm_diag_forward_rules() {
     if ((count > 0)); then gtm_diag rules ok "$count"; else gtm_diag rules fail "$R_ENGINE"; fi
 }
 
+# A specific entrance address that is no longer assigned (the server's IP
+# changed) never matches; an unspecified bind follows every local address.
+gtm_diag_entrance() {
+    if gtm_wildcard "$R_BIND"; then gtm_diag entrance ok 'all local addresses'
+    elif gtm_local_address "$R_BIND" 2>/dev/null; then gtm_diag entrance ok "$R_BIND"
+    else gtm_diag entrance fail "$R_BIND"; fi
+}
+
+# Docker and UFW drop forwarded packets by iptables policy; an nftables
+# accept cannot override it, so the owned iptables guard must be hooked.
+gtm_diag_forward_policy() {
+    local family=$1 tool=iptables policy
+    [[ $family == 4 ]] || tool=ip6tables
+    command -v "$tool" >/dev/null 2>&1 || return 0
+    policy=$("$tool" -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" {print $3; exit}')
+    [[ -n $policy ]] || return 0
+    if [[ $policy != DROP ]]; then gtm_diag forward-policy ok "$policy"
+    elif "$tool" -w 5 -C FORWARD -j GTM_FWD 2>/dev/null && "$tool" -w 5 -S GTM_FWD 2>/dev/null | grep -q -- "gtm-$R_ID"; then
+        gtm_diag forward-policy ok 'DROP, owned accept installed'
+    else gtm_diag forward-policy fail 'DROP'; fi
+}
+
+# The source address the destination sees: pinned SNAT on a multi-address
+# interface, masquerade otherwise, or the client's own address (preserve).
+gtm_diag_source() {
+    local line=$1 target sources='' source
+    local -a targets=()
+    if [[ $R_SNAT != masquerade ]]; then gtm_diag source-address info preserve; return; fi
+    # Detection walks every record; reload this one afterwards.
+    gtm_snat_detect >/dev/null 2>&1 || return 0
+    gtm_record_validate "$line" && gtm_resolve_targets 2>/dev/null || return 0
+    IFS=, read -r -a targets <<< "$R_TARGETS"
+    for target in "${targets[@]:0:4}"; do
+        gtm_target "$target" || continue
+        source=$(gtm_snat_source "$EP_IP")
+        [[ -n $source ]] && sources+="${sources:+, }$EP_IP <- $source"
+    done
+    if [[ -n $sources ]]; then gtm_diag source-address info "pinned: $sources"
+    else gtm_diag source-address info masquerade; fi
+}
+
 gtm_diag_listener() {
     local port=$1 proto=$2 flags=-Hltn
     command -v ss >/dev/null 2>&1 || return 0
@@ -80,6 +121,10 @@ gtm_diagnose_connection() {
             if [[ $family == 4 ]]; then forwarding=$(gtm_diag_sysctl net.ipv4.ip_forward); else forwarding=$(gtm_diag_sysctl net.ipv6.conf.all.forwarding); fi
             if [[ $forwarding == 1 ]]; then gtm_diag forwarding ok "IPv$family"; else gtm_diag forwarding fail "IPv$family=${forwarding:-?}"; fi
             [[ $R_ENABLED != 1 ]] || gtm_diag_forward_rules "$id" "$family"
+            gtm_diag_entrance
+            [[ $R_ENABLED != 1 ]] || gtm_diag_forward_policy "$family"
+            [[ $family != 4 ]] || gtm_diag_source "$line"
+            gtm_record_validate "$line" || return 1
             excluded=$(awk -F '\t' -v id="$id" '$1 == id {print $3}' "$(gtm_exclusions_file)" 2>/dev/null)
             if [[ -n $excluded && $excluded != - ]]; then gtm_diag failover warn "$excluded"; fi;;
         *)

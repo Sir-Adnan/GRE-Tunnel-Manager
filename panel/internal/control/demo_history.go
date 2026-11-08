@@ -110,7 +110,10 @@ func (d *Demo) diagnoseDemo(owner string) (json.RawMessage, error) {
 		c := d.inventory.Connections[i]
 		checks = append(checks, DiagnoseCheck{Key: "enabled", Status: map[bool]string{true: "ok", false: "fail"}[c.Enabled]})
 		if c.Engine == "nftables" || c.Engine == "iptables" {
-			checks = append(checks, DiagnoseCheck{Key: "forwarding", Status: "ok", Detail: "IPv4"}, DiagnoseCheck{Key: "rules", Status: "ok", Detail: "6"})
+			checks = append(checks, DiagnoseCheck{Key: "forwarding", Status: "ok", Detail: "IPv4"}, DiagnoseCheck{Key: "rules", Status: "ok", Detail: "6"},
+				DiagnoseCheck{Key: "entrance", Status: "ok", Detail: "all local addresses"},
+				DiagnoseCheck{Key: "forward-policy", Status: "ok", Detail: "DROP, owned accept installed"},
+				DiagnoseCheck{Key: "source-address", Status: "info", Detail: "masquerade"})
 			if c.ID == "F000004" {
 				checks = append(checks, DiagnoseCheck{Key: "failover", Status: "warn", Detail: "2"})
 			}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -555,14 +554,7 @@ func hostInfo() Host {
 			}
 		}
 	}
-	if addresses, e := net.InterfaceAddrs(); e == nil {
-		for _, address := range addresses {
-			ip, e := netip.ParsePrefix(address.String())
-			if e == nil && !ip.Addr().IsLoopback() && !ip.Addr().IsLinkLocalUnicast() {
-				h.Addresses = append(h.Addresses, ip.Addr().String())
-			}
-		}
-	}
+	h.Addresses = localAddresses()
 	if data, e := os.ReadFile("/proc/uptime"); e == nil {
 		v := strings.Fields(string(data))
 		if len(v) > 0 {

@@ -1,4 +1,5 @@
 import { NodeTopology } from "./NodeTopology";
+import { pairAddress } from "./pair-address";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -23,8 +24,7 @@ function requestID() {
     b.toString(16).padStart(2, "0"),
   ).join("");
 }
-const address = (n?: Node) =>
-  n?.inventory?.host.public_ip || n?.inventory?.host.addresses?.[0] || "";
+const address = (n?: Node) => pairAddress(n?.inventory?.host);
 
 export function PairForm({
   nodes,

@@ -202,7 +202,15 @@ gtm_dns_refresh() {
             fi
             gtm_error 'DNS reconciliation failed; it remains pending for retry.'
         else rm -f "$GTM_DNS_PENDING" || result=1; fi
-    else gtm_dns_save || result=1; fi
+    else
+        gtm_dns_save || result=1
+        # The host's own addresses changed (IP change, additional IP added or
+        # removed): pinned SNAT sources are re-derived from current routes.
+        if gtm_snat_drift; then
+            printf 'Host source addresses changed; reapplying kernel forwards.\n' >&2
+            gtm_kernel_apply || { gtm_error 'Source address reconciliation failed.'; result=1; }
+        fi
+    fi
     gtm_unlock
     return "$result"
 }
@@ -223,10 +231,13 @@ gtm_dns_view() {
     done
 }
 
-# Enables the refresh timer while a record uses a DNS name; removes it otherwise.
+# Enables the refresh timer while a record uses a DNS name or a forward pins
+# its SNAT source (the timer then follows host address changes); removes it
+# otherwise. Uses the sources of the apply that just ran in this process.
 gtm_dns_timer_sync() {
     local service="$GTM_SERVICE_DIR/$GTM_DNS_UNIT.service" timer="$GTM_SERVICE_DIR/$GTM_DNS_UNIT.timer" wanted
     wanted=$(gtm_dns_needed) || return 1
+    [[ -n $wanted ]] || wanted=$(gtm_snat_list)
     if [[ -z $wanted ]]; then
         [[ -e $timer ]] || return 0
         systemctl disable --now "$GTM_DNS_UNIT.timer" >/dev/null 2>&1 || true
@@ -236,7 +247,7 @@ gtm_dns_timer_sync() {
     [[ -e $timer ]] && return 0
     cat > "$service" <<EOF
 [Unit]
-Description=Traffic Manager domain destination refresh
+Description=Traffic Manager destination and source address refresh
 After=network-online.target
 [Service]
 Type=oneshot

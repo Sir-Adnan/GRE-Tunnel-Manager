@@ -333,6 +333,19 @@ if command -v iptables-restore >/dev/null; then
     GTM_RECORDS=()
     gtm_iptables_apply 4
     iptables -P FORWARD ACCEPT
+    # Docker/UFW: an iptables FORWARD DROP policy must not silently block an
+    # nftables forward; the owned iptables accept carries its flows.
+    GTM_RECORDS=($'F000004\tDocker policy\tnftables\tboth\t192.0.2.10\t28446\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
+    gtm_preflight
+    gtm_nft_render | nft -f -
+    gtm_iptables_apply 4
+    iptables -P FORWARD DROP
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28446
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28446 udp
+    GTM_RECORDS=()
+    gtm_nft_render | nft -f -
+    gtm_iptables_apply 4
+    iptables -P FORWARD ACCEPT
 fi
 
 if command -v haproxy >/dev/null; then

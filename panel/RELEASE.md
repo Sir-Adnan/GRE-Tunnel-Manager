@@ -1,31 +1,24 @@
-# GRE Tunnel Manager v1.5.2
+# GRE Tunnel Manager v1.5.3
 
-This release fixes nftables tunnel creation, DNS application/retry, panel removal and recovery reliability, and improves the mobile management workspace.
+This release fixes kernel forwarding on servers with Docker/UFW, additional IPs or a changed IP, and the server DNS error on systemd-resolved.
 
-## Fixes and recovery
+## Forwarding fixes
 
-- Use the non-keyword `gtm_mss` nftables chain so preflight accepts MSS rules.
-- Initialize boot helpers for port ranges/multiple DNS answers; validate refreshed destinations, prevent loops, retry failed reconciliation and apply domain policy changes immediately.
-- Reset inherited systemd-resolved global lists, verify activation where supported and recover previous DNS files when application fails. The UI distinguishes active/configured servers from a local resolver stub.
-- Remove current panel state, scheduled snapshots and strictly recognized interrupted private writes, including `.panel-1130669761`. Unknown files/links, pending Safe Apply and active optimization watches remain protected.
-- Bind Safe Apply to its exact restore receipt, order new restore points monotonically and retain failed rollback for bounded automatic and explicit manual retry.
-- Preserve per-domain DNS policies in portable recovery; accept older archives, exclude domain names from IP migration and restore imported connections paused.
+- **nftables forwards behind Docker/UFW:** both set the iptables `FORWARD` policy to `DROP`. An accept in the manager's nftables table cannot override that drop, so nftables forwards silently stopped while iptables forwards kept working. When iptables is installed, each nftables forward now also gets scoped accepts in the owned `GTM_FWD` chain: only its own DNAT flows and their replies.
+- **Additional IPs and IP changes:** kernel `masquerade` used the first address of the egress interface instead of the route's preferred source. With an additional/floating IP or an old address still assigned, the destination (a VPN server abroad, for example) answered an address that never came back. When the egress interface holds several global IPv4 addresses, forwards that masquerade now SNAT to the route's preferred source. Single-address servers keep masquerade. A minute timer reapplies kernel rules when those addresses change.
+- **Diagnosis** reports the entrance address (a specific listen IP that left the server fails), the `FORWARD` policy with the owned accept, and the source address the destination sees.
 
-## HTTPS with external renewal
+## Server DNS
 
-Certbot/acme.sh manages issuance and renewal. The panel validates the certificate/key, host SANs, validity and key strength; publishes a private bundle; and reloads it without interrupting established connections. Invalid reload retains the last valid in-memory certificate. Settings shows issuer, fingerprint and expiry; HTTP-to-HTTPS conversion is explicit.
+The systemd-resolved drop-in is now `zz-gre-manager.conf`, so named drop-ins such as `dns.conf` no longer override it. This caused "The resolver did not activate the selected DNS servers". The previous `90-gre-manager.conf` is migrated on the next apply or restore. Verification waits for resolved to settle, accepts newer `resolvectl` output and names any drop-in that still overrides the selection.
 
-The installer's HTTPS option creates a self-signed certificate. It does **not** obtain a public certificate automatically or silently rewrite a configured domain/IP. See [HTTPS setup, renewal hooks and address changes](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/v1.5.2/docs/HTTPS.md).
+## Panel
 
-## Interface
-
-- Four Settings tabs: Security & access, Appearance, Notifications and Metrics; direct links, browser history and retained in-memory drafts.
-- Destination editing gives addresses full width on phones, aligns port/share fields and keeps ordering/delete controls separate. Phone cards use dedicated listener/destination rows and avoid splitting port digits.
-- Compact phone step navigation and summaries, stable label alignment, optional DNS help available by hover, keyboard or tap; important errors stay visible.
-- Signal remains the default; selectable palettes, Persian RTL/English LTR, Latin digits and reduced motion are preserved.
+- Server addresses list the default-route interface first and container bridges last.
+- Pairing pre-fills the saved public IP only while it is still assigned, otherwise the uplink's IPv4 address, so a changed server IP no longer proposes a GRE source that preflight rejects.
 
 ## Upgrade
 
-Update the terminal script and run the current panel installer to load the matching **v1.5.2** executable/helper, then refresh the browser. Credentials, certificates and managed configuration are retained. Old cached installers do not gain the new removal manifest. Linux amd64/arm64 packages include the embedded UI, Bash helper and dependency notices; verify `SHA256SUMS`. Managed servers need no development tools.
+Update the terminal script and run the current panel installer to load the matching **v1.5.3** executable/helper, then refresh the browser. Afterwards run **Maintenance → Refresh kernel rules** (or restart `gre-manager-forwarding.service`) so existing forwards receive the new rules, and apply Server DNS once more if it previously failed. Credentials, certificates and managed configuration are retained. Verify `SHA256SUMS`.
 
-Local verification covers Python, frontend build/lint/tests, Go race/vet, ShellCheck, isolated networking/component publication and both UI locales across phone/tablet/desktop widths. The arm64 package is cross-built. Live CA issuance/renewal, physical phones, VPS reboot and DHCP/provider-specific resolver behavior remain deployment checks.
+Local verification covers the Python suite, Go race/vet, frontend build/lint/tests, ShellCheck and isolated namespace packet tests (including TCP/UDP through an nftables forward under `FORWARD DROP`) with nftables 1.1.6 and iptables-nft 1.8.11. Real Docker/UFW hosts, provider additional IPs and a live systemd-resolved restart remain deployment checks.

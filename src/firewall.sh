@@ -75,6 +75,81 @@ gtm_return_family_marks() {
     done | LC_ALL=C sort -u
 }
 
+# Kernel masquerade takes the first primary address of the egress interface and
+# ignores the route's preferred source. With several global IPv4 addresses on
+# that interface (an additional IP, or an old address kept after an IP change)
+# the destination can see, and answer, an address that is not routed back here.
+# When the egress interface has more than one global IPv4 address, forwards
+# that masquerade use SNAT to the route's preferred source instead; with a
+# single address masquerade stays (it follows DHCP changes by itself).
+# Sets GTM_SNAT_SRC[target]=source. Route lookups send no packets.
+gtm_snat_detect() {
+    local line target route iface src
+    local -a targets=()
+    local -A counts=()
+    declare -gA GTM_SNAT_SRC=()
+    command -v ip >/dev/null 2>&1 || return 0
+    for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
+        gtm_record_validate "$line" || return 1
+        [[ $R_ENABLED == 1 && $R_SNAT == masquerade && $R_BIND != *:* ]] || continue
+        [[ $R_ENGINE == iptables || $R_ENGINE == nftables ]] || continue
+        gtm_resolve_targets 2>/dev/null || continue
+        IFS=, read -r -a targets <<< "$R_TARGETS"
+        for target in "${targets[@]}"; do
+            gtm_target "$target" || return 1
+            [[ ! ${GTM_SNAT_SRC[$EP_IP]+set} ]] || continue
+            route=$(ip -o -4 route get "$EP_IP" 2>/dev/null) || continue
+            [[ $route != local\ * && $route =~ \ dev\ ([^ ]+) ]] || continue
+            iface=${BASH_REMATCH[1]}
+            [[ $route =~ \ src\ ([0-9.]+) ]] || continue
+            src=${BASH_REMATCH[1]}
+            gtm_ipv4 "$src" || continue
+            [[ ${counts[$iface]+set} ]] || counts[$iface]=$(ip -o -4 address show dev "$iface" scope global 2>/dev/null | grep -c .)
+            ((counts[$iface] > 1)) && GTM_SNAT_SRC[$EP_IP]=$src
+        done
+    done
+    return 0
+}
+
+# Prints the pinned source of one target, or nothing for masquerade. Offline
+# renders (configuration preview) never detect, so they keep masquerade.
+gtm_snat_source() {
+    gtm_snat_known || return 0
+    printf '%s' "${GTM_SNAT_SRC[$1]-}"
+}
+
+# Succeeds once detection declared the map (safe under "set -u").
+gtm_snat_known() { [[ $(declare -p GTM_SNAT_SRC 2>/dev/null) == 'declare -A'* ]]; }
+
+# The pinned sources as sorted "target<TAB>source" lines.
+gtm_snat_list() {
+    local key
+    gtm_snat_known || return 0
+    for key in "${!GTM_SNAT_SRC[@]}"; do printf '%s\t%s\n' "$key" "${GTM_SNAT_SRC[$key]}"; done | LC_ALL=C sort
+}
+
+gtm_snat_file() { printf '%s/snat-sources.tsv' "$GTM_RUN_DIR"; }
+
+# Records the sources the last successful apply used.
+gtm_snat_save() {
+    local file tmp
+    file=$(gtm_snat_file)
+    [[ ! -L $file ]] || return 1
+    tmp=$(mktemp "$file.XXXXXX") || return 1
+    gtm_snat_list > "$tmp" && chmod 600 "$tmp" && mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+}
+
+# Succeeds when the host's addresses changed so that applied sources are stale
+# (an IP change, an added or removed additional IP). Caller loaded records.
+gtm_snat_drift() {
+    local file saved='' current
+    file=$(gtm_snat_file)
+    [[ -f $file && ! -L $file ]] && saved=$(< "$file")
+    gtm_snat_detect || return 1
+    current=$(gtm_snat_list)
+    [[ $current != "$saved" ]]
+}
+
 # Reconcile owned fwmark rules only; foreign rules are never touched.
 gtm_return_rules_apply() {
     local family line entry pref mark table
@@ -133,8 +208,29 @@ gtm_active_targets() {
     ((${#GTM_ACTIVE[@]})) || for ((index=0; index<count; index++)); do GTM_ACTIVE+=("$index"); done
 }
 
+# Docker and UFW set the iptables FORWARD policy to DROP. nftables evaluates
+# every base chain on a hook, so an accept in our table cannot override that
+# drop and nftables forwards silently stop. The filter table therefore also
+# accepts the owned DNAT flows of nftables records (scoped exactly like the
+# iptables engine's accepts); nat and mangle stay iptables-engine only.
+# Succeeds when the family's owned iptables chains must be rendered.
+gtm_iptables_wanted() {
+    local family=$1 tool=iptables line
+    [[ $family == 4 ]] || tool=ip6tables
+    command -v "$tool" >/dev/null 2>&1 && command -v "$tool-restore" >/dev/null 2>&1 || return 1
+    # Chains left by an earlier apply are cleared after the last record goes.
+    "$tool" -w 5 -t nat -S GTM_PRE >/dev/null 2>&1 && return 0
+    for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
+        gtm_record_validate "$line" || return 1
+        [[ $R_ENABLED == 1 && ( $R_ENGINE == iptables || $R_ENGINE == nftables ) ]] || continue
+        if [[ $family == 4 ]]; then [[ $R_BIND != *:* ]] || continue; else [[ $R_BIND == *:* ]] || continue; fi
+        return 0
+    done
+    return 1
+}
+
 gtm_iptables_render() {
-    local family=$1 table=$2 line proto target total remaining probability index address mark position listen remote
+    local family=$1 table=$2 line proto target total remaining probability index address mark position listen remote source
     local -a targets protocols
     local -A active=()
     printf '*%s\n' "$table"
@@ -149,7 +245,12 @@ gtm_iptables_render() {
     esac
     for line in "${GTM_RECORDS[@]}"; do
         gtm_record_validate "$line" || return 1
-        [[ $R_ENGINE == iptables && $R_ENABLED == 1 ]] || continue
+        [[ $R_ENABLED == 1 ]] || continue
+        case $R_ENGINE in
+            iptables) ;;
+            nftables) [[ $table == filter ]] || continue ;;
+            *) continue ;;
+        esac
         if [[ $family == 4 ]]; then [[ $R_BIND != *:* ]] || continue; else [[ $R_BIND == *:* ]] || continue; fi
         gtm_resolve_targets || continue
         listen=$(gtm_span_text "$R_FIRST" "$R_LAST" :)
@@ -189,7 +290,9 @@ gtm_iptables_render() {
                         ((remaining-=EP_WEIGHT)); ((position+=1))
                     fi
                     if [[ $R_SNAT == masquerade ]]; then
-                        printf -- '-A GTM_POST -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -m comment --comment gtm-%s -j MASQUERADE\n' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
+                        printf -- '-A GTM_POST -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -m comment --comment gtm-%s' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
+                        source=$(gtm_snat_source "$EP_IP")
+                        if [[ -n $source ]]; then printf ' -j SNAT --to-source %s\n' "$source"; else printf ' -j MASQUERADE\n'; fi
                     fi
                 elif [[ $table == filter ]]; then
                     printf -- '-A GTM_FWD -p %s -d %s --dport %s -m conntrack --ctstate DNAT --ctdir ORIGINAL %s--ctorigdstport %s -m comment --comment gtm-%s -j ACCEPT\n' "$proto" "$EP_IP" "$remote" "$GTM_IPT_ORIGIN" "$listen" "$R_ID"
@@ -238,7 +341,7 @@ gtm_nft_dnat() {
 }
 
 gtm_nft_render() {
-    local line family number proto target index total offset end entrance origin address mark listen remote created=0
+    local line family number proto target index total offset end entrance origin address mark listen remote source created=0
     local -a targets protocols
     # One atomic batch replaces only our table. Deleting it (instead of flushing)
     # also removes balancing chains left by deleted records or removed targets.
@@ -325,7 +428,10 @@ gtm_nft_render() {
                     printf 'add rule inet gre_manager gtm_mss meta l4proto tcp %s daddr %s tcp dport %s ct status dnat ct direction original %sct original proto-dst %s tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu counter comment "gtm-%s"\n' "$family" "$EP_IP" "$remote" "$origin" "$listen" "$R_ID"
                 fi
                 if [[ $R_SNAT == masquerade ]]; then
-                    printf 'add rule inet gre_manager post meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter masquerade comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
+                    printf 'add rule inet gre_manager post meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter ' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen"
+                    source=$(gtm_snat_source "$EP_IP")
+                    if [[ -n $source ]]; then printf 'snat ip to %s' "$source"; else printf 'masquerade'; fi
+                    printf ' comment "gtm-%s"\n' "$R_ID"
                 fi
                 printf 'add rule inet gre_manager forward meta l4proto %s %s daddr %s %s dport %s ct status dnat %sct original proto-dst %s counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
                 printf 'add rule inet gre_manager forward meta l4proto %s %s saddr %s %s sport %s ct state established ct direction reply %sct original proto-dst %s counter accept comment "gtm-%s"\n' "$proto" "$family" "$EP_IP" "$proto" "$remote" "$origin" "$listen" "$R_ID"
@@ -472,16 +578,19 @@ gtm_kernel_apply() {
         [[ $R_ENGINE == nftables ]] && nft=1
     done
     GTM_RT_ADDRS=(); GTM_RT_RULES=()
-    if (( v4 || v6 )); then gtm_return_routes_detect || return 1; fi
-    # Also clear previously owned chains/tables after disabling/deleting records.
-    if (( ipt4 )) || { command -v iptables >/dev/null && iptables -t nat -S GTM_PRE >/dev/null 2>&1; }; then gtm_iptables_apply 4 || return 1; fi
-    if (( ipt6 )) || { command -v ip6tables >/dev/null && ip6tables -t nat -S GTM_PRE >/dev/null 2>&1; }; then gtm_iptables_apply 6 || return 1; fi
+    declare -gA GTM_SNAT_SRC=()
+    if (( v4 || v6 )); then gtm_return_routes_detect && gtm_snat_detect || return 1; fi
+    # iptables records, the forward guard of nftables records, and clearing
+    # previously owned chains after disabling/deleting records.
+    if (( ipt4 )) || gtm_iptables_wanted 4; then gtm_iptables_apply 4 || return 1; fi
+    if (( ipt6 )) || gtm_iptables_wanted 6; then gtm_iptables_apply 6 || return 1; fi
     if (( nft )) || { command -v nft >/dev/null && nft list table inet gre_manager >/dev/null 2>&1; }; then
         file=$(mktemp "$GTM_RUN_DIR/nft.XXXXXX") || return 1
         gtm_nft_render > "$file" && nft -c -f "$file" && nft -f "$file" || { rm -f "$file"; return 1; }
         rm -f "$file"
     fi
     gtm_return_rules_apply || return 1
+    gtm_snat_save || gtm_error 'Could not record the applied source addresses.'
     (( v4 == 0 )) || sysctl -w net.ipv4.ip_forward=1 || return 1
     # Do not silently disable RA on an IPv6 host. Require the operator's routing setup.
     if (( v6 )) && [[ $(sysctl -n net.ipv6.conf.all.forwarding) != 1 ]]; then
