@@ -77,7 +77,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertRegex(call, r'^gtm-panel gtm install --source (\S+) --domain panel\.example\.com --yes$')
         source = call.split('--source ')[1].split()[0]
         self.assertFalse(Path(source).exists(), 'the temporary package directory is removed')
-        self.assertIn('Package verified', result.stdout)
+        self.assertIn('verified (SHA-256)', result.stdout)
 
     def test_remove_and_agent_tasks(self):
         self.assertEqual(self.run_installer('--remove', '--yes').returncode, 0)

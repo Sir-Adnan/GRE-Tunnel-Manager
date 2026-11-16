@@ -2,72 +2,75 @@
 
 # GRE Tunnel Manager
 
-v1.6.0 brings a one-line installer, the `gtm` command, trusted HTTPS with automatic renewal, a two-server wizard, latency history, Node offline alerts and two-factor sign-in. See the [Changelog](docs/CHANGELOG.md).
-
-### Server links. Port forwarding. One place to manage them.
-
-A web panel with a Bash engine — built for TCP/UDP relays, VPN traffic and multi-server setups.
+### Tunnels, port forwards and relays for your servers — from one clean web panel.
 
 [![Release](https://img.shields.io/github/v/release/Sir-Adnan/GRE-Tunnel-Manager?style=flat-square)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/releases/latest)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
 
 **English** · [فارسی](README.fa.md)
 
-[Install](#install) · [Web panel](#web-panel) · [Documentation](docs/README.md)
+[Install](#install-in-one-minute) · [Features](#why-gre-tunnel-manager) · [Docs](docs/README.md) · [Changelog](docs/CHANGELOG.md)
 
 </div>
 
-## Install
+## Install in one minute
 
-Run on **Debian or Ubuntu with systemd**:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash
-```
-
-A one-minute setup asks for the address, HTTPS, port and login, then prints the panel address. For a one-liner without questions:
+On Debian or Ubuntu:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --domain panel.example.com --port 2053 --yes
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)"
 ```
 
-Open the panel's TCP port in the server/provider firewall and sign in. To link this server to a foreign one, open **Connections → Two servers**: enter the foreign server's IP and the public ports, and the panel creates the GRE tunnel and the forward through it, then lists the values to enter on the other server. For a direct forward use **Connections → New connection**. Afterwards `sudo gtm` shows the status and handles updates, certificates, port, password, logs and removal ([Command line](docs/COMMAND-LINE.md)).
+The installer shows each step with a progress bar, asks five short questions (address, HTTPS or HTTP, port, login, engines) and prints your panel address. Open that port in your firewall and sign in.
 
-Since v1.6.0 tunnels are managed only in the panel; the terminal menus are gone. Existing tunnels and forwards keep running, and `panel-install.sh` still accepts its earlier options. See the [user guide](docs/USER-GUIDE.md) for the full setup.
+**No questions — pick a recipe:**
 
-## Choose your connection
+```bash
+URL=https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh
 
-| Method | Use it for |
+# Trusted HTTPS for the server's IP, random port, generated password
+sudo bash -c "$(curl -fsSL $URL)" @ --yes
+
+# HTTP with your own port, username and password
+sudo bash -c "$(curl -fsSL $URL)" @ --http --port 8080 --user admin --password 'my-long-password' --yes
+
+# HTTPS for your domain
+sudo bash -c "$(curl -fsSL $URL)" @ --domain panel.example.com --port 2053 --yes
+```
+
+All options, updates and removal: **[Installation guide](docs/INSTALL.md)**.
+
+## Why GRE Tunnel Manager
+
+- **Two servers in one form.** Enter the foreign server's IP and your ports: the panel builds the GRE tunnel and the forward through it, and lists what to enter on the other side.
+- **Every method in one place.** iptables and nftables in the kernel, GRE/ip6gre, HAProxy, Realm, FRP and rathole, on one **Connections** page.
+- **See problems before users do.** Health checks with uptime and latency history, a packet-path **Check** for each connection, firewall diagnosis with one-click fixes, alerts by Telegram or webhook.
+- **Safe by design.** Trusted HTTPS that renews itself, two-factor sign-in, automatic revert for risky firewall changes, encrypted backups, and verified updates that roll back on failure.
+- **Light on the server.** One prebuilt Go binary and a Bash engine. Traffic stays in the kernel; the panel can stop without touching a tunnel.
+- **Persian and English**, right-to-left and left-to-right, on desktop and phone.
+
+| Method | Best for |
 | --- | --- |
-| **iptables / nftables** | Kernel TCP/UDP forwarding, without a resident manager process |
-| **GRE / ip6gre** | A network link between servers, with optional port forwarding over it |
-| **HAProxy** | TCP relays, health checks, load balancing and IP affinity |
-| **Realm** | TCP/UDP relays with multiple destinations |
-| **FRP / rathole** | Reverse connections with managed transport and authentication settings |
+| **iptables / nftables** | Fast kernel TCP/UDP forwarding, port ranges, load balancing |
+| **GRE / ip6gre** | A private link between two servers (needs IP protocol 47) |
+| **HAProxy** | TCP relays with health checks, failover and IP affinity |
+| **Realm** | TCP/UDP relays with several destinations |
+| **FRP / rathole** | Reverse tunnels when the destination cannot accept connections |
 
-GRE is optional and does not encrypt traffic. It requires IP protocol **47** to pass through the network. For WireGuard or AmneziaWG traffic, use a UDP-capable method; the HAProxy adapter handles TCP.
+GRE does not encrypt. For WireGuard or other UDP traffic, choose a UDP-capable method.
 
-## Web panel
+## After installing
 
-The panel gets a trusted Let's Encrypt certificate for its domain or public IP and renews it automatically. Validation uses TCP port 80 for a few seconds, or Cloudflare DNS for a domain; if it cannot complete, the panel starts with a self-signed certificate and **Settings → Security** (or `sudo gtm https issue`) retries. Settings also offers two-factor sign-in, signed-in sessions and one-click updates. Renewal never interrupts tunnels. `--self-signed` and `--http` are available; see [HTTPS and certificates](docs/HTTPS.md) and the [installation guide](docs/WEB-PANEL.md#installation-and-login).
+```bash
+sudo gtm            # status and a menu: update, HTTPS, port, password, logs, remove
+sudo gtm update     # verified update; the previous release returns if anything fails
+```
 
-The panel provides Persian/English layouts, mobile and desktop views, configuration inspection/editing and reviewed imports, setup presets, live server readings and optional per-connection traffic tracking. Its prebuilt Go executable includes the interface: **no Node.js, Python, compiler or database server is needed on managed servers**. Tunnel traffic runs independently of the panel.
+More servers can join as outbound **Nodes**; no third server is needed. [Nodes and Agents →](docs/NODES.md)
 
-HAProxy, Realm and port forwards share one filtered **Connections** page, the overview lists anything that needs attention, and **Ctrl K** jumps to pages, connections and creation forms. Health monitoring keeps uptime, outages and a latency history per connection, and notifications reach Telegram or a webhook when a connection or a Node goes down. **Signal** (dark) is the default look; Graphite, Aurora, Nettinx and Neutral are one click away.
+## Documentation
 
-### Manage more than one server
+**Start:** [Install](docs/INSTALL.md) · [User guide](docs/USER-GUIDE.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [HTTPS](docs/HTTPS.md) · [Firewall](docs/FIREWALL.md)
+**More:** [All guides](docs/README.md) · [Changelog](docs/CHANGELOG.md)
 
-Run the panel on an entrance, destination or separate server. Its own host is already a local Node; other servers can join through optional outbound Agents. A third server is not required.
-
-Agents support inventory, coordinated GRE/FRP setup and optional read-only traffic summaries. General tunnel editors still manage the panel host. [Set up Nodes and Agents →](docs/NODES.md)
-
-## Guides
-
-- **Start and operate:** [User guide](docs/USER-GUIDE.md) · [Backup and restore](docs/BACKUP-RESTORE.md)
-- **Configure:** [Setup presets](docs/CONNECTION-PROFILES.md) · [HAProxy](docs/HAPROXY.md) · [Configuration editor](docs/CONFIGURATION-EDITOR.md)
-- **Track usage:** [Traffic accounting](docs/TRAFFIC-ACCOUNTING.md) — resets, labels, history and optional quota pauses
-- **Maintain:** [Engine updates](docs/ENGINE-MAINTENANCE.md) · [Update](docs/WEB-PANEL.md#updates-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)
-
-Quota pauses are opt-in and sampled; traffic can exceed the limit between checks.
-
-Open the required ports/protocols before applying. Test a spare port before replacing an active service. Forwarding restore points do not include GRE/reverse peer configurations.
+Test a spare port before you replace a live service, and open the needed ports and protocols first.

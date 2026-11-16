@@ -104,9 +104,11 @@ export function PanelHeader({
           preferences={preferences}
           onChange={setPreferences}
         />
+        {/* On phones these two live in the More sheet, so the title fits. */}
         <ActionButton
           variant="ghost"
           size="icon"
+          className="max-sm:hidden"
           label={t("refresh")}
           disabled={busy}
           onClick={refresh}
@@ -116,6 +118,7 @@ export function PanelHeader({
         <Button
           variant="ghost"
           size="sm"
+          className="max-sm:hidden"
           aria-label={t("language")}
           onClick={() =>
             setPreferences({

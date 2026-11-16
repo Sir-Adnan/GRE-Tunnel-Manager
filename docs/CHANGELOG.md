@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.6.1 — Installer progress, temporary IPs, phone layout, bilingual guides
+
+- **The installer no longer stalls before its first screen.** Under `curl … | sudo bash`, sudo's `use_pty` (the default on current Ubuntu and Debian) runs the script on a pseudo-terminal of its own. Because sudo's input is the pipe, it passes no keystrokes to that terminal. v1.6.0 asked this terminal for its background color before printing anything; no answer could come, so it waited with nothing on screen, and the reply could later show up as `^[[?1;2;4c`. A question there could not be answered either.
+  - The terminal is no longer queried. Colors assume a dark background; `GTM_THEME=light` or the `COLORFGBG` hint select the light palette, and `NO_COLOR` still turns colors off.
+  - `install.sh` now finds the terminal sudo was started from (through `/proc`) and runs the setup there, so `curl … | sudo bash` answers questions again. As root, or without `use_pty`, nothing changes.
+- **Realm, FRP and rathole install on Ubuntu and Debian.** Each download was unpacked and its `--version` run under `/run/gre-manager`. These systems mount `/run` noexec, so the check failed. Downloads now stage in the root-only `/usr/local/lib/gre-manager/downloads/`. rathole's `unzip` is installed with apt when it is missing.
+- **Visible progress.** `install.sh` shows its steps and a download progress bar, then hands over with "Starting setup". Long setup steps show a live line with a spinner, the elapsed time, a bar with the step count and the latest line of the command they run (apt, engine downloads, the certificate order). Finished steps stay as checked lines with their duration. Command output appears in full only under a step that fails, as its last 15 lines. In logs and pipes, and with `GTM_ACCESSIBLE=1`, the same steps are plain lines. A command that needs the operator (Agent enrollment, the update hand-over) gets the terminal itself. Package: `internal/tui/progress.go`.
+- **Faster engine installation.** `--engines` (and `--api install` with several engines) refreshes the package lists once and installs iptables, nftables, HAProxy and socat in one `apt-get` run, instead of one refresh per engine. Recommended packages are skipped. Every `apt-get` the installer or the engine runs sets `DEBIAN_FRONTEND=noninteractive` and `NEEDRESTART_MODE=a`, so neither debconf nor Ubuntu's needrestart can wait on an unseen question.
+- **One-line install that keeps the keyboard.** The documented command is now `sudo bash -c "$(curl -fsSL …/install.sh)"`, with options after `@`. Standard input stays the terminal, so sudo does not move the setup into the background. `curl … | sudo bash` still works.
+- **Temporary IPs.** **IP addresses → This server's addresses** marks an IPv4 address on the main interface **Temporary** when nothing re-creates it at boot: not a DHCP lease, not named in netplan, ifupdown, systemd-networkd or NetworkManager configuration, and not kept by a `gtm-addr-N` unit. The usual case is an address added with `ip address add`, which a restart removes along with the connections that use it. **Keep after restart** stores it as the next `gtm-addr-N` unit. New public broker action `address-extra-keep` and engine operation `extra-keep ADDRESS/PREFIX IFACE`, which requires the address to be on that interface with that prefix and not kept already. See [IP addresses](IP-ADDRESSES.md#temporary-addresses).
+- **Phones and narrow screens.**
+  - A connection's route stays on one line: the wire takes only the space that is left, and a destination that does not fit wraps between address and port, never inside an address.
+  - On phones, the connection list is no longer framed inside another card.
+  - The Connections header shows its secondary actions as icons.
+  - The top bar moves Refresh and the language switch into the **More** sheet, so the page title fits.
+  - Destination rows in the editor drop the drag handle and chevron on narrow widths; ordering stays in the row menu.
+  - Form sections use tighter padding.
+  - The Optimization page no longer scrolls sideways.
+  - Checked at 320, 340, 360 and 412 px wide.
+- **Documentation.**
+  - One installation guide, [Install, update and remove](INSTALL.md), with recipes for installing without questions: HTTP with your own port, username and password; HTTPS for a domain; Cloudflare; self-signed.
+  - New [Troubleshooting](TROUBLESHOOTING.md) guide.
+  - A shorter README in both languages.
+  - Persian guides for installation, everyday use, troubleshooting, HTTPS and the firewall in [`docs/fa`](fa/README.md).
+  - Web panel and Command line now link to the installation guide instead of repeating it.
+
 ## v1.6.0 — Panel-only management, installer and `gtm`, trusted HTTPS, two-server wizard
 
 - **Tunnel to a foreign server** wizard (Connections → **Two servers**, the command palette, or the first step of the Overview checklist). Three steps on the entrance server: the foreign server's IP (this server's address, the lowest free tunnel ID and MTU 1430 are filled in), the public ports and protocol, then a review with the route and the values to enter on the foreign server, each copyable. Create runs `gre-create` (this server as Side B) and then a kernel forward to the far inner address `10.0.ID.1` with the same port numbers. If the forward fails, the tunnel is kept and **Try again** retries only the forward; the failure is explained in place. Checks before anything runs: address and family, a used tunnel ID, MTU bounds, malformed ports and ports another connection already uses for the same protocol, and the engine's name rule. See [User guide](USER-GUIDE.md#tunnel-to-a-foreign-server).

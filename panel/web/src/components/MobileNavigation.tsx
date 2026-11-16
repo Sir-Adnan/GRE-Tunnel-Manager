@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Menu, Plus, Search } from "lucide-react";
+import { Globe2, Menu, Plus, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,12 +56,17 @@ export function MobileNavigation({
   inventory,
   add,
   openPalette,
+  switchLocale,
+  refresh,
 }: {
   page: string;
   navigate: (p: string) => void;
   inventory?: Inventory;
   add: () => void;
   openPalette: () => void;
+  /** The top bar hides these on narrow phones; the sheet keeps them reachable. */
+  switchLocale: () => void;
+  refresh: () => void;
 }) {
   const t = useT();
   const [more, setMore] = useState(false);
@@ -156,6 +161,25 @@ export function MobileNavigation({
             >
               <Search data-icon="inline-start" />
               <span className="truncate">{t("commandPalette")}</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="sm:hidden"
+              onClick={switchLocale}
+            >
+              <Globe2 data-icon="inline-start" />
+              <span className="truncate">{t("otherLanguage")}</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="sm:hidden"
+              onClick={() => {
+                setMore(false);
+                refresh();
+              }}
+            >
+              <RefreshCw data-icon="inline-start" />
+              <span className="truncate">{t("refresh")}</span>
             </Button>
           </div>
           {rest.map((group) => (

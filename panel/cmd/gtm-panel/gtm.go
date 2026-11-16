@@ -20,10 +20,13 @@ var errReported = errors.New("reported")
 // /usr/local/bin/gtm link to this executable).
 func runGTM(ctx context.Context, args []string) error {
 	ui := tui.New(os.Stdin, os.Stdout)
+	defer ui.Settle()
 	app := &gtm.App{
 		UI: ui,
 		Installer: &install.Installer{
-			Host:       install.System{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr},
+			// Command output goes through the UI, which keeps it out of the
+			// live progress area and shows it when a step fails.
+			Host:       install.System{Stdin: os.Stdin, Stdout: ui.Log(), Stderr: ui.Log()},
 			Report:     ui,
 			Interfaces: install.LocalAddresses,
 		},

@@ -14,7 +14,7 @@ export const resources = {
   add: ["Add tunnel", "ساخت تونل"],
   stop: ["Stop", "توقف"],
   restart: ["Restart", "راه‌اندازی مجدد"],
-  both: ["TCP + UDP", "هر دو؛ TCP و UDP"],
+  both: ["TCP + UDP", "TCP + UDP"],
   tunnelID: ["Tunnel ID", "شناسهٔ تونل"],
   role: ["Server role", "نقش سرور"],
   peerIP: ["Other server IP", "آی‌پی سرور دیگر"],

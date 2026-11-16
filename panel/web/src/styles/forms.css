@@ -203,6 +203,15 @@
     @apply flex min-w-0 flex-col gap-4 rounded-xl border p-4;
     background: color-mix(in srgb, var(--muted) 22%, transparent);
   }
+  /* Phones give the fields the width: tighter frames, same grouping. */
+  @media (max-width: 39.99rem) {
+    .form-section {
+      @apply gap-3.5 p-3;
+    }
+    .form-section-head {
+      @apply gap-2.5;
+    }
+  }
   .form-section-head {
     @apply flex min-w-0 items-start gap-3;
   }
@@ -303,6 +312,17 @@
   @media (pointer: coarse) {
     .target-summary > .drag-handle {
       order: 9;
+    }
+  }
+  /* A narrow row keeps the address whole: the order still changes from the
+     row's menu (move up/down), and the whole row opens the fields. */
+  @container (max-width: 22rem) {
+    .target-summary > .drag-handle,
+    .target-summary .target-chevron {
+      display: none;
+    }
+    .target-summary {
+      @apply gap-1 ps-2;
     }
   }
   .target-fields {
@@ -564,7 +584,10 @@
   }
   @media (min-width: 768px) {
     .wizard-route {
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(
+          0,
+          1fr
+        );
     }
   }
   .wizard-hop {

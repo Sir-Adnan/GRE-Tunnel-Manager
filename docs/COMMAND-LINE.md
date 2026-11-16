@@ -11,31 +11,12 @@ Tunnels, forwards and server settings are managed in the [web panel](WEB-PANEL.m
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)"
 ```
 
-Without options a short setup asks for the address, connection security, port, login and engines; Esc cancels before anything changes. Under `curl | bash` the questions are answered on the terminal. Without a terminal, or with `--yes`, the defaults are used. Pass options after `bash -s --`:
+Recipes without questions and the table of every option are in [Install, update and remove](INSTALL.md). Options go after `@` in the form above, or after `bash -s --` with `curl … | sudo bash`. Without a password option a 32-character password is generated and shown once.
 
-| Option | Meaning |
-| --- | --- |
-| `--domain NAME` | Domain or IP for the panel; default: the detected public IP |
-| `--port N` | TCP port; default: a free random port |
-| `--user NAME` | Login name; default `admin` |
-| `--password-env VAR` | Read the password from an environment variable (`sudo --preserve-env=VAR`) |
-| `--password VALUE` | Password as an argument; visible in shell history |
-| `--https` · `--self-signed` · `--http` | Let's Encrypt (default), self-signed certificate, or no encryption |
-| `--email ADDRESS` | Optional Let's Encrypt contact |
-| `--cloudflare-token-file FILE` | Verify a domain over Cloudflare DNS instead of port 80 |
-| `--staging` | Let's Encrypt staging CA, for tests |
-| `--listen IP` | Local bind address; default: all IPv4 (or `::` for an IPv6 address) |
-| `--engines` | Also install iptables, nftables, HAProxy, Realm, FRP and rathole |
-| `--no-update-check` | Do not check GitHub daily for a newer release |
-| `--yes` | Use defaults; ask nothing |
-| `--agent [--operations] [--traffic]` | Install an outbound [Agent](NODES.md) instead of the panel |
-| `--remove` | Remove the panel; tunnels keep running |
-| `--version X.Y.Z` · `--package-dir DIR` | Another published release, or a local archive with `SHA256SUMS` (offline) |
-
-Without a password option a 32-character password is generated and shown once in the summary. On an existing installation the setup options are ignored (the summary says so); use the `gtm` commands below to change them.
+The installer prints each step: the download with a progress bar, then the setup, whose long steps show a live line with a spinner, elapsed time, a step counter and the latest output of the command they run. That output is shown in full only when a step fails. In a log or pipe, and for screen readers (`GTM_ACCESSIBLE=1`), the same steps are plain lines.
 
 `panel-install.sh` and `node-install.sh` still work: they translate the earlier options (`--quick`, `--protocol`, `--address`, `--letsencrypt`, `--uninstall`, `--controller` …) and call `install.sh` or `gtm`. `--quick` keeps its earlier self-signed default.
 
@@ -58,7 +39,7 @@ Without a password option a 32-character password is generated and shown once in
 | `gtm controller enable --url https://IP:9443` | Let Agents connect to this panel |
 | `gtm remove [--yes]` | Remove the panel (type REMOVE to confirm) |
 
-`gtm` is a link to `/usr/local/bin/gtm-panel`; `gtm-panel gtm …` is the same command. A copy of the pre-v1.6.0 `igre` shortcut is replaced by a small script that opens `gtm`. Colors follow the terminal and `NO_COLOR`; `GTM_ACCESSIBLE=1` (or `TERM=dumb`) asks questions line by line for screen readers. The interface is English: most SSH clients cannot shape right-to-left text.
+`gtm` is a link to `/usr/local/bin/gtm-panel`; `gtm-panel gtm …` is the same command. A copy of the pre-v1.6.0 `igre` shortcut is replaced by a small script that opens `gtm`. Colors assume a dark terminal: `GTM_THEME=light` suits a light one, and `NO_COLOR` turns them off (the terminal is never queried, which could stall under `curl | sudo bash`); `GTM_ACCESSIBLE=1` (or `TERM=dumb`) asks questions line by line for screen readers. The interface is English: most SSH clients cannot shape right-to-left text.
 
 Secrets are never accepted where other users could read them: passwords and Cloudflare tokens come from a hidden prompt, an environment variable or a root-only file, never from a process argument that `gtm` builds itself.
 
@@ -92,7 +73,7 @@ None of these change the server or contact the network.
 | Connections | `state`, `create`, `create-reviewed`, `update`, `enable`, `disable`, `delete`, `plan`, `config-render`, `connection-path`, `diagnose` |
 | History and recovery | `history`, `history-restore`, `recovery-revision`, `recovery-render`, `recovery-import` |
 | Links | `gre-create`, `gre-delete`, `reverse-create`, `reverse-delete`, `pair-*`, `resource-rename` |
-| Addresses | `address-uses`, `address-replace`, `readdress-check`, `readdress-apply`, `extra-list`, `extra-add`, `extra-delete` |
+| Addresses | `address-uses`, `address-replace`, `readdress-check`, `readdress-apply`, `extra-list`, `extra-add`, `extra-keep`, `extra-delete` |
 | DNS | `dns-resolve`, `dns-cache`, `dns-policy`, `dns-refresh`, `dns-status`, `dns-apply`, `dns-restore` |
 | Firewall | `firewall-status`, `firewall-apply`, `firewall-confirm`, `firewall-revert` |
 | Maintenance | `kernel-refresh`, `flows-reset`, `forward-exclude`, `doctor`, `portfw-rules` |

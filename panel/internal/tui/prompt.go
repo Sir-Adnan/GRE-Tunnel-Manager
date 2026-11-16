@@ -25,6 +25,7 @@ func (u *UI) Run(groups ...*huh.Group) error {
 	if !u.Interactive && !u.Accessible {
 		return ErrNoTerminal
 	}
+	u.Settle()
 	form := huh.NewForm(groups...).
 		WithTheme(u.theme).
 		WithKeyMap(keyMap()).

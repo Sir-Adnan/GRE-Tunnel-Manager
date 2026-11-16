@@ -3,7 +3,7 @@
 #   Agent:      curl -fsSL .../install.sh | sudo bash -s -- --agent [--operations] [--traffic]
 #   Controller: sudo gtm controller enable --url https://IP_OR_DOMAIN:9443
 set -euo pipefail
-NODE_VERSION=1.6.0
+NODE_VERSION=1.6.1
 NODE_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 node_install_main() {

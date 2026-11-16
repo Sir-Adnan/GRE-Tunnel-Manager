@@ -41,7 +41,7 @@ gtm_install_component() {
     esac
     if [[ $component == realm ]]; then url="https://github.com/zhboner/realm/releases/download/v2.9.6/$archive"
     else url="https://github.com/fatedier/frp/releases/download/v0.71.1/$archive"; fi
-    tmp=$(mktemp -d "$GTM_RUN_DIR/download.XXXXXX") || return 1
+    tmp=$(gtm_download_dir "$component") || return 1
     if ! curl --proto '=https' --tlsv1.2 -fL --connect-timeout 15 --max-time 180 "$url" -o "$tmp/archive.tar.gz"; then rm -rf "$tmp"; return 1; fi
     if ! printf '%s  %s\n' "$sha" "$tmp/archive.tar.gz" | sha256sum -c -; then rm -rf "$tmp"; return 1; fi
     tar -xzf "$tmp/archive.tar.gz" -C "$tmp" || { rm -rf "$tmp"; return 1; }
@@ -52,6 +52,28 @@ gtm_install_component() {
         [[ $("$tmp/$member/frpc" --version) == 0.71.1 && $("$tmp/$member/frps" --version) == 0.71.1 ]] && gtm_component_publish "$tmp/$member" frpc frps || { rm -rf "$tmp"; return 1; }
     fi
     rm -rf "$tmp"
+}
+
+# Installs several components with one package-list refresh: the packaged
+# engines in a single apt-get run, then the downloaded binaries.
+gtm_install_components() {
+    local component
+    local -a packages=() rest=()
+    for component in "$@"; do
+        case $component in
+            iptables) command -v iptables >/dev/null 2>&1 || packages+=(iptables) ;;
+            nftables) command -v nft >/dev/null 2>&1 || packages+=(nftables) ;;
+            haproxy) command -v haproxy >/dev/null 2>&1 && command -v socat >/dev/null 2>&1 || packages+=(haproxy socat) ;;
+            rathole) command -v unzip >/dev/null 2>&1 || packages+=(unzip); rest+=(rathole) ;;
+            *) rest+=("$component") ;;
+        esac
+    done
+    if ((${#packages[@]})); then
+        gtm_root && gtm_need apt-get || return 1
+        printf '\nInstall optional components: %s\n' "${packages[*]}"
+        gtm_install_packages "${packages[@]}" || return 1
+    fi
+    for component in ${rest[@]+"${rest[@]}"}; do gtm_install_component "$component" || return 1; done
 }
 
 # Do not start distribution services just because optional binaries are installed.
@@ -65,8 +87,11 @@ gtm_install_packages() (
         fi
     fi
     trap 'if ((owned)); then rm -f "$policy"; fi' EXIT
+    # No question may wait on a terminal no one watches (debconf, or the
+    # service list of needrestart on Ubuntu).
+    export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
     if [[ ${GTM_PACKAGE_REFRESH:-1} != 0 ]]; then apt-get update || exit 1; fi
-    apt-get install -y "$@" || exit 1
+    apt-get install -y --no-install-recommends "$@" || exit 1
     if ((had_haproxy==0)); then
         for package in "$@"; do
             [[ $package != haproxy ]] || systemctl disable --now haproxy.service || exit 1

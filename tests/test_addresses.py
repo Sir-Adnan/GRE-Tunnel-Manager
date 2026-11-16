@@ -159,6 +159,21 @@ class AddressTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse((self.path / 'gtm-addr-1.service').exists())
 
+    def test_extra_keep_adopts_a_hand_added_address_once(self):
+        listing = ('ip() { case "$1 $2" in "link show") return 0;; "route get") echo ok;;\n'
+                   '  "-o address") echo "2: eth0    inet 203.0.113.44/32 scope global eth0";; esac; }\n')
+        result = self.run_engine(listing + 'gtm_address_api extra-keep 203.0.113.44/32 eth0', locals_='203.0.113.44')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('extra\t1', result.stdout)
+        unit = (self.path / 'gtm-addr-1.service').read_text()
+        self.assertIn('ExecStart=/sbin/ip address replace 203.0.113.44/32 dev eth0', unit)
+        self.assertNotIn('route replace default', unit)
+        # Kept already, a different prefix or not on the interface: refused.
+        for args in ['203.0.113.44/32 eth0', '203.0.113.44/24 eth0', '203.0.113.45/32 eth0', '203.0.113.44/32 eth0 -']:
+            result = self.run_engine(listing + 'gtm_address_api extra-keep ' + args, locals_='203.0.113.44')
+            self.assertNotEqual(result.returncode, 0, args)
+        self.assertFalse((self.path / 'gtm-addr-2.service').exists())
+
     def test_extra_add_refuses_bad_input_and_foreign_units(self):
         for args in ['203.0.113.40 eth0 -', '203.0.113.40/4 eth0 -', '203.0.113.40/32 eth0 2001:db8::1', '192.0.2.7/32 eth0 -', '203.0.113.40/32 "a;b" -']:
             result = self.run_engine('ip() { return 0; }\ngtm_address_api extra-add ' + args)

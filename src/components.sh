@@ -5,6 +5,14 @@ gtm_component_policy() {
 }
 
 # Stage every fixed binary before replacing any; keep previous binaries for recovery.
+# A private directory for a downloaded engine. The binary runs once (its
+# --version) before it is published, so it is staged beside the installed
+# engine, not in /run: Ubuntu and Debian mount /run noexec.
+gtm_download_dir() {
+    local base="${GTM_RUNTIME%/*}/downloads"
+    mkdir -p "$base" && chmod 700 "$base" && mktemp -d "$base/$1.XXXXXX"
+}
+
 gtm_component_publish() (
     local source=$1 binary target staged backup result=0
     shift

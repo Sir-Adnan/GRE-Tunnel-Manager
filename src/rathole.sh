@@ -16,13 +16,15 @@ gtm_rathole_binary() {
 
 gtm_rathole_download() {
     local archive sha tmp
-    gtm_need curl && gtm_need unzip && gtm_need sha256sum && gtm_need install || return 1
+    gtm_need curl && gtm_need sha256sum && gtm_need install || return 1
+    # unzip is small and often missing on minimal images; apt provides it.
+    command -v unzip >/dev/null 2>&1 || { gtm_need apt-get && gtm_install_packages unzip; } || return 1
     case $(uname -m) in
         x86_64) archive=rathole-x86_64-unknown-linux-gnu.zip; sha=3e7d0d0f365120cd3cd351d147d1a12ee960c8068b464d4dd533a3821873b80e ;;
         aarch64) archive=rathole-aarch64-unknown-linux-musl.zip; sha=fa4a6fc63d86f8f1faa7c103a845e4715ce79a048455c0eec897b27237576564 ;;
         *) gtm_error 'The rathole installer supports x86_64 and aarch64 Linux.'; return 1 ;;
     esac
-    tmp=$(mktemp -d "$GTM_RUN_DIR/rathole-download.XXXXXX") || return 1
+    tmp=$(gtm_download_dir rathole) || return 1
     if ! { curl --proto '=https' --tlsv1.2 -fL --connect-timeout 15 --max-time 180 "https://github.com/rathole-org/rathole/releases/download/v0.5.0/$archive" -o "$tmp/archive.zip" &&
         printf '%s  %s\n' "$sha" "$tmp/archive.zip" | sha256sum -c - &&
         unzip -p "$tmp/archive.zip" rathole > "$tmp/rathole" && chmod 700 "$tmp/rathole" &&

@@ -1,4 +1,10 @@
 // This server's addresses, uplink first, with the saved settings that use each.
+// An address added by hand (nothing re-creates it at boot) is marked
+// temporary and can be kept in an owned unit with one click.
+import { useState } from "react";
+import { Pin, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -7,11 +13,37 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { fill } from "@/features/firewall/text";
-import { useT } from "@/lib/i18n";
-import type { AddressReport } from "./model";
+import { operate } from "@/lib/api";
+import { errorMessage, useT } from "@/lib/i18n";
+import type { AddressReport, HostAddress } from "./model";
 
-export function HostAddresses({ report }: { report: AddressReport }) {
+export function HostAddresses({
+  report,
+  changed,
+}: {
+  report: AddressReport;
+  changed: () => Promise<void>;
+}) {
   const t = useT();
+  const [keeping, setKeeping] = useState("");
+  async function keep(a: HostAddress) {
+    setKeeping(a.address);
+    try {
+      await operate({
+        action: "address-extra-keep",
+        address: {
+          address: `${a.address}/${a.prefix}`,
+          interface: a.interface,
+        },
+      });
+      toast.success(fill(t("ipKept"), { ip: a.address }));
+      await changed();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setKeeping("");
+    }
+  }
   const extra = new Set(report.extra.map((x) => x.address.split("/")[0]));
   const rows = report.addresses.filter((a) => !a.container);
   const containers = report.addresses.length - rows.length;
@@ -53,8 +85,31 @@ export function HostAddresses({ report }: { report: AddressReport }) {
                         {t("ipExtraBadge")}
                       </span>
                     )}
+                    {a.temporary && (
+                      <span className="fw-pill" data-tone="warn">
+                        <span className="fw-pill-dot" aria-hidden />
+                        {t("ipTemporary")}
+                      </span>
+                    )}
                   </span>
                 </div>
+                {a.temporary && (
+                  <div className="ip-temporary">
+                    <p>
+                      <TriangleAlert aria-hidden />
+                      {t("ipTemporaryHelp")}
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={keeping !== ""}
+                      onClick={() => void keep(a)}
+                    >
+                      <Pin data-icon="inline-start" />
+                      {keeping === a.address ? t("working") : t("ipKeep")}
+                    </Button>
+                  </div>
+                )}
                 <p className="ip-row-uses">
                   {uses.length === 0
                     ? t("ipUnused")

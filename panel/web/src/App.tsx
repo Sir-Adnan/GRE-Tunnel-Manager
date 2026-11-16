@@ -469,6 +469,13 @@ export default function App() {
             inventory={inventory}
             add={add}
             openPalette={openPalette}
+            switchLocale={() =>
+              setPreferences({
+                ...preferences,
+                locale: preferences.locale === "fa" ? "en" : "fa",
+              })
+            }
+            refresh={refreshPage}
           />
         </SidebarProvider>
         <CommandPalette

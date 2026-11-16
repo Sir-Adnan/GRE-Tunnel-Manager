@@ -38,7 +38,7 @@ export function Destinations({ connection }: { connection: Connection }) {
       <span className="inline-flex max-w-full">
         <bdi
           dir="ltr"
-          className="min-w-0 break-all whitespace-normal font-mono text-xs"
+          className="min-w-0 wrap-break-word whitespace-normal font-mono text-xs"
         >
           <Endpoint ip={first.ip} port={first.port} />
         </bdi>
@@ -58,7 +58,7 @@ export function Destinations({ connection }: { connection: Connection }) {
             <Server className="size-3.5 shrink-0 text-muted-foreground" />
             <bdi
               dir="ltr"
-              className="max-w-full break-all whitespace-normal font-mono text-xs"
+              className="max-w-full wrap-break-word whitespace-normal font-mono text-xs"
             >
               <Endpoint ip={target.ip} port={target.port} />
             </bdi>
@@ -89,7 +89,7 @@ export function Destinations({ connection }: { connection: Connection }) {
             >
               <bdi
                 dir="ltr"
-                className="max-w-full break-all whitespace-normal font-mono text-xs"
+                className="max-w-full wrap-break-word whitespace-normal font-mono text-xs"
               >
                 <Endpoint ip={first.ip} port={first.port} />
               </bdi>

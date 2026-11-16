@@ -27,6 +27,7 @@ Portable `.gtm-backup` files are encrypted downloads stored by the operator, not
 | `/etc/gre-manager/backups/{cleanup,retired-tuning,tuning-import}-*/` | Private pre-operation artifacts for scoped deletion, historical retirement or the v1.3.7 tuning import |
 | `/etc/systemd/system/gtm-F*.service` | Opt-in per-connection relay service; removed when disabled/deleted |
 | `/usr/local/lib/gre-manager/apply.sh` | Generated self-contained boot reconciler; root-only executable |
+| `/usr/local/lib/gre-manager/downloads/` | Root-only (700) staging for a Realm, FRP or rathole download while its checksum and version are checked; each download's directory is removed afterwards. Not under `/run`, which Ubuntu and Debian mount noexec |
 | `/etc/systemd/system/gre-manager-forwarding.service` | Oneshot kernel reconcile, not a manager daemon |
 | `/etc/gre-manager/gtm-frp-*.toml` | FRP entrance/destination config, including secret token |
 | `/etc/systemd/system/gtm-frp-*.service` | Optional FRP services |

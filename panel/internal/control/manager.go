@@ -338,7 +338,7 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return m.dns(ctx, r)
 	case "firewall", "firewall-apply", "firewall-confirm", "firewall-revert", "firewall-repair":
 		return m.firewall(ctx, r)
-	case "addresses", "address-replace", "address-extra-add", "address-extra-delete":
+	case "addresses", "address-replace", "address-extra-add", "address-extra-keep", "address-extra-delete":
 		return m.addresses(ctx, r)
 	case "ui-order", "ui-order-save":
 		return m.order(r)

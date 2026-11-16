@@ -1,5 +1,7 @@
 # Firewall
 
+**English** · [فارسی](fa/FIREWALL.md)
+
 The **Firewall** page (Network → Firewall) shows how the host firewall treats each connection and changes only the manager's own rules:
 
 - per-connection access rules;

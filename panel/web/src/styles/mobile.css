@@ -202,3 +202,13 @@
     bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 }
+@media (max-width: 767px) {
+  /* A list of cards does not sit in another card on a phone: the frame and
+     its padding would take a fifth of the width from every route. */
+  [data-slot="card"].list-shell {
+    --card-spacing: 0px;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+}

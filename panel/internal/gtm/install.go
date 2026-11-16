@@ -212,6 +212,7 @@ func (a *App) preparePlan(ctx context.Context, p *plan) error {
 			return errors.New("public IP detection failed; pass --domain with a domain or the server's IP")
 		}
 		p.setup.Host = host
+		a.UI.Done("Public IP %s", host)
 	}
 	if p.tls == "" {
 		p.tls = tlsLetsEncrypt
@@ -242,6 +243,9 @@ func (a *App) wizard(ctx context.Context, p *plan) error {
 		u.Step("Detecting this server's public IP")
 		if host, e := a.Discover(ctx); e == nil {
 			p.setup.Host = host
+			u.Done("Public IP %s", host)
+		} else {
+			u.Warn("The public IP was not detected; enter the address below")
 		}
 	}
 	if !hasFlag(p, "--domain", "--address") {

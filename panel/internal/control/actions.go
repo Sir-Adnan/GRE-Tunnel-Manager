@@ -118,6 +118,7 @@ var actions = map[string]actionSpec{
 	"firewall-repair":            {public: true},
 	"address-replace":            {public: true},
 	"address-extra-add":          {public: true},
+	"address-extra-keep":         {public: true},
 	"address-extra-delete":       {public: true},
 	"panel-update-check":         {public: true},
 	"panel-update-install":       {public: true},

@@ -92,7 +92,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		return d.dnsDemo(r)
 	case "firewall", "firewall-apply", "firewall-confirm", "firewall-revert", "firewall-repair":
 		return d.firewallDemo(r)
-	case "addresses", "address-replace", "address-extra-add", "address-extra-delete":
+	case "addresses", "address-replace", "address-extra-add", "address-extra-keep", "address-extra-delete":
 		return d.addressesDemo(r)
 	case "ui-order", "ui-order-save":
 		return d.orderDemo(r)

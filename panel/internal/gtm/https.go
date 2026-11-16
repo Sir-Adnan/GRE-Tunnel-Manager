@@ -204,5 +204,6 @@ func (a *App) httpsIssue(ctx context.Context, args []string) error {
 	if e = a.certificate(ctx, env, certArgs...); e != nil {
 		return errors.New("no certificate was issued; the panel keeps its current one")
 	}
+	a.UI.Done("Trusted certificate installed for %s; it renews automatically", p.setup.Host)
 	return nil
 }

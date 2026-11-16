@@ -49,7 +49,11 @@ func (in *Installer) deploy(ctx context.Context, p release.Package, units []stri
 	l, r := in.Layout, in.report()
 	binary, engine := l.Path(Binary), l.Path(Engine)
 	if sameFile(p.Binary, binary) && sameFile(p.Engine, engine) {
-		return in.stopUnits(ctx, units)
+		if e := in.stopUnits(ctx, units); e != nil {
+			return e
+		}
+		r.Done("Release files are current")
+		return nil
 	}
 	if e := in.stopUnits(ctx, units); e != nil {
 		return e
@@ -68,6 +72,7 @@ func (in *Installer) deploy(ctx context.Context, p release.Package, units []stri
 			return e
 		}
 	}
+	r.Done("Release files installed")
 	return nil
 }
 

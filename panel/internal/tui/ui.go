@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
@@ -30,6 +32,9 @@ type UI struct {
 	Width       int
 	p           Palette
 	theme       huh.Theme
+	mu          sync.Mutex // orders output with the live progress area
+	prog        progress
+	file        *os.File // the terminal, for commands run between steps
 }
 
 // New attaches to the process terminal. Colors follow NO_COLOR and the
@@ -37,18 +42,35 @@ type UI struct {
 // line-by-line prompts that work with screen readers.
 func New(in, out *os.File) *UI {
 	interactive := term.IsTerminal(int(in.Fd())) && term.IsTerminal(int(out.Fd()))
-	dark := true
-	if interactive && os.Getenv("NO_COLOR") == "" {
-		dark = lipgloss.HasDarkBackground(in, out)
-	}
-	u := build(in, colorprofile.NewWriter(out, os.Environ()), dark)
-	u.term = out
+	u := build(in, colorprofile.NewWriter(out, os.Environ()), darkTerminal(os.Getenv))
+	u.term, u.file = out, out
 	u.Interactive = interactive
 	u.Accessible = os.Getenv("GTM_ACCESSIBLE") == "1" || os.Getenv("TERM") == "dumb"
 	if w, _, e := term.GetSize(int(out.Fd())); e == nil && w > 0 {
 		u.Width = min(w, 76)
 	}
 	return u
+}
+
+// darkTerminal reads GTM_THEME (light or dark) or the COLORFGBG hint some
+// terminals export, and assumes a dark background otherwise. The terminal is
+// never queried: under "curl | sudo bash" the command runs on sudo's own
+// pseudo-terminal, where a query can stall before anything is shown and its
+// late reply is echoed on the screen.
+func darkTerminal(getenv func(string) string) bool {
+	switch strings.ToLower(getenv("GTM_THEME")) {
+	case "light":
+		return false
+	case "dark":
+		return true
+	}
+	if v := getenv("COLORFGBG"); v != "" {
+		parts := strings.Split(v, ";")
+		if bg, e := strconv.Atoi(parts[len(parts)-1]); e == nil {
+			return bg <= 6 || bg == 8
+		}
+	}
+	return true
 }
 
 // Plain is a colorless, non-interactive UI (tests and pipes).
@@ -66,7 +88,14 @@ func (u *UI) Out() io.Writer { return u.out }
 
 func (u *UI) style() lipgloss.Style { return lipgloss.NewStyle() }
 
-func (u *UI) line(s string) { fmt.Fprintln(u.out, s) }
+// line prints one line above the live progress area, if one is shown.
+func (u *UI) line(s string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.clearLocked()
+	fmt.Fprintln(u.out, s)
+	u.drawLocked()
+}
 
 // Blank prints an empty line.
 func (u *UI) Blank() { u.line("") }
@@ -191,22 +220,41 @@ func (u *UI) Command(cmd string) {
 func (u *UI) Strong(s string) string { return u.style().Bold(true).Render(s) }
 
 func (u *UI) mark(symbol string, c lipgloss.Style, text lipgloss.Style, format string, args []any) {
-	u.line("  " + c.Render(symbol) + " " + text.Render(fmt.Sprintf(format, args...)))
+	u.line(u.markText(symbol, c, text, fmt.Sprintf(format, args...)))
 }
 
-// Step announces work that is starting.
+func (u *UI) markText(symbol string, c lipgloss.Style, text lipgloss.Style, s string) string {
+	return "  " + c.Render(symbol) + " " + text.Render(s)
+}
+
+func (u *UI) good() lipgloss.Style  { return u.style().Foreground(u.p.Success).Bold(true) }
+func (u *UI) alert() lipgloss.Style { return u.style().Foreground(u.p.Warning).Bold(true) }
+func (u *UI) bad() lipgloss.Style   { return u.style().Foreground(u.p.Danger).Bold(true) }
+func (u *UI) body() lipgloss.Style  { return u.style().Foreground(u.p.Text) }
+
+// Step announces work that is starting. On a terminal it becomes the live
+// line with a spinner and the elapsed time until Done, Warn or the next Step.
 func (u *UI) Step(format string, args ...any) {
-	u.mark("›", u.style().Foreground(u.p.Accent).Bold(true), u.style().Foreground(u.p.Text), format, args)
+	text := fmt.Sprintf(format, args...)
+	if !u.animated() {
+		u.line(u.markText("›", u.style().Foreground(u.p.Accent).Bold(true), u.body(), text))
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.finishLocked("✓", u.good(), "", false)
+	u.startLocked(text)
 }
 
 // Done confirms finished work.
 func (u *UI) Done(format string, args ...any) {
-	u.mark("✓", u.style().Foreground(u.p.Success).Bold(true), u.style().Foreground(u.p.Text), format, args)
+	u.finish("✓", u.good(), fmt.Sprintf(format, args...), false)
 }
 
-// Warn flags something that needs attention but did not stop the task.
+// Warn flags something that needs attention but did not stop the task. The
+// latest output of the step that failed is shown under it.
 func (u *UI) Warn(format string, args ...any) {
-	u.mark("!", u.style().Foreground(u.p.Warning).Bold(true), u.style().Foreground(u.p.Text), format, args)
+	u.finish("!", u.alert(), fmt.Sprintf(format, args...), true)
 }
 
 // Note prints a secondary detail under a step.
@@ -216,8 +264,13 @@ func (u *UI) Note(format string, args ...any) {
 
 // Fail reports the error that ended a command.
 func (u *UI) Fail(e error) {
+	u.mu.Lock()
+	if u.prog.task != nil {
+		u.finishLocked("✗", u.bad(), "", true)
+	}
+	u.mu.Unlock()
 	u.Blank()
-	u.mark("✗", u.style().Foreground(u.p.Danger).Bold(true), u.style().Foreground(u.p.Text), "%s", []any{capitalize(e.Error())})
+	u.line(u.markText("✗", u.bad(), u.body(), capitalize(e.Error())))
 }
 
 func capitalize(s string) string {

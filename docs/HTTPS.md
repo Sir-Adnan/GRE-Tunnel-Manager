@@ -1,5 +1,7 @@
 # Panel HTTPS and certificates
 
+**English** · [فارسی](fa/HTTPS.md)
+
 The panel serves HTTPS from one of three certificate sources:
 
 | Source | Trusted by browsers | Renewal | Set up with |
@@ -35,9 +37,9 @@ sudo gtm https issue --domain panel.example.com --email ops@example.com
 The installer requests the certificate after the panel starts (`--self-signed` and `--http` skip it). A failed order never fails the installation and leaves a self-signed certificate:
 
 ```bash
-curl -fsSL .../install.sh | sudo bash -s -- --domain panel.example.com --email ops@example.com --yes
-curl -fsSL .../install.sh | sudo bash -s -- --yes    # certificate for the detected public IP
-curl -fsSL .../install.sh | sudo bash -s -- --domain panel.example.com --cloudflare-token-file /root/cloudflare.token --yes
+sudo bash -c "$(curl -fsSL URL)" @ --domain panel.example.com --email ops@example.com --yes
+sudo bash -c "$(curl -fsSL URL)" @ --yes    # certificate for the detected public IP
+sudo bash -c "$(curl -fsSL URL)" @ --domain panel.example.com --cloudflare-token-file /root/cloudflare.token --yes
 ```
 
 ### Renewal

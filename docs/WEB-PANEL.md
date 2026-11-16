@@ -4,21 +4,7 @@ Manage local tunnels from a Persian/English interface on desktop or mobile. The 
 
 ## Installation and login
 
-On Debian/Ubuntu with systemd:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash
-```
-
-The installer downloads the prebuilt release, verifies its SHA-256 checksum and starts a short setup: address, connection security, port, login and optional engines. Every answer has an option for unattended installs, for example:
-
-```bash
-curl -fsSL .../install.sh | sudo bash -s -- --yes
-curl -fsSL .../install.sh | sudo bash -s -- --domain panel.example.com --email ops@example.com --port 2053 --yes
-curl -fsSL .../install.sh | sudo bash -s -- --http --domain 203.0.113.10 --port 8080 --yes
-```
-
-`--yes` uses the defaults: trusted HTTPS from Let's Encrypt for the detected public IP, a free random port, user `admin` and a generated password. The summary shows the address and the password once. Managed servers need no Node.js, Python, compiler, Docker or database server. All options, and the `gtm` command that maintains the panel afterwards, are in [Command line](COMMAND-LINE.md).
+Installation, unattended recipes, every option, updates and removal are in one place: **[Install, update and remove](INSTALL.md)**. This section covers how the installed panel handles its address, certificates and sign-in.
 
 ### Address, certificates and access
 

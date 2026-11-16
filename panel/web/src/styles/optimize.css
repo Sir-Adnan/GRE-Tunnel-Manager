@@ -127,7 +127,9 @@
   .opt-intensity:has([data-level="aggressive"].is-checked) .opt-intensity-fill {
     background: linear-gradient(90deg, var(--primary), var(--warning));
   }
-  [dir="rtl"] .opt-intensity:has([data-level="aggressive"].is-checked) .opt-intensity-fill {
+  [dir="rtl"]
+    .opt-intensity:has([data-level="aggressive"].is-checked)
+    .opt-intensity-fill {
     background: linear-gradient(270deg, var(--primary), var(--warning));
   }
   @media (prefers-reduced-motion: no-preference) {
@@ -252,7 +254,7 @@
 
   /* Groups beside a narrow column of safety, history and files. */
   .opt-layout {
-    @apply grid items-start gap-5;
+    @apply grid grid-cols-[minmax(0,1fr)] items-start gap-5;
   }
   @media (min-width: 72rem) {
     .opt-layout {
@@ -456,7 +458,7 @@
     @apply flex flex-col gap-3;
   }
   .opt-side-card {
-    @apply flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm;
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm;
   }
   .opt-side-card h2 {
     @apply flex items-center gap-2 text-sm font-semibold;

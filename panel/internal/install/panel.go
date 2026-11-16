@@ -77,6 +77,17 @@ func (in *Installer) InstallPanel(ctx context.Context, o PanelOptions) (PanelRes
 	if e := in.checkPackage(ctx, o.Source); e != nil {
 		return result, e
 	}
+	configPath := l.Path(ConfigFile)
+	_, statErr := os.Lstat(configPath)
+	fresh := errors.Is(statErr, os.ErrNotExist)
+	// Account, release files and start, plus the steps this run needs.
+	count := 3
+	for _, needed := range []bool{h.LookPath("ip") != nil, fresh, o.Engines, o.Certificate != nil} {
+		if needed {
+			count++
+		}
+	}
+	plan(r, count)
 	if e := in.ensureTools(ctx); e != nil {
 		return result, e
 	}
@@ -104,8 +115,7 @@ func (in *Installer) InstallPanel(ctx context.Context, o PanelOptions) (PanelRes
 			return result, e
 		}
 	}
-	configPath := l.Path(ConfigFile)
-	if _, statErr := os.Lstat(configPath); errors.Is(statErr, os.ErrNotExist) {
+	if fresh {
 		r.Step("Creating the panel configuration")
 		cfg, fingerprint, e := in.createConfig(configPath, o.Setup)
 		if e != nil {
@@ -174,7 +184,7 @@ func (in *Installer) InstallPanel(ctx context.Context, o PanelOptions) (PanelRes
 	if o.Engines {
 		r.Step("Installing tunnel engines")
 		args := append([]string{l.Path(Engine), "--api", "install"}, Engines...)
-		if e = h.Stream(ctx, "/bin/bash", args...); e != nil {
+		if e = h.StreamEnv(ctx, aptEnv, "/bin/bash", args...); e != nil {
 			r.Warn("Engine installation failed; install them later under Tunnel engines in the panel")
 		} else {
 			r.Done("Tunnel engines installed")
@@ -218,12 +228,21 @@ func (in *Installer) ensureTools(ctx context.Context) error {
 	if in.Host.LookPath("ip") == nil {
 		return nil
 	}
-	in.report().Step("Installing iproute2")
-	if e := in.Host.Stream(ctx, "apt-get", "update"); e != nil {
+	r := in.report()
+	r.Step("Installing iproute2")
+	if e := in.Host.StreamEnv(ctx, aptEnv, "apt-get", "update"); e != nil {
 		return e
 	}
-	return in.Host.Stream(ctx, "apt-get", "install", "-y", "--no-install-recommends", "iproute2", "ca-certificates")
+	if e := in.Host.StreamEnv(ctx, aptEnv, "apt-get", "install", "-y", "--no-install-recommends", "iproute2", "ca-certificates"); e != nil {
+		return e
+	}
+	r.Done("iproute2 installed")
+	return nil
 }
+
+// aptEnv keeps package installation from stopping at a question that no one
+// sees (debconf, or needrestart's service list on Ubuntu).
+var aptEnv = []string{"DEBIAN_FRONTEND=noninteractive", "NEEDRESTART_MODE=a"}
 
 func (in *Installer) createConfig(path string, s Setup) (config.Config, string, error) {
 	listen := s.Listen

@@ -25,6 +25,6 @@ This is a Bash tunnel/forwarding manager with an optional Go web panel. Read the
 - Run the modern-module ShellCheck command in [.github/workflows/checks.yml](.github/workflows/checks.yml).
 - For panel changes: `npm ci && npm run build && npm run lint && npm test` in `panel/web`; `go test -race ./... && go vet ./...` in `panel`.
 - For networking changes: `sudo bash tests/linux_namespace.sh` in isolated Linux namespaces. For interface changes, check real browser flows in both locales and mobile/desktop sizes.
-- Update affected guides and [Changelog](docs/CHANGELOG.md). Technical documentation is English; `README.fa.md` is the Persian quick start. Distinguish local test evidence from real-server checks.
+- Update affected guides and [Changelog](docs/CHANGELOG.md). Technical documentation is English; `README.fa.md` and the user guides in `docs/fa/` (install, user guide, troubleshooting, HTTPS, firewall) are Persian and change together with their English pages. Distinguish local test evidence from real-server checks.
 
 See [Development](docs/DEVELOPMENT.md) for fixtures and [Releasing](docs/RELEASING.md) for version/package checks. Publish or deploy only when the user requests it.

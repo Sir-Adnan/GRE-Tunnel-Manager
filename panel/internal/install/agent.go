@@ -70,7 +70,8 @@ func (in *Installer) InstallAgent(ctx context.Context, p release.Package, o Agen
 		}
 	}
 	if !regular(l.Path(agentDir + "/identity.json")) {
-		r.Step("Enrolling with the Controller (paste the one-time code from the panel)")
+		settle(r)
+		r.Note("Enrolling with the Controller: paste the one-time code from the panel")
 		// The binary reads the invitation from the terminal with echo off.
 		if e = h.Stream(ctx, "runuser", "-u", "greagent", "--", p.Binary, "nodes", "enroll"); e != nil {
 			return o, fmt.Errorf("enrollment failed: %w", e)

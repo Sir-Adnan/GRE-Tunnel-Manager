@@ -100,11 +100,22 @@ func (s System) Stream(ctx context.Context, name string, args ...string) error {
 
 func (s System) StreamEnv(ctx context.Context, env []string, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.Stdin, s.Stdout, s.Stderr
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = s.Stdin, direct(s.Stdout), direct(s.Stderr)
 	if env != nil {
 		cmd.Env = append(os.Environ(), env...)
 	}
 	return cmd.Run()
+}
+
+// direct hands a command the terminal itself when the writer offers it (no
+// progress line is live), so the command sees a terminal.
+func direct(w io.Writer) io.Writer {
+	if f, ok := w.(interface{ File() *os.File }); ok {
+		if file := f.File(); file != nil {
+			return file
+		}
+	}
+	return w
 }
 
 func (System) LookPath(name string) error {
@@ -128,6 +139,24 @@ type Reporter interface {
 	Done(format string, args ...any) // work succeeded
 	Warn(format string, args ...any) // attention, not fatal
 	Note(format string, args ...any) // secondary detail
+}
+
+// Planner is an optional Reporter that shows how many steps a task has.
+type Planner interface {
+	Plan(steps int)
+}
+
+func plan(r Reporter, steps int) {
+	if p, ok := r.(Planner); ok {
+		p.Plan(steps)
+	}
+}
+
+// settle ends a live progress line before a command talks to the operator.
+func settle(r Reporter) {
+	if s, ok := r.(interface{ Settle() }); ok {
+		s.Settle()
+	}
 }
 
 // Quiet discards progress.

@@ -553,6 +553,7 @@ export const common = {
   deactivating: ["Stopping", "در حال توقف"],
   appearance: ["Appearance", "ظاهر پنل"],
   language: ["Language", "زبان"],
+  otherLanguage: ["فارسی", "English"],
   style: ["Visual preset", "تم ظاهری"],
   mode: ["Color mode", "حالت رنگ"],
   light: ["Light", "روشن"],

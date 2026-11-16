@@ -114,7 +114,7 @@ gtm_api() {
         dns-status|dns-apply|dns-restore) gtm_sysdns_api "$operation" "$@";;
         firewall-status|firewall-apply|firewall-confirm|firewall-revert) gtm_guard_api "$operation" "$@";;
         # IP change and additional addresses; see src/addresses.sh.
-        address-uses|address-replace|readdress-check|readdress-apply|extra-list|extra-add|extra-delete) gtm_address_api "$operation" "$@";;
+        address-uses|address-replace|readdress-check|readdress-apply|extra-list|extra-add|extra-keep|extra-delete) gtm_address_api "$operation" "$@";;
         # Retiring v13.x forwards, Simple GRE and old tuning files; see src/cleanup.sh.
         legacy-scan|legacy-retire) gtm_legacy_api "$operation" "$@";;
         portfw-rules) (($#==0)) && gtm_portfw_rules;;
@@ -168,7 +168,7 @@ gtm_api() {
             done
             # Explicit --api install authorizes these specific packages. No service
             # is enabled by this boundary; engine units are created only on apply.
-            for component in "$@"; do gtm_install_component "$component" || return 1; done;;
+            gtm_install_components "$@";;
         gre-create) (($#==5)) && gtm_prepare && gtm_lock || return 2
             gtm_link_create "$@"; local result=$?; gtm_unlock; return "$result";;
         gre-delete) (($#==1)) && gtm_prepare && gtm_lock || return 2

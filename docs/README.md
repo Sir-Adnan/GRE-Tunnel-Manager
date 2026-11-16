@@ -1,19 +1,26 @@
 # Documentation
 
-Start with the project quick start in [English](../README.md) or [Persian](../README.fa.md). These technical guides are maintained in English.
+**English** · [فارسی](fa/README.md) — the install, user, troubleshooting, HTTPS and firewall guides are also in Persian.
+
+## Start here
+
+| Guide | What it covers |
+| --- | --- |
+| [Install, update and remove](INSTALL.md) | One-line install, recipes without questions (HTTP, HTTPS, domain), every option, `gtm`, upgrades |
+| [User guide](USER-GUIDE.md) | Choosing a method, creating connections and everyday actions |
+| [Troubleshooting](TROUBLESHOOTING.md) | The panel does not open, certificates, a stuck installer, lost passwords, temporary IPs |
 
 ## Setup and daily use
 
 | Guide | What it covers |
 | --- | --- |
-| [User guide](USER-GUIDE.md) | Choosing a method, creating connections and everyday actions |
-| [Web panel](WEB-PANEL.md) | Installation, HTTP/HTTPS, upgrades and access recovery |
+| [Web panel](WEB-PANEL.md) | What each part of the panel does: security, updates, connections, health, notifications |
 | [HTTPS and certificates](HTTPS.md) | Built-in Let's Encrypt for a domain or IP (port 80 or Cloudflare DNS), automatic renewal, Certbot/acme.sh hooks, self-signed |
 | [Nodes and Agents](NODES.md) | Local-only operation, Controller setup and enrollment |
 | [Connect two servers](PAIRED-CONNECTIONS.md) | Coordinated GRE/FRP setup and failure recovery |
 | [Operations](OPERATIONS.md) | Validation, backups, restoration and deployment checks |
 | [Backup and restore](BACKUP-RESTORE.md) | Encrypted portable recovery, fresh-server migration and optional accounting |
-| [Panel removal](PANEL-REMOVAL.md) | Removing the panel while retaining tunnels |
+| [Panel removal](PANEL-REMOVAL.md) | Reference: what removal checks, removes and keeps (the short version is in [Install](INSTALL.md#remove)) |
 
 ## Connections and traffic
 

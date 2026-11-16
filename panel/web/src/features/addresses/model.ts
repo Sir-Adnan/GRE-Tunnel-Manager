@@ -18,6 +18,8 @@ export type HostAddress = {
   prefix: number;
   uplink: boolean;
   container: boolean;
+  /** Added by hand: nothing re-creates it at boot (see address-extra-keep). */
+  temporary?: boolean;
 };
 export type ExtraAddress = {
   id: number;

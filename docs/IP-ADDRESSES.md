@@ -47,6 +47,16 @@ Each address is one owned, enabled `gtm-addr-N.service` (N 1–32, header `# GTM
 
 Additional addresses are server state, not saved forwarding records. They are not part of TSV restore points or portable backups. Add them again on a new server.
 
+### Temporary addresses
+
+An address added by hand (`ip address add 203.0.113.44 dev eth0`) lives until the next restart; connections that use it stop afterwards. **This server's addresses** marks an IPv4 address on the main interface **Temporary** when nothing sets it again at boot:
+
+- the kernel does not list it as `dynamic` (a DHCP lease);
+- no network configuration names it: `/etc/netplan`, `/etc/network/interfaces(.d)`, systemd-networkd files in `/etc` and `/run`, or NetworkManager connections;
+- no `gtm-addr-N` unit keeps it.
+
+**Keep after restart** runs the broker action `address-extra-keep` (engine `extra-keep ADDRESS/PREFIX IFACE`). It writes the next `gtm-addr-N` unit for the address exactly as it is, without a separate gateway, after checking that the address is on that interface with that prefix and is not kept already. The address then appears under **Additional IPs**, where it can be removed like any other. IPv6 addresses are not marked, because configuration files spell them in several ways.
+
 ## Limits
 
 - Moving is per address family. IPv4 cannot move to IPv6.

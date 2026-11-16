@@ -99,7 +99,7 @@ export function Addresses({ refresh }: { refresh: () => Promise<void> }) {
               </Button>
             </div>
           ))}
-          <HostAddresses report={report} />
+          <HostAddresses report={report} changed={reloadAll} />
           <ExtraAddresses
             report={report}
             add={() => updateParams({ extra: "1" }, true)}

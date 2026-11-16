@@ -67,7 +67,7 @@ Keep LF endings, bounded data contracts and checked operations. Do not source us
 
 ## Documentation and release
 
-Technical guides are English; [README.fa.md](../README.fa.md) is the Persian quick start. Keep user-facing guides about current behavior, move completed implementation reports to the [archive](archive/README.md), and record changes in the changelog.
+Technical guides are English. [README.fa.md](../README.fa.md) and the user guides in [docs/fa](fa/README.md) are Persian; update them together with their English pages. Keep user-facing guides about current behavior, move completed implementation reports to the [archive](archive/README.md), and record changes in the changelog.
 
 Use MAJOR.MINOR.PATCH for application releases; state schemas and Node protocols are versioned independently. Historical v13.x tags keep their original numbers. Follow [Releasing](RELEASING.md) for matched versions, packages and publication. Local tests do not establish public-network reachability, reboot recovery or sustained capacity; see [Operations](OPERATIONS.md#deployment-checks-still-requiring-real-hosts).
 

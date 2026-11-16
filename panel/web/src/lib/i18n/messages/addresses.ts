@@ -41,6 +41,16 @@ export const addresses = {
     "اینترفیس اصلی (مسیر پیش‌فرض)",
   ],
   ipExtraBadge: ["Additional", "اضافه"],
+  ipTemporary: ["Temporary", "موقت"],
+  ipTemporaryHelp: [
+    "Added by hand and set nowhere else: the next restart removes it, and connections on it stop.",
+    "دستی اضافه شده و جای دیگری تنظیم نشده است: با ری‌استارت بعدی حذف می‌شود و اتصال‌های روی آن قطع می‌شوند.",
+  ],
+  ipKeep: ["Keep after restart", "ماندگار کن"],
+  ipKept: [
+    "{ip} is kept; it comes back after every restart.",
+    "{ip} ماندگار شد و بعد از هر ری‌استارت برمی‌گردد.",
+  ],
   ipUnused: ["Not used by saved settings", "در تنظیمات ذخیره‌شده استفاده نشده"],
   ipUsedBy: ["Used by {n}", "استفاده در {n} مورد"],
   ipContainersHidden: [

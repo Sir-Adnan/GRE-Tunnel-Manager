@@ -315,8 +315,11 @@ gtm_extra_list() {
 
 # extra-add ADDRESS/PREFIX IFACE GATEWAY|-: creates and starts the next unit,
 # then reports whether the address is on the server and routes from it.
+# With a fourth argument "keep" the address must already be on the interface
+# (added by hand with "ip address add", so a restart would drop it); the unit
+# then keeps it across restarts. See extra-keep.
 gtm_extra_add() {
-    local cidr=$1 iface=$2 gateway=$3 address prefix n unit maximum=32 route probe
+    local cidr=$1 iface=$2 gateway=$3 mode=${4:-add} address prefix n unit maximum=32 route probe
     address=${cidr%/*}; prefix=${cidr##*/}
     [[ $cidr == */* ]] && gtm_ip "$address" && ! gtm_wildcard "$address" || { gtm_error 'Enter the address with its prefix, like 203.0.113.40/32.'; return 2; }
     [[ $address != *:* ]] || maximum=128
@@ -324,7 +327,14 @@ gtm_extra_add() {
     [[ $gateway == - ]] || { gtm_ip "$gateway" && gtm_same_family "$address" "$gateway" && ! gtm_wildcard "$gateway"; } || { gtm_error 'The gateway must be an address of the same family.'; return 2; }
     gtm_need ip && gtm_need systemctl || return 1
     ip link show dev "$iface" >/dev/null 2>&1 || { gtm_error "Network interface not found: $iface"; return 1; }
-    ! gtm_local_address "$address" 2>/dev/null || { gtm_error "The address is already on this server: $address"; return 1; }
+    if [[ $mode == keep ]]; then
+        ip -o address show dev "$iface" 2>/dev/null | awk '{print $4}' | grep -qxF -- "$address/$((10#$prefix))" ||
+            { gtm_error "The address is not on $iface: $address/$((10#$prefix))"; return 1; }
+        ! gtm_extra_list | awk -F'\t' '{print $2}' | grep -qxF -- "$address/$((10#$prefix))" ||
+            { gtm_error "The address is already kept: $address"; return 1; }
+    else
+        ! gtm_local_address "$address" 2>/dev/null || { gtm_error "The address is already on this server: $address"; return 1; }
+    fi
     for ((n=1; n<=GTM_EXTRA_MAX; n++)); do
         unit="$GTM_SERVICE_DIR/gtm-addr-$n.service"
         [[ -e $unit || -L $unit ]] || break
@@ -381,6 +391,7 @@ gtm_address_api() {
         readdress-check) (($#==3)) && gtm_readdress_args "$@" && gtm_readdress_digest "$1" "$3";;
         readdress-apply) (($#==4)) && gtm_readdress_apply "$@";;
         extra-add) (($#==3)) && gtm_extra_add "$@";;
+        extra-keep) (($#==2)) && gtm_extra_add "$1" "$2" - keep;;
         extra-delete) (($#==1)) && gtm_extra_delete "$1";;
         *) false;;
     esac

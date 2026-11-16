@@ -80,19 +80,21 @@ export function ConnectionWorkspace({
             </ActionButton>
             <Button
               variant="outline"
+              className="max-sm:w-9 max-sm:px-0"
               aria-label={t("importConfiguration")}
               onClick={() => setImporting(true)}
             >
               <FileUp data-icon="inline-start" />
-              {t("importShort")}
+              <span className="max-sm:sr-only">{t("importShort")}</span>
             </Button>
             <Button
               variant="outline"
+              className="max-sm:w-9 max-sm:px-0"
               title={t("wizOpenHelp")}
               onClick={() => updateParams({ wizard: "gre" })}
             >
               <Waypoints data-icon="inline-start" />
-              {t("wizOpen")}
+              <span className="max-sm:sr-only">{t("wizOpen")}</span>
             </Button>
             <Button onClick={create}>
               <Plus data-icon="inline-start" />
@@ -116,7 +118,7 @@ export function ConnectionWorkspace({
           count: number(counts[id], locale),
         }))}
       />
-      <Card>
+      <Card className="list-shell">
         <CardContent>
           <ConnectionTable
             key={engine}

@@ -295,6 +295,18 @@
   .ip-row-uses {
     @apply flex flex-col text-xs text-muted-foreground;
   }
+  /* A hand-added address: why it matters, and the one-click fix. */
+  .ip-temporary {
+    @apply flex flex-wrap items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs;
+    background: color-mix(in oklab, var(--fw-warn) 10%, transparent);
+    p {
+      @apply flex min-w-0 flex-1 basis-56 items-start gap-1.5 leading-relaxed;
+    }
+    p svg {
+      @apply mt-0.5 size-3.5 shrink-0;
+      color: var(--fw-warn);
+    }
+  }
   .ip-empty {
     @apply flex flex-col items-start gap-3 rounded-lg border border-dashed p-4;
   }

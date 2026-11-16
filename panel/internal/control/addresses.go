@@ -10,7 +10,10 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -46,6 +49,9 @@ type HostAddressView struct {
 	Prefix    int    `json:"prefix"`
 	Uplink    bool   `json:"uplink"`
 	Container bool   `json:"container"`
+	// Temporary: an IPv4 address on the uplink that no network configuration
+	// or owned unit sets (added by hand), so the next restart drops it.
+	Temporary bool `json:"temporary"`
 }
 
 // ExtraAddress is an additional address kept by a gtm-addr-N unit.
@@ -136,6 +142,94 @@ func (in AddressInput) extraArgs() ([]string, error) {
 		gateway = g.String()
 	}
 	return []string{p.String(), in.Interface, gateway}, nil
+}
+
+// keepArgs validates an address to keep across restarts: ADDRESS/PREFIX IFACE.
+func (in AddressInput) keepArgs() ([]string, error) {
+	in.Gateway = ""
+	args, e := in.extraArgs()
+	if e != nil {
+		return nil, e
+	}
+	return args[:2], nil
+}
+
+// Network configuration that sets addresses at boot: netplan (and what it
+// generates), ifupdown, systemd-networkd and NetworkManager.
+var networkConfigGlobs = []string{
+	"/etc/netplan/*.yaml", "/etc/netplan/*.yml", "/etc/network/interfaces", "/etc/network/interfaces.d/*",
+	"/etc/systemd/network/*.network", "/run/systemd/network/*.network", "/etc/NetworkManager/system-connections/*",
+}
+
+// networkConfig concatenates the network configuration, bounded in size.
+func networkConfig(globs []string) string {
+	var b strings.Builder
+	for _, g := range globs {
+		paths, _ := filepath.Glob(g)
+		for _, p := range paths {
+			if info, e := os.Stat(p); e != nil || !info.Mode().IsRegular() || info.Size() > 256<<10 || b.Len() > 2<<20 {
+				continue
+			}
+			if data, e := os.ReadFile(p); e == nil {
+				b.Write(data)
+				b.WriteByte('\n')
+			}
+		}
+	}
+	return b.String()
+}
+
+// dynamicAddresses lists addresses a DHCP or router advertisement lease keeps
+// ("dynamic" in "ip -o address show").
+func dynamicAddresses(listing string) map[string]bool {
+	out := map[string]bool{}
+	for _, line := range strings.Split(listing, "\n") {
+		f := strings.Fields(line)
+		for i := 0; i+1 < len(f); i++ {
+			if (f[i] == "inet" || f[i] == "inet6") && slices.Contains(f, "dynamic") {
+				if p, e := netip.ParsePrefix(f[i+1]); e == nil {
+					out[p.Addr().String()] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// mentions reports whether text names the IPv4 address as a whole token.
+func mentions(text, address string) bool {
+	for i := 0; ; {
+		j := strings.Index(text[i:], address)
+		if j < 0 {
+			return false
+		}
+		j += i
+		end := j + len(address)
+		before := j == 0 || !strings.ContainsRune("0123456789.", rune(text[j-1]))
+		after := end == len(text) || !strings.ContainsRune("0123456789", rune(text[end])) && !(text[end] == '.' && end+1 < len(text) && text[end+1] >= '0' && text[end+1] <= '9')
+		if before && after {
+			return true
+		}
+		i = j + 1
+	}
+}
+
+// markTemporary flags IPv4 addresses on the uplink that nothing re-creates at
+// boot: not leased (dynamic), not in the network configuration and not kept
+// by an owned unit. IPv6 is left alone; its spellings in files vary.
+func markTemporary(host []HostAddressView, extra []ExtraAddress, dynamic map[string]bool, config string) {
+	kept := map[string]bool{}
+	for _, x := range extra {
+		kept[strings.SplitN(x.Address, "/", 2)[0]] = true
+	}
+	for i := range host {
+		h := &host[i]
+		a, e := netip.ParseAddr(h.Address)
+		if e != nil || !a.Is4() || !h.Uplink || h.Container || dynamic[h.Address] || kept[h.Address] || mentions(config, h.Address) {
+			continue
+		}
+		h.Temporary = true
+	}
 }
 
 // parseAddressUses reads address-uses rows; malformed rows are skipped.
@@ -289,7 +383,20 @@ func (m *Manager) addresses(ctx context.Context, r Request) (any, error) {
 			return nil, e
 		}
 		host, uplink, gateway, interfaces := hostAddressViews()
-		return addressReport(parseAddressUses(out, names), parseExtraAddresses(extra), host, uplink, gateway, interfaces), nil
+		kept := parseExtraAddresses(extra)
+		if uplink != "" && interfaceName.MatchString(uplink) {
+			listing, e := exec.CommandContext(ctx, "ip", "-o", "address", "show", "dev", uplink).Output()
+			if e == nil {
+				markTemporary(host, kept, dynamicAddresses(string(listing)), networkConfig(networkConfigGlobs))
+			}
+		}
+		return addressReport(parseAddressUses(out, names), kept, host, uplink, gateway, interfaces), nil
+	case "address-extra-keep":
+		args, e := r.Address.keepArgs()
+		if e != nil {
+			return nil, e
+		}
+		return m.call(ctx, "extra-keep", "", args...)
 	case "address-replace":
 		args, e := r.Address.replaceArgs()
 		if e != nil {

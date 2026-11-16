@@ -161,8 +161,17 @@
 
   /* Route chain: entrance ports, a wire that carries the tone, destinations. The arrowhead points to the
      inline end, so it reads right-to-left in Persian. */
+  /* One row that never wraps: the wire only takes the room that is left (up
+     to 4rem), so it is never stranded at the end of a line, and a destination
+     that does not fit wraps inside its own chip, between address and port. */
   .route-chain {
-    @apply flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-1;
+    @apply flex min-w-0 max-w-full flex-nowrap items-center gap-x-1.5;
+  }
+  .route-chain > .chain-node {
+    @apply shrink-0;
+  }
+  .route-chain > .chain-node.is-target {
+    flex: 0 1 auto;
   }
   .chain-node {
     @apply inline-flex min-w-0 max-w-full items-center rounded-md px-1.5 py-0.5 font-mono text-xs;
@@ -172,13 +181,13 @@
     @apply px-1.5 py-0;
   }
   .chain-ports {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .chain-protocol {
     @apply font-sans text-[11px] font-semibold text-muted-foreground;
   }
   .chain-wire {
-    @apply relative h-0.5 min-w-5 max-w-16 flex-1;
+    @apply relative h-0.5 me-1 max-w-16 min-w-3 grow basis-0;
     color: var(--tone, var(--muted-foreground));
     background: repeating-linear-gradient(
       90deg,
@@ -626,7 +635,7 @@
     @apply flex min-w-0 items-center gap-2;
   }
   .endpoint-value {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
     font-variant-numeric: tabular-nums;
   }
   .endpoint-value > span:last-child {

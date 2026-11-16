@@ -18,6 +18,8 @@ type demoAddressState struct {
 	extra []ExtraAddress
 }
 
+const demoTemporaryAddress = "203.0.113.44"
+
 func (d *Demo) addressState() *demoAddressState {
 	x := d.extras()
 	if x.addresses == nil {
@@ -31,9 +33,16 @@ func (d *Demo) demoHostAddresses() []HostAddressView {
 		{Interface: "eth0", Address: "203.0.113.10", Prefix: 24, Uplink: true},
 		{Interface: "eth0", Address: "2001:db8::10", Prefix: 64, Uplink: true},
 	}
-	for _, x := range d.addressState().extra {
+	state := d.addressState()
+	kept := map[string]bool{}
+	for _, x := range state.extra {
 		p := netip.MustParsePrefix(x.Address)
+		kept[p.Addr().String()] = true
 		host = append(host, HostAddressView{Interface: x.Interface, Address: p.Addr().String(), Prefix: p.Bits(), Uplink: x.Interface == "eth0"})
+	}
+	// One address was added by hand with "ip address add": a restart drops it.
+	if !kept[demoTemporaryAddress] {
+		host = append(host, HostAddressView{Interface: "eth0", Address: demoTemporaryAddress, Prefix: 32, Uplink: true, Temporary: true})
 	}
 	return append(host, HostAddressView{Interface: "docker0", Address: "172.17.0.1", Prefix: 16, Container: true})
 }
@@ -192,6 +201,22 @@ func (d *Demo) addressesDemo(r Request) (json.RawMessage, error) {
 			x.Gateway = args[2]
 		}
 		state.extra = append(state.extra, x)
+		return json.Marshal(fmt.Sprintf("extra\t%d\ncheck\tpresent\t1\ncheck\troute\t1", id))
+	case "address-extra-keep":
+		args, e := r.Address.keepArgs()
+		if e != nil {
+			return nil, e
+		}
+		if !slices.ContainsFunc(d.demoHostAddresses(), func(h HostAddressView) bool {
+			return h.Temporary && fmt.Sprintf("%s/%d", h.Address, h.Prefix) == args[0] && h.Interface == args[1]
+		}) {
+			return nil, errors.New("the address is not on " + args[1] + ": " + args[0])
+		}
+		id := 1
+		for slices.ContainsFunc(state.extra, func(x ExtraAddress) bool { return x.ID == id }) {
+			id++
+		}
+		state.extra = append(state.extra, ExtraAddress{ID: id, Address: args[0], Interface: args[1], Active: true, Present: true})
 		return json.Marshal(fmt.Sprintf("extra\t%d\ncheck\tpresent\t1\ncheck\troute\t1", id))
 	case "address-extra-delete":
 		i := slices.IndexFunc(state.extra, func(x ExtraAddress) bool { return x.ID == r.Address.ID })

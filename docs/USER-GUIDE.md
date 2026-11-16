@@ -1,6 +1,8 @@
 # User guide
 
-Tunnels and forwards are managed in the web panel. Install it with the command in the [README](../README.md); [Web panel](WEB-PANEL.md) covers installation options, upgrades and access recovery. Since v1.6.0 there are no terminal menus: `gre.sh` is the panel's engine, and run without arguments it installs or updates the panel.
+**English** · [فارسی](fa/USER-GUIDE.md)
+
+Tunnels and forwards are managed in the web panel. Install it as described in [Install, update and remove](INSTALL.md). Since v1.6.0 there are no terminal menus: `gre.sh` is the panel's engine, and run without arguments it installs or updates the panel.
 
 ## Where things are
 
