@@ -2,7 +2,7 @@ module github.com/Sir-Adnan/GRE-Tunnel-Manager/panel
 
 go 1.26.0
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	charm.land/bubbles/v2 v2.0.0

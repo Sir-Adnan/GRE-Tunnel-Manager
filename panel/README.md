@@ -6,7 +6,7 @@ An optional Go panel for local tunnel management, with outbound Agents for multi
 
 ## Build and preview
 
-Development requires Node 24 and Go 1.27.3. Managed servers use prebuilt packages and need neither toolchain.
+Development requires Node 24 and Go 1.27.4. Managed servers use prebuilt packages and need neither toolchain.
 
 ```bash
 cd panel/web

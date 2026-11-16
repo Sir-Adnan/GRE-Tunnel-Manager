@@ -11,7 +11,7 @@ python3 tools/build.py
 python3 tools/build.py --check
 ```
 
-The panel uses Node 24 and Go 1.27.3 for development. Managed servers use the prebuilt executable and matching Bash helper; they need neither compiler nor Node.js.
+The panel uses Node 24 and Go 1.27.4 for development. Managed servers use the prebuilt executable and matching Bash helper; they need neither compiler nor Node.js.
 
 ```bash
 cd panel/web

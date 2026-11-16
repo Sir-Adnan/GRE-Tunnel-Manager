@@ -25,4 +25,4 @@ On a server with an earlier release run `sudo gtm update` (v1.6.0 and later), or
 
 Local verification covers the Python suite, Go race/vet, frontend build/lint/tests, ShellCheck, isolated namespace packet tests and installation, update, rollback, certificate, two-factor and removal runs in a disposable systemd container. A real Let's Encrypt order and renewal on a public server, provider firewalls and reboots remain deployment checks.
 
-New dependencies: Charm's Huh, Bubble Tea, Bubbles and Lip Gloss (terminal setup) and `rsc.io/qr` (two-factor QR code), with licenses in `LICENSES/GoDependencies.txt`.
+Built with Go 1.27.4, which fixes GO-2026-6859 in the standard library's `net/http`. New dependencies: Charm's Huh, Bubble Tea, Bubbles and Lip Gloss (terminal setup) and `rsc.io/qr` (two-factor QR code), with licenses in `LICENSES/GoDependencies.txt`.
