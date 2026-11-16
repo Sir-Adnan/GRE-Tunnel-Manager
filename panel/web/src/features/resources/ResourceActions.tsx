@@ -1,8 +1,7 @@
-import { useContext, useState } from "react";
+import { useState } from "react";
 import {
   Code2,
   FileText,
-  MoreHorizontal,
   Pencil,
   Play,
   RotateCw,
@@ -12,15 +11,8 @@ import {
 } from "lucide-react";
 import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { ActionMenu } from "@/components/ActionMenu";
+import { useT } from "@/lib/i18n";
 import type { Resource } from "@/lib/api";
 
 export function ResourceActions({
@@ -36,8 +28,7 @@ export function ResourceActions({
   onDelete: () => void;
   run: (request: unknown) => Promise<void>;
 }) {
-  const t = useT(),
-    locale = useContext(LocaleContext);
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [diagnosing, setDiagnosing] = useState(false);
   const diagnosable = /^gre-tun-[0-9]{1,3}$/.test(resource.id);
@@ -61,55 +52,64 @@ export function ResourceActions({
         <Code2 data-icon="inline-start" />
         {t("viewConfig")}
       </Button>
-      <DropdownMenu dir={locale === "fa" ? "rtl" : "ltr"}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={busy}
-            aria-label={`${t("moreActions")} ${resource.name}`}
-          >
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={onRename}>
-              <Pencil />
-              {t("renameDisplay")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void service("enable")}>
-              <Play />
-              {t("startAtBoot")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void service("stop")}>
-              <Square />
-              {t("stop")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void service("restart")}>
-              <RotateCw />
-              {t("restart")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void service("logs")}>
-              <FileText />
-              {t("logs")}
-            </DropdownMenuItem>
-            {diagnosable && (
-              <DropdownMenuItem onSelect={() => setDiagnosing(true)}>
-                <Stethoscope />
-                {t("diagOpen")}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2 />
-              {t("delete")}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ActionMenu
+        label={`${t("moreActions")} ${resource.name}`}
+        title={resource.name}
+        disabled={busy}
+        groups={[
+          [
+            {
+              id: "rename",
+              label: t("renameDisplay"),
+              icon: <Pencil />,
+              onSelect: onRename,
+            },
+            {
+              id: "enable",
+              label: t("startAtBoot"),
+              icon: <Play />,
+              onSelect: () => void service("enable"),
+            },
+            {
+              id: "stop",
+              label: t("stop"),
+              icon: <Square />,
+              onSelect: () => void service("stop"),
+            },
+            {
+              id: "restart",
+              label: t("restart"),
+              icon: <RotateCw />,
+              onSelect: () => void service("restart"),
+            },
+            {
+              id: "logs",
+              label: t("logs"),
+              icon: <FileText />,
+              onSelect: () => void service("logs"),
+            },
+            ...(diagnosable
+              ? [
+                  {
+                    id: "diagnose",
+                    label: t("diagOpen"),
+                    icon: <Stethoscope />,
+                    onSelect: () => setDiagnosing(true),
+                  },
+                ]
+              : []),
+          ],
+          [
+            {
+              id: "delete",
+              label: t("delete"),
+              icon: <Trash2 />,
+              onSelect: onDelete,
+              destructive: true,
+            },
+          ],
+        ]}
+      />
       <DiagnoseDialog
         key={String(diagnosing)}
         owner={diagnosing ? resource.id : undefined}

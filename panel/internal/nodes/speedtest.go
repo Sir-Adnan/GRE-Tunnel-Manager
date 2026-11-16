@@ -58,7 +58,7 @@ func (h *Hub) StartSpeedTest(node, tunnel string) (SpeedTest, error) {
 		return SpeedTest{}, problem("busy", "Another speed test is running")
 	}
 	o, ok := h.probes[node]
-	if !ok || h.now().Sub(o.seen) > 3*time.Minute {
+	if !ok || h.now().Sub(o.seen) > offlineAfter {
 		return SpeedTest{}, problem("no_probes", "This node has not sent a tunnel report recently; update it to v1.4.1 or later")
 	}
 	address := ""

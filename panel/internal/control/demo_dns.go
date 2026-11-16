@@ -21,6 +21,9 @@ type demoExtras struct {
 	safe     *SafeChange
 	before   []model.Connection
 	policies map[string]DNSPolicy
+	firewall *demoFirewall
+	// addresses: IP tools (simulated tunnel ends and additional addresses).
+	addresses *demoAddressState
 }
 
 func (d *Demo) extras() *demoExtras {

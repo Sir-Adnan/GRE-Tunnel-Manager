@@ -25,10 +25,16 @@ type Server struct {
 	ReloadCertificate func() error
 	gate              chan struct{}
 	backupGate        chan struct{}
+	security          security
 }
 
 func New(ctx context.Context, a *auth.Store, c control.Client, assets http.Handler, demo bool) *Server {
-	return &Server{Auth: a, Client: c, Jobs: NewJobs(ctx, c), Assets: assets, Demo: demo, gate: make(chan struct{}, 16), backupGate: make(chan struct{}, 1)}
+	s := &Server{Auth: a, Client: c, Jobs: NewJobs(ctx, c), Assets: assets, Demo: demo, gate: make(chan struct{}, 16), backupGate: make(chan struct{}, 1)}
+	s.security.pending = map[string]pendingSecret{}
+	if a.Recover == nil {
+		a.Recover = s.recoverCode
+	}
+	return s
 }
 func reply(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -99,17 +105,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var input struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
+			Code     string `json:"code,omitempty"`
 		}
 		if !decode(w, r, &input) {
 			return
 		}
-		if len(input.Username) > 40 || len(input.Password) > 72 {
+		if len(input.Username) > 40 || len(input.Password) > 72 || len(input.Code) > 32 {
 			failure(w, 401, "invalid credentials")
 			return
 		}
-		session, e := s.Auth.Login(w, r, input.Username, input.Password)
+		session, e := s.Auth.LoginWithCode(w, r, input.Username, input.Password, input.Code)
 		if e != nil {
-			failure(w, 401, e.Error())
+			loginFailure(w, e)
 			return
 		}
 		reply(w, 200, map[string]any{"authenticated": true, "session": session, "demo": s.Demo})
@@ -125,6 +132,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/api/security" || strings.HasPrefix(r.URL.Path, "/api/security/"):
+		s.securityRoutes(w, r, session)
+	case r.URL.Path == "/api/update" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "panel-update"})
 	case r.URL.Path == "/api/access" && r.Method == "GET":
 		if s.Access != nil {
 			reply(w, 200, s.Access())
@@ -157,6 +168,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.forward(w, r, control.Request{Action: "health-report", Health: control.HealthInput{Week: week, WeekStart: start}})
+	case r.URL.Path == "/api/health/latency" && r.Method == "GET":
+		q := r.URL.Query()
+		s.forward(w, r, control.Request{Action: "health-latency", Health: control.HealthInput{Owner: q.Get("owner"), Range: q.Get("range")}})
 	case r.URL.Path == "/api/health/flows" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "health-flows", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
 	case r.URL.Path == "/api/health/mtu" && r.Method == "GET":
@@ -192,6 +206,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.forward(w, r, control.Request{Action: "gre-quality", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
 	case r.URL.Path == "/api/diagnose" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "diagnose", Health: control.HealthInput{Owner: r.URL.Query().Get("owner")}})
+	case r.URL.Path == "/api/connection/path" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "connection-path", Health: control.HealthInput{Owner: r.URL.Query().Get("id")}})
 	case r.URL.Path == "/api/notifications" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "notifications"})
 	case r.URL.Path == "/api/notifications/read" && r.Method == "POST":
@@ -204,6 +220,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.forward(w, r, control.Request{Action: "notifications-clear"})
 	case r.URL.Path == "/api/dns" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "dns"})
+	case r.URL.Path == "/api/firewall" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "firewall"})
+	case r.URL.Path == "/api/addresses" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "addresses"})
 	case r.URL.Path == "/api/dns/test" && r.Method == "POST":
 		var input control.DNSInput
 		if !decode(w, r, &input) {

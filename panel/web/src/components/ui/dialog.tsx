@@ -6,6 +6,7 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
+import { useSheetDrag } from "@/hooks/use-sheet-drag";
 
 function Dialog({
   ...props
@@ -53,17 +54,23 @@ function DialogContent({
   showCloseButton = true,
   closeLabel = "Close",
   scrollLayout = "content",
+  mobileLayout = "sheet",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
   closeLabel?: string;
   scrollLayout?: "content" | "body";
+  /** Phones show dialogs as bottom sheets; "dialog" keeps one centred (the command palette). */
+  mobileLayout?: "sheet" | "dialog";
 }) {
+  const closer = React.useRef<HTMLButtonElement>(null);
+  const drag = useSheetDrag(() => closer.current?.click());
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-mobile={mobileLayout}
         className={cn(
           "fixed top-1/2 start-1/2 z-50 w-full max-h-[calc(100dvh-2rem)] max-w-[calc(100%-2rem)] -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-150 outline-none sm:max-w-sm data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           scrollLayout === "body"
@@ -73,6 +80,11 @@ function DialogContent({
         )}
         {...props}
       >
+        {mobileLayout === "sheet" && (
+          <div data-slot="sheet-grabber" aria-hidden {...drag}>
+            <DialogPrimitive.Close ref={closer} hidden tabIndex={-1} />
+          </div>
+        )}
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>

@@ -147,6 +147,104 @@ exit 0
 """)
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
+    def test_connection_path_reads_owned_counters_and_relay_sockets(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'.work') as directory:
+            folder = Path(directory)
+            (folder/'connections.tsv').write_text('\n'.join([
+                record(strategy='random', targets='203.0.113.20:443@1,203.0.113.21:443@1'),
+                record(id='F000002', engine='realm', port='8443', targets='203.0.113.30:9000@1'),
+                record(id='F000003', engine='iptables', port='2053', protocol='udp', targets='203.0.113.40:2053@1'),
+                record(id='F000004', port='5000', enabled='0'),
+                record(id='F000005', port='5001'),
+            ])+'\n', newline='\n')
+            mocks = r"""
+GTM_PROC_NET=$GTM_CONFIG_DIR/proc
+nft() {
+    case "$*" in
+        'list table inet gre_manager') cat <<'NFT'
+table inet gre_manager {
+	chain pre {
+		type nat hook prerouting priority dstnat + 5; policy accept;
+		ip daddr 192.0.2.10 tcp dport 443 counter packets 12 bytes 720 numgen random mod 2 vmap { 0 : jump b_F000001_tcp_0, 1 : jump b_F000001_tcp_1 } comment "gtm-F000001"
+		ip daddr 192.0.2.10 tcp dport 5001 counter packets 4 bytes 240 dnat ip to 203.0.113.20:443 comment "gtm-F000005"
+	}
+	chain b_F000001_tcp_0 {
+		meta l4proto tcp counter packets 7 bytes 420 dnat ip to 203.0.113.20:443
+	}
+	chain post {
+		type nat hook postrouting priority srcnat - 5; policy accept;
+		meta l4proto tcp ip daddr 203.0.113.20 tcp dport 443 ct status dnat ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 7 bytes 420 masquerade comment "gtm-F000001"
+		meta l4proto tcp ip daddr 203.0.113.21 tcp dport 443 ct status dnat ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 5 bytes 300 masquerade comment "gtm-F000001"
+	}
+	chain forward {
+		type filter hook forward priority filter - 5; policy accept;
+		meta l4proto tcp ip daddr 203.0.113.20 tcp dport 443 ct status dnat ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 900 bytes 81000 accept comment "gtm-F000001"
+		meta l4proto tcp ip saddr 203.0.113.20 tcp sport 443 ct state established ct direction reply ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 1500 bytes 2100000 accept comment "gtm-F000001"
+		meta l4proto tcp ip daddr 203.0.113.21 tcp dport 443 ct status dnat ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 40 bytes 3000 accept comment "gtm-F000001"
+		meta l4proto tcp ip saddr 203.0.113.21 tcp sport 443 ct state established ct direction reply ct original ip daddr 192.0.2.10 ct original proto-dst 443 counter packets 0 bytes 0 accept comment "gtm-F000001"
+		meta l4proto tcp ip daddr 203.0.113.20 tcp dport 443 ct status dnat ct original ip daddr 192.0.2.10 ct original proto-dst 5001 counter packets 3 bytes 180 accept comment "gtm-F000005"
+	}
+	chain gtm_mss {
+		type filter hook forward priority mangle; policy accept;
+		meta l4proto tcp ip daddr 203.0.113.20 tcp dport 443 counter packets 6 bytes 360 tcp option maxseg size set rt mtu comment "gtm-F000001"
+	}
+}
+NFT
+        ;;
+        'list table inet gtm_guard') cat <<'NFT'
+table inet gtm_guard {
+	chain access {
+		ip daddr 192.0.2.10 meta l4proto tcp th dport 443 ip saddr != @a_F000001 counter packets 9 bytes 540 drop comment "gtm-F000001-allow"
+		ip daddr 192.0.2.10 meta l4proto tcp th dport 443 ct state new add @r_F000001 { ip saddr limit rate over 5/second burst 5 packets } counter packets 2 bytes 120 drop comment "gtm-F000001-rate"
+		ip daddr 192.0.2.10 meta l4proto tcp th dport 5001 ip saddr @a_F000005 counter packets 1 bytes 60 drop comment "gtm-F000005-deny"
+	}
+}
+NFT
+        ;;
+        *) return 1;;
+    esac
+}
+iptables() {
+    case "$*" in
+        -V) echo 'iptables v1.8.10 (nf_tables)';;
+        '-w 5 -S FORWARD') printf -- '-P FORWARD DROP\n';;
+        '-w 5 -C FORWARD -j GTM_FWD') return 1;;
+        *) return 1;;
+    esac
+}
+iptables-restore() { :; }
+iptables-save() {
+    case "$*" in
+        '-c -t nat') printf '%s\n' '*nat' '[3:180] -A GTM_PRE -d 192.0.2.10/32 -p udp -m udp --dport 2053 -m comment --comment gtm-F000003 -j DNAT --to-destination 203.0.113.40:2053' '[1:60] -A GTM_PRE -d 192.0.2.10/32 -p udp -m udp --dport 2053 -m comment --comment gtm-F000003 -j CONNMARK --set-xmark 0x1000000/0xf000000' '[3:180] -A GTM_POST -d 203.0.113.40/32 -p udp -m udp --dport 2053 -m comment --comment "gtm-F000003" -j MASQUERADE' 'COMMIT';;
+        '-c -t filter') printf '%s\n' '*filter' '[30:2400] -A GTM_FWD -d 203.0.113.40/32 -p udp -m udp --dport 2053 -m conntrack --ctstate DNAT --ctdir ORIGINAL --ctorigdstport 2053 -m comment --comment gtm-F000003 -j ACCEPT' '[28:5600] -A GTM_FWD -s 203.0.113.40/32 -p udp -m udp --sport 2053 -m conntrack --ctstate ESTABLISHED --ctdir REPLY --ctorigdstport 2053 -m comment --comment gtm-F000003 -j ACCEPT' 'COMMIT';;
+    esac
+}
+ss() {
+    case "$*" in
+        *'sport >= :8443 and sport <= :8443'*) printf 'ESTAB 0 0 192.0.2.10:8443 198.51.100.%d:5000\n' 1 2 3;;
+        *'dst 203.0.113.30 and dport >= :9000 and dport <= :9000'*) printf 'ESTAB 0 0 192.0.2.10:40000 203.0.113.30:9000\n';;
+    esac
+}
+"""
+            result = bash(paths(folder)+mocks+r"""
+mkdir -p "$GTM_PROC_NET"
+out=$(gtm_api connection-path F000001) || exit 9
+printf '%s\n' "$out" > "$GTM_CONFIG_DIR/f1"
+expected=$'engine\tnftables\t1\nstage\tback\t203.0.113.20\t1500\t2100000\nstage\tback\t203.0.113.21\t0\t0\nstage\tnew\t-\t12\t720\nstage\tout\t203.0.113.20\t900\t81000\nstage\tout\t203.0.113.21\t40\t3000\nstage\tsnat\t-\t12\t720\ndrop\tiptables\nstage\tblocked\t-\t11\t660'
+[[ $out == "$expected" ]] || exit 10
+out=$(gtm_api connection-path F000002) || exit 11
+printf '%s\n' "$out" > "$GTM_CONFIG_DIR/f2"
+[[ $out == $'engine\trealm\t1\nstage\tclients\t-\t3\t0\nstage\tupstream\t203.0.113.30\t1\t0' ]] || exit 12
+out=$(gtm_api connection-path F000003) || exit 13
+printf '%s\n' "$out" > "$GTM_CONFIG_DIR/f3"
+[[ $out == $'engine\tiptables\t1\nstage\tback\t203.0.113.40\t28\t5600\nstage\tnew\t-\t3\t180\nstage\tout\t203.0.113.40\t30\t2400\nstage\tsnat\t-\t3\t180\ndrop\tiptables' ]] || exit 14
+[[ $(gtm_api connection-path F000004) == $'engine\tnftables\t0' ]] || exit 15
+gtm_api connection-path 'F000001;id' && exit 16
+gtm_api connection-path F000009 && exit 17
+exit 0
+""")
+            self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

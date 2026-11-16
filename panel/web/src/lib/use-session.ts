@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/api";
+import { errorMessage } from "@/lib/i18n";
 
 const signedOut: Session = {
   authenticated: false,
@@ -21,7 +22,7 @@ export function useSession() {
   useEffect(() => {
     api<Session>("session")
       .then(setSession)
-      .catch((reason) => setError(String(reason)));
+      .catch((reason) => setError(errorMessage(reason)));
   }, []);
   useEffect(() => {
     const expired = () => setSession(signOut);

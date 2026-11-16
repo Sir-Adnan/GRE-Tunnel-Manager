@@ -4,7 +4,9 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Loader2 } from "lucide-react";
@@ -14,7 +16,6 @@ import { PanelHeader } from "@/components/PanelHeader";
 import { PanelFooter } from "@/components/PanelFooter";
 import { CommandPalette } from "@/components/CommandPalette";
 import { usePanelRoute } from "@/lib/use-panel-route";
-import { ConnectionWorkspace } from "@/features/connections/ConnectionWorkspace";
 import { duplicatePorts } from "@/lib/ports";
 import { SafeChangeBanner } from "@/features/connections/SafeChangeBanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -30,10 +31,15 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import { PanelSidebar } from "@/components/PanelSidebar";
 import { Overview } from "@/features/Overview";
+import { UpdateResultNotice } from "@/features/settings/Updates";
 import { Components, Settings } from "@/features/Settings";
 import { usePanelCommands } from "@/features/commands";
 import type { Connection } from "@/lib/api";
-import { LocaleContext, translate } from "@/lib/i18n";
+import { createdConnection } from "@/features/check/model";
+import type { TemplateID } from "@/lib/templates";
+import { ErrorExplain } from "@/components/ErrorExplain";
+import { errorKeys } from "@/lib/error-help";
+import { errorMessage, LocaleContext, translate } from "@/lib/i18n";
 import {
   defaultPreferences,
   loadPreferences,
@@ -49,6 +55,11 @@ import { registry } from "@/experience/registry.generated";
 const ConnectionForm = lazy(() =>
   import("@/features/connections/ConnectionForm").then((module) => ({
     default: module.ConnectionForm,
+  })),
+);
+const ConnectionWorkspace = lazy(() =>
+  import("@/features/connections/ConnectionWorkspace").then((m) => ({
+    default: m.ConnectionWorkspace,
   })),
 );
 const Resources = lazy(() =>
@@ -77,6 +88,14 @@ const Optimize = lazy(() =>
     default: module.Optimize,
   })),
 );
+const Firewall = lazy(() =>
+  import("@/features/firewall/Firewall").then((m) => ({ default: m.Firewall })),
+);
+const Addresses = lazy(() =>
+  import("@/features/addresses/Addresses").then((m) => ({
+    default: m.Addresses,
+  })),
+);
 const History = lazy(() =>
   import("@/features/history/History").then((m) => ({ default: m.History })),
 );
@@ -87,7 +106,13 @@ const Backups = lazy(() =>
 );
 
 const styleIds = Object.keys(registry.styles);
-type FormState = { engine: string; engines?: string[]; original?: Connection; copy?: Connection };
+type FormState = {
+  engine: string;
+  engines?: string[];
+  original?: Connection;
+  copy?: Connection;
+  template?: TemplateID;
+};
 
 function usePreferences() {
   const [preferences, setPreferences] = useState(() =>
@@ -96,6 +121,17 @@ function usePreferences() {
   useEffect(() => {
     savePreferences(globalThis.localStorage, preferences);
   }, [preferences]);
+  // On the root, beside the style attributes, so dialogs and other portals follow it too.
+  useEffect(() => {
+    document.documentElement.dataset.density = preferences.density;
+  }, [preferences.density]);
+  // Screen readers, hyphenation, typography rules and portals read the language
+  // from the root; set before paint so an English page never flashes RTL.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.lang = preferences.locale;
+    root.dir = preferences.locale === "fa" ? "rtl" : "ltr";
+  }, [preferences.locale]);
   return [preferences, setPreferences] as const;
 }
 
@@ -146,9 +182,15 @@ function PageSkeleton() {
 function pageKind(page: Page) {
   return page === "overview"
     ? "dashboard"
-    : ["settings", "components", "traffic", "maintenance", "optimize"].includes(
-          page,
-        )
+    : [
+          "settings",
+          "components",
+          "traffic",
+          "maintenance",
+          "optimize",
+          "firewall",
+          "addresses",
+        ].includes(page)
       ? "settings"
       : "list";
 }
@@ -177,33 +219,64 @@ export default function App() {
     (request: unknown) => runOperation(request, refresh),
     [runOperation, refresh],
   );
-  const { page, navigate } = usePanelRoute();
+  const { page, params, navigate } = usePanelRoute();
   const [form, setForm] = useState<FormState>();
+  // Forms that explain their own failed save: the connection editor and the
+  // two-server wizard (?wizard=gre on Connections).
+  const explainsFailure =
+    Boolean(form) || (page === "connections" && params.get("wizard") === "gre");
+  // A saved connection opens its Check tab once the refreshed inventory has
+  // it; the save may resolve before or after React commits that inventory.
+  const savedCheck = useRef<{ known: string[] }>(undefined);
+  const latestInventory = useRef(inventory);
+  const openCheck = useCallback(
+    (id: string) =>
+      navigate("connections", { connection: id, detail: "check", saved: "1" }),
+    [navigate],
+  );
+  useEffect(() => {
+    latestInventory.current = inventory;
+    const saved = savedCheck.current;
+    if (!saved || !inventory) return;
+    const id = createdConnection(saved.known, inventory.connections);
+    if (!id) return;
+    savedCheck.current = undefined;
+    openCheck(id);
+  }, [inventory, openCheck]);
   const [palette, setPalette] = useState(false);
   const openPalette = useCallback(() => setPalette(true), []);
   useCommandShortcut(openPalette, authenticated);
   const add = useCallback(
-    (engine = "haproxy", engines?: string[]) => setForm({ engine, engines }),
+    (engine = "haproxy", engines?: string[], template?: TemplateID) =>
+      setForm({ engine, engines, template }),
     [],
   );
-  const edit = (original: Connection) =>
-    setForm({ engine: original.engine, original });
+  const edit = useCallback(
+    (original: Connection) => setForm({ engine: original.engine, original }),
+    [],
+  );
   // Duplicate: the same settings on the next free port (or range).
-  const duplicate = (source: Connection) =>
-    setForm({
-      engine: source.engine,
-      copy: {
-        ...source,
-        name: source.name ? `${source.name.slice(0, 34)} copy` : "",
-        ports: duplicatePorts(source.ports, inventory?.connections.map((c) => c.ports) ?? []),
-        port_mode: source.ports.includes("-") ? "same" : "",
-      },
-    });
+  const duplicate = useCallback(
+    (source: Connection) =>
+      setForm({
+        engine: source.engine,
+        copy: {
+          ...source,
+          name: source.name ? `${source.name.slice(0, 34)} copy` : "",
+          ports: duplicatePorts(
+            source.ports,
+            latestInventory.current?.connections.map((c) => c.ports) ?? [],
+          ),
+          port_mode: source.ports.includes("-") ? "same" : "",
+        },
+      }),
+    [],
+  );
   const refreshPage = useCallback(
     () =>
       page === "nodes"
         ? window.dispatchEvent(new Event("gtm:nodes-refresh"))
-        : void refresh().catch((error) => toast.error(String(error))),
+        : void refresh().catch((error) => toast.error(errorMessage(error))),
     [page, refresh],
   );
   const commands = usePanelCommands({
@@ -213,6 +286,9 @@ export default function App() {
     setPreferences,
     navigate,
     add,
+    edit,
+    duplicate,
+    run,
     refresh: refreshPage,
   });
   const experience = useMemo(
@@ -275,14 +351,28 @@ export default function App() {
               refresh={refreshPage}
               openPalette={openPalette}
               navigate={navigate}
-              />
+            />
             <main className="page-container" id="main">
               {session.demo && (
                 <Alert className="demo-banner mb-5">
                   <AlertDescription>{t("demo")}</AlertDescription>
                 </Alert>
               )}
-              {inventory && <SafeChangeBanner run={run} refreshKey={String(inventory.connections.reduce((h, c) => (h * 31 + c.revision.charCodeAt(0) + c.revision.charCodeAt(9)) % 1e9, inventory.connections.length))} />}
+              {inventory && (
+                <SafeChangeBanner
+                  run={run}
+                  refreshKey={String(
+                    inventory.connections.reduce(
+                      (h, c) =>
+                        (h * 31 +
+                          c.revision.charCodeAt(0) +
+                          c.revision.charCodeAt(9)) %
+                        1e9,
+                      inventory.connections.length,
+                    ),
+                  )}
+                />
+              )}
               {inventoryError && (
                 <Alert className="mb-5" variant="destructive">
                   <AlertDescription>{inventoryError}</AlertDescription>
@@ -339,6 +429,10 @@ export default function App() {
                           <Maintenance inventory={inventory} run={run} />
                         ) : page === "optimize" ? (
                           <Optimize inventory={inventory} run={run} />
+                        ) : page === "firewall" ? (
+                          <Firewall inventory={inventory} run={run} />
+                        ) : page === "addresses" ? (
+                          <Addresses refresh={refresh} />
                         ) : page === "components" ? (
                           <Components inventory={inventory} run={run} />
                         ) : page === "history" ? (
@@ -356,7 +450,7 @@ export default function App() {
                             setPreferences={setPreferences}
                             logout={() =>
                               void logout().catch((error) =>
-                                toast.error(String(error)),
+                                toast.error(errorMessage(error)),
                               )
                             }
                           />
@@ -369,7 +463,13 @@ export default function App() {
             </main>
             <PanelFooter inventory={inventory} />
           </SidebarInset>
-          <MobileNavigation page={page} navigate={navigate} />
+          <MobileNavigation
+            page={page}
+            navigate={navigate}
+            inventory={inventory}
+            add={add}
+            openPalette={openPalette}
+          />
         </SidebarProvider>
         <CommandPalette
           open={palette}
@@ -390,23 +490,64 @@ export default function App() {
               engine={form.engine}
               original={form.original}
               copy={form.copy}
-              onClose={() => setForm(undefined)}
+              template={form.template}
+              onClose={() => {
+                setForm(undefined);
+                if (operations.output?.error) operations.closeOutput();
+              }}
               onSubmit={run}
+              onSaved={({ id, known }) => {
+                const created =
+                  id ??
+                  createdConnection(
+                    known,
+                    latestInventory.current?.connections ?? [],
+                  );
+                if (created) openCheck(created);
+                else savedCheck.current = { known };
+              }}
             />
           </Suspense>
         )}
         <Dialog
-          open={Boolean(operations.output)}
+          open={
+            Boolean(operations.output) &&
+            !(operations.output?.error && explainsFailure)
+          }
           onOpenChange={(open) => !open && operations.closeOutput()}
         >
           <DialogContent closeLabel={t("close")} className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{operations.output?.title}</DialogTitle>
-              <DialogDescription>{t("reviewDesc")}</DialogDescription>
-            </DialogHeader>
-            <pre className="code-block max-h-[60dvh] overflow-auto" dir="ltr">
-              {operations.output?.text}
-            </pre>
+            {operations.output?.error ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {t(errorKeys(operations.output.text).title)}
+                  </DialogTitle>
+                  <DialogDescription>{t("error")}</DialogDescription>
+                </DialogHeader>
+                <ErrorExplain
+                  error={operations.output.text}
+                  showTitle={false}
+                  onNavigate={() => {
+                    operations.closeOutput();
+                    setForm(undefined);
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{operations.output?.title}</DialogTitle>
+                  <DialogDescription>{t("reviewDesc")}</DialogDescription>
+                </DialogHeader>
+                <pre
+                  className="code-block max-h-[60dvh] overflow-auto"
+                  dir="ltr"
+                >
+                  {operations.output?.text}
+                </pre>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -419,6 +560,7 @@ export default function App() {
         applyToDocument
       >
         {content}
+        <UpdateResultNotice version={inventory?.version} />
         <Toaster
           theme={experience.mode === "light" ? "light" : "dark"}
           dir={preferences.locale === "fa" ? "rtl" : "ltr"}

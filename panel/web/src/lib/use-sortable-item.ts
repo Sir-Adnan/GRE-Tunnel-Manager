@@ -1,5 +1,5 @@
 // One sortable item's node ref, style and drag-handle props (see components/sortable).
-import type { CSSProperties } from "react";
+import { createContext, useContext, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -17,5 +17,17 @@ export function useSortableItem(id: string) {
     style,
     dragging: isDragging,
     handle: { ref: setActivatorNodeRef, id, ...attributes, ...listeners },
+    /** Spread on a whole row so a touch press and hold anywhere picks it up. */
+    press: listeners,
   };
+}
+
+/** Moves one item of the surrounding SortableArea by a number of places. */
+export const MoveBy = createContext<
+  ((id: string, delta: number) => void) | undefined
+>(undefined);
+
+/** For move buttons (components/ReorderList) and the handle's arrow keys. */
+export function useMoveBy() {
+  return useContext(MoveBy);
 }

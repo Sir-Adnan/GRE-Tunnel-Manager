@@ -1,9 +1,9 @@
 // Connection editor: three short steps (entrance → destinations → protection
 // and review) beside a live route map. On phones it is a full-height sheet
 // and the map folds into the summary bar.
-import { useRef, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ClipboardCheck } from "lucide-react";
 import { EngineGlyph } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
-import { useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { api, type Connection, type Inventory } from "@/lib/api";
 import { engineName } from "@/lib/format";
 import { isHostname, parseSpans, remoteSpans, spanText } from "@/lib/ports";
@@ -33,6 +33,16 @@ import { ProtectionFields } from "./ProtectionFields";
 import { protectionOf, sameProtection, type Protection } from "./protection";
 import { RouteMap } from "./RouteMap";
 import { revealInvalidField } from "@/lib/form-validation";
+import {
+  FieldErrorsContext,
+  fieldName,
+  validityMessage,
+} from "@/lib/field-errors";
+import { FormSection } from "@/components/FormSection";
+import { number } from "@/lib/format";
+import { ErrorExplain } from "@/components/ErrorExplain";
+import { availableTemplates, type TemplateID } from "@/lib/templates";
+import { TemplatePicker } from "./TemplatePicker";
 
 type Props = {
   inventory: Inventory;
@@ -40,8 +50,12 @@ type Props = {
   engines?: string[];
   original?: Connection;
   copy?: Connection;
+  /** A new connection that starts from a template. */
+  template?: TemplateID;
   onClose: () => void;
   onSubmit: (request: unknown) => Promise<void>;
+  /** After a successful save: the edited ID, or the IDs that existed before a create. */
+  onSaved?: (saved: { id?: string; known: string[] }) => void;
 };
 
 const steps = ["stepEntrance", "stepDestinations", "stepProtection"] as const;
@@ -53,17 +67,39 @@ export function ConnectionForm({
   engines,
   original,
   copy,
+  template,
   onClose,
   onSubmit,
+  onSaved,
 }: Props) {
   const t = useT();
+  const locale = useContext(LocaleContext);
   const { navigate } = usePanelRoute();
-  const draft = useConnectionDraft({ inventory, engine, original, copy });
+  const draft = useConnectionDraft({
+    inventory,
+    engine,
+    original,
+    copy,
+    template,
+    engines,
+  });
   const { value, installed } = draft;
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    // A failed save is explained; a field hint stays a plain alert.
+    [failure, setFailure] = useState("");
+  // Messages under the fields that failed the last check, by input id, and
+  // the summary of them when there is more than one.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [summary, setSummary] = useState<{ id: string; name: string }[]>([]);
+  // A failed save shows at the top of the step: bring it into view once.
+  const revealFailure = useCallback(
+    (node: HTMLDivElement | null) => node?.scrollIntoView({ block: "nearest" }),
+    [],
+  );
   const formRef = useRef<HTMLFormElement>(null);
+  const [known] = useState(() => inventory.connections.map((c) => c.id));
   const health = useLoaded<HealthView>("health", () => 0).value;
   const initialProtection = protectionOf(health?.settings, original?.id);
   const [protection, setProtection] = useState<Protection>();
@@ -141,17 +177,47 @@ export function ConnectionForm({
       (resolved[x.ip] === null || resolved[x.ip]?.length === 0),
   );
 
-  /** Checks the current step's fields; focuses the first problem. */
+  /** Checks the current step's fields: each problem shows under its field,
+   * several also as a summary at the top, and the first one gets focus. */
   function validStep() {
     const form = formRef.current;
     if (!form) return true;
-    const invalid = form.querySelector<HTMLInputElement>(
-      "input:invalid,select:invalid,textarea:invalid",
+    const invalid = [
+      ...form.querySelectorAll<HTMLInputElement>(
+        "input:invalid,select:invalid,textarea:invalid",
+      ),
+    ].filter((field) => field.id);
+    if (!invalid.length) return true;
+    setFieldErrors(
+      Object.fromEntries(
+        invalid.map((field) => [field.id, validityMessage(field, t)]),
+      ),
     );
-    if (!invalid) return true;
-    setError(t("checkFields"));
-    revealInvalidField(invalid, draft.setAdvancedTab);
+    const inline = (field: HTMLElement) =>
+      Boolean(field.closest("[data-inline-error]"));
+    setSummary(
+      invalid.length > 1 || !inline(invalid[0])
+        ? invalid.map((field) => ({ id: field.id, name: fieldName(field) }))
+        : [],
+    );
+    setError("");
+    revealInvalidField(invalid[0], draft.setAdvancedTab);
     return false;
+  }
+  function clearFieldError(id: string) {
+    if (!fieldErrors[id] && !summary.some((item) => item.id === id)) return;
+    setFieldErrors((errors) => {
+      const rest = { ...errors };
+      delete rest[id];
+      return rest;
+    });
+    setSummary((items) => items.filter((item) => item.id !== id));
+  }
+  function focusField(id: string) {
+    const field = formRef.current?.querySelector<HTMLInputElement>(
+      `#${CSS.escape(id)}`,
+    );
+    if (field) revealInvalidField(field, draft.setAdvancedTab);
   }
 
   function next() {
@@ -161,12 +227,15 @@ export function ConnectionForm({
       return;
     }
     setError("");
+    setFieldErrors({});
+    setSummary([]);
     setStep((s) => Math.min(s + 1, steps.length - 1));
   }
 
   async function submit() {
     setBusy(true);
     setError("");
+    setFailure("");
     try {
       const changed = !sameProtection(protect, initialProtection);
       const connection: Connection = { ...final };
@@ -180,6 +249,8 @@ export function ConnectionForm({
         ...(changed || !original ? { protect } : {}),
         ...(safeMinutes ? { safe_minutes: safeMinutes } : {}),
       });
+      // Enabled connections open their Check tab: the live path and checks.
+      if (final.enabled) onSaved?.({ id: original?.id, known });
       const hosts = [
         ...new Set(value.targets.map((x) => x.ip).filter(isHostname)),
       ];
@@ -205,7 +276,7 @@ export function ConnectionForm({
       }
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setFailure(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -271,7 +342,7 @@ export function ConnectionForm({
                     <span className="form-step-index">
                       {index < step ? <Check /> : index + 1}
                     </span>
-                    {t(key)}
+                    <span className="form-step-label">{t(key)}</span>
                   </button>
                 </li>
               ))}
@@ -285,64 +356,114 @@ export function ConnectionForm({
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
+                {summary.length > 0 && (
+                  <div className="error-summary mb-4" role="alert">
+                    <p className="font-medium text-destructive">
+                      {t("fieldsToFix").replace(
+                        "{n}",
+                        number(summary.length, locale),
+                      )}
+                    </p>
+                    <ul>
+                      {summary.map((item) => (
+                        <li key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => focusField(item.id)}
+                          >
+                            {item.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {failure && (
+                  <div
+                    ref={revealFailure}
+                    className="mb-4 rounded-xl border border-destructive/40 p-4"
+                  >
+                    <ErrorExplain error={failure} onNavigate={onClose} />
+                  </div>
+                )}
                 {!installed && (
                   <Alert className="mb-4">
                     <AlertDescription>{t("needsInstall")}</AlertDescription>
                   </Alert>
                 )}
-                <form
-                  ref={formRef}
-                  id="connection-form"
-                  noValidate
-                  onInput={(event) => {
-                    const input = event.target as HTMLInputElement;
-                    input.removeAttribute("aria-invalid");
-                    input
-                      .closest("[data-slot=field]")
-                      ?.removeAttribute("data-invalid");
-                  }}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (step < steps.length - 1) next();
-                    else void submit();
-                  }}
-                >
-                  {step === 0 && (
-                    <EntranceStep
-                      draft={draft}
-                      inventory={inventory}
-                      engines={engines}
-                      editing={Boolean(original)}
-                    />
-                  )}
-                  {step === 1 && (
-                    <DestinationsStep
-                      draft={draft}
-                      resolved={resolved}
-                      onResolve={(host) => void resolve(host)}
-                      policy={dnsPolicy}
-                      onPolicy={setPolicy}
-                      portText={portText}
-                    />
-                  )}
-                  {step === 2 && (
-                    <div className="flex flex-col gap-5">
-                      <ProtectionFields
-                        settings={health?.settings}
-                        value={protect}
-                        onChange={setProtection}
-                        failoverEligible={failoverEligible}
-                        failoverHint={
-                          kernel ? undefined : t("protectFailoverRelay")
-                        }
-                        safeMinutes={safeMinutes}
-                        onSafeMinutes={setSafeMinutes}
-                        onAdvanced={() => navigate("health", { settings: "1" })}
+                <FieldErrorsContext.Provider value={fieldErrors}>
+                  <form
+                    ref={formRef}
+                    id="connection-form"
+                    noValidate
+                    onInput={(event) => {
+                      const input = event.target as HTMLInputElement;
+                      if (input.id) clearFieldError(input.id);
+                      input.removeAttribute("aria-invalid");
+                      input
+                        .closest("[data-slot=field]")
+                        ?.removeAttribute("data-invalid");
+                    }}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (step < steps.length - 1) next();
+                      else void submit();
+                    }}
+                  >
+                    {step === 0 && !original && !copy && (
+                      <div className="mb-5">
+                        <TemplatePicker
+                          templates={availableTemplates(inventory, engines)}
+                          value={draft.templateID}
+                          onChange={draft.applyTemplate}
+                        />
+                      </div>
+                    )}
+                    {step === 0 && (
+                      <EntranceStep
+                        draft={draft}
+                        inventory={inventory}
+                        engines={engines}
+                        editing={Boolean(original)}
                       />
-                      <ConnectionReview value={final} resolved={resolved} />
-                    </div>
-                  )}
-                </form>
+                    )}
+                    {step === 1 && (
+                      <DestinationsStep
+                        draft={draft}
+                        resolved={resolved}
+                        onResolve={(host) => void resolve(host)}
+                        policy={dnsPolicy}
+                        onPolicy={setPolicy}
+                        portText={portText}
+                      />
+                    )}
+                    {step === 2 && (
+                      <div className="form-sections">
+                        <ProtectionFields
+                          settings={health?.settings}
+                          value={protect}
+                          onChange={setProtection}
+                          failoverEligible={failoverEligible}
+                          failoverHint={
+                            kernel ? undefined : t("protectFailoverRelay")
+                          }
+                          safeMinutes={safeMinutes}
+                          onSafeMinutes={setSafeMinutes}
+                          onAdvanced={() =>
+                            navigate("health", { settings: "1" })
+                          }
+                        />
+                        <FormSection
+                          icon={<ClipboardCheck />}
+                          title={t("sectionReview")}
+                          description={t("sectionReviewHelp")}
+                        >
+                          <ConnectionReview value={final} resolved={resolved} />
+                        </FormSection>
+                      </div>
+                    )}
+                  </form>
+                </FieldErrorsContext.Provider>
               </div>
               <div className="connection-editor-aside">{map}</div>
             </div>
@@ -351,12 +472,19 @@ export function ConnectionForm({
             <div className="min-w-0 flex-1 text-xs text-muted-foreground">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">{value.protocol.toUpperCase()}</Badge>
-                <bdi className="truncate font-mono" dir="ltr">
-                  {value.ports || "—"}
-                </bdi>
+                {value.ports ? (
+                  <bdi className="truncate font-mono" dir="ltr">
+                    {value.ports}
+                  </bdi>
+                ) : (
+                  <span>{t("routeNoPorts")}</span>
+                )}
                 <ArrowRight className="size-3 rtl:rotate-180" />
                 <span>
-                  {t("destinations")}: {value.targets.length}
+                  {t("destinationsCount").replace(
+                    "{n}",
+                    number(value.targets.length, locale),
+                  )}
                 </span>
               </div>
               <p className="mt-1">
@@ -392,7 +520,7 @@ export function ConnectionForm({
                   form="connection-form"
                   disabled={!installed}
                 >
-                  {t("next")}
+                  {t("nextStep").replace("{step}", t(steps[step + 1]))}
                   <ArrowRight
                     data-icon="inline-end"
                     className="rtl:rotate-180"

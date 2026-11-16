@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import { applyOrder, mergeOrder } from "./order-list.ts";
+import { errorMessage } from "@/lib/i18n";
 
 export { applyOrder, mergeOrder };
 
-export type OrderList = "connections" | "gre" | "reverse" | "nodes" | "overview";
+// The server still accepts the older lists (gre, reverse, nodes, overview)
+// so saved files stay valid; the interface orders connections only.
+export type OrderList = "connections";
 type Orders = Partial<Record<OrderList, string[]>>;
 
 let orders: Orders = {};
@@ -51,7 +54,7 @@ export function useOrder(list: OrderList) {
       } catch (e) {
         orders = { ...orders, [list]: previous };
         emit();
-        const message = e instanceof Error ? e.message : String(e);
+        const message = errorMessage(e);
         setError(message);
         return message;
       }

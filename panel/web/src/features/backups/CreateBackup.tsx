@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Download, LockKeyhole, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/shared";
 import {
@@ -44,7 +44,7 @@ export function CreateBackup() {
           setConfirm("");
           toast.success(t("backupDownloaded"));
         } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         } finally {
           setBusy(false);
         }

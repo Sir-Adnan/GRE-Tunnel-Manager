@@ -1,0 +1,204 @@
+/* Phone patterns: bottom sheets, the action sheet, swipeable cards and the
+   bottom bar's states. "Phone" means below 768 px, the same breakpoint as the
+   bottom navigation (hooks/use-mobile.ts). */
+
+/* Bottom sheets. Every dialog becomes a sheet on phones unless it opts out
+   (data-mobile="dialog", the command palette). These rules are unlayered on
+   purpose: they must beat the per-dialog width and position utilities. */
+[data-slot="sheet-grabber"] {
+  display: none;
+}
+[data-slot="sheet-content"][data-side="bottom"] [data-slot="sheet-grabber"] {
+  display: block;
+}
+[data-slot="sheet-grabber"] {
+  position: absolute;
+  top: 0;
+  inset-inline: 3rem;
+  z-index: 2;
+  height: 1.5rem;
+  cursor: grab;
+  touch-action: none;
+}
+[data-slot="sheet-grabber"]::before {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  width: 2.25rem;
+  height: 0.25rem;
+  margin-left: -1.125rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+[data-slot="sheet-content"][data-side="bottom"],
+[data-slot="dialog-content"][data-mobile="sheet"] {
+  transition: translate 220ms var(--ease-out);
+}
+[data-slot$="-content"][data-dragging] {
+  transition: none;
+}
+@media (max-width: 767px) {
+  [data-slot="dialog-content"][data-mobile="sheet"] {
+    top: auto;
+    bottom: 0;
+    inset-inline: 0;
+    left: 0;
+    right: 0;
+    translate: none;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - max(0.75rem, env(safe-area-inset-top)));
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding-top: 1.5rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    box-shadow: var(--elevation-3);
+  }
+  [data-slot="dialog-content"][data-mobile="sheet"]
+    [data-slot="sheet-grabber"] {
+    display: block;
+  }
+  [data-slot="dialog-content"][data-mobile="sheet"][data-state="open"] {
+    animation: sheet-in 280ms var(--ease-out);
+  }
+  [data-slot="dialog-content"][data-mobile="sheet"][data-state="closed"] {
+    animation: sheet-out 200ms ease-in forwards;
+  }
+  [data-mobile="sheet"] > [data-slot="dialog-close"] {
+    top: 0.625rem;
+  }
+  /* The footer runs to the screen edge, under the home indicator. */
+  [data-mobile="sheet"] [data-slot="dialog-footer"] {
+    border-radius: 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    margin-bottom: calc(-1rem - env(safe-area-inset-bottom));
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@layer components {
+  /* Action sheet: the phone form of a row's "more" menu (components/ActionMenu). */
+  .action-sheet {
+    @apply gap-3;
+  }
+  .action-sheet-group {
+    @apply flex flex-col overflow-hidden rounded-xl;
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
+  }
+  .action-sheet-item {
+    @apply flex min-h-12 items-center gap-3 px-4 text-start text-body outline-none transition-colors focus-visible:bg-accent active:bg-accent [&_svg]:size-[1.125rem] [&_svg]:shrink-0 [&_svg]:text-muted-foreground;
+  }
+  .action-sheet-item + .action-sheet-item {
+    box-shadow: inset 0 1px 0 var(--surface-line);
+  }
+  .action-sheet-item[data-variant="destructive"],
+  .action-sheet-item[data-variant="destructive"] svg {
+    color: var(--destructive-text);
+  }
+
+  /* Swipeable card (components/SwipeActions). The box is padded and pulled
+     back by the same amount so the card's ring and shadow are not clipped
+     while the moving card still cannot widen the page. */
+  .swipe-row {
+    @apply min-w-0;
+  }
+  .swipe-box {
+    position: relative;
+    overflow: hidden;
+    padding: 4px;
+    margin: -4px;
+  }
+  .swipe-actions {
+    @apply absolute flex overflow-hidden rounded-xl;
+    inset-block: 4px;
+  }
+  .swipe-actions.is-start {
+    inset-inline-start: 4px;
+  }
+  .swipe-actions.is-end {
+    inset-inline-end: 4px;
+  }
+  .swipe-row:not([data-open], [data-swiping]) .swipe-actions {
+    visibility: hidden;
+  }
+  .swipe-action {
+    @apply flex w-[4.5rem] flex-col items-center justify-center gap-1 px-1 text-caption font-medium [&_svg]:size-[1.125rem];
+    --swipe-tone: var(--muted-foreground);
+    color: var(--swipe-tone);
+    background: color-mix(in srgb, var(--swipe-tone) 14%, var(--card));
+  }
+  .swipe-action[data-tone="primary"] {
+    --swipe-tone: var(--primary-text);
+  }
+  .swipe-action[data-tone="warn"] {
+    --swipe-tone: var(--warning-text);
+  }
+  .swipe-action[data-tone="ok"] {
+    --swipe-tone: var(--success-text);
+  }
+  .swipe-surface {
+    position: relative;
+    z-index: 1;
+    touch-action: pan-y;
+    transition: translate 240ms var(--ease-out);
+  }
+  .swipe-surface[data-moving] {
+    transition: none;
+  }
+
+  /* Bottom bar: an attention dot, and sliding away while reading down a page. */
+  .mobile-nav {
+    transition: translate 240ms var(--ease-out);
+  }
+  .mobile-nav[data-hidden] {
+    translate: 0 calc(100% + 1rem + env(safe-area-inset-bottom));
+  }
+  .mobile-nav-icon {
+    @apply relative inline-flex;
+  }
+  .mobile-nav-dot {
+    @apply absolute -top-0.5 -end-1 size-2 rounded-full;
+    background: var(--warning);
+    box-shadow: 0 0 0 2px var(--popover);
+  }
+
+  /* "More": every other page as a grid of tiles, with quick actions first. */
+  .more-sheet {
+    @apply gap-4;
+  }
+  .more-quick {
+    @apply grid grid-cols-2 gap-2;
+  }
+  .more-section {
+    @apply flex flex-col gap-2;
+  }
+  .more-section h3 {
+    @apply px-1 text-caption font-medium text-muted-foreground;
+  }
+  .more-grid {
+    @apply grid grid-cols-3 gap-2;
+  }
+  .more-tile {
+    @apply relative flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl px-1 text-caption text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:bg-accent [&_svg]:size-5;
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
+  }
+  .more-tile[aria-current="page"] {
+    @apply font-medium text-primary-text;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+}
+@media (max-width: 767px) {
+  /* The selection bar follows the bottom bar down when it hides. */
+  body:has(.mobile-nav[data-hidden]) .selection-bar {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}

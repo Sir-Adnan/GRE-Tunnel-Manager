@@ -42,7 +42,7 @@ export function NodeDetails({
             dir={locale === "fa" ? "rtl" : "ltr"}
             className="min-w-0"
           >
-            <TabsList>
+            <TabsList layout="fill">
               <TabsTrigger value="inventory">{t("connections")}</TabsTrigger>
               {!node.local && (
                 <TabsTrigger value="traffic">{t("nodeTraffic")}</TabsTrigger>

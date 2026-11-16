@@ -1,74 +1,71 @@
 # Web panel
 
-Quick HTTPS setup creates a one-year self-signed certificate. Connect an external Certbot/acme.sh client for trusted certificates and automatic renewal; **Settings → Panel connection security** reports the loaded certificate. See [HTTPS and renewal](HTTPS.md). The panel does not issue certificates or open challenge ports itself.
-
-Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop independently managed tunnels. Other servers can join as optional [Nodes and Agents](NODES.md).
-
-Version **v1.5.1** adds the dnd kit license notice to the packages. Version v1.5.0 added kernel port ranges of up to 4096 ports with mapped remote ports, domain destinations, the server's own DNS (Optimization → DNS), a three-step connection editor with a route map, health and safe-apply choices in the forms, drag-and-drop ordering and an import from Port Forward Manager; see [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md). Version v1.4.1 added a notification center with webhook and Telegram delivery, a change history with in-place restore, scheduled backups, a guided diagnosis, GRE quality and speed tests, far-side checks through Nodes, an opt-in Prometheus endpoint and a redesigned Optimization page with Apply all, profiles, a network-card group and automatic undo; see [Monitoring](MONITORING.md). Version v1.4.0 added opt-in health failover for kernel forwards, HAProxy check results, a GRE path MTU test and a reversible [Optimization](OPTIMIZATION.md) page. Version v1.3.7 added optional [health monitoring and scheduled maintenance](HEALTH-AND-MAINTENANCE.md) and a 1–15 second dashboard refresh. Version v1.3.6 routes kernel-forward replies for additional IPs that have their own gateway and allows IPv4/IPv6 forwards on one port. Version v1.3.5 redesigned the panel: Signal, Graphite and Aurora presets, one filtered Connections page, a status-first overview with a **Needs attention** list and a Ctrl/Cmd+K command palette. It also fixed iptables/nftables forwarding on servers with additional IPs. Live server readings, optional traffic-quota pauses, reviewed configuration imports, engine maintenance and encrypted portable recovery remain available. See [Traffic accounting](TRAFFIC-ACCOUNTING.md), [Configuration editor](CONFIGURATION-EDITOR.md) and [Backup and restore](BACKUP-RESTORE.md).
+Manage local tunnels from a Persian/English interface on desktop or mobile. The panel runs separately from the traffic path; stopping it does not stop tunnels. Other servers can join as optional [Nodes and Agents](NODES.md). Release notes are in the [Changelog](CHANGELOG.md).
 
 ## Installation and login
 
 On Debian/Ubuntu with systemd:
 
 ```bash
-curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh --quick
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash
 ```
 
-The terminal **Web Panel** menu uses the same installer. It downloads a versioned archive, verifies its checksum and installs the Go executable, embedded frontend and matching Bash helper. Managed servers need no Node.js, Python, compiler, Docker or database server.
-
-### Quick and custom setup
-
-Quick setup uses HTTPS, detects the public IP, selects a free random port and generates administrator credentials. The URL and generated password are printed once; save them. Running the installer without `--quick` offers numbered quick/custom and HTTPS/HTTP choices. Custom setup asks for the address, port, username and a hidden, confirmed password.
-
-| Option | Fresh-install behavior |
-| --- | --- |
-| `--quick` | Automatic setup without questions |
-| `--protocol https` / `--protocol http` | Browser protocol; HTTPS by default |
-| `--address IP_OR_DOMAIN` | Reachable IP or ASCII domain without scheme, port or path; skips IP discovery |
-| `--port PORT` | Selected TCP port; omitted or `0` selects an available random port |
-| `--username USER` | Default `admin`; 3–40 ASCII letters, digits, dots, dashes or underscores |
-| `--listen LOCAL_IP` | Local bind; all IPv4 addresses by default, or `::` for an IPv6 address |
-| `--install-engines` | Preinstall supported engines without creating tunnels; none by default |
-| `--package-dir DIR` | Use a matching local archive and `SHA256SUMS` |
-
-After downloading the installer, for example:
+The installer downloads the prebuilt release, verifies its SHA-256 checksum and starts a short setup: address, connection security, port, login and optional engines. Every answer has an option for unattended installs, for example:
 
 ```bash
-sudo bash panel-install.sh --quick --protocol http --address 203.0.113.10 --port 8080
-sudo bash panel-install.sh --quick --address panel.example.com --port 8443
+curl -fsSL .../install.sh | sudo bash -s -- --yes
+curl -fsSL .../install.sh | sudo bash -s -- --domain panel.example.com --email ops@example.com --port 2053 --yes
+curl -fsSL .../install.sh | sudo bash -s -- --http --domain 203.0.113.10 --port 8080 --yes
 ```
 
-Chosen passwords require at least eight Unicode characters and at most 72 UTF-8 bytes. Quick setup generates a 32-character random password. Password arguments, URLs and environment variables are not accepted; only the bcrypt hash is stored. Avoid saving the one-time credential output in shared logs.
+`--yes` uses the defaults: trusted HTTPS from Let's Encrypt for the detected public IP, a free random port, user `admin` and a generated password. The summary shows the address and the password once. Managed servers need no Node.js, Python, compiler, Docker or database server. All options, and the `gtm` command that maintains the panel afterwards, are in [Command line](COMMAND-LINE.md).
 
-### Address discovery, certificates and access
+### Address, certificates and access
 
-Allow the selected TCP port in the server/provider firewall. Setup checks current sockets but does not model all custom DNAT rules or automatically open firewalls. A random port is not an authentication mechanism.
+Allow the panel's TCP port in the server and provider firewall; the installer does not open firewalls. A random port is not an authentication mechanism.
 
-When no address is supplied, bounded HTTPS requests to `api.ipify.org` and `api6.ipify.org` discover the outgoing public IP. Behind NAT or on multi-address servers, pass the actual reachable entrance with `--address`. Failed quick discovery stops before configuration is written. A domain must already resolve to the server; setup does not register it or edit DNS. IPv6 URLs use brackets; domain listeners default to IPv4 unless `--listen ::` is supplied.
+Without `--domain`, bounded HTTPS requests to `api.ipify.org` and `api6.ipify.org` detect the outgoing public IP. Behind NAT or on multi-address servers, pass the reachable address with `--domain`. A domain must already resolve to the server. IPv6 URLs use brackets; domain listeners use IPv4 unless `--listen ::` is given.
 
-HTTPS initially uses a self-signed certificate. Verify its SHA-256 fingerprint over SSH before trusting it. For an operator-managed certificate, set absolute `certificate` and `private_key` paths in the restricted configuration and restart. Automatic ACME and trusted reverse-proxy/forwarded-header support are not implemented; access and Origin checks refer to the direct listener.
+Let's Encrypt validates over TCP port 80 for a few seconds, or over Cloudflare DNS for a domain. If issuance fails, the panel keeps a self-signed certificate and the installation still completes; **Settings → Security → Get trusted certificate** or `sudo gtm https issue` retries. `--self-signed` skips Let's Encrypt: verify the printed SHA-256 fingerprint over SSH before trusting it. See [HTTPS and certificates](HTTPS.md). Trusted reverse-proxy/forwarded-header support is not implemented; access and Origin checks refer to the direct listener.
 
-Explicit HTTP works on an IP without a certificate, but browser login and management traffic are unencrypted. Authentication, Origin and CSRF checks remain required. Browser HTTP does not weaken the separate TLS Agent channel.
+`--http` serves the panel without encryption: login and management traffic are readable on the network. Authentication, Origin and CSRF checks remain required, and the Agent channel keeps its own TLS.
 
-### Existing installations and recovery
+Passwords need at least eight characters and at most 72 UTF-8 bytes; only the bcrypt hash is stored. Prefer `--password-env NAME` (with `sudo --preserve-env=NAME`) over `--password`, which is visible in shell history.
 
-Run the current installer again to upgrade to the matching **v1.5.1** package, then refresh the browser. Downloading the script alone does not replace an installed binary. The installer preserves existing address, protocol, credentials and certificates; setup flags do not reconfigure an existing installation.
+### Certificates from the browser
 
-Checksums, binary version and existing configuration are checked before a working service stops. Installation is locked against concurrent runs. If an upgraded panel fails to start, the installer reinstalls the previous executable and helper and starts them again. Rewritten unit files stay in place. That rollback is not a host-wide atomic transaction: inspect logs when it reports failure. Keep private backups of configuration and Node identities.
+**Settings → Security → Panel connection security** shows the loaded certificate and offers:
 
-The broker is enabled at boot independently of the public panel. Traffic sampling and opt-in quota pauses keep running while the panel is stopped, restarting or failing.
+- **Get trusted certificate** (or **Request new certificate**): a domain that points to this server or a public IP, an optional email and an untrusted staging test. Let's Encrypt validates over TCP port 80, so allow it in the server and provider firewall. An HTTP panel restarts on HTTPS at the new address, where you sign in again; the page counts down and opens it.
+- **Renew now** for a certificate the panel renews itself.
+- **Switch to self-signed**, for example when a trusted certificate can no longer be renewed. Automatic renewal stops.
+
+These are broker jobs with fixed commands; the browser sends only the address, email and staging choice. Cloudflare DNS validation stays a terminal command (`sudo gtm https issue`) so the API token never passes through the public process. A failed request leaves the loaded certificate in place. See [HTTPS and certificates](HTTPS.md).
+
+### Sign-in security
+
+**Settings → Security → Sign-in** turns on two-factor sign-in with any authenticator app (time-based six-digit codes): scan the QR code or type the key, enter one code to prove the app works, then save the ten single-use recovery codes, which are shown once. Sign-in then asks for a code after the password; a recovery code works in the same field. Turning it off needs the password and a code. With the phone and the codes lost, `sudo gtm 2fa off` turns it off on the server and signs everyone out.
+
+The same card lists the browsers signed in now (browser, system, address, last activity) and signs out one or all others. Sessions stay memory-only: they end after four hours and whenever the panel restarts.
+
+The secret and the hashes of unused recovery codes are stored in `/etc/gre-manager-panel/two-factor.json` (root-owned, readable by the panel group, like the password hash). Only the broker writes it; codes cannot be replayed within their 30-second window. Damaged settings stop the panel from starting rather than accepting the password alone.
+
+### Updates and recovery
+
+**Settings → Updates** shows the installed release, the newest one from the daily check and its release notes; the sidebar names a newer release under the version. **Check now** asks the release server again. **Update to vX** asks for confirmation, then the broker starts `gtm update` for exactly that version in its own transient unit (`gre-manager-panel-update.service`), so the restart it causes cannot interrupt it. The page waits, then reloads into the new release; sign in again. If the update fails, the previous release keeps running and the page shows the reason; `sudo gtm logs update` has the details.
+
+`sudo gtm update` does the same from SSH. The current release is copied aside first; if the new one does not start, it is restored and started again. The daily timer only checks for new releases (`gtm status` shows the result) and never installs anything; `--no-update-check` turns the timer off. Running `install.sh` again repairs an installation and keeps its address, protocol, login and certificates.
+
+Checksums, the package version and the existing configuration are checked before any service stops, and installation is locked against concurrent runs. Rollback covers the executable and engine script, not the whole host: read the logs when it reports a failure. The broker starts at boot independently of the public panel, so traffic sampling and opt-in quota pauses continue while the panel is stopped or restarting.
 
 ```bash
-sudo gtm-panel address
-sudo gtm-panel reset-password
-sudo systemctl restart gre-manager-panel
-sudo systemctl status gre-manager-panel --no-pager
-sudo journalctl -u gre-manager-panel -n 100 --no-pager
+sudo gtm                 # status and menu
+sudo gtm password        # new login password; signs out every session
+sudo gtm port 2053       # move the panel; a failed start restores the old port
+sudo gtm logs -f         # follow the panel log
 ```
 
-The address command never prints a password. Restart after password reset to revoke existing sessions. Back up the config before changing its listen/protocol/public_host fields; switching from HTTP to HTTPS also requires certificate/key files. Existing TLS files are retained when selecting HTTP.
-
-An interrupted first setup can leave TLS files; inspect and move only those owned files to a private backup before retrying. Older binaries may reject newer configuration/state schemas, so downgrade needs matching prior backups. See [Operations](OPERATIONS.md) and [panel removal](PANEL-REMOVAL.md).
+Older binaries may reject newer configuration or state schemas, so a downgrade needs matching backups. See [Operations](OPERATIONS.md) and [Panel removal](PANEL-REMOVAL.md).
 
 ## Connections and configuration
 
@@ -82,11 +79,50 @@ An interrupted first setup can leave TLS files; inspect and move only those owne
 
 The [capability matrix](ENGINE-CAPABILITIES.md) defines supported versions and limits. Adapters do not expose every native engine option. General editors act on the panel host; remote writes are limited to [coordinated GRE/FRP creation](PAIRED-CONNECTIONS.md).
 
-The connection editor has three steps — **Entrance** (engine, ports or ranges, protocol, how ports map to the remote side), **Destinations** (addresses or domains checked when you leave the field, weights, drag to set the failover order, domain refresh, balancing and the advanced engine options) and **Protection & review** (health monitoring, automatic failover, notifications, safe apply and the review) — beside a live **route map** on desktop; on phones the map folds into the summary bar. Names are optional. Review precedes every apply. See [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md). Changed connection, GRE/reverse and configuration drafts ask before closing; drafts are not stored in the browser. **Relative share** controls weighted distribution, not priority or a bandwidth guarantee. [Setup presets](CONNECTION-PROFILES.md) initialize settings without changing existing records automatically.
+The connection editor has three steps — **Entrance** (engine, ports or ranges, protocol, how ports map to the remote side), **Destinations** (addresses or domains checked when you leave the field, weights, drag to set the failover order, domain refresh, balancing and the advanced engine options) and **Protection & review** (health monitoring, automatic failover, notifications, safe apply and the review) — beside a live **route map** on desktop; on phones the map folds into the summary bar. Each step is a few titled cards, the method is picked from cards with a one-line explanation, and **Next** names the step it opens. A field that needs a fix shows why under it; with several, a summary at the top links to each. Names are optional. Review precedes every apply. See [Port ranges, domain destinations and server DNS](PORTS-AND-DNS.md). A new connection can **start from a template**:
+- *VPN to a foreign server*: TCP and UDP on one port, forwarded in the kernel.
+- *HTTPS / TLS relay*: HAProxy.
+- *A range of ports*.
+- *Several foreign servers*: balanced, with checks.
+- *Through a GRE tunnel*: offered when a GRE tunnel exists; it targets the tunnel's far-end inner address.
 
-HAProxy, Realm and kernel port forwards share one **Connections** page; chips filter it by engine and show counts. Each row has an on/off switch, **Edit** and a health dot; selecting rows shows a floating bar for bulk start, stop and delete. Drag a row by its handle (or focus the handle and press the arrow keys) to reorder; the order is saved on the server for every device and never changes configuration. **Duplicate** in the row menu opens the same settings on the next free port or range. Select a connection name to inspect its summary and copy destination endpoints. The **More actions** menu contains details, configuration, supported logs and deletion. The toolbar's **Preview all configurations** renders enabled local connections without applying anything. The [configuration editor](CONFIGURATION-EDITOR.md) supports managed JSON and a restricted native-text subset, with revision checks, validation and review. GRE/reverse file views are read-only; reverse secrets are masked. Arbitrary paths, commands and unrestricted overrides are not exposed.
+Templates are one row of chips above the form (a sideways row on phones); the chosen one is explained under the row. A template fills the engine, protocol, ports and destination shape. Addresses already typed are kept, and everything stays editable. The templates are also in the command palette.
 
-Page addresses such as `#/connections?engine=haproxy` can be bookmarked; links to the earlier `#/haproxy`, `#/realm` and `#/forwarding` pages open the matching filter. Press **Ctrl K** (**Cmd K** on macOS), or use the sidebar search, to jump to pages, filters, saved connections, creation forms and appearance settings. Search/status filters, selected connection details and traffic tabs are retained in the URL. Browser back/forward works between pages. The header's server button shows the local host, protocol and separately copyable IPv4/IPv6 addresses. These remain local operations; remote management is limited to the capabilities described below.
+Changed connection, GRE/reverse and configuration drafts ask before closing; drafts are not stored in the browser. **Relative share** controls weighted distribution, not priority or a bandwidth guarantee. [Setup presets](CONNECTION-PROFILES.md) initialize settings without changing existing records automatically.
+
+HAProxy, Realm and kernel port forwards share one **Connections** page; chips filter it by engine and show counts. Each row starts with a status icon and shows its route on one line: entrance protocol and ports, a wire and the destinations (several destinations open a list). The icon and the wire share one state, derived from the service state, health checks and firewall badges:
+- **Running** (green, the wire drifts toward the destination): nothing known blocks the connection. It is not a traffic measurement; the Check tab measures traffic.
+- **Needs a look**: degraded health checks or a relay port closed in UFW.
+- **Stopped or blocked**: a stopped or failed service, failing checks, or a firewall that drops the forward.
+- **Turned off**, or **Changing or not known yet**.
+
+Each row also has an on/off switch, **Edit** and a health dot; selecting rows shows a floating bar for bulk start, stop and delete. **Sort** orders the list by name, status or engine, or keeps your custom order. **Reorder** turns the list into compact, numbered rows: drag a row by its handle (on a touch screen, press and hold anywhere on it), focus the handle and press the arrow keys, or use the row's ⋯ menu to move it to the top, up, down or to the bottom. **Save order** in the floating bar keeps it and **Cancel** puts it back; the saved message offers **Undo**. The custom order is saved on the server for every device and never changes configuration. On phones, **Select** or a long press on a card starts selection mode for bulk actions. **Duplicate** in the row menu opens the same settings on the next free port or range.
+
+Badges under each name show:
+- **Server IP** or **Client IP**: the address the destination sees (masquerade, or a preserved source).
+- **Forward blocked**: a dropping iptables backend lacks the owned accept.
+- **Closed in UFW**.
+- An allow or block list with its size.
+- **Limited**: per-source limits apply.
+
+The firewall badges open that connection on the [Firewall](FIREWALL.md) page.
+
+Select a connection name to inspect its summary, its **Check** tab and destination endpoints. Saving an enabled connection opens its Check tab at once.
+
+The **Check** tab shows the **live packet path** (clients → firewall → this server → each destination) with the guided checks below it:
+- Kernel forwards read the manager's own rule counters every 3 s while the tab is open: new connections per second, packets and bits per second to and from each destination, and packets the firewall's access rules dropped.
+- Relays show the TCP clients and the connections open to each destination.
+- A verdict names where traffic stops: waiting for traffic, dropped by this server's firewall (with **Fix now**), arriving but not leaving, a destination that does not answer, or only some destinations answering.
+- The first sample shows totals since the rules were applied; rates follow with the next one.
+- Nothing is sent to test it.
+
+A failed operation explains itself. Known causes get a plain sentence, **what to do** and, where a page fixes it, a button that opens that page. Examples: a port in use, settings changed meanwhile, server DNS, the firewall, a missing engine, a name that does not resolve, an IP no longer on the server, and a configuration that fails its check. The engine's own message stays under *Technical details*.
+
+The **More actions** menu contains details, configuration, supported logs and deletion. The toolbar's **Preview all configurations** renders enabled local connections without applying anything. The [configuration editor](CONFIGURATION-EDITOR.md) supports managed JSON and a restricted native-text subset, with revision checks, validation and review. GRE/reverse file views are read-only; reverse secrets are masked. Arbitrary paths, commands and unrestricted overrides are not exposed.
+
+Page addresses such as `#/connections?engine=haproxy` can be bookmarked; links to the earlier `#/haproxy`, `#/realm` and `#/forwarding` pages open the matching filter. Press **Ctrl K** (**Cmd K** on macOS), or use the sidebar search, to jump to pages, filters, saved connections, creation forms and appearance settings. Choosing a saved connection lists what to do with it: details, check, edit, turn on or off, duplicate, configuration or delete (which still asks for confirmation); Backspace or Escape goes back.
+
+On phones, dialogs open from the bottom of the screen and close by dragging their handle down. A connection card can be swiped: one way shows **Turn off/on** and **Edit**, the other way **More** with the remaining actions. Delete is never done by a swipe. The bottom bar's **More** opens every other page plus *New connection* and *Search and commands*; a dot marks pages that need attention, and the bar steps aside while you scroll down a page. Search/status filters, selected connection details and traffic tabs are retained in the URL. Browser back/forward works between pages. The header's server button shows the local host, protocol and separately copyable IPv4/IPv6 addresses. These remain local operations; remote management is limited to the capabilities described below.
 
 ## Traffic usage
 
@@ -122,6 +158,10 @@ The bell in the header opens the notification center; **Settings → Notificatio
 
 Configuration actions now open supported text editors directly. Use **Import** to convert a pasted/file HAProxy TCP configuration, simple Realm TOML or managed JSON into reviewed connections; it saves without starting unless explicitly enabled. See [Configuration editor](CONFIGURATION-EDITOR.md). **Tunnel engines → Check versions** separates current, official and verified/distribution versions and offers explicit local updates; see [Engine maintenance](ENGINE-MAINTENANCE.md).
 
+## IP addresses
+
+**IP addresses** lists this server's addresses and what uses each. After the datacenter changes an IP, **IP changed** moves every GRE end, connection and reverse tunnel to the new address on one screen; the other end of a tunnel moves automatically when it is a v1.6.0+ Node, and other peers get a command. **Add IP** keeps an additional address, with an optional own gateway, in an owned unit. See [IP addresses](IP-ADDRESSES.md).
+
 ## Multiple servers
 
 The panel host is already a local Node and needs no Agent. Nodes has separate server inventory and **Connect two servers** tabs. **Add server** opens setup guidance when the Controller is disabled. Enable its dedicated TLS listener, allow its port and refresh, then create an invitation for the other server's outbound Agent. Browser HTTP and Agent TLS are independent. See [Nodes](NODES.md), [paired connections](PAIRED-CONNECTIONS.md) and [remote traffic](REMOTE-TRAFFIC.md).
@@ -130,7 +170,7 @@ The panel host is already a local Node and needs no Agent. Nodes has separate se
 
 The public service runs as restricted `grepanel`; privileged typed operations use a protected local Unix broker and Bash API. Forwarding changes reload complete locked state, compare revisions, validate, snapshot and recover on failure. No public shell or arbitrary-file API exists.
 
-Sessions are memory-only, expire after four hours and use HttpOnly/SameSite cookies plus Secure on HTTPS. Writes require exact Origin and CSRF checks. Requests, login attempts and jobs are bounded. Restarting the public process clears sessions/jobs; a broker operation can still finish, so refresh actual state after reconnecting.
+Sessions are memory-only, expire after four hours and use HttpOnly/SameSite cookies plus Secure on HTTPS. Optional two-factor sign-in is described under [Sign-in security](#sign-in-security). Writes require exact Origin and CSRF checks. Requests, login attempts and jobs are bounded. Restarting the public process clears sessions/jobs; a broker operation can still finish, so refresh actual state after reconnecting.
 
 Production runs two Go processes plus the selected tunnel engines. Node/Vite/TypeScript are build tools. A memory-limit setting is not a fixed RSS guarantee; no throughput, CPU or RAM benchmark is claimed. For implementation details, see [Architecture](ARCHITECTURE.md), [Server artifacts](ARTIFACTS.md) and [Interface conventions](INTERFACE.md).
 
@@ -144,8 +184,12 @@ The visible dashboard requests a sample every 2 seconds by default; choose 1, 2,
 
 ## Overview, navigation and appearance
 
-The overview starts with the server's status: host name, OS and primary address, then four tiles for connections, running services, items that need attention and uptime/load. **Needs attention** lists enabled services in a failed or stopped state and engines that enabled connections use but that are not installed; each entry opens the related page. It is derived from inventory, not a separate health check.
+Until every step is done, a **Get started** checklist sits under the header: trusted HTTPS, two-factor sign-in, a first connection, health monitoring, scheduled backups and Telegram or webhook alerts. Each step reads the server's real state and links to its page; the card can be hidden in this browser.
 
-The sidebar groups **Workspace** (Overview, Connections, Traffic, Health), **Network** (Nodes, GRE, Reverse tunnels) and **System** (Maintenance, Optimization, Tunnel engines, Backup & restore, Settings). Phones keep Overview, Connections, Traffic and Nodes in the bottom bar.
+The overview starts with the server's status: host name, OS and primary address, then four tiles for connections, running services, items that need attention and uptime/load. **Needs attention** lists, first, local addresses that saved settings still use but the server no longer has (after an IP change), then enabled services in a failed or stopped state and engines that enabled connections use but that are not installed; each entry opens the related page. It is derived from inventory, not a separate health check.
 
-Appearance is stored only in this browser. **Signal** (dark) is the default; **Graphite**, **Aurora**, **Nettinx** and **Neutral** are available from the header's appearance button, the command palette or **Settings**, each in light, dark or system mode. Browsers that had the earlier automatic Nettinx default move to Signal once; a preset chosen afterwards is kept. Interface motion is short and is disabled when the operating system asks for reduced motion.
+The sidebar groups **Workspace** (Overview, Connections, Traffic, Health), **Network** (Nodes, GRE, Reverse tunnels, Firewall, IP addresses) and **System** (Maintenance, Optimization, Tunnel engines, Backup & restore, Settings). Phones keep Overview, Connections, Traffic and Nodes in the bottom bar.
+
+Appearance is stored only in this browser. **Signal** (dark) is the default; **Graphite**, **Aurora**, **Nettinx** and **Neutral** are available from the header's appearance button, the command palette or **Settings**, each in light, dark or system mode. Browsers that had the earlier automatic Nettinx default move to Signal once; a preset chosen afterwards is kept. **Density** (Comfortable or Compact, in the same places) changes the spacing of rows, cards and page sections; text sizes stay the same. Interface motion is short and is disabled when the operating system asks for reduced motion.
+
+The live server readings on the overview draw a trend line of about the last minute of samples. It is kept in the page's memory only and starts again when the page is opened.

@@ -5,7 +5,6 @@
 ```bash
 bash gre.sh --version
 bash gre.sh --catalog
-bash gre.sh --demo
 sudo bash gre.sh --validate
 sudo bash gre.sh --plan
 sudo bash gre.sh --doctor
@@ -42,15 +41,19 @@ Some providers route an additional IP through its own gateway, configured as sou
 
 **Source address of forwarded flows.** Kernel `masquerade` takes the first primary address of the egress interface and ignores the route's preferred source (`src`). When that interface holds more than one global IPv4 address (an additional or floating IP, or an old address kept after an IP change) the destination could see, and answer, an address that is not routed back, and the forward silently stops. On apply the manager asks `ip route get DESTINATION` for each masquerading IPv4 destination; when its egress interface has several global IPv4 addresses, the rule uses `snat ip to SRC` (iptables: `-j SNAT --to-source SRC`) with the route's preferred source instead. With one address, masquerade stays and follows DHCP changes by itself. IPv6 keeps masquerade (it uses standard source-address selection). The applied sources are kept in `/run/gre-manager/snat-sources.tsv`; while any source is pinned, the minute refresh timer (`gre-manager-dns.timer`) compares them with current routes and reapplies kernel rules when the host's addresses change. To make the destination see a specific address, put it first as the route's `src` (for example `ip route replace default via GW dev eth0 src ADDRESS`) and apply again.
 
-**Docker, UFW and the FORWARD policy.** Docker and UFW set the iptables `FORWARD` policy to `DROP`. nftables evaluates every base chain on a hook, so an accept in the manager's own table cannot override that drop. When iptables (legacy or nf_tables backend) is installed, nftables forwards therefore also get scoped accepts in the owned `GTM_FWD` chain, hooked first in `FORWARD`: only DNAT flows of each forward to its own destinations, and their replies. NAT, MSS and balancing stay in nftables. Firewalls that drop forwarded packets in their own nftables base chains (firewalld, custom tables) still need a rule there. The connection diagnosis reports the entrance address, this policy and the source address the destination sees.
+**Docker, UFW and the FORWARD policy.** Docker and UFW set the iptables `FORWARD` policy to `DROP`. nftables evaluates every base chain on a hook, so an accept in the manager's own table cannot override that drop. When iptables (legacy or nf_tables backend) is installed, nftables forwards therefore also get scoped accepts in the owned `GTM_FWD` chain, hooked first in `FORWARD`: only DNAT flows of each forward to its own destinations, and their replies. NAT, MSS and balancing stay in nftables. Both iptables backends can be active at once (UFW often keeps its `DROP` in iptables-legacy while `iptables` is the nf_tables variant) and packets pass both, so the accept is installed in every backend whose `FORWARD` policy drops; legacy tables are detected through `/proc/net/ip_tables_names` without loading modules. A firewall reload (`ufw reload`) flushes `FORWARD`; while a dropping backend exists, the refresh timer runs every minute and reapplies kernel forwards when the owned accept is missing. Firewalls that drop forwarded packets in their own nftables base chains (firewalld, custom tables) still need a rule there. The connection diagnosis reports the entrance address, this policy and the source address the destination sees.
 
 `--doctor` lists addresses with their own routing table and whether their return rule is active. It warns about strict `rp_filter` and lists explicit-bind kernel forwards on hosts with other addresses of that family. Records saved before v1.3.5 kept their single address; edit **Listen address** to all local addresses to accept on every IP.
 
+## After a server IP change
+
+When the provider moves a server to a new address, saved settings that name the old one stop working. Open **IP addresses → IP changed** in the panel. It lists every GRE end, connection and reverse tunnel that uses the old address and moves the chosen ones to the new address with a restore point. On the other server of each GRE tunnel, run `address-replace OLD NEW remote all` (shown by the panel), unless it is a v1.6.0+ Node that the panel moves in the same job. See [IP addresses](IP-ADDRESSES.md).
+
 ## Restore or investigate a failure
 
-For a reinstall or a move to another server, use the panel's encrypted [Backup & restore](BACKUP-RESTORE.md) workflow. It includes recognized GRE/reverse definitions and optional accounting. The terminal restore points below have a narrower scope.
+For a reinstall or a move to another server, use the panel's encrypted [Backup & restore](BACKUP-RESTORE.md) workflow. It includes recognized GRE/reverse definitions and optional accounting. The restore points below have a narrower scope.
 
-Use **Tools → Restore Backup**. Select a snapshot, inspect its generated preview, then confirm. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates. The newest 100 automatic restore points are kept. Set `GTM_RESTORE_POINTS` for another count, or `0` to keep all. Cleanup, tuning, legacy and manually named files are never pruned.
+Open **Change history**. Select a restore point, inspect its preview, then restore. Restoration goes through the same validation/preflight/apply path and creates another snapshot. It restores managed forwarding records, not FRP instances, GRE units, optional binaries or operator certificates. The newest 100 automatic restore points are kept. Set `GTM_RESTORE_POINTS` for another count, or `0` to keep all. Cleanup, tuning, legacy and manually named files are never pruned.
 
 ```bash
 sudo journalctl -u gre-manager-forwarding.service -n 100 --no-pager

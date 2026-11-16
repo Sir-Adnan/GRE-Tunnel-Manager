@@ -146,37 +146,6 @@ gtm_record_emit() {
     return 0
 }
 
-# Caller reloads under lock. Refuse to overwrite another session's completed edit.
-gtm_replace_record() {
-    local expected=$1 replacement=$2 line found=0
-    local id=${expected%%$'\t'*}
-    local -a updated=()
-    gtm_record_validate "$replacement" && [[ $R_ID == "$id" ]] || return 1
-    for line in "${GTM_RECORDS[@]}"; do
-        if [[ ${line%%$'\t'*} == "$id" ]]; then
-            [[ $line == "$expected" ]] || { gtm_error 'Connection changed in another session. Reopen the editor.'; return 1; }
-            updated+=("$replacement"); found=1
-        else updated+=("$line"); fi
-    done
-    ((found)) || { gtm_error 'Connection was removed by another operation.'; return 1; }
-    GTM_RECORDS=("${updated[@]}")
-}
-
-gtm_selection() {
-    local value=$1 max=$2 token index
-    local -a tokens=()
-    GTM_SELECTED=()
-    local -A seen=()
-    read -r -a tokens <<< "$value"
-    (( ${#tokens[@]} > 0 && ${#tokens[@]} <= max )) || return 1
-    for token in "${tokens[@]}"; do
-        gtm_uint "$token" 1 "$max" || return 1
-        index=$((10#$token-1))
-        [[ ${seen[$index]+set} ]] && continue
-        seen[$index]=1; GTM_SELECTED+=("$index")
-    done
-}
-
 gtm_install_runner() {
     local func tmp
     mkdir -p "${GTM_RUNTIME%/*}" || return 1
@@ -184,9 +153,10 @@ gtm_install_runner() {
     {
         printf '#!/usr/bin/env bash\n# Generated Traffic Manager kernel reconciler.\n'
         printf 'GTM_CONFIG_DIR=%q\nGTM_RUN_DIR=%q\nGTM_SERVICE_DIR=%q\nGTM_RUNTIME=%q\n' "$GTM_CONFIG_DIR" "$GTM_RUN_DIR" "$GTM_SERVICE_DIR" "$GTM_RUNTIME"
-        declare -p GTM_VERSION GTM_SPAN_MAX GTM_DNS_MAX GTM_DNS_UNIT GTM_SYSDNS_UNIT
+        declare -p GTM_VERSION GTM_SPAN_MAX GTM_DNS_MAX GTM_DNS_UNIT GTM_SYSDNS_UNIT GTM_GUARD_UNIT GTM_GUARD_CIDRS_MAX GTM_GUARD_PRIVATE4 GTM_GUARD_PRIVATE6
         while IFS= read -r func; do declare -f "$func"; done < <(compgen -A function gtm_)
-        printf '\ngtm_paths\nif [[ ${1:-} == --dns-refresh ]]; then gtm_dns_refresh > /dev/null; exit $?; fi\ngtm_prepare && gtm_lock || exit 1\ngtm_kernel_apply\nresult=$?\ngtm_unlock\nexit "$result"\n'
+        printf '\ngtm_paths\nif [[ ${1:-} == --dns-refresh ]]; then gtm_dns_refresh > /dev/null; exit $?; fi
+if [[ ${1:-} == --firewall-revert ]]; then gtm_prepare && gtm_lock || exit 1; gtm_guard_restore_prev; result=$?; gtm_unlock; exit "$result"; fi\ngtm_prepare && gtm_lock || exit 1\ngtm_kernel_apply\nresult=$?\ngtm_unlock\nexit "$result"\n'
     } > "$tmp"
     bash -n "$tmp" && chmod 700 "$tmp" && mv "$tmp" "$GTM_RUNTIME" || { rm -f "$tmp"; return 1; }
     cat > "$GTM_SERVICE_DIR/gre-manager-forwarding.service" <<EOF
@@ -262,4 +232,29 @@ gtm_commit() {
         gtm_error "Recovery needs attention. State restored at $GTM_STATE; check journalctl -u gre-manager-forwarding."
     fi
     return 1
+}
+
+# A new or re-enabled listener must not take a port a local service already uses.
+gtm_listener_check() {
+    local protocol=$1 bind=$2 port=$3 flag listing address key wanted filter
+    local -a fields=()
+    command -v ss >/dev/null 2>&1 || return 0
+    wanted=$(gtm_ip_key "$bind") || return 1
+    gtm_port_span "$port" || return 1
+    filter="( sport = :$PS_FIRST )"
+    (( PS_LAST == PS_FIRST )) || filter="( sport >= :$PS_FIRST and sport <= :$PS_LAST )"
+    for flag in -t -u; do
+        [[ $protocol != tcp || $flag == -t ]] || continue
+        [[ $protocol != udp || $flag == -u ]] || continue
+        listing=$(ss -H -n -l "$flag" "$filter") || { gtm_error 'Could not inspect local listeners.'; return 1; }
+        while read -r -a fields; do
+            (( ${#fields[@]} >= 4 )) || continue
+            address=${fields[3]%:*}; address=${address#\[}; address=${address%\]}; address=${address%%%*}
+            if [[ $address == '*' ]]; then key='*'; else key=$(gtm_ip_key "$address") || { gtm_error 'Unknown local listener address.'; return 1; }; fi
+            if [[ $key == "$wanted" || $key == '*' || $wanted == 0.0.0.0 || $key == 0.0.0.0 || $wanted == 00000000000000000000000000000000 || $key == 00000000000000000000000000000000 ]]; then
+                gtm_error "A local service already uses the requested address/port: $bind:$port"; return 1
+            fi
+        done <<< "$listing"
+    done
+    return 0
 }

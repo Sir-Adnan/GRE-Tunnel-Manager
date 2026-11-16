@@ -1,6 +1,6 @@
 # Server optimization
 
-The panel's **Optimization** page (terminal: **Tools → Server optimization**) offers server-wide kernel and network-card settings for tunnel and forwarding servers: a [profile](#profiles) (Conservative, Balanced or Aggressive, for general use, many users or low latency) and five opt-in groups. Nothing changes until a group is reviewed and applied; any value can be [customized](#custom-values) within safe bounds. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
+The panel's **Optimization** page offers server-wide kernel and network-card settings for tunnel and forwarding servers: a [profile](#profiles) (Conservative, Balanced or Aggressive, for general use, many users or low latency) and five opt-in groups. Nothing changes until a group is reviewed and applied; any value can be [customized](#custom-values) within safe bounds. Every change is journaled, can be undone step by step, and **Reset everything** returns each setting to its original value and deletes the panel's files.
 
 This module replaces the tuning menu of v1.3.7 and earlier; its values and method were not carried over. Settings applied with that menu are imported on the first change (see [Upgrading](#upgrading-from-v137)).
 
@@ -23,7 +23,7 @@ The page also marks groups that **fit this server**: Connection tracking when ke
 
 ## Profiles
 
-A profile is an intensity level and a goal. The page previews any profile before anything changes; the one applied last is shown as **Applied** and used by the terminal menu (**Change profile**). Balanced · General is the default and matches v1.4.0.
+A profile is an intensity level and a goal. The page previews any profile before anything changes; the one applied last is shown as **Applied** and stays the default for later changes. Balanced · General is the default and matches v1.4.0.
 
 | Level | Flow table | Idle TCP / closing | Queues (backlog, budget, accept/SYN) | Relay buffers | Keepalive |
 | --- | --- | --- | --- | --- | --- |

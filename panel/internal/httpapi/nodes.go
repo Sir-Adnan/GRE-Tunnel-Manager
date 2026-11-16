@@ -97,6 +97,19 @@ func (s *Server) nodeRoutes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if r.URL.Path == "/api/nodes/readdress" && r.Method == "POST" {
+		var in nodes.ReaddressRequest
+		if !decode(w, r, &in) {
+			return
+		}
+		out, e := s.Nodes.CreateReaddress(in)
+		if e != nil {
+			failure(w, 409, e.Error())
+			return
+		}
+		reply(w, 202, out)
+		return
+	}
 	if r.URL.Path == "/api/nodes/pairs/decision" && r.Method == "POST" {
 		var in struct {
 			ID       string `json:"id"`

@@ -111,6 +111,10 @@ export const common = {
   confirm: ["Confirm", "تأیید"],
   mobileNavigation: ["Mobile navigation", "ناوبری موبایل"],
   moreNavigation: ["More", "بیشتر"],
+  morePages: ["All pages", "همه‌ی صفحه‌ها"],
+  quickActions: ["Quick actions", "دسترسی سریع"],
+  turnOn: ["Turn on", "روشن"],
+  turnOff: ["Turn off", "خاموش"],
   previousPage: ["Previous", "قبلی"],
   nextPage: ["Next", "بعدی"],
   feature_source_affinity: [
@@ -538,6 +542,8 @@ export const common = {
   commandPlaceholder: ["Search or jump to…", "جستجو یا رفتن به…"],
   commandNavigate: ["Move", "جابه‌جایی"],
   commandRun: ["Run", "اجرا"],
+  commandBack: ["Back", "بازگشت"],
+  commandActions: ["Actions", "عملیات"],
   commandGo: ["Go to", "رفتن به"],
   commandCreate: ["Create", "ایجاد"],
   networkGroup: ["Network", "شبکه"],
@@ -552,6 +558,13 @@ export const common = {
   light: ["Light", "روشن"],
   dark: ["Dark", "تیره"],
   system: ["System", "سیستم"],
+  density: ["Density", "تراکم"],
+  densityHelp: [
+    "Compact fits more rows on the screen; text size stays the same.",
+    "حالت فشرده ردیف‌های بیشتری را در صفحه جا می‌دهد؛ اندازه‌ی متن تغییر نمی‌کند.",
+  ],
+  comfortable: ["Comfortable", "راحت"],
+  compact: ["Compact", "فشرده"],
   selectAll: ["Select all", "انتخاب همه"],
   needsInstall: [
     "Install the selected engine first from Tunnel engines.",

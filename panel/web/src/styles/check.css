@@ -1,0 +1,265 @@
+/* Connection check: the live packet path (a column on phones, a row when
+   there is room), the saved confirmation and the badges on connection
+   cards. Tones use the theme's AA text tokens; state is never color alone. */
+@layer components {
+  .path,
+  .conn-badges {
+    --tone-ok: var(--color-success-text);
+    --tone-warn: var(--color-warning-text);
+    --tone-problem: var(--color-destructive-text);
+    --tone-idle: var(--muted-foreground);
+  }
+  .path {
+    @apply flex min-w-0 flex-col gap-3;
+    container-type: inline-size;
+  }
+  .path-head {
+    @apply flex items-center gap-1.5;
+  }
+  .path-title {
+    @apply text-sm font-semibold tracking-tight;
+  }
+  .path-pulse {
+    @apply ms-auto size-2 shrink-0 rounded-full;
+    background: var(--tone-idle);
+    opacity: 0.5;
+  }
+  .path-pulse[data-live] {
+    background: var(--tone-ok);
+    opacity: 1;
+  }
+
+  .path-verdict {
+    @apply flex items-start gap-3 rounded-xl border p-3;
+    --tone: var(--tone-idle);
+    border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
+    background: color-mix(in srgb, var(--tone) 7%, var(--card));
+  }
+  .path-verdict[data-tone="ok"] {
+    --tone: var(--tone-ok);
+  }
+  .path-verdict[data-tone="warn"] {
+    --tone: var(--tone-warn);
+  }
+  .path-verdict[data-tone="problem"] {
+    --tone: var(--tone-problem);
+  }
+  .path-verdict-icon {
+    @apply mt-0.5 size-5 shrink-0;
+    color: var(--tone);
+  }
+
+  /* Stages: connectors run between cards and turn dashed where traffic stops. */
+  .path-flow {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+  .path-node,
+  .path-target {
+    @apply relative flex min-w-0 items-start gap-3 rounded-xl border bg-card p-3;
+    --tone: var(--tone-idle);
+  }
+  .path-node[data-state="ok"],
+  .path-target[data-state="ok"] {
+    --tone: var(--tone-ok);
+  }
+  .path-node[data-state="warn"] {
+    --tone: var(--tone-warn);
+  }
+  .path-node[data-state="problem"],
+  .path-target[data-state="problem"] {
+    --tone: var(--tone-problem);
+    border-color: color-mix(in srgb, var(--tone) 45%, var(--border));
+  }
+  .path-node-icon {
+    @apply mt-0.5 size-4 shrink-0;
+    color: var(--tone);
+  }
+  .path-target svg[data-tone] {
+    color: var(--tone);
+  }
+  .path-flow > li + li::before {
+    content: "";
+    position: absolute;
+    inset-block-start: calc(-0.75rem - 1px);
+    inset-inline-start: calc(1.25rem - 1px);
+    block-size: 0.75rem;
+    border-inline-start: 2px solid var(--border);
+  }
+  .path-flow > li[data-state="problem"]::before {
+    border-inline-start-style: dashed;
+    border-color: var(--tone-problem);
+  }
+  .path-targets {
+    @apply relative min-w-0;
+  }
+  .path-targets > ul {
+    @apply min-w-0;
+  }
+  .path-value {
+    @apply text-sm font-medium tabular-nums;
+  }
+  .path-sub {
+    @apply text-xs text-muted-foreground;
+  }
+  .path-stop {
+    @apply text-xs font-medium;
+    color: var(--tone-problem);
+  }
+  .path-traffic {
+    @apply flex flex-col gap-0.5 text-xs tabular-nums text-muted-foreground;
+  }
+  .path-traffic > span {
+    @apply inline-flex min-w-0 flex-wrap items-center gap-x-1;
+  }
+  .path-traffic svg {
+    @apply size-3 shrink-0;
+  }
+  .path-traffic > span[data-missing] {
+    color: var(--tone-problem);
+  }
+  .path-foot {
+    @apply text-xs text-muted-foreground;
+  }
+
+  @container (min-width: 40rem) {
+    .path-flow {
+      @apply flex-row items-stretch;
+    }
+    .path-flow > li {
+      flex: 1 1 0;
+    }
+    .path-flow > .path-targets {
+      flex: 1.5 1 0;
+    }
+    .path-flow > li + li::before {
+      inset-block-start: 1.375rem;
+      inset-inline-start: calc(-0.75rem - 1px);
+      block-size: 0;
+      inline-size: 0.75rem;
+      border-inline-start: 0;
+      border-block-start: 2px solid var(--border);
+    }
+    .path-flow > li[data-state="problem"]::before {
+      border-block-start-style: dashed;
+      border-color: var(--tone-problem);
+    }
+  }
+
+  .check-saved {
+    @apply flex items-center gap-2 rounded-xl border px-3 py-2 text-sm;
+    color: var(--color-success-text);
+    border-color: color-mix(
+      in srgb,
+      var(--color-success-text) 30%,
+      var(--border)
+    );
+    background: color-mix(in srgb, var(--color-success-text) 7%, var(--card));
+  }
+  .check-saved svg {
+    @apply size-4 shrink-0;
+  }
+
+  /* Connection card badges: what the destination sees and the firewall. */
+  .conn-badges {
+    @apply flex min-w-0 flex-wrap items-center gap-1.5;
+  }
+  .conn-badge {
+    @apply inline-flex items-center gap-1 rounded-md border px-1.5 text-xs leading-6 whitespace-nowrap text-muted-foreground;
+    --tone: var(--tone-idle);
+  }
+  .conn-badge svg {
+    @apply size-3 shrink-0;
+  }
+  .conn-badge[data-tone] {
+    color: var(--tone);
+    border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
+    background: color-mix(in srgb, var(--tone) 7%, transparent);
+  }
+  .conn-badge[data-tone="warn"] {
+    --tone: var(--tone-warn);
+  }
+  .conn-badge[data-tone="problem"] {
+    --tone: var(--tone-problem);
+  }
+  a.conn-badge:hover {
+    @apply bg-muted;
+  }
+  a.conn-badge:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .path-pulse[data-live] {
+    animation: path-pulse 2.4s ease-in-out infinite;
+  }
+}
+@keyframes path-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Explained errors: cause, what to do, a fix button and the raw details. */
+@layer components {
+  .error-help {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+  .error-help-title {
+    @apply flex items-start gap-2 text-sm font-semibold;
+    color: var(--color-destructive-text);
+  }
+  .error-help-title svg {
+    @apply mt-0.5 size-4 shrink-0;
+  }
+  .error-help-details {
+    @apply rounded-lg border bg-muted/40 text-xs;
+  }
+  .error-help-details summary {
+    @apply cursor-pointer px-3 py-2 text-muted-foreground select-none;
+  }
+  .error-help-details pre {
+    @apply max-h-48 overflow-auto border-t px-3 py-2 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap;
+  }
+}
+
+/* Template picker on a new connection: one row of chips. */
+@layer components {
+  .tpl-picker {
+    @apply flex min-w-0 flex-col gap-2;
+  }
+  .tpl-legend {
+    @apply mb-2 text-sm font-semibold;
+  }
+  .tpl-chips {
+    @apply flex min-w-0 flex-wrap gap-2;
+  }
+  .tpl-chip {
+    @apply inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border bg-background px-3 text-sm whitespace-nowrap transition-colors outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4 [&_svg]:text-muted-foreground;
+  }
+  .tpl-chip[aria-pressed="true"] {
+    @apply border-primary font-medium;
+    background: color-mix(in srgb, var(--primary) 10%, var(--background));
+  }
+  .tpl-chip[aria-pressed="true"] svg {
+    color: var(--primary-text);
+  }
+  .tpl-note {
+    @apply text-xs leading-relaxed text-muted-foreground;
+  }
+  /* Phones: the row scrolls sideways instead of wrapping into a block. */
+  @media (max-width: 39.99rem) {
+    .tpl-chips {
+      @apply -mx-1 flex-nowrap overflow-x-auto px-1 pb-1;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+    }
+    .tpl-chips::-webkit-scrollbar {
+      display: none;
+    }
+    .tpl-chip {
+      @apply min-h-11;
+      scroll-snap-align: start;
+    }
+  }
+}

@@ -13,14 +13,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CommandBlock } from "@/components/CommandBlock";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { usePoll } from "@/lib/use-poll";
 import { api } from "@/lib/api";
 import { useLoaded } from "@/features/operations/hooks";
-import { certificateState, type AccessView } from "./access";
+import { certificateSource, certificateState, type AccessView } from "./access";
+import { CertificateActions } from "./CertificateActions";
 
-/** TLS status describes the certificate actually loaded by this public process.
- * Renewal sources and private keys remain local to the operator's ACME client. */
+const sourceHelp = {
+  http: "tlsHTTPHelp",
+  managed: "tlsManagedHelp",
+  external: "tlsExternalHelp",
+  selfSigned: "tlsSelfSignedHelp",
+} as const;
+
+/** TLS status describes the certificate actually loaded by this public process,
+ * plus the secret-free renewal record. Keys and ACME accounts stay root-only. */
 export function AccessSecurity() {
   const t = useT(),
     locale = useContext(LocaleContext);
@@ -31,6 +39,8 @@ export function AccessSecurity() {
   const [now, setNow] = useState(() => Date.now());
   usePoll(async () => setNow(Date.now()), { seconds: 60, immediate: false });
   const state = certificateState(value, now);
+  const source = certificateSource(value);
+  const renewal = value?.renewal;
   const encrypted = value?.protocol === "https";
   const Icon = encrypted ? ShieldCheck : ShieldAlert;
   const date = (text?: string) =>
@@ -49,7 +59,7 @@ export function AccessSecurity() {
       await reload();
       setReloaded(true);
     } catch (e) {
-      setFailure(e instanceof Error ? e.message : String(e));
+      setFailure(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -71,6 +81,14 @@ export function AccessSecurity() {
             </AlertDescription>
           </Alert>
         )}
+        {source === "managed" && renewal?.last_error && (
+          <Alert>
+            <AlertDescription>
+              <span className="font-medium">{t("tlsRenewalFailed")}</span>{" "}
+              <bdi dir="ltr">{renewal.last_error}</bdi>
+            </AlertDescription>
+          </Alert>
+        )}
         {!value ? (
           <Skeleton className="h-28 w-full" />
         ) : (
@@ -80,16 +98,16 @@ export function AccessSecurity() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{t(`tlsState_${state}`)}</p>
                 <p className="text-sm text-muted-foreground">
-                  {t(
-                    encrypted
-                      ? value.self_signed
-                        ? "tlsSelfSignedHelp"
-                        : "tlsExternalHelp"
-                      : "tlsHTTPHelp",
-                  )}
+                  {t(sourceHelp[source])}
                 </p>
               </div>
-              <Badge variant="outline">{encrypted ? "HTTPS" : "HTTP"}</Badge>
+              <Badge variant="outline">
+                {renewal?.staging
+                  ? t("tlsStaging")
+                  : encrypted
+                    ? "HTTPS"
+                    : "HTTP"}
+              </Badge>
             </div>
             {encrypted && (
               <dl className="access-facts">
@@ -107,6 +125,14 @@ export function AccessSecurity() {
                   <dt>{t("tlsIssuer")}</dt>
                   <dd>
                     <bdi dir="ltr">{value.issuer}</bdi>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("tlsRenewal")}</dt>
+                  <dd>
+                    {source === "managed"
+                      ? `${t("tlsRenewal_managed")} ${date(renewal?.renew_after)}`
+                      : t(`tlsRenewal_${source}`)}
                   </dd>
                 </div>
                 <div>
@@ -129,8 +155,16 @@ export function AccessSecurity() {
           </>
         )}
         <details className="advanced-block">
-          <summary>{t("tlsRenewalGuide")}</summary>
+          <summary>{t("tlsTrustedGuide")}</summary>
           <div className="flex flex-col gap-3 pt-4">
+            <p className="text-sm text-muted-foreground">{t("tlsIssueHelp")}</p>
+            <CommandBlock
+              text={`sudo gtm https issue --domain ${value?.host || "panel.example.com"}`}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("tlsIssueDetails")}
+            </p>
+            <p className="pt-2 text-sm font-medium">{t("tlsRenewalGuide")}</p>
             <p className="text-sm text-muted-foreground">
               {t("tlsRenewalHelp")}
             </p>
@@ -142,18 +176,15 @@ export function AccessSecurity() {
             <p className="text-xs text-muted-foreground">
               {t("tlsRenewalHook")}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {t("tlsHTTPUpgrade")}
-            </p>
           </div>
         </details>
       </CardContent>
-      <CardFooter className="flex flex-wrap justify-between gap-3">
-        <p className="max-w-prose text-xs text-muted-foreground">
-          {t("tlsReloadHelp")}
-        </p>
+      <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+        <CertificateActions value={value} reload={reload} />
         <Button
-          variant="outline"
+          variant="ghost"
+          size="sm"
+          title={t("tlsReloadHelp")}
           disabled={!encrypted || busy}
           onClick={() => void renew()}
         >

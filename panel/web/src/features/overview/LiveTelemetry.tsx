@@ -13,15 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { HelpTip } from "@/components/help";
 import { Segmented } from "@/components/Segmented";
 import { LocaleContext, useT } from "@/lib/i18n";
-import { number, trafficBytes } from "@/lib/format";
+import { bitRate, number, trafficBytes } from "@/lib/format";
+import { Sparkline } from "@/components/Sparkline";
 import { useHostTelemetry } from "./useHostTelemetry";
-
-function rate(bytes: number | null | undefined, locale: "en" | "fa") {
-  if (bytes == null) return "—";
-  const bits = Math.max(0, bytes) * 8;
-  const unit = bits >= 1e9 ? 1e9 : bits >= 1e6 ? 1e6 : bits >= 1e3 ? 1e3 : 1;
-  return `${number(bits / unit, locale, 1)} ${unit === 1e9 ? "Gbps" : unit === 1e6 ? "Mbps" : unit === 1e3 ? "Kbps" : "bps"}`;
-}
 
 /** Dashboard sampling choices in seconds. Below 1 s the network rate is noise. */
 const liveIntervals = [1, 2, 5, 15] as const;
@@ -49,7 +43,7 @@ export function LiveTelemetry() {
       /* blocked storage: the choice lasts for this page only */
     }
   };
-  const { sample, error } = useHostTelemetry(enabled, interval);
+  const { sample, trends, error } = useHostTelemetry(enabled, interval);
   const stale = error;
   const ready = !stale;
   const memory = sample?.memory_total
@@ -65,6 +59,8 @@ export function LiveTelemetry() {
           ? `${number(sample.cpu_percent, locale, 1)}%`
           : "—",
       percent: ready ? sample?.cpu_percent : undefined,
+      trend: trends.cpu,
+      max: 100,
       detail: t("allCPUCores"),
     },
     {
@@ -72,6 +68,8 @@ export function LiveTelemetry() {
       icon: MemoryStick,
       value: ready && memory != null ? `${number(memory, locale, 1)}%` : "—",
       percent: ready ? memory : undefined,
+      trend: trends.memory,
+      max: 100,
       detail:
         ready && sample?.memory_total
           ? `${trafficBytes(sample.memory_total - sample.memory_available, locale)} / ${trafficBytes(sample.memory_total, locale)}`
@@ -80,7 +78,8 @@ export function LiveTelemetry() {
     {
       key: "networkReceive",
       icon: ArrowDown,
-      value: rate(ready ? sample?.received_per_second : null, locale),
+      value: bitRate(ready ? sample?.received_per_second : null, locale),
+      trend: trends.received,
       detail:
         ready && sample?.received_per_second != null
           ? `${trafficBytes(sample.received_per_second, locale)}/s`
@@ -89,7 +88,8 @@ export function LiveTelemetry() {
     {
       key: "networkSend",
       icon: ArrowUp,
-      value: rate(ready ? sample?.sent_per_second : null, locale),
+      value: bitRate(ready ? sample?.sent_per_second : null, locale),
+      trend: trends.sent,
       detail:
         ready && sample?.sent_per_second != null
           ? `${trafficBytes(sample.sent_per_second, locale)}/s`
@@ -143,35 +143,44 @@ export function LiveTelemetry() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-x-5 gap-y-6 lg:grid-cols-4">
-          {items.map(({ key, icon: Icon, value, percent, detail }) => (
-            <div key={key} className="flex min-w-0 flex-col gap-2">
-              <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Icon className="size-4 shrink-0" />
-                {t(key)}
-              </dt>
-              <dd className="text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">
-                <bdi dir="ltr">{value}</bdi>
-              </dd>
-              <dd className="min-h-4 break-words text-xs text-muted-foreground">
-                <bdi>{detail}</bdi>
-              </dd>
-              {percent != null && (
-                <dd
-                  className="h-1 overflow-hidden rounded-full bg-muted"
-                  role="meter"
-                  aria-label={t(key)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(percent)}
-                >
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-                  />
+          {items.map(
+            ({ key, icon: Icon, value, percent, detail, trend, max }) => (
+              <div key={key} className="flex min-w-0 flex-col gap-2">
+                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Icon className="size-4 shrink-0" />
+                  {t(key)}
+                </dt>
+                <dd className="text-title font-semibold tracking-tight tabular-nums sm:text-[1.5rem]">
+                  <bdi dir="ltr">{value}</bdi>
                 </dd>
-              )}
-            </div>
-          ))}
+                <dd className="min-h-4 break-words text-xs text-muted-foreground">
+                  <bdi>{detail}</bdi>
+                </dd>
+                <dd aria-hidden className="h-6">
+                  {ready && (
+                    <Sparkline values={trend} max={max} className="is-wide" />
+                  )}
+                </dd>
+                {percent != null && (
+                  <dd
+                    className="h-1 overflow-hidden rounded-full bg-muted"
+                    role="meter"
+                    aria-label={t(key)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(percent)}
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, percent))}%`,
+                      }}
+                    />
+                  </dd>
+                )}
+              </div>
+            ),
+          )}
         </dl>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
           <span>

@@ -51,6 +51,30 @@ gtm_sysdns_mode() {
     printf unknown
 }
 
+# systemd-resolved reads its drop-ins as an unprivileged user, so the drop-in
+# directory must be world-searchable. The engine runs with umask 077, and a
+# directory it created before 1.6.0 is unreadable to resolved, which then
+# reports no global DNS. Such a directory holding only our files is repaired;
+# any other unreadable one is reported, not changed.
+gtm_sysdns_dropin_dir() {
+    local dir=$GTM_RESOLVED_DIR mode entry
+    if [[ ! -e $dir ]]; then
+        mkdir -p "$dir" && chmod 755 "$dir" || return 1
+        return 0
+    fi
+    [[ -d $dir && ! -L $dir ]] || { gtm_error "Unsafe DNS directory: $dir"; return 1; }
+    mode=$(stat -c %a "$dir" 2>/dev/null) || return 1
+    (( (8#$mode & 5) == 5 )) && return 0
+    for entry in "$dir"/* "$dir"/.[!.]*; do
+        [[ -e $entry || -L $entry ]] || continue
+        case ${entry##*/} in
+            zz-gre-manager.conf|zz-gre-manager.conf.*|90-gre-manager.conf) ;;
+            *) gtm_error "$dir is not readable by systemd-resolved (mode $mode); allow others to read it (chmod 755) and try again."; return 1 ;;
+        esac
+    done
+    chmod 755 "$dir"
+}
+
 gtm_sysdns_nameservers() { [[ -r $1 ]] && awk '$1 == "nameserver" && NF >= 2 {print $2}' "$1" | head -n 8 | paste -sd' ' -; }
 
 gtm_sysdns_resolved_query() {
@@ -142,7 +166,7 @@ gtm_sysdns_apply_checked() {
     case $mode in
         resolved)
             [[ -f $GTM_SYSDNS_DIR/original ]] || gtm_sysdns_nameservers "$GTM_RESOLVED_UPSTREAM" > "$GTM_SYSDNS_DIR/original" || return 1
-            mkdir -p "$GTM_RESOLVED_DIR" || return 1
+            gtm_sysdns_dropin_dir || return 1
             # An earlier release's managed drop-in is ours; replace it here.
             if [[ -f $GTM_SYSDNS_LEGACY_DROPIN && -f $GTM_SYSDNS_DIR/servers ]] && grep -q '^# Managed by Traffic Manager' "$GTM_SYSDNS_LEGACY_DROPIN"; then
                 rm -f "$GTM_SYSDNS_LEGACY_DROPIN" || return 1
@@ -194,6 +218,7 @@ ExecStart=/bin/sh $GTM_SYSDNS_SCRIPT
 [Install]
 WantedBy=multi-user.target
 EOF
+    chmod 644 "$GTM_SYSDNS_SERVICE" || return 1
     systemctl daemon-reload && systemctl enable "$GTM_SYSDNS_UNIT.service" >/dev/null
 }
 
@@ -279,52 +304,6 @@ GTM_SYSDNS_PRESETS=(
     'Radar Game|10.202.10.10 10.202.10.11' '403.online|10.202.10.202 10.202.10.102'
     'Begzar|185.55.226.26 185.55.225.25'
 )
-
-# Prints "server<TAB>ms" or "server<TAB>-" per server: one lookup of NAME each.
-gtm_sysdns_probe() {
-    local server start end
-    command -v dig >/dev/null 2>&1 || { printf 'Install dnsutils (dig) for a speed test; the panel tests without it.\n'; return 0; }
-    for server in "$@"; do
-        start=$(date +%s%N)
-        if dig +time=2 +tries=1 +short "@$server" example.com A >/dev/null 2>&1; then
-            end=$(date +%s%N); printf '  %-16s %4d ms\n' "$server" "$(( (end - start) / 1000000 ))"
-        else printf '  %-16s failed\n' "$server"; fi
-    done
-}
-
-gtm_sysdns_menu() {
-    local choice index entry input
-    local -a servers=()
-    gtm_sysdns_paths
-    while true; do
-        gtm_header 'Server DNS'
-        gtm_sysdns_status | while IFS=$'\t' read -r key value; do printf '  %-9s %s\n' "$key" "${value:--}"; done
-        printf '\n'
-        index=0
-        for entry in "${GTM_SYSDNS_PRESETS[@]}"; do ((index+=1)); gtm_option "$index" "${entry%%|*}" "${entry#*|}"; done
-        gtm_option 11 'Manual servers'
-        gtm_option 12 'Speed test (all presets)'
-        gtm_option 13 'Restore original DNS'
-        gtm_option 0 Back
-        gtm_read 'Choose: ' choice || return
-        case $choice in
-            0) return;;
-            11) gtm_default 'DNS servers (space separated, up to 4)' input '' || continue
-                read -r -a servers <<< "$input";;
-            12) for entry in "${GTM_SYSDNS_PRESETS[@]}"; do printf '%s\n' "${entry%%|*}"; read -r -a servers <<< "${entry#*|}"; gtm_sysdns_probe "${servers[@]}"; done
-                gtm_pause; continue;;
-            13) gtm_prepare && gtm_lock || continue; gtm_sysdns_restore; gtm_unlock; gtm_pause; continue;;
-            *) gtm_uint "$choice" 1 "${#GTM_SYSDNS_PRESETS[@]}" || { gtm_error 'Choose one of the shown options.'; continue; }
-               entry=${GTM_SYSDNS_PRESETS[$((10#$choice-1))]}; read -r -a servers <<< "${entry#*|}";;
-        esac
-        ((${#servers[@]})) || continue
-        gtm_sysdns_probe "${servers[@]}"
-        printf '  Apply %s?\n' "${servers[*]}"
-        gtm_confirm || continue
-        gtm_prepare && gtm_lock || continue
-        gtm_sysdns_apply "${servers[@]}"; gtm_unlock; gtm_pause
-    done
-}
 
 gtm_sysdns_api() {
     local operation=$1; shift

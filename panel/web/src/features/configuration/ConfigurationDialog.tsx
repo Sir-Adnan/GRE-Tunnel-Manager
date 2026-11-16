@@ -3,7 +3,7 @@ import { Download, Code2 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { api } from "@/lib/api";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +69,7 @@ export function ConfigurationDialog({
         }
       })
       .catch((e) => {
-        if (live) setError(String(e));
+        if (live) setError(errorMessage(e));
       });
     return () => {
       live = false;
@@ -91,7 +91,7 @@ export function ConfigurationDialog({
       });
       setReview({ format, text, view: candidate });
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -168,7 +168,7 @@ export function ConfigurationDialog({
                   setError("");
                 }}
               >
-                <TabsList className="max-w-full flex-wrap">
+                <TabsList layout="fill">
                   <TabsTrigger value="view">{t("viewConfig")}</TabsTrigger>
                   {view.editor && (
                     <TabsTrigger value="json">{t("managedEditor")}</TabsTrigger>
@@ -267,7 +267,7 @@ export function ConfigurationDialog({
                       });
                       onClose();
                     } catch (e) {
-                      setError(String(e));
+                      setError(errorMessage(e));
                     } finally {
                       setBusy(false);
                     }

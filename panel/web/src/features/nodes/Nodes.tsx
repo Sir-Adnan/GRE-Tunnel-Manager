@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { HelpCircle, Link2, Plus, RefreshCw } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { api } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
 import { PageTitle, TextField } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,6 @@ import { NodeCard } from "./NodeCard";
 import { NodeDetails } from "./NodeDetails";
 import { PairedConnections } from "./PairedConnections";
 
-import { toast } from "sonner";
-import { SortableArea, SortableItem } from "@/components/sortable";
-import { applyOrder, useOrder } from "@/lib/order";
 
 export function Nodes() {
   const t = useT();
@@ -48,8 +45,7 @@ export function Nodes() {
   const [details, setDetails] = useState<Node>();
   const [revoking, setRevoking] = useState<Node>();
   const [help, setHelp] = useState(false);
-  const nodeOrder = useOrder("nodes");
-  const orderedNodes = applyOrder(list?.nodes ?? [], nodeOrder.ids, (n) => n.id);
+  const orderedNodes = list?.nodes ?? [];
   const refresh = useCallback(async () => {
     const value = await api<Listing>("nodes");
     setList(value);
@@ -58,7 +54,7 @@ export function Nodes() {
   }, []);
   useEffect(() => {
     const reload = () => {
-      void refresh().catch((e) => setError(String(e)));
+      void refresh().catch((e) => setError(errorMessage(e)));
     };
     window.addEventListener("gtm:nodes-refresh", reload);
     return () => window.removeEventListener("gtm:nodes-refresh", reload);
@@ -70,7 +66,7 @@ export function Nodes() {
         if (active) setList(value);
       })
       .catch((e) => {
-        if (active) setError(String(e));
+        if (active) setError(errorMessage(e));
       });
     return () => {
       active = false;
@@ -82,7 +78,7 @@ export function Nodes() {
     try {
       await action();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -173,30 +169,17 @@ export function Nodes() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="servers">
-          <SortableArea
-            ids={orderedNodes.map((n) => n.id)}
-            onMove={(next) =>
-              void nodeOrder.save(next).then((e) => {
-                if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
-              })
-            }
-          >
-            <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
-              {orderedNodes.map((node) => (
-                <SortableItem key={node.id} id={node.id}>
-                  {(item) => (
-                    <NodeCard
-                      node={node}
-                      busy={busy}
-                      onDetails={() => setDetails(node)}
-                      onRevoke={() => setRevoking(node)}
-                      sortable={{ item, label: node.name }}
-                    />
-                  )}
-                </SortableItem>
-              ))}
-            </div>
-          </SortableArea>
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            {orderedNodes.map((node) => (
+              <NodeCard
+                key={node.id}
+                node={node}
+                busy={busy}
+                onDetails={() => setDetails(node)}
+                onRevoke={() => setRevoking(node)}
+              />
+            ))}
+          </div>
         </TabsContent>
         <TabsContent value="pairs">
           {list?.enabled && <PairedConnections nodes={list.nodes} />}

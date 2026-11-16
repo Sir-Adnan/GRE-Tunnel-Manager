@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { RefreshCw, Download, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,7 @@ export function EngineUpdates({ run }: { run: (r: unknown) => Promise<void> }) {
     try {
       setReleases(await api<Release[]>("engines/releases"));
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -57,7 +57,7 @@ export function EngineUpdates({ run }: { run: (r: unknown) => Promise<void> }) {
       setSelected(undefined);
       setReleases(undefined);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

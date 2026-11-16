@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { lazy, Suspense, useContext } from "react";
 import { Code2, Pencil, Activity } from "lucide-react";
 import {
   Dialog,
@@ -19,14 +19,26 @@ import { engineName } from "@/lib/format";
 import { endpoint } from "@/lib/api";
 import type { Connection } from "@/lib/api";
 import { usePanelRoute } from "@/lib/use-panel-route";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Loaded when the Check tab opens (it polls the live packet path).
+const ConnectionCheck = lazy(() =>
+  import("@/features/check/ConnectionCheck").then((m) => ({
+    default: m.ConnectionCheck,
+  })),
+);
 
 export function ConnectionDetails({
   row,
   onClose,
   onEdit,
   onConfig,
+  hostname,
+  run,
 }: {
   row: Connection;
+  hostname: string;
+  run?: (request: unknown) => Promise<void>;
   onClose: () => void;
   onEdit: () => void;
   onConfig: () => void;
@@ -34,8 +46,9 @@ export function ConnectionDetails({
   const t = useT(),
     locale = useContext(LocaleContext);
   const { params, updateParams } = usePanelRoute();
+  const detail = params.get("detail");
   const tab =
-    params.get("detail") === "destinations" ? "destinations" : "summary";
+    detail === "destinations" || detail === "check" ? detail : "summary";
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -53,13 +66,18 @@ export function ConnectionDetails({
           <Tabs
             dir={locale === "fa" ? "rtl" : "ltr"}
             value={tab}
-            onValueChange={(detail) => updateParams({ detail })}
+            onValueChange={(detail) => updateParams({ detail, saved: "" })}
             className="gap-5"
           >
-            <TabsList variant="line" aria-label={t("connectionDetails")}>
+            <TabsList
+              variant="line"
+              layout="fill"
+              aria-label={t("connectionDetails")}
+            >
               <TabsTrigger value="summary">
                 {t("connectionOverview")}
               </TabsTrigger>
+              <TabsTrigger value="check">{t("chkTab")}</TabsTrigger>
               <TabsTrigger value="destinations">
                 {t("destinations")} ({row.targets.length})
               </TabsTrigger>
@@ -98,6 +116,16 @@ export function ConnectionDetails({
               <p className="mt-5 text-xs leading-6 text-muted-foreground">
                 {t("connectionStateHelp")}
               </p>
+            </TabsContent>
+            <TabsContent value="check">
+              <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+                <ConnectionCheck
+                  connection={row}
+                  hostname={hostname}
+                  saved={params.get("saved") === "1"}
+                  run={run}
+                />
+              </Suspense>
             </TabsContent>
             <TabsContent value="destinations">
               <div className="mb-3 flex items-center gap-1 text-sm">

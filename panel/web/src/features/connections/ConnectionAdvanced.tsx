@@ -26,7 +26,7 @@ export function ConnectionAdvanced({ draft }: { draft: ConnectionDraft }) {
       onValueChange={setAdvancedTab}
       className="gap-4"
     >
-      <TabsList className="w-full h-auto flex-wrap" aria-label={t("advanced")}>
+      <TabsList layout="fill" className="sm:w-full" aria-label={t("advanced")}>
         {capability.options.length > 0 && (
           <TabsTrigger data-advanced-tab="limits" value="limits">
             {t("limitsAndTimeouts")}

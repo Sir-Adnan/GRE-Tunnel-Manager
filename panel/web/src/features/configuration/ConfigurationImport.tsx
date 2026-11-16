@@ -1,7 +1,7 @@
 import { useContext, useState } from "react";
 import { FileUp, Check, ArrowLeft } from "lucide-react";
 import { api, endpoint, type Connection } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -68,7 +68,7 @@ export function ConfigurationImport({
         }),
       );
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -90,7 +90,7 @@ export function ConfigurationImport({
       });
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

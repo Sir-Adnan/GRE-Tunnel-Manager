@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Choice } from "@/components/shared";
 import { Button } from "@/components/ui/button";
+import { FormSection } from "@/components/FormSection";
 import { useT } from "@/lib/i18n";
 import type { HealthSettings } from "@/features/operations/types";
 import type { Protection } from "./protection";
@@ -65,20 +66,19 @@ export function ProtectionFields({
   const enabled = Boolean(settings?.enabled) || value.enable_health;
   const set = (patch: Partial<Protection>) => onChange({ ...value, ...patch });
   return (
-    <section className="protect-panel" aria-labelledby="protect-title">
-      <header className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 id="protect-title" className="text-sm font-semibold">
-            {t("protectTitle")}
-          </h3>
-          <p className="text-xs text-muted-foreground">{t("protectHelp")}</p>
-        </div>
-        {onAdvanced && (
-          <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={onAdvanced}>
+    <FormSection
+      className="protect-panel"
+      icon={<ShieldCheck />}
+      title={t("protectTitle")}
+      description={t("protectHelp")}
+      action={
+        onAdvanced && (
+          <Button type="button" variant="link" size="sm" className="h-auto shrink-0 p-0" onClick={onAdvanced}>
             {t("protectAdvanced")}
           </Button>
-        )}
-      </header>
+        )
+      }
+    >
       {settings && !settings.enabled && (
         <div className="protect-callout" data-on={value.enable_health || undefined}>
           <span className="min-w-0 flex-1">
@@ -94,7 +94,7 @@ export function ProtectionFields({
           />
         </div>
       )}
-      <div className="flex flex-col">
+      <div className="protect-rows">
         <Row
           id="protect-monitor"
           icon={<HeartPulse />}
@@ -149,6 +149,6 @@ export function ProtectionFields({
           </div>
         </div>
       )}
-    </section>
+    </FormSection>
   );
 }

@@ -209,6 +209,10 @@ gtm_dns_refresh() {
         if gtm_snat_drift; then
             printf 'Host source addresses changed; reapplying kernel forwards.\n' >&2
             gtm_kernel_apply || { gtm_error 'Source address reconciliation failed.'; result=1; }
+        elif gtm_forward_guard_missing; then
+            # A firewall reload (ufw reload, for example) flushed FORWARD.
+            printf 'The forward accept was removed from a dropping FORWARD chain; reapplying kernel forwards.\n' >&2
+            gtm_kernel_apply || { gtm_error 'Forward accept reconciliation failed.'; result=1; }
         fi
     fi
     gtm_unlock
@@ -232,12 +236,13 @@ gtm_dns_view() {
 }
 
 # Enables the refresh timer while a record uses a DNS name or a forward pins
-# its SNAT source (the timer then follows host address changes); removes it
-# otherwise. Uses the sources of the apply that just ran in this process.
+# its SNAT source (the timer then follows host address changes), or while a
+# FORWARD DROP policy needs the owned accept (restored after a firewall
+# reload); removes it otherwise. Uses the sources of the apply that just ran in this process.
 gtm_dns_timer_sync() {
     local service="$GTM_SERVICE_DIR/$GTM_DNS_UNIT.service" timer="$GTM_SERVICE_DIR/$GTM_DNS_UNIT.timer" wanted
     wanted=$(gtm_dns_needed) || return 1
-    [[ -n $wanted ]] || wanted=$(gtm_snat_list)
+    [[ -n $wanted ]] || wanted=$(gtm_snat_list; gtm_forward_guard_drops)
     if [[ -z $wanted ]]; then
         [[ -e $timer ]] || return 0
         systemctl disable --now "$GTM_DNS_UNIT.timer" >/dev/null 2>&1 || true

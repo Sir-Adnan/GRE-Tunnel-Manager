@@ -27,6 +27,8 @@ type HealthInput struct {
 	WeekStart int             `json:"week_start,omitempty"`
 	// Owner selects one connection or resource for on-demand reads.
 	Owner string `json:"owner,omitempty"`
+	// Range selects a latency history range (health.LatencyRanges).
+	Range string `json:"range,omitempty"`
 }
 
 // MaintenanceInput carries one maintenance change. Exactly the fields an
@@ -293,6 +295,8 @@ func (o *Operations) execute(now time.Time, r Request, metrics *Metrics) (any, e
 		return o.healthView(now), nil
 	case "health-report":
 		return o.report(now, r.Health, metrics)
+	case "health-latency":
+		return o.Health.Latency(r.Health.Owner, r.Health.Range, now)
 	case "health-configure":
 		if e := o.Health.Configure(now, r.Health.Settings, r.Health.Revision); e != nil {
 			return nil, e

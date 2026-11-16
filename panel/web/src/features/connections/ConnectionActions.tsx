@@ -3,34 +3,24 @@ import {
   Trash2,
   FileText,
   Code2,
-  MoreHorizontal,
   Info,
   Stethoscope,
   CopyPlus,
 } from "lucide-react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
-import { LocaleContext } from "@/lib/i18n";
-import { Button } from "@/components/ui/button";
+import { ActionMenu } from "@/components/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { ActionButton } from "@/components/help";
 import type { Connection } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
-/** Row actions: an explicit on/off switch, edit, and everything else in one menu. */
+/** Row actions: an explicit on/off switch, edit, and everything else in one menu (a sheet on phones). */
 export function ConnectionActions({
   row,
   busy,
@@ -41,6 +31,8 @@ export function ConnectionActions({
   onDelete,
   onToggle,
   run,
+  menuOpen,
+  onMenuOpenChange,
 }: {
   row: Connection;
   busy: boolean;
@@ -51,9 +43,11 @@ export function ConnectionActions({
   onDelete: () => void;
   onToggle: () => void;
   run: (r: unknown) => Promise<void>;
+  /** Lets a card swipe open this row's menu. */
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
 }) {
   const t = useT();
-  const locale = useContext(LocaleContext);
   const toggle = `${t(row.enabled ? "disable" : "enable")} ${row.name}`;
   const [diagnosing, setDiagnosing] = useState(false);
   return (
@@ -85,59 +79,68 @@ export function ConnectionActions({
       >
         <Pencil />
       </ActionButton>
-      <DropdownMenu dir={locale === "fa" ? "rtl" : "ltr"}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={busy}
-            aria-label={`${t("moreActions")} ${row.name}`}
-          >
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-52">
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={onDetails}>
-              <Info />
-              {t("connectionDetails")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onConfig}>
-              <Code2 />
-              {t("viewConfig")}
-            </DropdownMenuItem>
-            {onDuplicate && (
-              <DropdownMenuItem onSelect={() => onDuplicate(row)}>
-                <CopyPlus />
-                {t("duplicate")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onSelect={() => setDiagnosing(true)}>
-              <Stethoscope />
-              {t("diagOpen")}
-            </DropdownMenuItem>
-            {["realm", "haproxy"].includes(row.engine) && (
-              <DropdownMenuItem
-                onSelect={() =>
-                  void run({ action: "logs", service: `gtm-${row.id}` }).catch(
-                    () => {},
-                  )
-                }
-              >
-                <FileText />
-                {t("logs")}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-              <Trash2 />
-              {t("delete")}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ActionMenu
+        label={`${t("moreActions")} ${row.name}`}
+        title={row.name}
+        disabled={busy}
+        open={menuOpen}
+        onOpenChange={onMenuOpenChange}
+        groups={[
+          [
+            {
+              id: "details",
+              label: t("connectionDetails"),
+              icon: <Info />,
+              onSelect: onDetails,
+            },
+            {
+              id: "config",
+              label: t("viewConfig"),
+              icon: <Code2 />,
+              onSelect: onConfig,
+            },
+            ...(onDuplicate
+              ? [
+                  {
+                    id: "duplicate",
+                    label: t("duplicate"),
+                    icon: <CopyPlus />,
+                    onSelect: () => onDuplicate(row),
+                  },
+                ]
+              : []),
+            {
+              id: "diagnose",
+              label: t("diagOpen"),
+              icon: <Stethoscope />,
+              onSelect: () => setDiagnosing(true),
+            },
+            ...(["realm", "haproxy"].includes(row.engine)
+              ? [
+                  {
+                    id: "logs",
+                    label: t("logs"),
+                    icon: <FileText />,
+                    onSelect: () =>
+                      void run({
+                        action: "logs",
+                        service: `gtm-${row.id}`,
+                      }).catch(() => {}),
+                  },
+                ]
+              : []),
+          ],
+          [
+            {
+              id: "delete",
+              label: t("delete"),
+              icon: <Trash2 />,
+              onSelect: onDelete,
+              destructive: true,
+            },
+          ],
+        ]}
+      />
       <DiagnoseDialog
         key={String(diagnosing)}
         owner={diagnosing ? row.id : undefined}

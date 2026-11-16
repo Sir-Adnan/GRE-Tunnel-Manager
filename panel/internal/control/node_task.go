@@ -26,7 +26,25 @@ type NodeSpec struct {
 	Kind    string  `json:"kind"`
 	GRE     GRE     `json:"gre"`
 	Reverse Reverse `json:"reverse"`
+	// Readdress moves every owned GRE tunnel whose Use address is Old to New
+	// (kind "readdress", v1.6.0+ Agents). omitzero keeps older specs' digests.
+	Readdress Readdress `json:"readdress,omitzero"`
 }
+
+// Readdress is one side of a paired IP change: Use is local on the server
+// whose address changed and remote on the server at the other end.
+type Readdress struct {
+	Old string `json:"old"`
+	New string `json:"new"`
+	Use string `json:"use"`
+}
+
+// ReaddressVersion is the first release whose Agents run readdress tasks.
+const ReaddressVersion = "1.6.0"
+
+// reverse is the change that undoes this one.
+func (r Readdress) reverse() Readdress { return Readdress{Old: r.New, New: r.Old, Use: r.Use} }
+
 type NodeTask struct {
 	ID       string    `json:"id"`
 	Stage    string    `json:"stage"`
@@ -60,12 +78,27 @@ var taskID = regexp.MustCompile(`^[a-f0-9]{32}$`)
 var taskHash = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 func (s NodeSpec) Service() string {
+	if s.Kind == "readdress" {
+		return "gre " + s.Readdress.Use + " " + s.Readdress.Old + " -> " + s.Readdress.New
+	}
 	if s.Kind == "gre" {
 		return "gre-tun-" + strconv.Itoa(s.GRE.ID)
 	}
 	return "gtm-frp-" + s.Reverse.Role + "-" + s.Reverse.Name
 }
 func (s NodeSpec) Validate() error {
+	if s.Kind == "readdress" {
+		r := s.Readdress
+		a, e := netip.ParseAddr(r.Old)
+		b, f := netip.ParseAddr(r.New)
+		if e != nil || f != nil || a.Zone() != "" || b.Zone() != "" || a.Is4In6() || b.Is4In6() || !a.IsGlobalUnicast() || !b.IsGlobalUnicast() || a == b || a.Is4() != b.Is4() || a.String() != r.Old || b.String() != r.New || !oneOf(r.Use, "local", "remote") || s.GRE != (GRE{}) || s.Reverse != (Reverse{}) {
+			return errors.New("invalid paired address change")
+		}
+		return nil
+	}
+	if s.Readdress != (Readdress{}) {
+		return errors.New("unsupported paired connection")
+	}
 	if s.Kind == "gre" {
 		g := s.GRE
 		a, e := netip.ParseAddr(g.Remote)
@@ -265,7 +298,14 @@ func (x *NodeExecutor) Execute(ctx context.Context, t NodeTask) (NodeResult, err
 			bad.Code = "confirmation_expired"
 			return bad, nil
 		}
-		if _, e = x.Manager.call(ctx, "pair-verify", "", r.Spec.Service(), r.Fingerprint); e != nil {
+		if r.Spec.Kind == "readdress" {
+			// The tunnels now using the new address must be exactly those applied.
+			out, e := x.check(ctx, NodeSpec{Kind: "readdress", Readdress: r.Spec.Readdress.reverse()})
+			if e != nil || lastLine(out) != r.Fingerprint {
+				bad.Code = "resource_changed"
+				return bad, nil
+			}
+		} else if _, e = x.Manager.call(ctx, "pair-verify", "", r.Spec.Service(), r.Fingerprint); e != nil {
 			bad.Code = "resource_changed"
 			return bad, nil
 		}
@@ -280,7 +320,13 @@ func (x *NodeExecutor) Execute(ctx context.Context, t NodeTask) (NodeResult, err
 			return bad, nil
 		}
 		if r.Result.State == "applied" || r.Result.State == "committed" {
-			if _, e = x.Manager.call(ctx, "pair-delete", "", r.Spec.Service(), r.Fingerprint); e != nil {
+			if r.Spec.Kind == "readdress" {
+				// Undo moves the same tunnels back, only if nothing changed them since.
+				_, e = x.apply(ctx, NodeSpec{Kind: "readdress", Readdress: r.Spec.Readdress.reverse()}, r.Fingerprint)
+			} else {
+				_, e = x.Manager.call(ctx, "pair-delete", "", r.Spec.Service(), r.Fingerprint)
+			}
+			if e != nil {
 				r.Result.State = "unknown"
 				r.Result.Code = "rollback_needs_inspection"
 			} else {
@@ -303,6 +349,10 @@ func lastLine(s string) string {
 	return lines[len(lines)-1]
 }
 func (x *NodeExecutor) check(ctx context.Context, s NodeSpec) (string, error) {
+	if s.Kind == "readdress" {
+		r := s.Readdress
+		return x.Manager.call(ctx, "readdress-check", "", r.Old, r.New, r.Use)
+	}
 	if s.Kind == "gre" {
 		g := s.GRE
 		return x.Manager.call(ctx, "pair-check-gre", "", strconv.Itoa(g.ID), g.Role, g.Remote, g.Bind, strconv.Itoa(g.MTU))
@@ -314,6 +364,10 @@ func (x *NodeExecutor) check(ctx context.Context, s NodeSpec) (string, error) {
 	return x.Manager.call(ctx, "pair-check-frp", in)
 }
 func (x *NodeExecutor) apply(ctx context.Context, s NodeSpec, rev string) (string, error) {
+	if s.Kind == "readdress" {
+		r := s.Readdress
+		return x.Manager.call(ctx, "readdress-apply", "", rev, r.Old, r.New, r.Use)
+	}
 	if s.Kind == "gre" {
 		g := s.GRE
 		return x.Manager.call(ctx, "pair-apply-gre", "", rev, strconv.Itoa(g.ID), g.Role, g.Remote, g.Bind, strconv.Itoa(g.MTU))

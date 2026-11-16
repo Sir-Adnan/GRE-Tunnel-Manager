@@ -7,7 +7,7 @@ The panel supports optional read-only accounting snapshots to **Nodes → View d
 Install or update the Agent with traffic reporting available:
 
 ```bash
-sudo bash node-install.sh --agent --traffic --package-dir /path/to/packages
+sudo gtm agent install --traffic
 ```
 
 Existing identity and explicit paired-operation opt-in are preserved. The installer checks `gtm-panel nodes traffic-version` before stopping a working Agent. Adding `--traffic` does not install nftables, enable sampling, or change forwarding rules. Its broker opens the separate root-owned accounting ledger; the network Agent only reads summaries.

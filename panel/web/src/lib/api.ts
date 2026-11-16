@@ -53,7 +53,10 @@ export type Resource = {
   description: string;
   configured: boolean;
   port?: number;
+  /** GRE: this server's public end; reverse: its listen address. */
   bind?: string;
+  /** GRE: the far end's public address. */
+  remote?: string;
   protocol?: string;
   revision?: string;
 };
@@ -225,6 +228,7 @@ export async function api<T>(
     throw new ApiError(
       value?.error || `HTTP ${response.status}`,
       response.status,
+      value?.code_required === true,
     );
   }
   if (value === undefined) throw new ApiError("Invalid server response", 0);
@@ -233,9 +237,12 @@ export async function api<T>(
 }
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** The sign-in needs a two-factor code (password accepted). */
+  readonly codeRequired: boolean;
+  constructor(message: string, status: number, codeRequired = false) {
     super(message);
     this.status = status;
+    this.codeRequired = codeRequired;
   }
 }
 // Network failures and gateway/busy answers are temporary. Authentication and

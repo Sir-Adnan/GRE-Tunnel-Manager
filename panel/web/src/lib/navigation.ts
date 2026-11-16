@@ -6,6 +6,8 @@ export const pages = [
   "nodes",
   "gre",
   "reverse",
+  "firewall",
+  "addresses",
   "maintenance",
   "optimize",
   "components",

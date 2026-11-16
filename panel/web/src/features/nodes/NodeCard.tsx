@@ -18,21 +18,17 @@ import { NodePressure } from "./FarSide";
 import { tunnelSummary } from "./probes";
 import type { Node } from "./types";
 
-import { DragHandle } from "@/components/sortable";
-import type { useSortableItem } from "@/lib/use-sortable-item";
 
 export function NodeCard({
   node,
   busy,
   onDetails,
   onRevoke,
-  sortable,
 }: {
   node: Node;
   busy: boolean;
   onDetails: () => void;
   onRevoke: () => void;
-  sortable?: { item: ReturnType<typeof useSortableItem>; label: string };
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
@@ -43,13 +39,10 @@ export function NodeCard({
         )
       : t("notReported");
   return (
-    <Card key={node.id} ref={sortable?.item.setNodeRef} style={sortable?.item.style} data-dragging={sortable?.item.dragging || undefined} className="sortable-card min-w-0">
+    <Card key={node.id} className="min-w-0">
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
-          <span className="flex items-center gap-1">
-            {sortable && <DragHandle handle={sortable.item.handle} label={sortable.label} className="!mt-0 -ms-2" />}
-            <Server className="size-5 shrink-0" />
-          </span>
+          <Server className="size-5 shrink-0" />
           <Badge variant={node.status === "online" ? "secondary" : "outline"}>
             {t(`node_${node.status}`)}
           </Badge>

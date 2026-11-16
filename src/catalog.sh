@@ -20,15 +20,3 @@ gtm_catalog() {
     printf '  WireGuard/AmneziaWG link provisioning, GOST chains, GRE-over-UDP, IPVS,\n'
     printf '  HTTP CONNECT tcpmux, automatic cross-host deployment and a web dashboard.\n'
 }
-
-gtm_reverse_menu() {
-    local choice
-    gtm_header 'Reverse Tunnel'
-    gtm_help reverse
-    gtm_option 1 FRP 'TCP / WS / WSS / QUIC'
-    gtm_option 2 rathole 'Noise tunnel'
-    gtm_option 3 Help 'Which one should I use?'
-    gtm_option 0 Back
-    gtm_read 'Choose: ' choice || return
-    case $choice in 1) gtm_frp_menu;; 2) gtm_rathole_menu;; 3) gtm_catalog; gtm_pause;; esac
-}

@@ -1,4 +1,5 @@
-import { Check, Moon, Sun, Monitor } from "lucide-react";
+import { useId } from "react";
+import { Check, Moon, Sun, Monitor, Rows2, Rows4 } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -8,7 +9,47 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { styleChoices } from "@/experience/style-choices";
 import { useT } from "@/lib/i18n";
-import type { Preferences } from "@/lib/preferences";
+import { densities, type Density, type Preferences } from "@/lib/preferences";
+
+/** Comfortable or compact spacing; shared by this popover and the Appearance settings. */
+export function DensityToggle({
+  value,
+  onChange,
+  size,
+}: {
+  value: Density;
+  onChange: (value: Density) => void;
+  size?: "sm";
+}) {
+  const t = useT(),
+    labelId = useId();
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium text-muted-foreground" id={labelId}>
+        {t("density")}
+      </p>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        size={size}
+        aria-labelledby={labelId}
+        value={value}
+        className="w-full"
+        onValueChange={(next) => next && onChange(next as Density)}
+      >
+        {densities.map((id) => {
+          const Glyph = id === "compact" ? Rows4 : Rows2;
+          return (
+            <ToggleGroupItem key={id} value={id} className="flex-1">
+              <Glyph aria-hidden />
+              {t(id)}
+            </ToggleGroupItem>
+          );
+        })}
+      </ToggleGroup>
+    </div>
+  );
+}
 
 /** Quick appearance switcher: color mode plus the visual preset, without leaving the page. */
 export function AppearanceControl({
@@ -72,6 +113,11 @@ export function AppearanceControl({
               ))}
             </ToggleGroup>
           </div>
+          <DensityToggle
+            value={preferences.density}
+            onChange={(density) => onChange({ ...preferences, density })}
+            size="sm"
+          />
           <div className="flex flex-col gap-1">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               {t("style")}

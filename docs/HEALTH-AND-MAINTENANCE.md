@@ -49,6 +49,10 @@ nftables and iptables spread new connections with a fixed rule (`numgen`, `jhash
 
 The Status row shows a Failover badge and the expanded row which destinations are out, since when and any error. Each change is audited (`health-failover`). Failover is a kernel-forward feature; HAProxy already removes a failing destination after its own checks (default every 3 s, down after 3) and Realm has no destination checks.
 
+### Latency history
+
+An expanded row shows the latency history of its connection or tunnel: the average round trip as a line, a band up to the peak, and bars for failed checks, over the last hour, 24 hours, 7 days or 30 days, with the range's average, peak, jitter and loss above the chart. The last hour comes from each target's recent checks in one-minute steps; longer ranges come from the hourly rollups the monitor keeps for the retention period (30 days by default), in 1-hour, 6-hour and 1-day steps. Nothing extra is probed or stored, steps without checks stay empty rather than dropping to zero, and service targets (systemd units) have no round trip and are left out. The chart loads only when a row is expanded and refreshes every minute for the last hour, less often for longer ranges.
+
 ### New connections per destination
 
 For an nftables forward with several destinations, **Show distribution** reads one counter per destination chain from the owned table. Those chains hang off the NAT hook, which sees only the first packet of each connection, so the counters are new connections since the forward's rules were last applied. A destination far below the others is usually down or slow. Nothing runs until the button is pressed.

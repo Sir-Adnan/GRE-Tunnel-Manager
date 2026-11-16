@@ -29,6 +29,7 @@ type Demo struct {
 	snaps     *demoSnapshots
 	prom      *Prometheus
 	extra     *demoExtras
+	admin     *demoAdmin
 }
 
 func NewDemo() *Demo {
@@ -71,20 +72,28 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		defer d.rememberChange(slices.Clone(d.inventory.Connections))
 	}
 	switch r.Action {
+	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover":
+		return d.adminDemo(r)
 	case "host-telemetry":
 		return json.Marshal(demoTelemetry())
-	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel", "health-flows", "health-mtu":
+	case "health", "health-report", "health-latency", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel", "health-flows", "health-mtu":
 		return d.operations(r)
 	case "optimize", "optimize-plan", "optimize-apply", "optimize-undo", "optimize-remove":
 		return d.optimizeDemo(r)
-	case "notifications", "notifications-read", "notifications-clear", "notifications-configure", "notifications-test":
+	case "notifications", "notifications-read", "notifications-clear", "notifications-node", "notifications-configure", "notifications-test":
 		return d.notificationsDemo(r)
 	case "history", "history-review", "history-restore":
 		return d.historyDemo(r)
 	case "diagnose":
 		return d.diagnoseDemo(r.Health.Owner)
+	case "connection-path":
+		return d.pathDemo(r.Health.Owner)
 	case "dns", "dns-test", "dns-resolve", "dns-apply", "dns-restore", "dns-policy", "dns-refresh":
 		return d.dnsDemo(r)
+	case "firewall", "firewall-apply", "firewall-confirm", "firewall-revert", "firewall-repair":
+		return d.firewallDemo(r)
+	case "addresses", "address-replace", "address-extra-add", "address-extra-delete":
+		return d.addressesDemo(r)
 	case "ui-order", "ui-order-save":
 		return d.orderDemo(r)
 	case "change-pending", "change-confirm", "change-revert":
@@ -193,7 +202,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		return json.Marshal(map[string]bool{"ok": true})
 
 	case "inventory":
-		result = d.inventory
+		result = d.withTunnelEnds()
 	case "metrics":
 		m := Metrics{view: d.metrics}
 		result = m.Summary()
@@ -255,6 +264,9 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		for _, row := range rows {
 			c, _, e := model.ParseState(row)
 			if e != nil {
+				return nil, e
+			}
+			if e := d.portTaken(c[0]); e != nil {
 				return nil, e
 			}
 			d.counter++
@@ -324,7 +336,11 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		}
 	case "gre-create":
 		g := r.GRE
-		d.inventory.Resources = append(d.inventory.Resources, Resource{ID: fmt.Sprintf("gre-tun-%d", g.ID), Engine: "gre", Name: fmt.Sprintf("GRE %d", g.ID), Role: g.Role, Status: "active", Configured: true, Interface: fmt.Sprintf("gre%d", g.ID)})
+		peer := fmt.Sprintf("10.0.%d.2", g.ID)
+		if g.Role == "iran" {
+			peer = fmt.Sprintf("10.0.%d.1", g.ID)
+		}
+		d.inventory.Resources = append(d.inventory.Resources, Resource{ID: fmt.Sprintf("gre-tun-%d", g.ID), Engine: "gre", Name: fmt.Sprintf("GRE %d", g.ID), Role: g.Role, Status: "active", Configured: true, Interface: fmt.Sprintf("gre%d", g.ID), Peer: peer, Bind: g.Bind, Remote: g.Remote})
 		d.inventory.Resources[len(d.inventory.Resources)-1].Revision = model.Revision("demo unit "+d.inventory.Resources[len(d.inventory.Resources)-1].ID) + ":-"
 		if d.configs == nil {
 			d.configs = map[string]string{}

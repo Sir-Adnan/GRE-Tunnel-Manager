@@ -17,7 +17,7 @@ Compatibility labels distinguish **pinned**, **native check required**, **unveri
 
 The registry is in `panel/internal/model/engines.go`; installed-version probing is in `panel/internal/control/components.go`. Forwarding protocols/options still come from the existing closed connection model. Profiles are informational and do not grant additional privileged operations or silently rewrite existing configurations. See [HAProxy](HAPROXY.md), [Nodes](NODES.md) and [paired operations](PAIRED-CONNECTIONS.md).
 
-See [HAProxy routing](HAPROXY-ROUTING.md), [Realm profiles](REALM-PROFILES.md) and [traffic accounting](TRAFFIC-ACCOUNTING.md) for the new closed contracts and compatibility boundaries.
+See [HAProxy routing](HAPROXY.md#routing-sni-http-and-https-termination), [Realm profiles](REALM-PROFILES.md) and [traffic accounting](TRAFFIC-ACCOUNTING.md) for the new closed contracts and compatibility boundaries.
 
 ## Native features still outside the adapters
 

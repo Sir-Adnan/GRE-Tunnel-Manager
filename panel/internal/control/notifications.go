@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/health"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/notify"
@@ -18,6 +21,33 @@ type NotifyInput struct {
 	Revision uint64           `json:"revision"`
 	IDs      []uint64         `json:"ids,omitempty"`
 	All      bool             `json:"all,omitempty"`
+	// Node is a presence change reported by the panel's Controller.
+	Node *NodeChange `json:"node,omitempty"`
+}
+
+// NodeChange is a Node that stopped reporting or came back. Seconds is the
+// silence so far (offline) or the outage length (back online).
+type NodeChange struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Online  bool   `json:"online"`
+	Seconds int64  `json:"seconds"`
+}
+
+var nodeIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
+// event validates a change from the unprivileged panel before it becomes a
+// notification: a Node identity, a short printable name and a bounded time.
+func (n NodeChange) event(now time.Time) (notify.Event, error) {
+	name := strings.TrimSpace(n.Name)
+	if !nodeIDPattern.MatchString(n.ID) || name == "" || utf8.RuneCountInString(name) > 64 || strings.IndexFunc(name, unicode.IsControl) >= 0 || n.Seconds < 0 || n.Seconds > 10*365*86400 {
+		return notify.Event{}, errors.New("invalid node change")
+	}
+	seconds := strconv.FormatInt(n.Seconds, 10)
+	if n.Online {
+		return notify.Event{Time: now, Kind: notify.KindNodeOnline, Name: name, Detail: "offline for " + shortDuration(time.Duration(n.Seconds)*time.Second), Args: map[string]string{"seconds": seconds, "node": n.ID}}, nil
+	}
+	return notify.Event{Time: now, Kind: notify.KindNodeOffline, Name: name, Detail: "no report for " + shortDuration(time.Duration(n.Seconds)*time.Second), Args: map[string]string{"seconds": seconds, "node": n.ID}}, nil
 }
 
 // notifications serves the notification actions of the real broker.
@@ -40,6 +70,16 @@ func notificationAction(ctx context.Context, c *notify.Center, r Request, sender
 		if e := c.Clear(); e != nil {
 			return nil, e
 		}
+	case "notifications-node":
+		if in.Node == nil {
+			return nil, errors.New("node change required")
+		}
+		event, e := in.Node.event(time.Now())
+		if e != nil {
+			return nil, e
+		}
+		c.Emit(event)
+		return struct{}{}, nil
 	case "notifications-configure":
 		if in.Settings == nil {
 			return nil, errors.New("settings required")

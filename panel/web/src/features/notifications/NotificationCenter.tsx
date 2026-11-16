@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { api } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { useNow } from "@/features/operations/hooks";
 import {
   byDay,
@@ -117,7 +117,7 @@ export function NotificationCenter({
       await api(path, body);
       await reload();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(errorMessage(e));
     }
   }
   function show(e: NotifyEvent) {

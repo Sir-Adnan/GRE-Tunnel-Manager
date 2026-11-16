@@ -195,13 +195,30 @@ func Create(path string, o Options) (Config, string, error) {
 	return c, fingerprint, nil
 }
 func certificate(certPath, keyPath string, addresses []string) (string, error) {
-	key, e := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	certPEM, keyPEM, fingerprint, e := SelfSigned(addresses)
 	if e != nil {
 		return "", e
 	}
+	if e = writeNew(keyPath, keyPEM, 0640); e != nil {
+		return "", e
+	}
+	if e = writeNew(certPath, certPEM, 0644); e != nil {
+		os.Remove(keyPath)
+		return "", e
+	}
+	return fingerprint, nil
+}
+
+// SelfSigned creates a one-year ECDSA certificate for localhost and the given
+// IPs/domains. It returns PEM data; callers decide where it is published.
+func SelfSigned(addresses []string) (certPEM, keyPEM []byte, fingerprint string, e error) {
+	key, e := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if e != nil {
+		return nil, nil, "", e
+	}
 	serial, e := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if e != nil {
-		return "", e
+		return nil, nil, "", e
 	}
 	t := x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "GRE Tunnel Manager"}, NotBefore: time.Now().Add(-5 * time.Minute), NotAfter: time.Now().AddDate(1, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, BasicConstraintsValid: true}
 	t.DNSNames = []string{"localhost"}
@@ -215,21 +232,14 @@ func certificate(certPath, keyPath string, addresses []string) (string, error) {
 	}
 	der, e := x509.CreateCertificate(rand.Reader, &t, &t, &key.PublicKey, key)
 	if e != nil {
-		return "", e
+		return nil, nil, "", e
 	}
 	raw, e := x509.MarshalPKCS8PrivateKey(key)
 	if e != nil {
-		return "", e
-	}
-	if e = writeNew(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: raw}), 0640); e != nil {
-		return "", e
-	}
-	if e = writeNew(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0644); e != nil {
-		os.Remove(keyPath)
-		return "", e
+		return nil, nil, "", e
 	}
 	sum := sha256.Sum256(der)
-	return hex.EncodeToString(sum[:]), nil
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: raw}), hex.EncodeToString(sum[:]), nil
 }
 
 func writeNew(path string, data []byte, mode os.FileMode) error {

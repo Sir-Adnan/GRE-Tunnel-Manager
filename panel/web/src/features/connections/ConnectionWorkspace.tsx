@@ -1,5 +1,5 @@
 import { useContext, useState, lazy, Suspense } from "react";
-import { Code2, Plus, FileUp } from "lucide-react";
+import { Code2, Plus, FileUp, Waypoints } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ActionButton } from "@/components/help";
@@ -21,6 +21,11 @@ import { ConnectionTable } from "./ConnectionTable";
 const ConfigurationImport = lazy(() =>
   import("../configuration/ConfigurationImport").then((m) => ({
     default: m.ConfigurationImport,
+  })),
+);
+const TwoServerWizard = lazy(() =>
+  import("../wizard/TwoServerWizard").then((m) => ({
+    default: m.TwoServerWizard,
   })),
 );
 
@@ -47,7 +52,10 @@ export function ConnectionWorkspace({
 }) {
   const t = useT();
   const locale = useContext(LocaleContext);
-  const { params, updateParams } = usePanelRoute();
+  const { params, updateParams, navigate } = usePanelRoute();
+  // The two-server wizard lives in the URL (?wizard=gre), so the overview,
+  // the command palette and this page can all open it.
+  const wizard = params.get("wizard") === "gre";
   const [importing, setImporting] = useState(false);
   const engine = engineFilter(params.get("engine"));
   const counts = engineCounts(inventory.connections);
@@ -77,6 +85,14 @@ export function ConnectionWorkspace({
             >
               <FileUp data-icon="inline-start" />
               {t("importShort")}
+            </Button>
+            <Button
+              variant="outline"
+              title={t("wizOpenHelp")}
+              onClick={() => updateParams({ wizard: "gre" })}
+            >
+              <Waypoints data-icon="inline-start" />
+              {t("wizOpen")}
             </Button>
             <Button onClick={create}>
               <Plus data-icon="inline-start" />
@@ -113,6 +129,16 @@ export function ConnectionWorkspace({
           />
         </CardContent>
       </Card>
+      {wizard && (
+        <Suspense fallback={null}>
+          <TwoServerWizard
+            inventory={inventory}
+            run={run}
+            onClose={() => updateParams({ wizard: "" })}
+            onDone={() => navigate("health")}
+          />
+        </Suspense>
+      )}
       {importing && (
         <Suspense fallback={null}>
           <ConfigurationImport

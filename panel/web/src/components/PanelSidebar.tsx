@@ -23,6 +23,9 @@ import { number } from "@/lib/format";
 import { attentionItems } from "@/lib/attention";
 import type { Inventory } from "@/lib/api";
 import { panelVersion } from "@/lib/version";
+import { useLoaded } from "@/features/operations/hooks";
+import type { UpdateView } from "@/features/settings/update";
+import { usePanelRoute } from "@/lib/use-panel-route";
 
 /** Uses the official shadcn sidebar composition, with one navigation for all viewports. */
 export function PanelSidebar({
@@ -40,6 +43,13 @@ export function PanelSidebar({
   const locale = useContext(LocaleContext);
   const { setOpenMobile } = useSidebar();
   const issues = inventory ? attentionItems(inventory).length : 0;
+  // The daily check's answer; installing stays the operator's choice.
+  const update = useLoaded<UpdateView>(
+    inventory ? "update" : "",
+    () => 1800,
+  ).value;
+  const latest = update?.available ? update.check.latest : undefined;
+  const { navigate: go } = usePanelRoute();
   const badge = (id: string) =>
     !inventory
       ? undefined
@@ -47,7 +57,9 @@ export function PanelSidebar({
         ? number(inventory.connections.length, locale)
         : id === "overview" && issues
           ? number(issues, locale)
-          : undefined;
+          : id === "settings" && latest
+            ? "•"
+            : undefined;
   return (
     <Sidebar
       side={locale === "fa" ? "right" : "left"}
@@ -122,12 +134,21 @@ export function PanelSidebar({
                         {count && (
                           <SidebarMenuBadge
                             className={
-                              item.id === "overview" ? "is-alert" : undefined
+                              item.id === "overview"
+                                ? "is-alert"
+                                : item.id === "settings"
+                                  ? "is-update"
+                                  : undefined
                             }
                             aria-label={
                               item.id === "overview"
                                 ? `${count} ${t("needsAttention")}`
-                                : undefined
+                                : item.id === "settings" && latest
+                                  ? t("updateSidebar").replace(
+                                      "{version}",
+                                      latest,
+                                    )
+                                  : undefined
                             }
                           >
                             {count}
@@ -152,6 +173,19 @@ export function PanelSidebar({
             <p className="text-xs text-muted-foreground">
               <bdi>v{inventory?.version || panelVersion}</bdi>
             </p>
+            {latest && (
+              <button
+                type="button"
+                className="sidebar-update"
+                onClick={() => {
+                  go("settings", { tab: "updates" });
+                  setOpenMobile(false);
+                }}
+              >
+                <span className="update-dot" aria-hidden />
+                <bdi>{t("updateSidebar").replace("{version}", latest)}</bdi>
+              </button>
+            )}
           </div>
           <span className="group-data-[collapsible=icon]:hidden">
             <AccessStatus />

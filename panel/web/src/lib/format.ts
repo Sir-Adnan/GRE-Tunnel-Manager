@@ -16,6 +16,14 @@ export function trafficBytes(value: number, locale: Locale) {
   return `${number(value / 1024 ** unit, locale, 1)} ${["B", "KiB", "MiB", "GiB", "TiB"][unit]}`;
 }
 
+/** A byte rate as bits per second (network convention). */
+export function bitRate(bytes: number | null | undefined, locale: Locale) {
+  if (bytes == null) return "—";
+  const bits = Math.max(0, bytes) * 8;
+  const unit = bits >= 1e9 ? 1e9 : bits >= 1e6 ? 1e6 : bits >= 1e3 ? 1e3 : 1;
+  return `${number(bits / unit, locale, 1)} ${unit === 1e9 ? "Gbps" : unit === 1e6 ? "Mbps" : unit === 1e3 ? "Kbps" : "bps"}`;
+}
+
 export function engineName(engine: string) {
   return (
     (

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { CornerDownLeft, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CornerDownLeft,
+  Search,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,10 +24,17 @@ export type Command = {
   keywords?: string;
   hint?: string;
   icon?: ReactNode;
-  run: () => void;
+  /** A second step: choosing this command lists these instead of running. */
+  children?: Command[];
+  run?: () => void;
 };
 
-/** A keyboard-first launcher (Ctrl/⌘+K) over navigation, creation, appearance and saved connections. */
+/**
+ * A keyboard-first launcher (Ctrl/⌘+K) over navigation, creation, appearance
+ * and saved connections. A command with `children` opens a second step (a
+ * connection, then what to do with it); Backspace on an empty search or Escape
+ * goes back.
+ */
 export function CommandPalette({
   open,
   onOpenChange,
@@ -35,10 +47,16 @@ export function CommandPalette({
   const t = useT();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [parentId, setParentId] = useState<string>();
   const list = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  // Looked up by id so a refreshed inventory updates the open step.
+  const parent = parentId
+    ? commands.find((command) => command.id === parentId)
+    : undefined;
   const matches = useMemo(
-    () => matchCommands(commands, query).slice(0, 40),
-    [commands, query],
+    () => matchCommands(parent?.children ?? commands, query).slice(0, 40),
+    [commands, parent, query],
   );
   const current = Math.min(active, Math.max(0, matches.length - 1));
   useEffect(() => {
@@ -50,11 +68,19 @@ export function CommandPalette({
     onOpenChange(false);
     setQuery("");
     setActive(0);
+    setParentId(undefined);
+  }
+  function step(id?: string) {
+    setParentId(id);
+    setQuery("");
+    setActive(0);
+    input.current?.focus();
   }
   function choose(command?: Command) {
     if (!command) return;
+    if (command.children) return step(command.id);
     close();
-    command.run();
+    command.run?.();
   }
   function keys(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -66,6 +92,9 @@ export function CommandPalette({
     } else if (event.key === "Enter") {
       event.preventDefault();
       choose(matches[current]);
+    } else if (event.key === "Backspace" && !query && parent) {
+      event.preventDefault();
+      step();
     }
   }
   return (
@@ -76,15 +105,34 @@ export function CommandPalette({
       <DialogContent
         closeLabel={t("close")}
         showCloseButton={false}
+        mobileLayout="dialog"
         className="command-palette"
+        onEscapeKeyDown={(event) => {
+          if (!parent) return;
+          event.preventDefault();
+          step();
+        }}
       >
         <DialogTitle className="sr-only">{t("commandPalette")}</DialogTitle>
         <DialogDescription className="sr-only">
           {t("commandPaletteHelp")}
         </DialogDescription>
         <div className="command-input">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+          {parent ? (
+            <button
+              type="button"
+              className="command-crumb"
+              onClick={() => step()}
+              aria-label={`${t("commandBack")}: ${parent.label}`}
+            >
+              <ChevronLeft className="size-3.5 rtl:rotate-180" />
+              <bdi className="truncate">{parent.label}</bdi>
+            </button>
+          ) : (
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+          )}
           <input
+            ref={input}
             autoFocus
             role="combobox"
             aria-expanded
@@ -146,8 +194,12 @@ export function CommandPalette({
                       <bdi>{command.hint}</bdi>
                     </span>
                   )}
-                  {index === current && (
-                    <CornerDownLeft className="size-3.5 shrink-0 text-muted-foreground" />
+                  {command.children ? (
+                    <ChevronRight className="size-3.5 shrink-0 text-muted-foreground rtl:rotate-180" />
+                  ) : (
+                    index === current && (
+                      <CornerDownLeft className="size-3.5 shrink-0 text-muted-foreground" />
+                    )
                   )}
                 </div>
               </div>
@@ -162,6 +214,11 @@ export function CommandPalette({
           <span>
             <kbd className="kbd">Enter</kbd> {t("commandRun")}
           </span>
+          {parent && (
+            <span>
+              <kbd className="kbd">⌫</kbd> {t("commandBack")}
+            </span>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { usePoll } from "@/lib/use-poll";
 import type { Metrics, Inventory } from "@/lib/api";
+import { errorMessage } from "@/lib/i18n";
 
 /** Owns drafts, API results and persisted accounting independently of presentation. */
 export function useTraffic(
@@ -33,7 +34,7 @@ export function useTraffic(
       .then((value) => {
         if (live) accept(value, true);
       })
-      .catch((error) => live && setError(String(error)));
+      .catch((error) => live && setError(errorMessage(error)));
     return () => {
       live = false;
     };
@@ -44,7 +45,7 @@ export function useTraffic(
         const value = await api<Metrics>("metrics", undefined, signal);
         if (!signal.aborted) accept(value);
       } catch (e) {
-        if (!signal.aborted) setError(String(e));
+        if (!signal.aborted) setError(errorMessage(e));
       }
     },
     {
@@ -84,7 +85,7 @@ export function useTraffic(
     try {
       accept(await api<Metrics>("metrics"), !metrics);
     } catch (error) {
-      setError(String(error));
+      setError(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -107,7 +108,7 @@ export function useTraffic(
       });
       accept(await api<Metrics>("metrics"), true);
     } catch (error) {
-      setError(String(error));
+      setError(errorMessage(error));
     } finally {
       setBusy(false);
     }

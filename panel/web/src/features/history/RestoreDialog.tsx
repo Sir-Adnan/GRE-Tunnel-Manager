@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { stamp } from "@/features/health/format";
 import { ChangeLine } from "./ChangeLine";
 import type { HistoryEntry, HistoryReview } from "./types";
@@ -44,7 +44,7 @@ export function RestoreDialog({
       .then(setReview)
       .catch((e) => {
         if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
       });
     return () => controller.abort();
   }, [point]);

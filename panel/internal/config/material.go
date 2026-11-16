@@ -11,6 +11,15 @@ import (
 func SaveMaterial(path, ownerPath string, data []byte) error {
 	if info, e := os.Lstat(path); e == nil && !info.Mode().IsRegular() {
 		return errors.New("managed TLS bundle must be a regular file")
+	}
+	return SaveShared(path, ownerPath, data)
+}
+
+// SaveShared atomically replaces a file the public panel reads: mode 0640
+// with the owner and group of ownerPath (root:grepanel for config.json).
+func SaveShared(path, ownerPath string, data []byte) error {
+	if info, e := os.Lstat(path); e == nil && !info.Mode().IsRegular() {
+		return errors.New(filepath.Base(path) + " must be a regular file")
 	} else if e != nil && !os.IsNotExist(e) {
 		return e
 	}

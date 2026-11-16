@@ -22,7 +22,7 @@ func (h *Hub) choice(c NodeChoice) error {
 	for _, n := range h.state.Nodes {
 		if n.ID == c.ID && !n.Revoked && n.Revision == c.Revision {
 			o, ok := h.cache[n.ID]
-			if !ok || h.now().Sub(o.seen) > 3*time.Minute || o.report.Failure != nil || !hasOperations(o.report.Capabilities) {
+			if !ok || h.now().Sub(o.seen) > offlineAfter || o.report.Failure != nil || !hasOperations(o.report.Capabilities) {
 				return problem("node_unavailable", "Refresh nodes; paired operations require an online Agent installed with --operations")
 			}
 			return nil
@@ -30,33 +30,80 @@ func (h *Hub) choice(c NodeChoice) error {
 	}
 	return problem("revision_conflict", "Node identity changed; refresh nodes")
 }
-func (h *Hub) CreatePair(in PairRequest) (PairView, error) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+
+// replay returns the existing job for a retried request ID, or the input hash
+// a new job records. It also checks that both servers are distinct and ready.
+// The caller holds h.mu.
+func (h *Hub) replay(id string, in any, a, b NodeChoice) (*PairView, string, error) {
 	if h.closed {
-		return PairView{}, errors.New("Controller is stopping")
+		return nil, "", errors.New("Controller is stopping")
 	}
-	if !idPattern.MatchString(in.ID) {
-		return PairView{}, problem("invalid_id", "A unique request ID is required")
+	if !idPattern.MatchString(id) {
+		return nil, "", problem("invalid_id", "A unique request ID is required")
 	}
 	raw, _ := json.Marshal(in)
 	inputHash := digest(raw)
 	for _, p := range h.pairs {
-		if p.ID == in.ID {
+		if p.ID == id {
 			if p.InputHash != inputHash {
-				return PairView{}, problem("idempotency_conflict", "Request ID already belongs to different settings")
+				return nil, "", problem("idempotency_conflict", "Request ID already belongs to different settings")
 			}
-			return p.view(), nil
+			v := p.view()
+			return &v, inputHash, nil
 		}
 	}
-	if in.Entrance.ID == in.Destination.ID {
-		return PairView{}, problem("invalid_nodes", "Choose two different servers")
+	if a.ID == b.ID {
+		return nil, "", problem("invalid_nodes", "Choose two different servers")
 	}
-	if e := h.choice(in.Entrance); e != nil {
+	if e := h.choice(a); e != nil {
+		return nil, "", e
+	}
+	if e := h.choice(b); e != nil {
+		return nil, "", e
+	}
+	return nil, inputHash, nil
+}
+
+// queue validates a new job's steps and stores it, dropping old finished
+// jobs; a server takes part in at most one unfinished job. The caller holds h.mu.
+func (h *Hub) queue(p pair) (PairView, error) {
+	for _, s := range p.Steps {
+		if e := s.Spec.Validate(); e != nil {
+			return PairView{}, e
+		}
+	}
+	next := []pair{}
+	for _, old := range h.pairs {
+		if one(old.State, "succeeded", "rolled_back") && h.now().Sub(old.Expires) > 48*time.Hour {
+			continue
+		}
+		if !terminal(old) {
+			for _, a := range old.Steps {
+				for _, b := range p.Steps {
+					if a.Node == b.Node {
+						return PairView{}, problem("node_busy", "Finish the active connection on these servers first")
+					}
+				}
+			}
+		}
+		next = append(next, old)
+	}
+	if len(next) >= 32 {
+		return PairView{}, problem("capacity", "At most 32 retained pair jobs are supported")
+	}
+	next = append(next, p)
+	if e := h.savePairs(next); e != nil {
 		return PairView{}, e
 	}
-	if e := h.choice(in.Destination); e != nil {
-		return PairView{}, e
+	return p.view(), nil
+}
+
+func (h *Hub) CreatePair(in PairRequest) (PairView, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	existing, inputHash, e := h.replay(in.ID, in, in.Entrance, in.Destination)
+	if e != nil || existing != nil {
+		return deref(existing), e
 	}
 	if in.Name == "" {
 		in.Name = in.Kind + "-" + in.ID[:8]
@@ -87,35 +134,14 @@ func (h *Hub) CreatePair(in PairRequest) (PairView, error) {
 	} else {
 		return PairView{}, problem("unsupported_kind", "Choose GRE or FRP")
 	}
-	for _, s := range p.Steps {
-		if e := s.Spec.Validate(); e != nil {
-			return PairView{}, e
-		}
+	return h.queue(p)
+}
+
+func deref(v *PairView) PairView {
+	if v == nil {
+		return PairView{}
 	}
-	next := []pair{}
-	for _, old := range h.pairs {
-		if one(old.State, "succeeded", "rolled_back") && h.now().Sub(old.Expires) > 48*time.Hour {
-			continue
-		}
-		if !terminal(old) {
-			for _, a := range old.Steps {
-				for _, b := range p.Steps {
-					if a.Node == b.Node {
-						return PairView{}, problem("node_busy", "Finish the active connection on these servers first")
-					}
-				}
-			}
-		}
-		next = append(next, old)
-	}
-	if len(next) >= 32 {
-		return PairView{}, problem("capacity", "At most 32 retained pair jobs are supported")
-	}
-	next = append(next, p)
-	if e := h.savePairs(next); e != nil {
-		return PairView{}, e
-	}
-	return p.view(), nil
+	return *v
 }
 func (h *Hub) Pairs() []PairView {
 	h.mu.Lock()

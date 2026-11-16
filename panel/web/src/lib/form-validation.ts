@@ -1,5 +1,6 @@
-/** Reveal the field's containing disclosure and controlled advanced tab before
- * asking the browser to focus it. Inactive Radix panels remain mounted. */
+/** Reveal the field's containing disclosure and controlled advanced tab, mark
+ * it invalid and focus it. Inactive Radix panels remain mounted. The message
+ * itself shows under the field (lib/field-errors), not in a browser bubble. */
 export function revealInvalidField(
   invalid: HTMLInputElement,
   activateTab: (section: string) => void,
@@ -17,6 +18,5 @@ export function revealInvalidField(
   requestAnimationFrame(() => {
     invalid.scrollIntoView({ block: "nearest" });
     invalid.focus({ preventScroll: true });
-    invalid.reportValidity();
   });
 }

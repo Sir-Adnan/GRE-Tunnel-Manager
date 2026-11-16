@@ -19,17 +19,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Blank, PageTitle, Status, TextField } from "@/components/shared";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import type { Inventory, Resource } from "@/lib/api";
 
 import { ConfigurationDialog } from "./configuration/ConfigurationDialog";
 import { ResourceForm } from "./resources/ResourceForm";
 
-import { toast } from "sonner";
 import { ShieldCheck } from "lucide-react";
 import { ActionButton } from "@/components/help";
-import { DragHandle, SortableArea, SortableItem } from "@/components/sortable";
-import { applyOrder, useOrder } from "@/lib/order";
 import { useHealthView } from "@/features/operations/hooks";
 import { ProtectionFields } from "@/features/connections/ProtectionFields";
 import { protectionOf, type Protection } from "@/features/connections/protection";
@@ -51,16 +48,10 @@ export function Resources({
   const [renaming, setRenaming] = useState<Resource>();
   const [displayName, setDisplayName] = useState("");
   const [renameError, setRenameError] = useState("");
-  const order = useOrder(engine === "gre" ? "gre" : "reverse");
   const health = useHealthView().value;
   const [protecting, setProtecting] = useState<Resource>();
   const [protect, setProtect] = useState<Protection>(() => protectionOf(undefined));
-  const shown = applyOrder(
-    inventory.resources.filter((r) => (engine === "gre" ? r.engine === "gre" : r.engine !== "gre")),
-    order.ids,
-    (r) => r.id,
-  );
-  const ids = shown.map((r) => r.id);
+  const shown = inventory.resources.filter((r) => (engine === "gre" ? r.engine === "gre" : r.engine !== "gre"));
   const statusOf = (id: string) => {
     if (!health?.settings.enabled || health.settings.ignore?.includes(id)) return "off" as const;
     return health.owners.find((o) => o.owner === id)?.status ?? ("unknown" as const);
@@ -111,23 +102,12 @@ export function Resources({
           </CardContent>
         </Card>
       ) : (
-        <SortableArea
-          ids={ids}
-          onMove={(next) =>
-            void order.save(next).then((e) => {
-              if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
-            })
-          }
-        >
         <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
           {shown.map((resource) => (
-            <SortableItem key={resource.id} id={resource.id}>
-            {(item) => (
-            <Card ref={item.setNodeRef} style={item.style} data-dragging={item.dragging || undefined} className="sortable-card">
+            <Card key={resource.id}>
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1">
-                    <DragHandle handle={item.handle} label={resource.name} className="!mt-0 -ms-2" />
                     <CardTitle className="min-w-0 break-words">
                       {resource.name}
                     </CardTitle>
@@ -182,11 +162,8 @@ export function Resources({
                 </ActionButton>
               </CardFooter>
             </Card>
-            )}
-            </SortableItem>
           ))}
         </div>
-        </SortableArea>
       )}
       <Dialog open={Boolean(protecting)} onOpenChange={(open) => !open && !busy && setProtecting(undefined)}>
         <DialogContent closeLabel={t("close")} className="sm:max-w-lg">
@@ -253,7 +230,7 @@ export function Resources({
                 });
                 setRenaming(undefined);
               } catch (e) {
-                setRenameError(String(e));
+                setRenameError(errorMessage(e));
               } finally {
                 setBusy(false);
               }

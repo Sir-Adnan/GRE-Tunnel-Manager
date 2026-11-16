@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('core', 'server_info', 'ui', 'haproxy_routing', 'haproxy', 'realm_options', 'metadata', 'state', 'resolve', 'portfw', 'firewall', 'components', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'forms', 'optimize', 'sysdns', 'cleanup', 'links', 'reverse_api', 'pair_api', 'recovery', 'history', 'diagnose', 'api', 'panel', 'menus')
+MODULES = ('core', 'haproxy_routing', 'haproxy', 'realm_options', 'metadata', 'state', 'resolve', 'portfw', 'firewall', 'components', 'relays', 'transports', 'rathole', 'catalog', 'inspect', 'optimize', 'sysdns', 'guard', 'cleanup', 'links', 'reverse_api', 'pair_api', 'addresses', 'recovery', 'history', 'diagnose', 'api', 'main')
 
 
 # GTM_VERSION in src/core.sh is the release number. These copies must match it;
@@ -16,6 +16,7 @@ VERSION_COPIES = (
     ('panel/web/package.json', r'^  "version": "([^"]+)",$'),
     ('panel-install.sh', r'^PANEL_VERSION=(\S+)$'),
     ('node-install.sh', r'^NODE_VERSION=(\S+)$'),
+    ('install.sh', r'^GTM_VERSION=(\S+)$'),
 )
 
 

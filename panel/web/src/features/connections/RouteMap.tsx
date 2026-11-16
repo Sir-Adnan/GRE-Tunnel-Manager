@@ -40,9 +40,13 @@ export function RouteMap({
         <Users aria-hidden />
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{t("routeClients")}</p>
-          <p className="truncate font-mono text-sm" dir="ltr">
-            {value.ports && !error ? `:${value.ports}` : "—"} <span className="text-muted-foreground">{value.protocol.toUpperCase()}</span>
-          </p>
+          {value.ports && !error ? (
+            <p className="truncate font-mono text-sm" dir="ltr">
+              :{value.ports} <span className="text-muted-foreground">{value.protocol.toUpperCase()}</span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("routeNoPorts")}</p>
+          )}
           {!error && ports > 0 && (
             <p className="text-xs text-muted-foreground">
               {t("routePorts").replace("{n}", number(ports, locale)).replace("{r}", number(rules, locale))}
@@ -86,8 +90,14 @@ export function RouteMap({
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-center gap-1 font-mono text-sm" dir="ltr">
                   {host && <Globe className="size-3.5 shrink-0 text-primary-text" aria-hidden />}
-                  <span className="truncate">{target.ip || "—"}</span>
-                  {port && <span className="shrink-0 text-muted-foreground">:{port}</span>}
+                  {target.ip ? (
+                    <span className="truncate">{target.ip}</span>
+                  ) : (
+                    <span className="truncate font-sans text-muted-foreground" dir="auto">
+                      {t("targetNoAddress")}
+                    </span>
+                  )}
+                  {port && target.ip && <span className="shrink-0 text-muted-foreground">:{port}</span>}
                 </p>
                 {portWords && <p className="text-xs text-muted-foreground">{t("remotePort")}: {portWords}</p>}
                 {host && (

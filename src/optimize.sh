@@ -824,35 +824,3 @@ gtm_optimize_remove() {
         printf 'Settings of %s are back to their original values.\n' "$which"
     fi
 }
-
-gtm_optimize_menu() {
-    local choice level goal
-    local -a groups=(conntrack queues relay routing nic)
-    gtm_optimize_use_profile - - || return
-    while true; do
-        gtm_header 'Server optimization / opt-in, reversible'
-        gtm_help tuning
-        printf '  Profile: %s / %s\n\n' "$GTM_OPT_LEVEL" "$GTM_OPT_GOAL"
-        gtm_option 1 'Show settings' 'Current, original and applied values'
-        gtm_option 2 'Connection tracking' 'Recommended for forwarders: fixes rising latency'
-        gtm_option 3 'Packet queues' 'High packet rates'
-        gtm_option 4 'Relay TCP' 'HAProxy / Realm / FRP: BBR, buffers, keepalive'
-        gtm_option 5 'Tunnels & routing' 'Loose reverse-path filter, no ICMP redirects'
-        gtm_option 6 'Network card' 'Transmit queue length; spread receive work across CPUs (RPS)'
-        gtm_option 7 'Undo last step'
-        gtm_option 8 'Reset everything' 'Original values; remove panel files'
-        gtm_option 9 'Change profile' 'conservative / balanced / aggressive; general / users / latency'
-        gtm_option 0 Back
-        gtm_read 'Choose: ' choice || return
-        case $choice in
-            1) gtm_optimize_status | awk -F '\t' '$1 == "key" {printf "  %-52s %-22s (original %s)\n", $3, $4, $5}'; gtm_pause;;
-            2|3|4|5|6) gtm_prepare && gtm_lock || return; gtm_optimize_apply "${groups[$((choice-2))]}"; gtm_unlock; gtm_pause;;
-            7) gtm_prepare && gtm_lock || return; gtm_optimize_undo; gtm_unlock; gtm_pause;;
-            8) gtm_prepare && gtm_lock || return; gtm_optimize_remove all; gtm_unlock; gtm_pause;;
-            9) gtm_read 'Level (conservative, balanced, aggressive): ' level || continue
-               gtm_read 'Goal (general, users, latency): ' goal || continue
-               gtm_optimize_use_profile "$level" "$goal" || gtm_pause;;
-            0) return;;
-        esac
-    done
-}

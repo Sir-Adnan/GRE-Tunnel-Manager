@@ -8,7 +8,7 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | --- | --- |
 | [User guide](USER-GUIDE.md) | Choosing a method, creating connections and everyday actions |
 | [Web panel](WEB-PANEL.md) | Installation, HTTP/HTTPS, upgrades and access recovery |
-| [HTTPS and certificate renewal](HTTPS.md) | Self-signed setup, Certbot/acme.sh hooks, validated installation and reload |
+| [HTTPS and certificates](HTTPS.md) | Built-in Let's Encrypt for a domain or IP (port 80 or Cloudflare DNS), automatic renewal, Certbot/acme.sh hooks, self-signed |
 | [Nodes and Agents](NODES.md) | Local-only operation, Controller setup and enrollment |
 | [Connect two servers](PAIRED-CONNECTIONS.md) | Coordinated GRE/FRP setup and failure recovery |
 | [Operations](OPERATIONS.md) | Validation, backups, restoration and deployment checks |
@@ -22,19 +22,21 @@ Start with the project quick start in [English](../README.md) or [Persian](../RE
 | [Setup presets](CONNECTION-PROFILES.md) | Three starting presets per engine and their tradeoffs |
 | [Engine capabilities](ENGINE-CAPABILITIES.md) | Supported versions, adapter scope and validation |
 | [Engine maintenance](ENGINE-MAINTENANCE.md) | Manual official version checks, verified updates and binary recovery |
-| [HAProxy](HAPROXY.md) · [Routing](HAPROXY-ROUTING.md) | TCP settings, affinity, checks, TLS/SNI/HTTP |
+| [HAProxy](HAPROXY.md) | TCP settings, affinity, checks, TLS/SNI/HTTP |
 | [Realm profiles](REALM-PROFILES.md) | WS, MPTCP and IPv6-only options |
 | [Configuration editor](CONFIGURATION-EDITOR.md) | Inspection, supported edits and review/apply |
 | [Traffic accounting](TRAFFIC-ACCOUNTING.md) · [Remote summaries](REMOTE-TRAFFIC.md) | Collection, resets, quotas, history and Node reports |
 | [Health and maintenance](HEALTH-AND-MAINTENANCE.md) | Uptime, outages, weekly reports, conntrack pressure and scheduled refresh/restart/reboot |
 | [Performance](PERFORMANCE.md) · [Server optimization](OPTIMIZATION.md) | Capacity limits and opt-in, reversible kernel settings |
 | [Port ranges, domains and DNS](PORTS-AND-DNS.md) | Kernel port ranges and mapping, domain destinations with refresh, the server's DNS, and importing from Port Forward Manager |
+| [Firewall](FIREWALL.md) | Host firewall status, UFW ports, per-connection access rules, abuse protection and automatic revert |
+| [IP addresses](IP-ADDRESSES.md) | What uses each address, moving everything after an IP change (both tunnel ends through Nodes) and additional IPs with their own gateway |
 | [Monitoring](MONITORING.md) | Notifications (webhook, Telegram), diagnosis, GRE quality and speed tests, far-side checks and Prometheus metrics |
 | [Retiring old installations](RETIRING-OLD-INSTALLS.md) | Removing v13.x forwards, Simple GRE and old tuning files |
 
 ## Development and reference
 
-[Architecture](ARCHITECTURE.md) · [Server artifacts](ARTIFACTS.md) · [Development](DEVELOPMENT.md) · [Interface conventions](INTERFACE.md) · [Terminal interface](TERMINAL-UI.md) · [Releasing](RELEASING.md)
+[Architecture](ARCHITECTURE.md) · [Server artifacts](ARTIFACTS.md) · [Development](DEVELOPMENT.md) · [Interface conventions](INTERFACE.md) · [Command line](COMMAND-LINE.md) · [Releasing](RELEASING.md)
 
 [Changelog](CHANGELOG.md) records shipped changes. [Roadmap](ROADMAP.md) separates current scope from proposed work. Earlier implementation reports live in the [review archive](archive/README.md); they are historical evidence, not installation instructions.
 

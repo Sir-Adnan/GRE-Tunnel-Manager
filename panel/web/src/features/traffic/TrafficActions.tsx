@@ -27,7 +27,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { HelpTip } from "@/components/help";
 import type { Connection, TrafficPolicy } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 
 import {
   DropdownMenu,
@@ -115,7 +115,7 @@ export function TrafficActions({
       setConfirm("");
       setEditing(false);
     } catch (e) {
-      setError(String(e));
+      setError(errorMessage(e));
     } finally {
       setWorking(false);
     }

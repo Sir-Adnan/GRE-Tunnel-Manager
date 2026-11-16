@@ -53,8 +53,8 @@ export const system = {
   ],
   account: ["Account & access", "حساب و دسترسی"],
   passwordHelp: [
-    "Reset credentials over SSH with: sudo gtm-panel reset-password; then restart the panel service.",
-    "برای تغییر رمز، دستور زیر را در SSH اجرا کنید و سپس سرویس پنل را راه‌اندازی مجدد کنید.",
+    "Change the password over SSH with the command below. It restarts the panel and signs out every session.",
+    "برای تغییر رمز، دستور زیر را در SSH اجرا کنید. پنل دوباره راه‌اندازی می‌شود و همهٔ نشست‌ها خارج می‌شوند.",
   ],
   exactTheme: [
     "Nettinx uses the original palette. Some original color pairs have limited contrast.",

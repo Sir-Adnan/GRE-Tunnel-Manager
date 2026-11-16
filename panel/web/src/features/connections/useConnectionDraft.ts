@@ -2,6 +2,11 @@ import { useState } from "react";
 import type { Connection, Inventory, Preset } from "@/lib/api";
 import { creationOptions } from "@/lib/creation-defaults";
 import { parseSpans, targetPorts } from "@/lib/ports";
+import {
+  templateDraft,
+  type TemplateDraft,
+  type TemplateID,
+} from "@/lib/templates";
 const kernelEngines = ["nftables", "iptables"];
 // Every listener defaults to all local addresses. For kernel forwards this keeps
 // servers with additional IPs working on each address; a specific IP stays
@@ -16,6 +21,21 @@ function alignKernelBind(next: Connection): Connection {
     ...next,
     bind: anyAddress(Boolean(next.targets[0]?.ip.includes(":"))),
   };
+}
+/** A template over a draft: its engine defaults, with typed destination addresses kept. */
+function withTemplate(base: Connection, draft?: TemplateDraft): Connection {
+  if (!draft) return base;
+  return alignKernelBind({
+    ...base,
+    ...draft,
+    options: creationOptions(draft.engine),
+    routing: undefined,
+    bind: anyAddress(false),
+    targets: draft.targets.map((t, i) => ({
+      ...t,
+      ip: t.ip || base.targets[i]?.ip || "",
+    })),
+  });
 }
 /** An edited range record shows its mapping as "same" or "map" when every target agrees. */
 function editMapping(c: Connection): Connection {
@@ -38,38 +58,52 @@ export function useConnectionDraft({
   engine,
   original,
   copy,
+  template,
+  engines,
 }: {
   inventory: Inventory;
   engine: string;
   original?: Connection;
   /** A connection to duplicate as a new one. */
   copy?: Connection;
+  /** A new connection that starts from a template. */
+  template?: TemplateID;
+  /** Engines the form may use (a filtered Connections page). */
+  engines?: string[];
 }) {
   const [value, setValue] = useState<Connection>(() =>
     original
       ? editMapping(original)
       : copy
         ? { ...editMapping(copy), id: "", revision: "", status: undefined }
-        : {
-            id: "",
-            name: "",
-            engine,
-            protocol: "tcp",
-            bind: anyAddress(false),
-            ports: "",
-            strategy: "single",
-            enabled: true,
-            snat: "masquerade",
-            interface: "any",
-            targets: [{ ip: "", port: 443, weight: 1 }],
-            options: creationOptions(engine),
-            revision: "",
-            port_mode: "",
-          },
+        : withTemplate(
+            {
+              id: "",
+              name: "",
+              engine,
+              protocol: "tcp",
+              bind: anyAddress(false),
+              ports: "",
+              strategy: "single",
+              enabled: true,
+              snat: "masquerade",
+              interface: "any",
+              targets: [{ ip: "", port: 443, weight: 1 }],
+              options: creationOptions(engine),
+              revision: "",
+              port_mode: "",
+            },
+            template && templateDraft(template, inventory, engines),
+          ),
+  );
+  const [templateID, setTemplateID] = useState<TemplateID | undefined>(
+    original || copy ? undefined : template,
   );
   // Several ports or a range default to the same remote port numbers until
   // the person picks a mapping.
-  const [modeTouched, setModeTouched] = useState(Boolean(original));
+  const [modeTouched, setModeTouched] = useState(
+    Boolean(original) || Boolean(template),
+  );
   const [baseline] = useState(() => JSON.stringify(value));
   const [preset, setPreset] = useState("custom");
   const [advancedTab, setAdvancedTab] = useState("limits");
@@ -79,6 +113,15 @@ export function useConnectionDraft({
   const installed = inventory.components.find(
     (item) => item.id === value.engine,
   )?.installed;
+  /** Starts over from a template, keeping the name and destinations typed so far. */
+  function applyTemplate(id: TemplateID) {
+    setTemplateID(id);
+    setPreset("custom");
+    setModeTouched(true);
+    setValue((current) =>
+      withTemplate(current, templateDraft(id, inventory, engines)),
+    );
+  }
   function patch<K extends keyof Connection>(key: K, next: Connection[K]) {
     if (key === "port_mode") setModeTouched(true);
     setValue((current) => {
@@ -202,6 +245,8 @@ export function useConnectionDraft({
     }));
   }
   return {
+    templateID,
+    applyTemplate,
     advancedTab,
     setAdvancedTab,
     value,

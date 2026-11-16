@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { ArrowLeftRight, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePoll } from "@/lib/use-poll";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,14 +51,14 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
   }, []);
   useEffect(() => {
     const reload = () => {
-      void refresh().catch((e) => setError(String(e)));
+      void refresh().catch((e) => setError(errorMessage(e)));
     };
     reload();
     window.addEventListener("gtm:nodes-refresh", reload);
     return () => window.removeEventListener("gtm:nodes-refresh", reload);
   }, [refresh]);
   const active = pairs.some((p) => !finished(p));
-  usePoll(() => refresh().catch((e) => setError(String(e))), {
+  usePoll(() => refresh().catch((e) => setError(errorMessage(e))), {
     seconds: 2,
     enabled: active,
   });
@@ -69,7 +69,7 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
       await action();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -96,16 +96,34 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
                 <CardTitle className="min-w-0 [overflow-wrap:anywhere]">
                   {p.name}
                 </CardTitle>
-                <Badge variant="outline">{t(`pair_${p.state}`)}</Badge>
+                <Badge variant="outline">
+                  {t(
+                    p.kind === "readdress"
+                      ? `readdress_${p.state}`
+                      : `pair_${p.state}`,
+                  )}
+                </Badge>
               </div>
-              <CardDescription>{p.kind.toUpperCase()}</CardDescription>
+              <CardDescription>
+                {p.kind === "readdress"
+                  ? t("ipChangeTitle")
+                  : p.kind.toUpperCase()}
+              </CardDescription>
             </CardHeader>
             <CardContent className="grid min-w-0 gap-4 md:grid-cols-2">
               {p.steps.map((s, i) => (
                 <div key={s.node} className="flex min-w-0 flex-col gap-2">
                   <span className="text-sm font-medium [overflow-wrap:anywhere]">
-                    {t(i === 0 ? "pairEntrance" : "pairDestination")} ·{" "}
-                    <bdi>{nodeName(s.node)}</bdi>
+                    {t(
+                      p.kind === "readdress"
+                        ? i === 0
+                          ? "readdressChanged"
+                          : "readdressPeer"
+                        : i === 0
+                          ? "pairEntrance"
+                          : "pairDestination",
+                    )}{" "}
+                    · <bdi>{nodeName(s.node)}</bdi>
                   </span>
                   <bdi dir="ltr" className="break-all font-mono text-xs">
                     {s.service}
@@ -163,7 +181,9 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
                   {t(
                     p.state === "needs_attention"
                       ? "pairRetryRecovery"
-                      : "pairRollback",
+                      : p.kind === "readdress"
+                        ? "ipJobRollback"
+                        : "pairRollback",
                   )}
                 </Button>
               </CardFooter>

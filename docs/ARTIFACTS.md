@@ -2,8 +2,6 @@
 
 Portable `.gtm-backup` files are encrypted downloads stored by the operator, not persistent server-side archives. Recovery stages known files in a private `/run/gre-manager/recovery.*` directory and publishes only manager-owned state/configuration/unit paths. It neither copies imported executable units nor enables services. Staging files are removed after a checked return; a machine interruption can leave private staging files for inspection. See [Backup and restore](BACKUP-RESTORE.md).
 
-Header server information is cached only in process memory. It creates no files or background tasks. Interactive sessions may make one bounded HTTPS public-IP/provider lookup; Tools → Refresh Server Info explicitly refreshes it. Preview/demo and noninteractive output do not make this request. See [TERMINAL-UI.md](TERMINAL-UI.md).
-
 ## v1 managed resources
 
 | Path | Owner / lifecycle |
@@ -41,7 +39,7 @@ Header server information is cached only in process memory. It creates no files 
 
 Config/state is root-owned with mode 600, containing directory 700. Temporary generation/download files use `/run/gre-manager` and private permissions. The manager does not delete operator certificates, unrelated services or optional binaries when deleting a connection. Backups are retained until the operator removes them.
 
-Kernel resources: iptables `GTM_PRE`, `GTM_POST`, `GTM_FWD`, `GTM_MSS`, `GTM_RTM` (mangle `PREROUTING`) and their parent jumps; nftables `table inet gre_manager` including per-target branch chains and the `rtmark` chain; IPv4/IPv6 `ip rule` entries at preferences 31001-31015 that match `fwmark 0x?000000/0xf000000`. Connection-mark bits `0xf000000` are set only on flows that enter through an address with its own routing table. Disabling/deleting the final record empties owned chains/table rather than flushing host rules. Existing conntrack flows may live until their normal expiration; the manager does not flush the host conntrack table.
+Kernel resources: iptables `GTM_PRE`, `GTM_POST`, `GTM_FWD`, `GTM_MSS`, `GTM_RTM` (mangle `PREROUTING`) and their parent jumps (`GTM_FWD` and its `FORWARD` jump also in the other iptables backend, legacy or nft, while its `FORWARD` policy is `DROP`); nftables `table inet gre_manager` including per-target branch chains and the `rtmark` chain; nftables `table inet gtm_guard` (Firewall page: `access`, `egress_fwd` and `egress_out` chains with their sets; removed when no setting asks for a rule); IPv4/IPv6 `ip rule` entries at preferences 31001-31015 that match `fwmark 0x?000000/0xf000000`. Connection-mark bits `0xf000000` are set only on flows that enter through an address with its own routing table. Disabling/deleting the final record empties owned chains/table rather than flushing host rules. Existing conntrack flows may live until their normal expiration; the manager does not flush the host conntrack table.
 
 The nftables table also owns a forward-hook MSS chain at priority -150, scoped to original-direction managed TCP DNAT flows. FRP/rathole secrets remain outside TSV snapshots; the encrypted portable recovery file includes recognized reverse definitions and keys. Their local deletion does not contact or delete the peer on another server.
 
@@ -49,20 +47,20 @@ IPv4 forwarding is enabled when required and re-enabled by the boot runner. IPv6
 
 ## Legacy resources
 
-The v13.x scripts created the artifacts below. Current versions create only `gre-tun-$TID.service` (through the shared GRE engine); the others are retired from **Tools → Retire old installation** when recognized, without guessed runtime rollback; see [Retiring old installations](RETIRING-OLD-INSTALLS.md).
+The v13.x scripts created the artifacts below. Current versions create only `gre-tun-$TID.service` (through the shared GRE engine); the others are retired with the `legacy-retire` engine operation when recognized, without guessed runtime rollback; see [Retiring old installations](RETIRING-OLD-INSTALLS.md).
 
 ## Files & services
 
 | Path | Created by | Purpose | Removed by |
 | --- | --- | --- | --- |
-| `/etc/systemd/system/gre-tun-$TID.service` | GRE create (panel or terminal) | builds tunnel device at boot (oneshot, RemainAfterExit) | GRE delete; refused while forwards use it |
+| `/etc/systemd/system/gre-tun-$TID.service` | GRE create (panel or engine API) | builds tunnel device at boot (oneshot, RemainAfterExit) | GRE delete; refused while forwards use it |
 | `/etc/systemd/system/gre-keepalive-$TID.service` | v13.x setup | watchdog loop (PartOf gre-tun-$TID) | GRE delete |
 | `/etc/sysctl.d/99-gre-tuning.conf` | v13.x; no longer created | old ip_forward, BBR+fq, 16 MB TCP buffers | recognized historical retirement; customized files kept |
 | `/usr/local/bin/gre_firewall.sh` | v13.x fix_firewall | idempotent shared rules: GRE INPUT, MSS clamp, ESTABLISHED accept (v4+v6) | manual only |
 | `/etc/systemd/system/gre-firewall.service` | v13.x fix_firewall | replays gre_firewall.sh at boot | manual only |
-| `/opt/simple_gre_script.sh` | v13.x Simple GRE | tunnel + DNAT lines for Simple mode (single instance) | Retire old installation → Remove Simple GRE |
-| `/etc/systemd/system/simple-gre.service` | v13.x Simple GRE | replays the above at boot | Retire old installation → Remove Simple GRE |
-| `/usr/local/bin/gre_custom_rules.sh` (FW_SCRIPT) | ensure_forward_service (menu 9) | literal generated iptables lines; old files can contain untracked sysctls | grouped deletion (11) / recognized bulk cleanup (12) |
+| `/opt/simple_gre_script.sh` | v13.x Simple GRE | tunnel + DNAT lines for Simple mode (single instance) | `legacy-retire simple` |
+| `/etc/systemd/system/simple-gre.service` | v13.x Simple GRE | replays the above at boot | `legacy-retire simple` |
+| `/usr/local/bin/gre_custom_rules.sh` (FW_SCRIPT) | ensure_forward_service (menu 9) | literal generated iptables lines; old files can contain untracked sysctls | `legacy-retire group …` / `legacy-retire forwards` |
 | `/etc/systemd/system/gre-custom-rules.service` | ensure_forward_service | replays FW_SCRIPT at boot | same as above |
 | `/etc/sysctl.d/98-gre-highload.conf` | historical performance profile | old unjournaled sizing, ports, timeouts, backlogs | recognized historical retirement |
 | `/etc/modules-load.d/gre-conntrack.conf` | historical performance profile | old module-load persistence | recognized historical retirement |
@@ -71,14 +69,19 @@ The v13.x scripts created the artifacts below. Current versions create only `gre
 | `/etc/realm/config.toml` (+ `.bak`) | realm menu (13) | realm endpoints (TOML) | realm uninstall |
 | `/etc/systemd/system/realm.service` | realm menu | realm daemon (Restart=always, journal logging) | realm uninstall |
 | `/usr/local/bin/realm` | realm menu | realm binary (GitHub latest, arch x86_64/aarch64) | realm uninstall |
-| `/usr/local/bin/igre` | setup_shortcut | self-download of gre.sh from REPO_URL | menu 5 re-installs |
+| `/usr/local/bin/igre` | setup_shortcut; Tools menu until v1.5 | copy of gre.sh; since v1.6.0 the installer replaces a recognized copy with a three-line script that opens `gtm` | panel removal (installer's script only); otherwise manual |
 | `/run/gre-manager/{v4,v6}.cache` | detect_local_ips | public IP cache, 60 min TTL | menu 6, reboot (tmpfs) |
 | `/run/gre-manager/{v4,v6}.miss` | detect_local_ips | negative cache, 10 min TTL | menu 6, reboot |
 | `/etc/gre-manager/dns-cache.tsv`, `dns-policy.tsv` | domain destinations | last addresses per name/family; refresh interval and mode per name (mode 600) | names no record uses are dropped at the next refresh |
 | `/etc/gre-manager/dns-pending` | domain destinations | private retry marker for a DNS/policy reconciliation interrupted or not successfully applied | removed only after successful reconciliation |
 | `/etc/systemd/system/gre-manager-dns.{service,timer}` | first domain destination, or a pinned SNAT source | minute timer running `apply.sh --dns-refresh`; also reapplies kernel rules when pinned source addresses drift | removed when no record uses a domain and no source is pinned |
 | `/run/gre-manager/snat-sources.tsv` | kernel apply | IPv4 destinations whose SNAT source is pinned on a multi-address uplink, and that source | every apply; reboot (tmpfs) |
-| `/etc/systemd/resolved.conf.d/zz-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.`; sorts after other drop-ins. A managed `90-gre-manager.conf` from before v1.5.3 is removed on the next apply/restore | Server DNS → Restore original |
+| `/etc/systemd/resolved.conf.d/zz-gre-manager.conf` | Server DNS on systemd-resolved | global `DNS=` with `Domains=~.`; sorts after other drop-ins. A managed `90-gre-manager.conf` from before v1.5.3 is removed on the next apply/restore. A missing `resolved.conf.d` is created mode 0755 (resolved reads it unprivileged); an unreadable one holding only these drop-ins is set to 0755, any other is reported | Server DNS → Restore original |
+| `/etc/gre-manager/firewall.tsv` | Firewall page | access rules, abuse protection and UFW openings (mode 600); entries of deleted connections are dropped at the next change | Clear the settings on the Firewall page |
+| `/etc/gre-manager/firewall.tsv.revert`, `firewall.revert-at` | Firewall change with automatic revert | last confirmed settings and the revert deadline | Keep (confirm) or revert |
+| transient `gre-manager-firewall-revert.{timer,service}` | Firewall change with automatic revert | runs `apply.sh --firewall-revert` at the deadline | Keep, revert or reboot |
+| `/etc/gre-manager/ufw-opened.tsv` | Open in UFW | UFW rules this manager added (`ID proto port`); only these are ever deleted | rules close with their connection |
+| UFW rules commented `gtm-F000001` | Open in UFW | `allow proto P to any port N`; never added when another rule already opens the port | switch off, disable or delete the connection |
 | `/etc/gre-manager/dns/` (`servers`, `original`, `resolv.conf.orig`) | Server DNS | chosen servers and the exact original | Restore original |
 | `/etc/gre-manager/dns/resolved.conf.{orig,present}` | Server DNS | original owned-path drop-in and presence marker; checked transactions stage/restore known files only | Restore original |
 | `/usr/local/lib/gre-manager/resolv.sh`, `gre-manager-resolv.service` | Server DNS on plain resolv.conf | writes `/etc/resolv.conf` again after network-online | Restore original |
@@ -108,19 +111,29 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 
 | Path/resource | Ownership and lifecycle |
 | --- | --- |
-| `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend |
+| `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend and the `gtm` command |
+| `/usr/local/bin/gtm` | Relative symbolic link to `gtm-panel`; created only when the path is free, removed with the panel or Agent. Another file at this path is kept and reported |
 | `/usr/local/lib/gre-manager/manager.sh` | Matching root-only Bash API helper |
 | `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths |
 | `/etc/gre-manager-panel/server.{crt,key}` | Initial IP/domain-SAN self-signed certificate/key for HTTPS; key mode 640, root:grepanel |
-| `/etc/gre-manager-panel/https.pem` | Optional externally issued full-chain/private-key bundle installed locally; root:grepanel mode 640, atomic replacement; loaded on validated reload. ACME account/source files remain outside panel ownership |
+| `/etc/gre-manager-panel/https.pem` | Loaded full-chain/private-key bundle from `certificate issue`, `renew`, `install` or `self-signed`; root:grepanel mode 640, atomic replacement; loaded on validated reload. External ACME clients' own files stay outside panel ownership |
+| `/etc/gre-manager-panel/certificate.json` | Secret-free certificate source and renewal status (next renewal, last error) read by the public panel; root:grepanel mode 640 |
+| `/etc/gre-manager-panel/acme/` | Root-only (700) built-in ACME state: `account.key`, `settings.json` (renewal recipe incl. optional e-mail), `cloudflare.token`; files 600. `install` and `self-signed` remove the recipe and token, keeping the account key |
+| `gre-manager-panel-certificate.{service,timer}` | Root oneshot `gtm-panel certificate renew` every six hours (±45 min, persistent); skipped by `ConditionPathExists` until a certificate was issued. Opens TCP port 80 only during an http-01 order |
+| `gre-manager-panel-update-check.{service,timer}` | Root oneshot `gtm-panel update-check` once a day (±4 h, persistent). Reads the latest public release number from GitHub and records it; never installs. Off with `--no-update-check` or `systemctl disable --now`; an operator's disable survives updates |
+| `/var/lib/gre-manager-panel/update.json` | Root-only (600) last update check: installed and latest version, time, short error |
+| `gre-manager-panel-update.service` | Transient unit (`systemd-run --collect`) the broker starts for **Settings → Updates**: `gtm-panel gtm update --yes --record --version X.Y.Z`. Not a child of the broker, so it survives the restart it causes; gone when it ends. Its journal is part of `gtm logs update` |
+| `/var/lib/gre-manager-panel/update-run.json` | Root-only (600) result of the last update started from the panel: state (running, succeeded, failed), from/to version, times, short error |
+| `/etc/gre-manager-panel/two-factor.json` | Present only while two-factor sign-in is on: TOTP secret, SHA-256 hashes of unused recovery codes and the time it was turned on. Root:grepanel mode 640 like the password hash; written only by the broker; removed by `gtm 2fa off`. Kept outside `config.json` so an older release still reads its configuration after a rollback |
 | `gre-manager-panel.service` | Public HTTP/HTTPS process as grepanel; explicit optional installation, enabled at boot |
 | `gre-manager-panel-broker.service` | Private root broker with grepanel group; enabled at boot independently of the public panel, so traffic sampling and opt-in quota pauses continue while the panel is stopped |
-| `/run/gre-manager-panel-install.lock` | Root-owned installer lock; prevents concurrent panel installation |
+| `/run/gre-manager-panel-install.lock` | Root-owned lock shared by install, update, removal, port/password changes, certificate commands and the Agent |
+| `gtm-previous-*`, `gtm-update-*` in the system temp directory | Private copy of the installed release during an update (for rollback) and the downloaded package; removed when the command ends |
 | `/run/gre-manager-panel/broker.sock` | Group-protected local socket, mode 660 inside mode-750 runtime directory |
 | `/var/lib/gre-manager-panel/metrics.json` | Root-only optional traffic settings and checkpoints, mode 600 |
 | `/var/lib/gre-manager-panel/audit.jsonl{,.1}` | Root-only bounded action metadata; no tokens, keys, passwords or request bodies |
 | `/var/lib/gre-manager-panel/health.json` | Root-only optional health settings, current probe state, hourly rollups and outages, mode 600; bounded by the retention setting (1–90 days, 128 targets, 1,000 outages, 32 MiB) |
-| `/var/lib/gre-manager-panel/ui-order.json` | List order set by drag and drop (connections, GRE, reverse, Nodes, Overview), at most 1,024 IDs per list; presentation only |
+| `/var/lib/gre-manager-panel/ui-order.json` | Custom order of the connections list (set with **Reorder**), at most 1,024 IDs per list; presentation only. Older files may also hold GRE, reverse, Nodes and Overview lists, which are still accepted but no longer used |
 | `/var/lib/gre-manager-panel/safe-change.json` | The pending safe-apply change (restore point, revision, deadline); removed when kept, reverted or cancelled |
 | `/var/lib/gre-manager-panel/maintenance.json` | Root-only maintenance settings, at most 32 plans, their schedule state and the newest 1,000 history entries, mode 600 |
 | `inet gtm_panel_metrics` | Optional separate nftables counters; removed when accounting is disabled |
@@ -157,6 +170,17 @@ The Agent reuses the matching `gtm-panel` binary and root-only Bash helper paths
 Paired GRE/FRP uses the existing unit, interface and config paths listed above. It creates no new host firewall or default-route policy. Unconfirmed resources have five-minute root-owned leases. Broker recovery runs independently of the Agent in opted-in installations, including after reboot. Recovery deletes only an unchanged, fingerprint-matching resource through the shared manager lock and normal dependency guards. Existing/new sibling GRE keepalive and FRP gateway files block paired creation or compensation because this preset does not own them. Interrupted creates or cleanup failures remain for manual inspection. Confirmed resources stay until explicit local removal, except bounded compensation of a partially confirmed job within its original authorization window. Deleting a Controller job is not a resource-delete operation. Terminal receipts are eligible for pruning 48 hours after their original authorization expires; unresolved receipts remain. Operations-mode Agents also use the existing root-only bounded `/var/lib/gre-manager-panel/audit.jsonl{,.1}` for action metadata; no request tokens or command output are written there. See [Paired connections](PAIRED-CONNECTIONS.md).
 
 
+A paired address change (`readdress`, v1.6.0+) creates no resource. It rewrites the `local` or `remote` token of existing owned GRE units under the same receipts and leases, and its rollback writes the previous address back only while the unit set still matches the applied fingerprint.
+
+## Additional addresses
+
+| Path/resource | Ownership and lifecycle |
+| --- | --- |
+| `/etc/systemd/system/gtm-addr-N.service` (N 1–32) | Enabled oneshot unit with header `# GTM managed address v1` and only `/sbin/ip` commands: `address replace` on start, `address del` on stop |
+| IPv4/IPv6 routing table `25200+N` and `ip rule from ADDRESS` at priority `25200+N` | Only with a separate gateway; created at start, the rule deleted and the table flushed at stop |
+
+Units without that header are never listed or changed. Removal is refused while a connection, GRE end or reverse tunnel still uses the address. These units are server state, not part of TSV restore points or portable backups. Address changes (`address-replace`) modify only owned records, GRE units and reverse configs; connections go through the normal restore point, and each unit or config file is restored if its service does not start. See [IP addresses](IP-ADDRESSES.md).
+
 ## Advanced management additions
 
 | Resource | Ownership and lifecycle |
@@ -170,7 +194,7 @@ Routing remains inside the existing generated per-connection HAProxy config/unit
 
 ## Optional Agent traffic accounting
 
-Explicit `node-install.sh --agent --traffic` adds `--agent-traffic` to the private broker and `--traffic` to the outbound Agent, preserving those flags across upgrades. It creates `/var/lib/gre-manager-agent-traffic` as root, mode 700; the ledger `metrics.json` is mode 600 and is written only when local accounting settings/samples change. Collection is initially off and requires the local root `gtm-panel nodes traffic --enable` command. It reuses only `inet gtm_panel_metrics`; disable with `nodes traffic --disable` before retiring the Agent to remove those counters and retain the ledger. No new service, remote port or database is added. Controller traffic snapshots are memory-only and cleared on restart/revocation. Panel-only removal does not delete this Agent ledger.
+Explicit `--agent --traffic` (or `gtm agent install --traffic`) adds `--agent-traffic` to the private broker and `--traffic` to the outbound Agent, preserving those flags across upgrades. It creates `/var/lib/gre-manager-agent-traffic` as root, mode 700; the ledger `metrics.json` is mode 600 and is written only when local accounting settings/samples change. Collection is initially off and requires the local root `gtm-panel nodes traffic --enable` command. It reuses only `inet gtm_panel_metrics`; disable with `nodes traffic --disable` before retiring the Agent to remove those counters and retain the ledger. No new service, remote port or database is added. Controller traffic snapshots are memory-only and cleared on restart/revocation. Panel-only removal does not delete this Agent ledger.
 
 ## Configuration viewer/editor
 

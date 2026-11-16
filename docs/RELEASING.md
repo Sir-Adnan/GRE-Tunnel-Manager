@@ -1,12 +1,12 @@
 # Releasing
 
-Publish only when requested. Each release contains matching terminal, panel, frontend and installer versions. Keep previous tags and assets intact.
+Publish only when requested. Each release contains matching engine, panel, frontend and installer versions. Keep previous tags and assets intact.
 
 ## Prepare the source
 
 1. Review the full diff, including work completed before the release task. Update affected guides, both quick-start READMEs and `docs/CHANGELOG.md`.
-2. Set the version in `src/core.sh` (`GTM_VERSION`). Copy it to `panel/internal/version/version.go`, `panel/web/src/lib/version.ts`, the frontend package and lock, `panel-install.sh` and `node-install.sh`, then update versioned test fixtures. `python3 tools/build.py --check` fails when a version copy differs. Go code and frontend text import those constants rather than repeating the number. Do not renumber historical changelog/archive entries.
-3. Run `python3 tools/build.py`; do not edit generated `gre.sh`. Write the release notes in `panel/RELEASE.md`.
+2. Set the version in `src/core.sh` (`GTM_VERSION`). Copy it to `panel/internal/version/version.go`, `panel/web/src/lib/version.ts`, the frontend package and lock, `install.sh`, `panel-install.sh` and `node-install.sh`, then update versioned test fixtures. `python3 tools/build.py --check` fails when a version copy differs. Go code and frontend text import those constants rather than repeating the number. Do not renumber historical changelog/archive entries.
+3. Run `python3 tools/build.py`; do not edit generated `gre.sh`. After any `panel/go.mod` change run `python3 tools/go_licenses.py` (`--check` verifies) so the package lists every linked Go module's license. Write the release notes in `panel/RELEASE.md`.
 4. Check Markdown links and distinguish shipped features from proposals.
 
 ## Verify
@@ -21,7 +21,7 @@ python3 tools/package_panel.py
 
 This creates Linux amd64/arm64 archives and `SHA256SUMS` in `panel/bin`. Each archive contains the executable with embedded frontend, matching `gre.sh`, project license and dependency notices. Binaries/build output are ignored by Git. Validate the archive contents, checksums and executable/helper version; run the amd64 binary on Linux. Cross-building arm64 does not prove execution on an arm64 host.
 
-For disposable offline installation tests, use `sudo bash panel-install.sh --package-dir /path/to/packages --quick`. Never overwrite earlier release assets with a development archive.
+For disposable offline installation tests, use `sudo bash install.sh --package-dir /path/to/packages --yes --self-signed`, then `sudo gtm update --version X.Y.Z --package-dir /path/to/packages --force` for the update and rollback path. `install.sh` is served from `main`, so it must stay compatible with the newest published release. Never overwrite earlier release assets with a development archive.
 
 ## Publish
 

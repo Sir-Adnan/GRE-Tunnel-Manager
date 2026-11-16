@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { Gauge, Loader2, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { number, trafficBytes } from "@/lib/format";
 import { milliseconds, stamp } from "@/features/health/format";
 import { Meter } from "@/features/health/Indicators";
@@ -52,7 +52,7 @@ function SpeedRun({ node, tunnel }: { node: Node; tunnel: ProbeTunnel }) {
     const timer = window.setInterval(() => {
       api<SpeedTest>(`nodes/speedtest?id=${test.id}`)
         .then(setTest)
-        .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+        .catch((e) => setError(errorMessage(e)));
     }, 2000);
     return () => window.clearInterval(timer);
   }, [running, test]);
@@ -61,7 +61,7 @@ function SpeedRun({ node, tunnel }: { node: Node; tunnel: ProbeTunnel }) {
     try {
       setTest(await api<SpeedTest>("nodes/speedtest", { node: node.id, tunnel: tunnel.id }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     }
   }
   const mbps = (v?: number) =>

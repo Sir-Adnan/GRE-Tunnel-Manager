@@ -73,6 +73,38 @@ GTM_RECORDS=($'F000002\tPacket test\tnftables\tboth\t192.0.2.10\t28443\tsingle\t
 gtm_preflight
 gtm_nft_render | nft -f -
 nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
+# Live packet path: the owned rule counters saw that probe in both directions.
+path=$(gtm_path_nft F000002)
+awk -F '\t' '$2 == "new" && $4 > 0 {n = 1} $2 == "out" && $3 == "203.0.113.20" && $4 > 0 {o = 1} $2 == "back" && $3 == "203.0.113.20" && $4 > 0 {b = 1} END {exit !(n && o && b)}' <<< "$path" || { printf 'Packet path counters missing:\n%s\n' "$path" >&2; exit 1; }
+printf 'PASS: the live packet path reads real nftables counters in both directions.\n'
+# Firewall guard (inet gtm_guard): source allow/deny lists on a forward and
+# abuse protection for new uplink traffic to private ranges.
+(
+    GTM_CONFIG_DIR=$test_dir/guard; mkdir -m 700 "$GTM_CONFIG_DIR"
+    gtm_guard_paths
+    blocked() { if nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443 tcp >/dev/null 2>&1; then printf 'Firewall guard let %s through\n' "$1" >&2; exit 1; fi; }
+    printf 'access\tF000002\tallow\t0\t0\t198.51.100.0/24\n' > "$GTM_GUARD_FILE"; gtm_guard_apply
+    blocked 'a client outside the allow list'
+    printf 'access\tF000002\tallow\t5\t50\t192.0.2.0/24\n' > "$GTM_GUARD_FILE"; gtm_guard_apply
+    nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28443
+    printf 'access\tF000002\tdeny\t0\t0\t192.0.2.2\n' > "$GTM_GUARD_FILE"; gtm_guard_apply
+    blocked 'a denied client'
+    nft list table inet gtm_guard | grep -q 'gtm-F000002-deny' || exit 1
+    gtm_path_guard F000002 | awk -F '\t' '$2 == "blocked" && $4 > 0 {found = 1} END {exit !found}' || { printf 'The packet path missed blocked packets\n' >&2; exit 1; }
+    # A private address beyond the uplink: new connections stop unless excepted.
+    ip route add default via 203.0.113.20 dev tm_out
+    nsenter -t "$backend_ns" -n ip addr add 10.99.0.20/24 dev tm_backend
+    ip route add 10.99.0.0/24 dev tm_out
+    printf 'protect\tprivate\t1\n' > "$GTM_GUARD_FILE"; gtm_guard_apply
+    if python3 tests/packet_probe.py client 10.99.0.20 28001 tcp >/dev/null 2>&1; then printf 'Abuse protection let a private destination through\n' >&2; exit 1; fi
+    printf 'protect\tprivate\t1\nexcept\t10.99.0.0/24\n' > "$GTM_GUARD_FILE"; gtm_guard_apply
+    python3 tests/packet_probe.py client 10.99.0.20 28001 tcp
+    rm "$GTM_GUARD_FILE"; gtm_guard_apply
+    if nft list table inet gtm_guard >/dev/null 2>&1; then printf 'Guard table kept without settings\n' >&2; exit 1; fi
+    ip route del 10.99.0.0/24 dev tm_out; ip route del default via 203.0.113.20 dev tm_out
+    nsenter -t "$backend_ns" -n ip addr del 10.99.0.20/24 dev tm_backend
+    printf 'PASS: firewall allow/deny lists and private-range abuse protection.\n'
+)
 # Optional Go panel counters: both directions count actual forwarded TCP/UDP
 # packets. Removing the separate accounting table must leave forwarding intact.
 if [[ -n ${GTM_PANEL_TEST_BINARY:-} && -x $GTM_PANEL_TEST_BINARY ]]; then
@@ -330,6 +362,10 @@ if command -v iptables-restore >/dev/null; then
     gtm_iptables_apply 4
     iptables -P FORWARD DROP
     nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28444
+    # The packet path reads iptables-save counters (new flows and both directions).
+    path=$(gtm_path_iptables F000003 4)
+    awk -F '\t' '$2 == "new" && $4 > 0 {n = 1} $2 == "out" && $3 == "203.0.113.20" && $4 > 0 {o = 1} $2 == "back" && $3 == "203.0.113.20" && $4 > 0 {b = 1} END {exit !(n && o && b)}' <<< "$path" || { printf 'iptables packet path counters missing:\n%s\n' "$path" >&2; exit 1; }
+    printf 'PASS: the live packet path reads real iptables counters in both directions.\n'
     GTM_RECORDS=()
     gtm_iptables_apply 4
     iptables -P FORWARD ACCEPT
@@ -346,6 +382,26 @@ if command -v iptables-restore >/dev/null; then
     gtm_nft_render | nft -f -
     gtm_iptables_apply 4
     iptables -P FORWARD ACCEPT
+    # UFW may keep its FORWARD DROP in iptables-legacy while "iptables" is the
+    # nf_tables variant. Packets traverse both, so both need the owned accept.
+    if iptables -V | grep -q nf_tables && command -v iptables-legacy-restore >/dev/null && iptables-legacy -P FORWARD DROP 2>/dev/null; then
+        GTM_RECORDS=($'F000005\tLegacy UFW policy\tnftables\tboth\t192.0.2.10\t28447\tsingle\t1\tmasquerade\ttm_in\t203.0.113.20:28001@1\t1')
+        gtm_preflight
+        gtm_nft_render | nft -f -
+        gtm_iptables_apply 4
+        iptables-legacy -C FORWARD -j GTM_FWD
+        nsenter -t "$client_ns" -n python3 tests/packet_probe.py client 192.0.2.10 28447
+        # A firewall reload flushes the legacy hook; the refresh check sees it.
+        iptables-legacy -D FORWARD -j GTM_FWD
+        gtm_forward_guard_missing
+        gtm_iptables_apply 4
+        if gtm_forward_guard_missing; then printf 'Legacy forward accept not restored\n' >&2; exit 1; fi
+        GTM_RECORDS=()
+        gtm_nft_render | nft -f -
+        gtm_iptables_apply 4
+        iptables-legacy -P FORWARD ACCEPT
+        printf 'PASS: an iptables-legacy FORWARD DROP gets the owned accept.\n'
+    fi
 fi
 
 if command -v haproxy >/dev/null; then

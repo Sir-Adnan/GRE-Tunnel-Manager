@@ -119,10 +119,7 @@ export function Traffic({
         onValueChange={setSection}
         className="gap-5"
       >
-        <TabsList
-          className="h-auto min-h-10 w-full flex-wrap sm:w-fit"
-          aria-label={t("trafficSections")}
-        >
+        <TabsList layout="fill" aria-label={t("trafficSections")}>
           <TabsTrigger value="usage">{t("allUsage")}</TabsTrigger>
           <TabsTrigger value="details">{t("usageDetails")}</TabsTrigger>
           <TabsTrigger value="collection">

@@ -3,7 +3,9 @@ export function settingsTab(params: URLSearchParams): string {
   const tab = params.get("tab");
   if (
     tab &&
-    ["security", "appearance", "notifications", "metrics"].includes(tab)
+    ["security", "appearance", "notifications", "metrics", "updates"].includes(
+      tab,
+    )
   )
     return tab;
   const section = params.get("section");

@@ -16,7 +16,7 @@ BASH = os.environ.get('BASH_BIN') or (r'C:\Program Files\Git\bin\bash.exe' if os
 
 
 def bash(code, stdin=None):
-    prefix = 'source ./gre.sh\ngtm_paths\ngtm_palette\n'
+    prefix = 'source ./gre.sh\ngtm_paths\n'
     result = subprocess.run([BASH, '-c', prefix + code], cwd=ROOT,
                             input=None if stdin is None else stdin.encode('utf-8'), capture_output=True, timeout=20)
     result.stdout = result.stdout.decode('utf-8')
@@ -145,7 +145,7 @@ true
     def test_semantic_manager_version(self):
         result=bash('gtm_main --version')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout.strip(),'v1.5.3')
+        self.assertEqual(result.stdout.strip(),'v1.6.0')
 
     def test_deleted_connection_ids_are_not_reused(self):
         (ROOT / '.work').mkdir(exist_ok=True)
@@ -175,11 +175,6 @@ true
     def test_ip_validation_is_not_a_route_probe(self):
         result = bash('ip() { return 99; }; for ip in 0.0.0.0 192.0.2.1 ::1 fd00::10 2001:db8:0:0:0:0:0:1; do gtm_ip "$ip" || exit 8; done\nfor ip in 010.0.0.1 256.0.0.1 :1 1: 1::2::3 ::: ::ffff:192.0.2.1 :1::2 1::2: :1:: ::2:; do gtm_ip "$ip" && exit 9; done\ntrue')
         self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_selection_checks_boundaries_and_deduplicates(self):
-        result = bash('gtm_selection "1 3 1" 3 || exit 1\nprintf "%s\\n" "${GTM_SELECTED[*]}"\nfor bad in 0 4 18446744073709551616 a "1;id"; do gtm_selection "$bad" 3 && exit 2; done\ntrue')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), '0 2')
 
     def test_invalid_record_cannot_reach_renderer(self):
         for value in [record(name='$(id)'), record(protocol='icmp'), record(engine='eval'),
@@ -250,33 +245,6 @@ systemctl() { exit 84; }; nft() { exit 85; }; iptables() { exit 86; }
         self.assertEqual(result.returncode,0,result.stderr)
         for connection_id in ['F000001','F000002','F000003']: self.assertIn(connection_id,result.stdout)
         self.assertNotIn('F000004',result.stdout)
-
-    def test_stale_edit_is_rejected_without_losing_other_changes(self):
-        code=r'''
-IFS= read -r expected; IFS= read -r changed; IFS= read -r replacement
-GTM_RECORDS=("$changed")
-gtm_replace_record "$expected" "$replacement" && exit 9
-[[ ${GTM_RECORDS[0]} == "$changed" ]] || exit 10
-gtm_replace_record "$changed" "$replacement" || exit 11
-[[ ${GTM_RECORDS[0]} == "$replacement" ]]
-'''
-        result=bash(code,'\n'.join([record(),record(name='Other session'),record(name='My edit',enabled='0')])+'\n')
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('another session',result.stderr)
-
-    def test_wizard_edit_preserves_disabled_and_source_settings(self):
-        code=r'''
-IFS= read -r saved
-gtm_records() { GTM_RECORDS=("$saved"); }; gtm_load_records() { gtm_records; }
-gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
-gtm_install_component() { :; }; gtm_legacy_listener_check() { :; }; gtm_confirm() { :; }
-gtm_commit() { printf 'FINAL:%s\n' "${GTM_RECORDS[0]}"; }
-gtm_new_forward nftables F000001
-'''
-        original=record(enabled='0',snat='preserve')
-        result=bash(code,original+'\n\n\n1\n')
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertIn('FINAL:'+original,result.stdout)
 
     def test_local_listener_check_respects_bind_address_and_wildcards(self):
         code=r'''
@@ -591,20 +559,6 @@ printf '%s\n' "${calls[@]}"
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Listener conflicts', result.stderr)
 
-    def test_demo_does_not_mutate_server(self):
-        result = bash('GTM_DEMO=1; gtm_prepare')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Demo mode', result.stderr)
-
-    def test_fixed_interface_is_ascii_and_removed_switches_are_rejected(self):
-        result = bash('gtm_main --preview home')
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertNotIn('\x1b',result.stdout)
-        self.assertTrue(result.stdout.isascii())
-        for flag in ['--theme','--language','--layout']:
-            result = bash('gtm_main '+flag+' ignored')
-            self.assertEqual(result.returncode,2)
-
     def test_failed_apply_restores_previous_state(self):
         (ROOT / '.work').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
@@ -657,38 +611,39 @@ IFS= read -r row; GTM_RECORDS=("$row"); gtm_commit
             self.assertEqual((folder/'relay-recovery').read_text(),'restored\n')
             self.assertIn('Recovery needs attention',result.stderr)
 
-    def test_legacy_group_removal_preserves_other_groups_and_shared_rules(self):
-        (ROOT / '.work').mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=ROOT / '.work') as directory:
-            folder=Path(directory); (folder/'backups').mkdir()
-            file=folder/'rules.sh'
-            dnat='iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination 10.0.10.1:443'
-            other=dnat.replace('--dport 443','--dport 8443')
-            snat='iptables -t nat -A POSTROUTING -d 10.0.10.1 -p tcp --dport 443 -j MASQUERADE'
-            manual='echo untouched-manual-line'
-            file.write_text('#!/bin/bash\n'+ '\n'.join([dnat,dnat,other,snat,manual])+'\n',newline='\n')
-            code='GTM_CONFIG_DIR='+shlex.quote(folder.as_posix())+'; FW_SCRIPT='+shlex.quote(file.as_posix())+'\n'+r'''
-declare -A counts=()
-while IFS= read -r item; do [[ $item == iptables* ]] || continue; counts["$item"]=$(( ${counts["$item"]:-0}+1 )); done < "$FW_SCRIPT"
-iptables() {
-    [[ $* != '-t nat -S PREROUTING' ]] || return 0
-    local key="iptables $*"
-    key=${key/-C /-A }; key=${key/-D /-A }
-    if [[ " $* " == *' -C '* ]]; then (( ${counts["$key"]:-0}>0 )); return; fi
-    if [[ " $* " == *' -D '* ]]; then (( ${counts["$key"]:-0}>0 )) || return 1; counts["$key"]=$((counts["$key"]-1)); return 0; fi
-    return 1
-}
-gtm_confirm() { return 0; }
-gtm_legacy_delete_group
-for k in "${!counts[@]}"; do [[ $k != *'--dport 443 -j DNAT'* ]] || [[ ${counts[$k]} == 0 ]] || exit 8; done
-'''
-            result=bash(code,'1\n')
-            self.assertEqual(result.returncode,0,result.stderr)
-            remaining=file.read_text()
-            self.assertNotIn(dnat+'\n',remaining)
-            self.assertIn(other,remaining)
-            self.assertIn(snat,remaining)
-            self.assertIn(manual,remaining)
+    def test_wildcard_relay_cannot_loop_to_its_own_local_port(self):
+        for target, expected in [('192.0.2.10:443@1', False), ('203.0.113.20:443@1', True), ('192.0.2.10:8443@1', True), ('[::ffff:c000:20a]:443@1', False), ('[::ffff:cb00:7114]:443@1', True)]:
+            result = bash('ip() { printf "2: eth0 inet 192.0.2.10/24 scope global eth0\\n"; }\nIFS= read -r row; gtm_record_validate "$row" || exit 8\ngtm_relay_loop_check', record(engine='haproxy', bind='0.0.0.0', targets=target)+'\n')
+            self.assertEqual(result.returncode == 0, expected, result.stderr)
+
+    def test_dns_presets_match_the_panel(self):
+        import json
+        presets = json.loads((ROOT/'panel/internal/model/dns_presets.json').read_text(encoding='utf-8'))
+        result = bash('printf "%s\\n" "${GTM_SYSDNS_PRESETS[@]}"')
+        self.assertEqual(result.stdout.split('\n')[:-1], [p['name']+'|'+' '.join(p['servers']) for p in presets])
+        self.assertEqual(bash(' && '.join(f'gtm_sysdns_server {s}' for p in presets for s in p['servers']+p['ipv6'])).returncode, 0)
+
+    def test_without_arguments_the_script_installs_the_panel(self):
+        result = bash('gtm_install_panel() { printf "INSTALL:%s\\n" "$*"; }\ngtm_main')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 'INSTALL:')
+        result = bash('gtm_install_panel() { printf "INSTALL:%s\\n" "$*"; }\ngtm_main --quick --port 8443')
+        self.assertEqual(result.stdout.strip(), 'INSTALL:--quick --port 8443')
+        # Inspection flags never reach the installer and still reject extras.
+        result = bash('gtm_install_panel() { exit 9; }\ngtm_main --validate --state-file missing --quick')
+        self.assertEqual(result.returncode, 2)
+        result = bash('gtm_main --help')
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('web panel', result.stdout)
+        self.assertTrue(result.stdout.isascii())
+
+    def test_terminal_menus_are_gone(self):
+        script = (ROOT / 'gre.sh').read_text(encoding='utf-8')
+        for name in ['gtm_modern_menu', 'gtm_new_forward', 'gtm_header', 'gtm_read', 'gtm_panel_menu', 'igre']:
+            self.assertNotRegex(script, r'\b' + name + r'\b')
+        result = bash('gtm_confirm </dev/null')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
 
 
 if __name__ == '__main__':

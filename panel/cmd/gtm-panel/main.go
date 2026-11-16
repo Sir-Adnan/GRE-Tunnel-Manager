@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -22,7 +23,9 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/httpapi"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/model"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/nodes"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/release"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/setup"
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/twofactor"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/ui"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/version"
 	"golang.org/x/crypto/bcrypt"
@@ -33,17 +36,26 @@ const Version = version.Number
 
 func main() {
 	if e := run(); e != nil {
-		log.Print(e)
+		if !errors.Is(e, errReported) {
+			log.Print(e)
+		}
 		os.Exit(1)
 	}
 }
 func run() error {
-	if len(os.Args) < 2 {
-		return errors.New("usage: gtm-panel setup | serve | broker | reset-password | demo | version")
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if filepath.Base(os.Args[0]) == "gtm" {
+		return runGTM(ctx, os.Args[1:])
+	}
+	if len(os.Args) < 2 {
+		return errors.New("usage: gtm-panel gtm | install | setup | serve | broker | certificate | reset-password | address | demo | version")
+	}
 	switch os.Args[1] {
+	case "gtm":
+		return runGTM(ctx, os.Args[2:])
+	case "install", "update-check":
+		return runGTM(ctx, os.Args[1:])
 	case "certificate":
 		return certificateCommand(ctx, os.Args[2:])
 	case "uninstall-version":
@@ -141,6 +153,8 @@ func run() error {
 			if manager.Ops, e = control.NewOperations("/var/lib/gre-manager-panel"); e != nil {
 				return e
 			}
+			releases := release.Default("gtm-panel/" + Version)
+			manager.Admin = control.NewPanelAdmin(Version, releases.Latest)
 		}
 		return (&control.Broker{Manager: manager, ReadOnly: *readOnly, AgentTraffic: *agentTraffic, Nodes: nodeExecutor}).Listen(ctx, *socket)
 	case "serve":
@@ -165,8 +179,16 @@ func run() error {
 		}
 		server := httpapi.New(serviceCtx, auth.New(c.Username, c.PasswordHash, c.Scheme() == "https"), control.NewUnixClient(c.BrokerSocket), ui.Handler(), false)
 		server.Nodes = h
+		// Damaged two-factor settings fail closed: the panel stays down until
+		// root resets them, rather than silently accepting a password alone.
+		secondFactor, on, e := twofactor.Load(filepath.Join(filepath.Dir(*path), filepath.Base(twofactor.Path)))
+		if e != nil {
+			return fmt.Errorf("%w; run sudo gtm 2fa off to turn two-factor sign-in off", e)
+		}
+		server.SetTwoFactor(secondFactor, on)
 		if h != nil {
 			go h.RunOperations(serviceCtx, server.Client)
+			go h.WatchPresence(serviceCtx, server.Client)
 		}
 		nodeStopped := make(chan error, 1)
 		if nodeErrors != nil {
@@ -177,7 +199,16 @@ func run() error {
 			}()
 		}
 		var result error
-		server.Access = func() certificates.Status { return certificates.Status{Protocol: c.Scheme(), Host: certificateHost(c)} }
+		renewalPath := filepath.Join(filepath.Dir(*path), filepath.Base(certificates.RenewalPath))
+		withRenewal := func(status certificates.Status) certificates.Status {
+			if renewal, e := certificates.LoadRenewal(renewalPath); e == nil {
+				status.Renewal = &renewal
+			}
+			return status
+		}
+		server.Access = func() certificates.Status {
+			return withRenewal(certificates.Status{Protocol: c.Scheme(), Host: certificateHost(c)})
+		}
 		if c.Scheme() == "http" {
 			result = serve(serviceCtx, c.Listen, server, "", "")
 		} else {
@@ -194,7 +225,8 @@ func run() error {
 			if e != nil {
 				return e
 			}
-			server.Access, server.ReloadCertificate = reloader.Status, reloader.Reload
+			server.Access = func() certificates.Status { return withRenewal(reloader.Status()) }
+			server.ReloadCertificate = reloader.Reload
 			result = serve(serviceCtx, c.Listen, server, c.Certificate, c.PrivateKey, reloader)
 		}
 		select {
@@ -220,6 +252,7 @@ func run() error {
 			return e
 		}
 		server := httpapi.New(ctx, auth.New("demo", string(hash), false), control.NewDemo(), ui.Handler(), true)
+		server.Access, server.ReloadCertificate = demoAccess, func() error { return nil }
 		fmt.Printf("Demo only: http://%s | username: demo | password: demo-panel-12345\n", *address)
 		return serve(ctx, *address, server, "", "")
 	default:

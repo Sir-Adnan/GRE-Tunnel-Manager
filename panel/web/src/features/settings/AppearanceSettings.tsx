@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Choice } from "@/components/shared";
 import { HelpTip } from "@/components/help";
 import { ThemePicker } from "@/components/ThemePicker";
+import { DensityToggle } from "@/components/AppearanceControl";
 import { useT } from "@/lib/i18n";
 import type { Locale, Preferences } from "@/lib/preferences";
 
@@ -63,6 +64,17 @@ export function AppearanceSettings({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+            </Field>
+            <Field>
+              <DensityToggle
+                value={preferences.density}
+                onChange={(density) =>
+                  setPreferences({ ...preferences, density })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("densityHelp")}
+              </p>
             </Field>
             <Field orientation="horizontal">
               <div className="flex items-center gap-1">

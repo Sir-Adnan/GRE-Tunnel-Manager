@@ -8,7 +8,7 @@ import (
 //go:embed dns_presets.json
 var dnsPresetsJSON []byte
 
-// DNSPreset is a named public resolver pair; the terminal menu and the panel share the list.
+// DNSPreset is a named public resolver pair; the engine and the panel share the list.
 type DNSPreset struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`

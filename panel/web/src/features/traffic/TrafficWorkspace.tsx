@@ -22,7 +22,7 @@ import { usePanelRoute } from "@/lib/use-panel-route";
 import { api } from "@/lib/api";
 import type { Inventory, Metrics, TrafficArchive } from "@/lib/api";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes, number } from "@/lib/format";
 import { archiveSamples } from "./history";
 import { UsageList } from "./UsageList";
@@ -112,7 +112,7 @@ export function TrafficWorkspace({
         }
       })
       .catch((e) => {
-        if (live) setArchiveError(String(e));
+        if (live) setArchiveError(errorMessage(e));
       });
     return () => {
       live = false;

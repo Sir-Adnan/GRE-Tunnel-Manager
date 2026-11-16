@@ -429,13 +429,7 @@ func (h *Hub) Views() Listing {
 			v.Failure = o.report.Failure
 			v.Inventory = append(json.RawMessage{}, o.inventory...)
 			v.InventoryRevision = o.revision
-			v.Status = "online"
-			if o.report.Failure != nil {
-				v.Status = "degraded"
-			}
-			if h.now().Sub(o.seen) > 3*time.Minute {
-				v.Status = "offline"
-			}
+			v.Status = h.reportStatus(o)
 		}
 		if n.Revoked {
 			v.Status = "revoked"

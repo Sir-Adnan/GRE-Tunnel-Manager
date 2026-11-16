@@ -215,11 +215,18 @@ gtm_active_targets() {
 # iptables engine's accepts); nat and mangle stay iptables-engine only.
 # Succeeds when the family's owned iptables chains must be rendered.
 gtm_iptables_wanted() {
-    local family=$1 tool=iptables line
+    local family=$1 tool=iptables
     [[ $family == 4 ]] || tool=ip6tables
     command -v "$tool" >/dev/null 2>&1 && command -v "$tool-restore" >/dev/null 2>&1 || return 1
     # Chains left by an earlier apply are cleared after the last record goes.
     "$tool" -w 5 -t nat -S GTM_PRE >/dev/null 2>&1 && return 0
+    gtm_kernel_family_used "$family"
+}
+
+# Succeeds while an enabled kernel forward (iptables or nftables) uses the
+# family (4 or 6).
+gtm_kernel_family_used() {
+    local family=$1 line
     for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
         gtm_record_validate "$line" || return 1
         [[ $R_ENABLED == 1 && ( $R_ENGINE == iptables || $R_ENGINE == nftables ) ]] || continue
@@ -227,6 +234,55 @@ gtm_iptables_wanted() {
         return 0
     done
     return 1
+}
+
+# Both iptables backends can be active at once: UFW (or an older Docker) may
+# keep its FORWARD DROP policy in iptables-legacy while "iptables" is the
+# nf_tables variant, or the reverse. Packets pass both, so the owned FORWARD
+# accept belongs in every backend that drops. Prints "command policy" per
+# backend, the default "iptables" first, then the other backend while its
+# FORWARD policy is DROP or it still holds owned chains. Legacy tables are
+# detected through /proc, so probing never loads the legacy modules.
+gtm_forward_guards() {
+    local family=$1 tool=iptables other tables_file=${GTM_PROC_NET:-/proc/net}/ip_tables_names policy
+    [[ $family == 4 ]] || { tool=ip6tables; tables_file=${GTM_PROC_NET:-/proc/net}/ip6_tables_names; }
+    command -v "$tool" >/dev/null 2>&1 && command -v "$tool-restore" >/dev/null 2>&1 || return 0
+    policy=$("$tool" -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" {print $3; exit}')
+    printf '%s %s\n' "$tool" "${policy:--}"
+    if "$tool" -V 2>/dev/null | grep -q nf_tables; then
+        other=$tool-legacy
+        grep -qx filter "$tables_file" 2>/dev/null || return 0
+    else
+        other=$tool-nft
+    fi
+    command -v "$other" >/dev/null 2>&1 && command -v "$other-restore" >/dev/null 2>&1 || return 0
+    policy=$("$other" -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" {print $3; exit}')
+    if [[ $policy == DROP ]] || "$other" -w 5 -S GTM_FWD >/dev/null 2>&1; then printf '%s %s\n' "$other" "${policy:--}"; fi
+    return 0
+}
+
+# Succeeds when a backend that drops forwarded packets lost the owned accept
+# (a firewall reload flushed FORWARD) while kernel forwards need it.
+gtm_forward_guard_missing() {
+    local family tool policy
+    for family in 4 6; do
+        gtm_kernel_family_used "$family" || continue
+        while read -r tool policy; do
+            [[ $policy == DROP ]] || continue
+            "$tool" -w 5 -C FORWARD -j GTM_FWD 2>/dev/null || return 0
+        done < <(gtm_forward_guards "$family")
+    done
+    return 1
+}
+
+# Prints the backends whose FORWARD policy drops packets of a family that
+# kernel forwards use. The refresh timer watches their accept while any exist.
+gtm_forward_guard_drops() {
+    local family
+    for family in 4 6; do
+        gtm_kernel_family_used "$family" || continue
+        gtm_forward_guards "$family" | awk '$2 == "DROP" {print $1}'
+    done
 }
 
 gtm_iptables_render() {
@@ -308,17 +364,33 @@ gtm_iptables_render() {
 }
 
 gtm_iptables_apply() {
-    local family=$1 tool=iptables restore=iptables-restore file table chain hook
-    [[ $family == 6 ]] && { tool=ip6tables; restore=ip6tables-restore; }
+    local family=$1 tool=iptables guard
+    [[ $family == 6 ]] && tool=ip6tables
     command -v "$tool" >/dev/null 2>&1 || return 0
+    gtm_iptables_load "$tool" "$family" nat filter mangle || return 1
+    # The other backend gets the forward accept only. A failure there leaves
+    # every other rule in place and is reported (diagnosis shows the policy).
+    while read -r guard _; do
+        [[ $guard != "$tool" ]] || continue
+        gtm_iptables_load "$guard" "$family" filter || gtm_error "Could not add the forward accept to $guard; its FORWARD DROP policy may block forwards."
+    done < <(gtm_forward_guards "$family")
+    return 0
+}
+
+# Loads the owned chains of the given tables through one iptables command
+# ("iptables", "iptables-legacy", ...) and hooks them first in their chains.
+gtm_iptables_load() {
+    local tool=$1 family=$2 file table chain hook
+    local -a hooks
+    shift 2
     file=$(mktemp "$GTM_RUN_DIR/iptables.XXXXXX") || return 1
-    for table in nat filter mangle; do
+    for table in "$@"; do
         gtm_iptables_render "$family" "$table" > "$file" || { rm -f "$file"; return 1; }
-        "$restore" -w 5 --noflush --test < "$file" && "$restore" -w 5 --noflush < "$file" || { rm -f "$file"; return 1; }
+        "$tool-restore" -w 5 --noflush --test < "$file" && "$tool-restore" -w 5 --noflush < "$file" || { rm -f "$file"; return 1; }
     done
     rm -f "$file"
-    for table in nat filter mangle; do
-        case $table in nat) local -a hooks=(PREROUTING:GTM_PRE POSTROUTING:GTM_POST);; filter) hooks=(FORWARD:GTM_FWD);; mangle) hooks=(FORWARD:GTM_MSS PREROUTING:GTM_RTM);; esac
+    for table in "$@"; do
+        case $table in nat) hooks=(PREROUTING:GTM_PRE POSTROUTING:GTM_POST);; filter) hooks=(FORWARD:GTM_FWD);; mangle) hooks=(FORWARD:GTM_MSS PREROUTING:GTM_RTM);; esac
         for hook in "${hooks[@]}"; do
             chain=${hook#*:}; hook=${hook%%:*}
             "$tool" -w 5 -t "$table" -C "$hook" -j "$chain" 2>/dev/null || "$tool" -w 5 -t "$table" -I "$hook" 1 -j "$chain" || return 1
@@ -589,6 +661,10 @@ gtm_kernel_apply() {
         gtm_nft_render > "$file" && nft -c -f "$file" && nft -f "$file" || { rm -f "$file"; return 1; }
         rm -f "$file"
     fi
+    # Firewall guard rules and UFW openings follow the records (deleted
+    # connections lose theirs). A failure there is reported, never blocking
+    # forwarding.
+    gtm_guard_apply || gtm_error 'Firewall settings were not fully applied; open Firewall in the panel.'
     gtm_return_rules_apply || return 1
     gtm_snat_save || gtm_error 'Could not record the applied source addresses.'
     (( v4 == 0 )) || sysctl -w net.ipv4.ip_forward=1 || return 1

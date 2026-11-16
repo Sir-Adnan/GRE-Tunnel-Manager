@@ -52,7 +52,7 @@ Sets the resolvers the server itself uses. It is separate from the kernel groups
 
 The panel distinguishes **active global resolvers** from **configured by this manager**. A local stub such as `127.0.0.53` normally remains in `/etc/resolv.conf`; `/run/systemd/resolve/resolv.conf` can still list DHCP-provided servers as well. Their presence alone does not establish which server answers ordinary queries. Query `resolvectl status` when inspecting per-link routing. Apply/restore stage only the known owned files and attempt to restore the immediately preceding configuration on checked failure. A pre-existing manager-path drop-in is retained for exact restore on new managed setup. Plain bind-mounted or read-only resolver files can reject replacement; that failure must be resolved locally rather than shown as a successful change.
 
-Terminal: Tools → **Server DNS**. Engine operations: `dns-status`, `dns-apply SERVER…`, `dns-restore`.
+Engine operations: `dns-status`, `dns-apply SERVER…`, `dns-restore`.
 
 ## Port Forward Manager (portfw)
 

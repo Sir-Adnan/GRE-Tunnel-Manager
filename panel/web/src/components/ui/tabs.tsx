@@ -31,9 +31,17 @@ const tabsListVariants = cva(
         default: "bg-muted",
         line: "gap-1 bg-transparent",
       },
+      // "fill": equal columns across the full width on phones (labels may take
+      // two lines inside their own tab instead of a tab dropping to a new row);
+      // from the sm breakpoint the list sizes to its content again.
+      layout: {
+        auto: "",
+        fill: "grid w-full auto-cols-[minmax(0,1fr)] grid-flow-col group-data-[orientation=horizontal]/tabs:h-auto sm:inline-flex sm:w-fit sm:max-w-full",
+      },
     },
     defaultVariants: {
       variant: "default",
+      layout: "auto",
     },
   },
 );
@@ -41,6 +49,7 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
+  layout = "auto",
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants>) {
@@ -48,7 +57,8 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      data-layout={layout}
+      className={cn(tabsListVariants({ variant, layout }), className)}
       {...props}
     />
   );
@@ -63,7 +73,8 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pe-1 has-data-[icon=inline-start]:ps-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
+        "max-sm:group-data-[layout=fill]/tabs-list:min-h-9 max-sm:group-data-[layout=fill]/tabs-list:px-1 max-sm:group-data-[layout=fill]/tabs-list:py-1.5 max-sm:group-data-[layout=fill]/tabs-list:text-center max-sm:group-data-[layout=fill]/tabs-list:text-xs max-sm:group-data-[layout=fill]/tabs-list:leading-snug max-sm:group-data-[layout=fill]/tabs-list:whitespace-normal max-sm:group-data-[layout=fill]/tabs-list:[text-wrap:balance] max-sm:group-data-[layout=fill]/tabs-list:[&_svg]:hidden",
+        "group-data-[variant=line]/tabs-list:bg-transparentgroup-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
         "data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-end-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
         className,

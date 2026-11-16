@@ -2,8 +2,10 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { operate } from "@/lib/api";
 import type { Job } from "@/lib/api";
+import { errorMessage } from "@/lib/i18n";
 
-export type OperationOutput = { title: string; text: string };
+/** A result to show, or a failure (error: true) that the dialog explains. */
+export type OperationOutput = { title: string; text: string; error?: boolean };
 
 /** Operations whose result text is worth showing after completion, with the title key to show it under. */
 const resultTitles: Record<string, string> = {
@@ -42,7 +44,8 @@ export function useOperations(t: (key: string) => string) {
       } catch (error) {
         setOutput({
           title: t("error"),
-          text: error instanceof Error ? error.message : String(error),
+          text: errorMessage(error),
+          error: true,
         });
         throw error;
       }

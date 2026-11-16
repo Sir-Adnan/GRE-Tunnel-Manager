@@ -22,45 +22,50 @@ gtm_legacy_listener_check() {
             [[ $protocol == both || $protocol == "${words[6]}" ]] || continue
             gtm_port "${words[8]}" && gtm_port_span "$port" || continue
             ((PS_FIRST <= 10#${words[8]} && 10#${words[8]} <= PS_LAST)) || continue
-            gtm_error "An existing legacy forward already uses this entrance port. Retire it under Tools -> Retire old installation first."
+            gtm_error "An existing legacy forward already uses this entrance port. Retire it first: gre.sh --api legacy-scan, then legacy-retire."
             return 1
         done < "$file"
     done
     gtm_portfw_listener_check "$protocol" "$bind" "$port"
 }
 
-# Strictly recognize generator-owned legacy DNAT syntax. Unknown/manual lines stay.
-gtm_legacy_delete_group() {
-    local line cmd localport dest choice index=0 key file deleted=0 failed=0
-    local -a keys=() lines=() keep=() args=()
+# Generated forward groups ("cmd|port|destination") in the v13.x rules file.
+# Strictly recognizes generator-owned DNAT syntax; unknown/manual lines stay.
+gtm_legacy_groups() {
+    local line key
+    local -a args=()
     local -A seen=()
-    [[ -f $FW_SCRIPT ]] || { printf 'No legacy rules file.\n'; return; }
-    mapfile -t lines < "$FW_SCRIPT"
-    for line in "${lines[@]}"; do
+    L_GROUPS=(); L_LINES=()
+    [[ -f $FW_SCRIPT && ! -L $FW_SCRIPT ]] || return 0
+    mapfile -t L_LINES < "$FW_SCRIPT"
+    for line in "${L_LINES[@]}"; do
         read -r -a args <<< "$line"
         # The normal generated line has 13 words, including the destination.
         [[ ${#args[@]} == 13 && ${args[0]} =~ ^(iptables|ip6tables)$ && ${args[1]} == -t && ${args[2]} == nat && ${args[3]} == -A && ${args[4]} == PREROUTING && ${args[5]} == -p && ${args[6]} =~ ^(tcp|udp)$ && ${args[7]} == --dport && ${args[9]} == -j && ${args[10]} == DNAT && ${args[11]} == --to-destination ]] || continue
         gtm_port "${args[8]}" && gtm_endpoint "${args[12]}" || continue
         key="${args[0]}|${args[8]}|${args[12]}"
         [[ ${seen[$key]+set} ]] && continue
-        seen[$key]=1; keys+=("$key"); ((index+=1)); printf '  [%d] %s -> %s (%s)\n' "$index" "${args[8]}" "${args[12]}" "${args[0]}"
+        seen[$key]=1; L_GROUPS+=("$key")
     done
-    ((index>0)) || { printf 'No recognized generated groups. Manual rules were kept.\n'; return; }
-    gtm_read 'Delete group row [0 cancels]: ' choice || return
-    gtm_uint "$choice" 1 "$index" || return
-    key=${keys[$((10#$choice-1))]}; IFS='|' read -r cmd localport dest <<< "$key"
+}
+
+# Remove one group (TCP and UDP for entrance + destination) and its duplicates.
+gtm_legacy_delete_group() {
+    local cmd=$1 localport=$2 dest=$3 key="$1|$2|$3" line index file deleted=0 failed=0 found=0
+    local -a keep=() args=()
+    gtm_legacy_groups
+    for line in "${L_GROUPS[@]}"; do [[ $line != "$key" ]] || found=1; done
+    ((found)) || { gtm_error 'That legacy forward group is not in the rules file; scan again.'; return 1; }
     gtm_need "$cmd" && "$cmd" -t nat -S PREROUTING >/dev/null || return 1
-    gtm_endpoint "$dest" || return
+    gtm_endpoint "$dest" || return 1
     local dest_ip=$EP_IP dest_port=$EP_PORT proto shared=0 other other_cmd other_port other_dest
-    for other in "${keys[@]}"; do
+    for other in "${L_GROUPS[@]}"; do
         [[ $other != "$key" ]] || continue
         IFS='|' read -r other_cmd other_port other_dest <<< "$other"
         [[ $other_cmd != "$cmd" || $other_dest != "$dest" ]] || shared=1
     done
-    printf 'Remove both TCP/UDP forwarding for :%s -> %s\n' "$localport" "$dest"
-    gtm_confirm || return
-    cp "$FW_SCRIPT" "$GTM_CONFIG_DIR/backups/legacy-$(date -u +%Y%m%dT%H%M%S)-$$.sh" || return
-    for line in "${lines[@]}"; do
+    cp "$FW_SCRIPT" "$GTM_CONFIG_DIR/backups/legacy-$(date -u +%Y%m%dT%H%M%S)-$$.sh" || return 1
+    for line in "${L_LINES[@]}"; do
         local owned=0
         for proto in tcp udp; do
             if [[ $line == "$cmd -t nat -A PREROUTING -p $proto --dport $localport -j DNAT --to-destination $dest" ]]; then owned=1; fi
@@ -78,19 +83,10 @@ gtm_legacy_delete_group() {
             done
         else keep+=("$line"); fi
     done
-    ((failed==0)) || { gtm_error 'Too many duplicate rules; configuration kept for inspection.'; return; }
-    file=$(mktemp "${FW_SCRIPT}.XXXXXX") || return
-    printf '%s\n' "${keep[@]}" > "$file" && chmod 700 "$file" && mv "$file" "$FW_SCRIPT"
-    printf 'Removed legacy group and its duplicates.\n'
-}
-
-# Closed legacy inventory. Never execute a saved shell line or flush host tables.
-gtm_legacy_inspect() {
-    [[ -f $FW_SCRIPT && -r $FW_SCRIPT ]] || { printf 'No readable legacy forwarding file.\n'; return; }
-    printf 'Legacy persistence / read only: %s\n' "$FW_SCRIPT"
-    cat "$FW_SCRIPT"
-    printf '\nUse grouped deletion or recognized-resource cleanup; add new connections in Traffic connections.\nRaw saved scripts are not executed by this inspection.\n'
-    gtm_pause
+    ((failed==0)) || { gtm_error 'Too many duplicate rules; configuration kept for inspection.'; return 1; }
+    file=$(mktemp "${FW_SCRIPT}.XXXXXX") || return 1
+    printf '%s\n' "${keep[@]}" > "$file" && chmod 700 "$file" && mv "$file" "$FW_SCRIPT" || { rm -f "$file"; return 1; }
+    printf 'Removed legacy forward :%s -> %s and its duplicates.\n' "$localport" "$dest"
 }
 
 gtm_legacy_dnat() {
@@ -309,9 +305,10 @@ gtm_legacy_sysctl_owned() {
     if [[ $kind == tcp ]]; then ((count==8)); else ((count==11)); fi
 }
 
-gtm_legacy_retire_tuning() {
-    local file index=0 backup
-    local -a files=()
+# Recognized historical tuning files in L_FILES; refuses on any customization.
+gtm_legacy_tuning_plan() {
+    local file
+    L_FILES=()
     for file in "$SYSCTL_FILE" "$PERF_SYSCTL_FILE" "$PERF_MODULES_FILE" "$PERF_SCRIPT" "$PERF_SERVICE"; do
         [[ -e $file || -L $file ]] || continue
         [[ -f $file && ! -L $file ]] || { gtm_error "Not a regular owned file: $file"; return 1; }
@@ -322,29 +319,86 @@ gtm_legacy_retire_tuning() {
             "$PERF_SCRIPT") [[ $(sha256sum "$file" | awk '{print $1}') == 93562fcaae0586a4152e6d9c30cb71a02c228524a55c543fdc1c041d657070fc ]] || { gtm_error 'Historical performance script differs from the known generator; kept.'; return 1; };;
             "$PERF_SERVICE") cmp -s "$file" <(printf '[Unit]\nDescription=GRE Manager High-Load Tuning (RPS + NOTRACK)\nAfter=network.target\n[Service]\nType=simple\nExecStart=%s boot\n[Install]\nWantedBy=multi-user.target\n' "$PERF_SCRIPT") || { gtm_error 'Historical performance unit was customized; kept.'; return 1; };;
         esac
-        files+=("$file"); printf '  Retire: %s\n' "$file"
+        L_FILES+=("$file")
     done
-    ((${#files[@]})) || { printf 'No recognized historical tuning files.\n'; return; }
-    printf 'Previous runtime values were not recorded. Runtime sysctls/RPS/untagged NOTRACK stay; no guessed defaults are written.\n'
-    printf 'Retirement prevents these files from reapplying at boot; review remaining host policy before reboot.\n'
-    gtm_confirm || return
+}
+
+# Previous runtime values were never recorded, so runtime sysctls, RPS and
+# untagged NOTRACK stay; retiring only stops these files reapplying at boot.
+gtm_legacy_retire_tuning() {
+    local file index=0 backup
+    gtm_legacy_tuning_plan || return 1
+    ((${#L_FILES[@]})) || { printf 'No recognized historical tuning files.\n'; return 0; }
     backup="$GTM_CONFIG_DIR/backups/retired-tuning-$(date -u +%Y%m%dT%H%M%S)-$$-$RANDOM"
     mkdir "$backup" && chmod 700 "$backup" || return 1
-    for file in "${files[@]}"; do cp "$file" "$backup/$index-${file##*/}" || return 1; ((index+=1)); done
+    for file in "${L_FILES[@]}"; do cp "$file" "$backup/$index-${file##*/}" || return 1; ((index+=1)); done
     [[ ! -f $PERF_SERVICE ]] || systemctl disable --now gre-perf.service || return 1
-    for file in "${files[@]}"; do rm -f "$file" || return 1; done
+    for file in "${L_FILES[@]}"; do rm -f "$file" || return 1; done
     systemctl daemon-reload || return 1
     printf 'Historical tuning persistence retired. Backup: %s\n' "$backup"
 }
 
-gtm_legacy_cleanup_menu() {
-    local choice
-    gtm_header 'Retire old installation / preview before removal'
-    gtm_option 1 'Remove all recognized v13.x forwards' 'Refuses unknown/manual commands'
-    gtm_option 2 'Remove one v13.x forward group' 'TCP and UDP by entrance + destination'
-    gtm_option 3 'Remove Simple GRE' 'Checks saved script, unit, peer and known dependencies'
-    gtm_option 4 'Retire old tuning files' 'Backup first; unknown runtime values stay'
-    gtm_option 0 Back
-    gtm_read 'Choose: ' choice || return
-    case $choice in 1) gtm_legacy_cleanup_all;; 2) gtm_legacy_delete_group;; 3) gtm_simple_cleanup;; 4) gtm_legacy_retire_tuning;; esac
+# One TSV row per retirement item; errors become the row's reason.
+#   forwards  ready|blocked|absent  COMMANDS  REASON
+#   group     iptables|ip6tables    PORT      DESTINATION
+#   simple    ready|blocked|absent  LOCAL>REMOTE  REASON
+#   tuning    ready|blocked|absent  FILES (comma separated)  REASON
+gtm_legacy_scan() {
+    local state key cmd port dest files
+    L_RULES=(); L_FILES=(); L_SIMPLE_LOCAL=''; L_SIMPLE_REMOTE=''
+    if [[ -e $FW_SCRIPT || -L $FW_SCRIPT ]]; then
+        state=blocked; gtm_legacy_check gtm_legacy_plan_all && state=ready
+        printf 'forwards\t%s\t%d\t%s\n' "$state" "${#L_RULES[@]}" "$L_REASON"
+        gtm_legacy_groups
+        for key in "${L_GROUPS[@]}"; do
+            IFS='|' read -r cmd port dest <<< "$key"
+            printf 'group\t%s\t%s\t%s\n' "$cmd" "$port" "$dest"
+        done
+    else printf 'forwards\tabsent\t0\t\n'; fi
+    if [[ -e $GTM_SIMPLE_SCRIPT || -L $GTM_SIMPLE_SCRIPT ]]; then
+        state=blocked; gtm_legacy_check gtm_simple_plan && gtm_legacy_check gtm_simple_dependencies && state=ready
+        [[ $state == ready || -n $L_REASON ]] || L_REASON='The Simple GRE script differs from the known generator.'
+        printf 'simple\t%s\t%s>%s\t%s\n' "$state" "${L_SIMPLE_LOCAL:--}" "${L_SIMPLE_REMOTE:--}" "$L_REASON"
+    else printf 'simple\tabsent\t-\t\n'; fi
+    state=blocked; gtm_legacy_check gtm_legacy_tuning_plan && state=ready
+    [[ $state == ready || -n $L_REASON ]] || L_REASON='A historical tuning file was customized.'
+    files=$(IFS=,; printf '%s' "${L_FILES[*]}")
+    [[ $state == blocked || -n $files ]] || state=absent
+    printf 'tuning\t%s\t%s\t%s\n' "$state" "${files:--}" "$L_REASON"
+}
+
+# Run a read-only plan in this shell, so its arrays stay set, and keep its
+# error text in L_REASON as one TSV-safe line without the "Error: " prefix.
+gtm_legacy_check() {
+    local log result text
+    log=$(mktemp) || return 1
+    "$@" >/dev/null 2>"$log"; result=$?
+    text=$(cat "$log"); rm -f "$log"
+    text=${text//$'\t'/ }; text=${text//$'\n'/ }; text=${text//Error: /}
+    L_REASON=${text:0:300}
+    return "$result"
+}
+
+gtm_legacy_api() {
+    local operation=$1; shift
+    case $operation in
+        legacy-scan) (($#==0)) || return 2; gtm_legacy_scan;;
+        legacy-retire)
+            (($#>=1)) || return 2
+            case $1 in
+                forwards|simple|tuning) (($#==1)) || return 2;;
+                group) (($#==4)) && [[ $2 =~ ^(iptables|ip6tables)$ ]] && gtm_port "$3" && gtm_endpoint "$4" || return 2;;
+                *) return 2;;
+            esac
+            gtm_prepare && gtm_lock || return 1
+            local result
+            case $1 in
+                forwards) gtm_legacy_cleanup_all;;
+                simple) gtm_simple_cleanup;;
+                tuning) gtm_legacy_retire_tuning;;
+                group) gtm_legacy_delete_group "$2" "$3" "$4";;
+            esac
+            result=$?; gtm_unlock; return "$result";;
+        *) return 2;;
+    esac
 }

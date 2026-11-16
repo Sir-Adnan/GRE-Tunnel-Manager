@@ -61,7 +61,26 @@ type Resource struct {
 	Revision    string `json:"revision,omitempty"`
 	// Peer is the far end's inner GRE address, read from the owned unit.
 	Peer string `json:"peer,omitempty"`
+	// Remote is the far end's public GRE address; Bind holds the local one.
+	Remote string `json:"remote,omitempty"`
 }
+
+var greTunnelLine = regexp.MustCompile(`(?m)^ExecStart=/sbin/ip(?: -6)? tunnel add \S+ mode (?:gre|ip6gre) remote (\S+) local (\S+)(?: |$)`)
+
+// greEndpoints reads the public remote and local addresses of a GRE unit.
+func greEndpoints(unit string) (remote, local string) {
+	m := greTunnelLine.FindStringSubmatch(unit)
+	if m == nil {
+		return "", ""
+	}
+	a, e := netip.ParseAddr(m[1])
+	b, f := netip.ParseAddr(m[2])
+	if e != nil || f != nil {
+		return "", ""
+	}
+	return a.String(), b.String()
+}
+
 type Component struct {
 	ID            string `json:"id"`
 	Installed     bool   `json:"installed"`
@@ -118,7 +137,11 @@ type Request struct {
 	Snapshot        SnapshotInput    `json:"snapshot,omitzero"`
 	Prometheus      PrometheusInput  `json:"prometheus,omitzero"`
 	DNS             DNSInput         `json:"dns,omitzero"`
+	Firewall        FirewallInput    `json:"firewall,omitzero"`
+	Address         AddressInput     `json:"address,omitzero"`
 	Order           OrderInput       `json:"order,omitzero"`
+	Certificate     CertificateInput `json:"certificate,omitzero"`
+	TwoFactor       TwoFactorInput   `json:"two_factor,omitzero"`
 	// Protect applies health monitoring choices made in a connection or GRE form.
 	Protect *Protection `json:"protect,omitempty"`
 	// SafeMinutes arms an automatic revert of this change unless confirmed.
@@ -134,6 +157,8 @@ type Manager struct {
 	Metrics   *Metrics
 	// Ops is nil on Agent brokers, which offer no health or maintenance.
 	Ops *Operations
+	// Admin is nil on Agent brokers: no panel certificate, update or sign-in.
+	Admin *PanelAdmin
 }
 
 func NewManager() *Manager {
@@ -211,6 +236,7 @@ func (m *Manager) Inventory(ctx context.Context) (Inventory, error) {
 				resource.Interface = "gre-out-" + tid
 			}
 			resource.Peer = grePeer(text)
+			resource.Remote, resource.Bind = greEndpoints(text)
 			resource.Configured = true
 		} else {
 			parts := strings.SplitN(strings.TrimPrefix(id, "gtm-"), "-", 3)
@@ -282,7 +308,12 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return map[string]bool{"ok": true}, nil
 	case "host-telemetry":
 		return m.telemetry.Sample(), nil
-	case "health", "health-report", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
+	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover":
+		if m.Admin == nil {
+			return nil, errors.New("panel administration is unavailable on this broker")
+		}
+		return m.Admin.execute(ctx, m.Runner, r)
+	case "health", "health-report", "health-latency", "health-configure", "maintenance", "maintenance-configure", "maintenance-save", "maintenance-delete", "maintenance-run", "maintenance-cancel":
 		if m.Ops == nil {
 			return nil, errors.New("health and maintenance are unavailable on this broker")
 		}
@@ -297,17 +328,23 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return m.history(ctx, r)
 	case "diagnose":
 		return m.diagnose(ctx, r.Health.Owner)
+	case "connection-path":
+		return m.connectionPath(ctx, r.Health.Owner)
 	case "gre-quality":
 		return m.greQuality(ctx, r.Health.Owner)
 	case "node-probes":
 		return m.nodeProbes(ctx), nil
 	case "dns", "dns-test", "dns-resolve", "dns-apply", "dns-restore", "dns-policy", "dns-refresh":
 		return m.dns(ctx, r)
+	case "firewall", "firewall-apply", "firewall-confirm", "firewall-revert", "firewall-repair":
+		return m.firewall(ctx, r)
+	case "addresses", "address-replace", "address-extra-add", "address-extra-delete":
+		return m.addresses(ctx, r)
 	case "ui-order", "ui-order-save":
 		return m.order(r)
 	case "change-pending", "change-confirm", "change-revert":
 		return m.safeChange(ctx, r)
-	case "notifications", "notifications-read", "notifications-clear", "notifications-configure", "notifications-test":
+	case "notifications", "notifications-read", "notifications-clear", "notifications-node", "notifications-configure", "notifications-test":
 		return m.notifications(ctx, r)
 	case "engine-releases":
 		return m.engineReleases(ctx), nil

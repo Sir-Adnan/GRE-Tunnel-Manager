@@ -7,6 +7,7 @@ import type {
   MaintenanceView,
 } from "@/features/operations/types";
 import type { OptimizeProfile, OptimizeView } from "@/features/optimize/types";
+import { errorMessage } from "@/lib/i18n";
 
 type Loaded<T> = {
   value?: T;
@@ -38,7 +39,7 @@ export function useLoaded<T>(
         return next;
       } catch (e) {
         if (!signal?.aborted)
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
         return undefined;
       }
     },
@@ -47,7 +48,9 @@ export function useLoaded<T>(
   // Runs at once and whenever the page becomes visible; slow refresh while idle.
   // A new path (another optimization profile) loads at once.
   usePoll(reload, { seconds: seconds(value) || 600, restartOn: path });
-  return { value, error, reload: () => reload() };
+  // Stable, so callers may list it in effect dependencies.
+  const reloadNow = useCallback(() => reload(), [reload]);
+  return { value, error, reload: reloadNow };
 }
 
 /** Polls at the monitor's own interval (at least 10 s); every 10 minutes while it is off. */
@@ -80,7 +83,7 @@ export function useHealthReport(week: number, weekStart: number) {
       })
       .catch((e) => {
         if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : String(e));
+          setError(errorMessage(e));
       });
     return () => controller.abort();
   }, [week, weekStart]);
@@ -122,7 +125,7 @@ export function useOnDemand<T>(path: string) {
     try {
       setValue(await api<T>(path));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

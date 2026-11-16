@@ -5,11 +5,13 @@ import {
   Boxes,
   CalendarClock,
   Gauge,
+  Globe,
   HeartPulse,
   History,
   Layers3,
   Network,
   Server,
+  ShieldCheck,
   Settings2,
   Zap,
 } from "lucide-react";
@@ -35,6 +37,8 @@ export const navGroups: { title: string; items: NavItem[] }[] = [
       { id: "nodes", icon: Server },
       { id: "gre", icon: Network },
       { id: "reverse", icon: ArrowLeftRight },
+      { id: "firewall", icon: ShieldCheck },
+      { id: "addresses", icon: Globe },
     ],
   },
   {

@@ -68,7 +68,6 @@ gtm_component_update() (
                 [[ $(command -v frps) == /usr/local/bin/frps && $expected_peer =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || return 1
                 actual=$(/usr/local/bin/frps --version) && [[ $actual == "$expected_peer" ]] || { gtm_error 'FRP server binary changed; check versions again.'; return 1; }
             fi
-            gtm_confirm() { return 0; }
             gtm_install_component "$component" update;;
     esac
 )

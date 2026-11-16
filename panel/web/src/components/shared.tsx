@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import {
   ArrowUpRight,
   Check,
+  CircleAlert,
   Copy,
   Network,
   Plus,
@@ -27,6 +28,7 @@ import {
   EmptyContent,
 } from "@/components/ui/empty";
 import { useT } from "@/lib/i18n";
+import { useFieldError } from "@/lib/field-errors";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -62,28 +64,107 @@ export function EngineGlyph({
     engine === "haproxy" ? Workflow : engine === "realm" ? Network : Route;
   return <Icon className={className} aria-hidden />;
 }
-export function Status({ value = "unknown" }: { value?: string }) {
+/** Runtime state in words. A tone (lib/connection-tone) colors the dot and text for connection lists. */
+export function Status({
+  value = "unknown",
+  tone,
+}: {
+  value?: string;
+  tone?: string;
+}) {
   const t = useT();
   const active = value === "active";
   return (
-    <Badge variant={active ? "secondary" : "outline"} className="gap-1.5">
+    <Badge
+      variant={active ? "secondary" : "outline"}
+      className="status-badge gap-1.5"
+      data-tone={tone}
+    >
       <span className={active ? "status-dot is-active" : "status-dot"} />
       {t(value)}
     </Badge>
   );
 }
+/** The label row every field shares: one height with or without help, so
+ * fields side by side keep their inputs on one line. */
+function FieldHead({
+  id,
+  label,
+  help,
+  optional,
+  hidden,
+}: {
+  id?: string;
+  label: string;
+  help?: string;
+  optional?: boolean;
+  hidden?: boolean;
+}) {
+  const t = useT();
+  return (
+    <div className={hidden ? "sr-only" : "field-label-row"}>
+      <FieldLabel htmlFor={id}>
+        {label}
+        {optional && <span className="field-optional">{t("optional")}</span>}
+      </FieldLabel>
+      {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
+    </div>
+  );
+}
+/** A hint under the field, replaced by the error when there is one. */
+function FieldNote({
+  id,
+  error,
+  description,
+}: {
+  id: string;
+  error: string;
+  description?: ReactNode;
+}) {
+  if (error)
+    return (
+      <p id={id} className="field-error" role="alert">
+        <CircleAlert aria-hidden />
+        <span>{error}</span>
+      </p>
+    );
+  if (!description) return null;
+  return (
+    <p id={id} className="field-hint">
+      {description}
+    </p>
+  );
+}
 export function TextField({
   label,
   help,
+  optional,
+  description,
+  error,
   ...props
-}: { label: string; help?: string } & ComponentProps<typeof Input>) {
+}: {
+  label: string;
+  help?: string;
+  /** Marks the label "Optional" in a quieter weight. */
+  optional?: boolean;
+  /** A short hint under the input. */
+  description?: ReactNode;
+  /** Shown instead of the hint; falls back to the form's error for this id. */
+  error?: string;
+} & ComponentProps<typeof Input>) {
+  const formError = useFieldError(props.id);
+  const message = error || formError;
+  const noteId = `${props.id}-note`;
+  const noted = Boolean(message || description);
   return (
-    <Field>
-      <div className="field-label-row">
-        <FieldLabel htmlFor={props.id}>{label}</FieldLabel>
-        {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
-      </div>
-      <Input {...props} />
+    <Field data-invalid={message ? true : undefined} data-inline-error>
+      <FieldHead id={props.id} label={label} help={help} optional={optional} />
+      <Input
+        {...props}
+        aria-invalid={message ? true : props["aria-invalid"]}
+        aria-describedby={noted ? noteId : props["aria-describedby"]}
+      />
+      <FieldNote id={noteId} error={message} description={description} />
     </Field>
   );
 }
@@ -94,6 +175,7 @@ export function Choice({
   choices,
   id,
   help,
+  description,
   labelHidden = false,
 }: {
   label: string;
@@ -102,19 +184,22 @@ export function Choice({
   choices: { value: string; label: string; disabled?: boolean }[];
   id: string;
   help?: string;
+  /** A short hint under the select. */
+  description?: ReactNode;
   labelHidden?: boolean;
 }) {
+  const message = useFieldError(id);
+  const noteId = `${id}-note`;
   return (
-    <Field>
-      <div className={labelHidden ? "sr-only" : "flex items-center gap-1"}>
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        {help && <HelpTip label={`${label} · ?`}>{help}</HelpTip>}
-      </div>
+    <Field data-invalid={message ? true : undefined} data-inline-error>
+      <FieldHead id={id} label={label} help={help} hidden={labelHidden} />
       <NativeSelect
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="w-full"
+        aria-invalid={message ? true : undefined}
+        aria-describedby={message || description ? noteId : undefined}
       >
         {choices.map((option) => (
           <NativeSelectOption
@@ -126,6 +211,7 @@ export function Choice({
           </NativeSelectOption>
         ))}
       </NativeSelect>
+      <FieldNote id={noteId} error={message} description={description} />
     </Field>
   );
 }

@@ -1,5 +1,7 @@
 # Connect two servers
 
+Without Nodes, **Connections → Two servers** on the entrance server creates its GRE end and the forward through it, and lists the values to enter on the foreign server; see [Tunnel to a foreign server](USER-GUIDE.md#tunnel-to-a-foreign-server).
+
 The Nodes page can coordinate a new **GRE** or **FRP Reverse** connection across two servers. Choose the panel host and a remote Node, or two remote Nodes. A third management server is optional. Existing engine pages still manage the panel host only.
 
 This feature is included in v1.3.3. Use matching release packages on Controller/Agents; v1.3.0 predates Node support. Source/offline packages can still be installed with `--package-dir`.
@@ -11,13 +13,13 @@ This feature is included in v1.3.3. Use matching release packages on Controller/
 3. Opt remote Agents into the bounded operation contract:
 
    ```bash
-   sudo bash node-install.sh --agent --operations --package-dir /path/to/packages
+   sudo gtm agent install --operations
    ```
 
-   Install with the matching release package:
+   On a server without an Agent yet:
 
    ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh) --agent --operations
+   curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent --operations
    ```
 
 4. Enter a fresh hidden invitation only for a new identity; upgrades preserve existing enrollment. Confirm `gtm-panel nodes operations-version` prints `1` on both sides.
@@ -71,6 +73,10 @@ An individual confirmation can be compensated only within the original ten-minut
 - The Agent remains unprivileged. The operations broker accepts only `node-task` plus inventory/capabilities; it still rejects general service commands, package installation, forwarding CRUD, logs and arbitrary native configuration.
 - Root tasks have only prepare/apply/confirm/rollback/status stages and validated GRE/FRP specifications. There is no executable, shell text, generic argv, file path or remote SSH endpoint.
 - The local panel's broader API remains local. Rathole key exchange, WSS certificate provisioning, remote forwarding edits and higher-level balancing groups are outside this workflow.
+
+## Address changes
+
+Since v1.6.0 the same job can move both ends of existing GRE tunnels after one server's address changed. It is started from **IP addresses → IP changed**, not from this tab, and appears here with the label **IP changed**. The task kind `readdress` carries only the old address, the new address and which end (`local` or `remote`); it creates and deletes nothing. The Controller offers it only to Agents reporting v1.6.0 or later and checks that the changed server already reports the new address. An older Agent that still receives it rejects it as `invalid_task`, which rolls the job back. Confirmation and rollback compare the moved GRE units' digest, so a unit edited by hand meanwhile is left for inspection. See [IP addresses](IP-ADDRESSES.md).
 
 ## Persistence and limits
 

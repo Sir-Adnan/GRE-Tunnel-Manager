@@ -100,8 +100,8 @@ export const history = {
     "آدرس شنود دیگر روی این سرور نیست (تغییر IP؟). اتصال را ویرایش کنید و «همهٔ آدرس‌های محلی» یا IP فعلی را انتخاب کنید.",
   ],
   "diagFix_forward-policy": [
-    "Docker or UFW drops forwarded packets and this forward's owned accept is missing. Run Refresh kernel rules from Maintenance.",
-    "Docker یا UFW بسته‌های فورواردی را رد می‌کند و قانون پذیرش این فوروارد وجود ندارد. از نگهداری «بازاعمال قوانین هسته» را اجرا کنید.",
+    "Docker or UFW drops forwarded packets and this forward's owned accept is missing. Open Firewall and choose Fix.",
+    "Docker یا UFW بسته‌های فورواردی را رد می‌کند و قانون پذیرش این فوروارد وجود ندارد. صفحه‌ی فایروال را باز کنید و «رفع» را بزنید.",
   ],
   diagFix_enabled: ["Turn the connection on from Connections.", "اتصال را از صفحهٔ اتصال‌ها روشن کنید."],
   diagFix_forwarding: [

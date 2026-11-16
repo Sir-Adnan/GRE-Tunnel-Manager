@@ -329,7 +329,7 @@ export function Maintenance({
             dir={locale === "fa" ? "rtl" : "ltr"}
             className="gap-5"
           >
-            <TabsList>
+            <TabsList layout="fill">
               <TabsTrigger value="plans">
                 <ListChecks />
                 {t("mxPlansTab")}

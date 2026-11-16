@@ -23,7 +23,8 @@
     @apply mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8;
   }
   .page-stack {
-    @apply flex min-w-0 flex-col gap-5 sm:gap-6;
+    @apply flex min-w-0 flex-col;
+    gap: var(--page-gap);
   }
   .app-footer {
     @apply mx-4 flex items-center justify-between gap-3 border-t border-border py-3 text-xs text-muted-foreground sm:mx-6 lg:mx-8;
@@ -63,6 +64,17 @@
   }
   [data-slot="sidebar-menu-badge"].is-alert {
     @apply rounded-full bg-warning px-1.5 font-semibold text-warning-foreground;
+  }
+  [data-slot="sidebar-menu-badge"].is-update {
+    @apply text-base leading-none text-primary-text;
+  }
+  /* A newer release from the daily check; links to Settings › Updates. */
+  .sidebar-update {
+    @apply mt-0.5 flex max-w-full items-center gap-1.5 rounded text-start text-xs font-medium whitespace-nowrap text-primary-text underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring;
+  }
+  .update-dot {
+    @apply size-1.5 shrink-0 rounded-full;
+    background: var(--primary);
   }
 
   /* Mobile bottom navigation */

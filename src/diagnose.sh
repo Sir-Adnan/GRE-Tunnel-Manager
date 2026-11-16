@@ -55,18 +55,21 @@ gtm_diag_entrance() {
     else gtm_diag entrance fail "$R_BIND"; fi
 }
 
-# Docker and UFW drop forwarded packets by iptables policy; an nftables
-# accept cannot override it, so the owned iptables guard must be hooked.
+# Docker and UFW drop forwarded packets by iptables policy, in either backend
+# (nf_tables or legacy); an nftables accept cannot override it, so the owned
+# iptables accept must be hooked in every backend that drops.
 gtm_diag_forward_policy() {
-    local family=$1 tool=iptables policy
-    [[ $family == 4 ]] || tool=ip6tables
-    command -v "$tool" >/dev/null 2>&1 || return 0
-    policy=$("$tool" -w 5 -S FORWARD 2>/dev/null | awk '$1 == "-P" {print $3; exit}')
-    [[ -n $policy ]] || return 0
-    if [[ $policy != DROP ]]; then gtm_diag forward-policy ok "$policy"
-    elif "$tool" -w 5 -C FORWARD -j GTM_FWD 2>/dev/null && "$tool" -w 5 -S GTM_FWD 2>/dev/null | grep -q -- "gtm-$R_ID"; then
-        gtm_diag forward-policy ok 'DROP, owned accept installed'
-    else gtm_diag forward-policy fail 'DROP'; fi
+    local family=$1 tool policy dropping='' missing='' seen=0
+    while read -r tool policy; do
+        seen=1
+        [[ $policy == DROP ]] || continue
+        dropping+="${dropping:+, }$tool"
+        "$tool" -w 5 -C FORWARD -j GTM_FWD 2>/dev/null && "$tool" -w 5 -S GTM_FWD 2>/dev/null | grep -q -- "gtm-$R_ID" || missing+="${missing:+, }$tool"
+    done < <(gtm_forward_guards "$family")
+    ((seen)) || return 0
+    if [[ -z $dropping ]]; then gtm_diag forward-policy ok ACCEPT
+    elif [[ -z $missing ]]; then gtm_diag forward-policy ok "DROP ($dropping), owned accept installed"
+    else gtm_diag forward-policy fail "DROP ($missing)"; fi
 }
 
 # The source address the destination sees: pinned SNAT on a multi-address
@@ -192,4 +195,123 @@ gtm_diagnose() {
     if [[ $id =~ ^F[0-9]{6}$ ]]; then gtm_diagnose_connection "$id"
     elif [[ $id == gre-tun-* && $tid =~ ^[0-9]{1,3}$ ]] && gtm_uint "$tid" 1 250; then gtm_diagnose_gre "$tid"
     else gtm_error 'Diagnosis supports connections and GRE tunnels.'; return 2; fi
+}
+
+# Live packet path of one connection, read-only and cheap enough to poll
+# while the panel shows it. Output lines:
+#   engine<TAB>ENGINE<TAB>ENABLED
+#   stage<TAB>KEY<TAB>ADDRESS|-<TAB>PACKETS<TAB>BYTES
+#   drop<TAB>BACKEND
+# Kernel forwards report their owned rule counters (since the rules were last
+# applied): new (flows entering, NAT hook), snat (flows leaving with this
+# server's address), out/back (packets to and from each destination) and
+# blocked (firewall access rules). The panel shows rates between samples.
+# Relays report current socket counts: clients (TCP only; UDP listeners are
+# unconnected) and upstream per destination. drop names an iptables backend
+# whose FORWARD policy drops this connection's packets without the owned
+# accept.
+gtm_path_nft() {
+    command -v nft >/dev/null 2>&1 || return 0
+    nft list table inet gre_manager 2>/dev/null | awk -v tag="comment \"gtm-$1\"" '
+        $1 == "chain" { chain = $2; next }
+        !index($0, tag) || !index($0, "counter packets") { next }
+        {
+            p = 0; b = 0; address = "-"; key = ""
+            for (i = 1; i < NF; i++) { if ($i == "packets") p = $(i + 1); if ($i == "bytes") b = $(i + 1) }
+            if (chain == "pre") key = "new"
+            else if (chain == "post") key = "snat"
+            else if (chain == "forward") {
+                key = index($0, "direction reply") ? "back" : "out"
+                field = key == "back" ? "saddr" : "daddr"
+                for (i = 1; i < NF; i++) if ($i == field) { address = $(i + 1); break }
+            }
+            if (key == "") next
+            k = key "\t" address; packets[k] += p; bytes[k] += b
+        }
+        END { for (k in packets) printf "stage\t%s\t%.0f\t%.0f\n", k, packets[k], bytes[k] }' | LC_ALL=C sort
+}
+
+gtm_path_iptables() {
+    local tool=iptables-save
+    [[ $2 == 4 ]] || tool=ip6tables-save
+    command -v "$tool" >/dev/null 2>&1 || return 0
+    { "$tool" -c -t nat; "$tool" -c -t filter; } 2>/dev/null | awk -v tag="gtm-$1" '
+        $2 != "-A" { next }
+        {
+            hit = 0
+            for (i = 3; i < NF; i++) if ($i == "--comment" && ($(i + 1) == tag || $(i + 1) == "\"" tag "\"")) hit = 1
+            if (!hit) next
+            counts = substr($1, 2, length($1) - 2); split(counts, c, ":")
+            address = "-"; key = ""
+            if ($3 == "GTM_PRE" && index($0, " -j DNAT")) key = "new"
+            else if ($3 == "GTM_POST") key = "snat"
+            else if ($3 == "GTM_FWD") {
+                key = index($0, "--ctdir REPLY") ? "back" : "out"
+                flag = key == "back" ? "-s" : "-d"
+                for (i = 3; i < NF; i++) if ($i == flag) { address = $(i + 1); break }
+                sub(/\/(32|128)$/, "", address)
+            }
+            if (key == "") next
+            k = key "\t" address; packets[k] += c[1]; bytes[k] += c[2]
+        }
+        END { for (k in packets) printf "stage\t%s\t%.0f\t%.0f\n", k, packets[k], bytes[k] }' | LC_ALL=C sort
+}
+
+gtm_path_drops() {
+    local tool policy
+    while read -r tool policy; do
+        [[ $policy == DROP ]] || continue
+        "$tool" -w 5 -C FORWARD -j GTM_FWD 2>/dev/null && "$tool" -w 5 -S GTM_FWD 2>/dev/null | grep -q -- "gtm-$R_ID" || printf 'drop\t%s\n' "$tool"
+    done < <(gtm_forward_guards "$1")
+}
+
+gtm_path_count() { ss "$1" state established "$2" 2>/dev/null | grep -c . || :; }
+
+gtm_path_relay() {
+    local proto flag target address total
+    local -a targets=()
+    local -A upstream=()
+    command -v ss >/dev/null 2>&1 || return 0
+    gtm_resolve_targets 2>/dev/null || return 0
+    IFS=, read -r -a targets <<< "$R_TARGETS"
+    for proto in tcp udp; do
+        [[ $R_PROTO == "$proto" || $R_PROTO == both ]] || continue
+        flag=-Htn; [[ $proto == tcp ]] || flag=-Hun
+        [[ $proto != tcp ]] || printf 'stage\tclients\t-\t%d\t0\n' "$(gtm_path_count "$flag" "( sport >= :$((10#$R_FIRST)) and sport <= :$((10#$R_LAST)) )")"
+        for target in "${targets[@]:0:8}"; do
+            gtm_target "$target" || continue
+            address=$EP_IP; [[ $address != *:* ]] || address="[$address]"
+            total=$(gtm_path_count "$flag" "( dst $address and dport >= :$EP_PORT and dport <= :$EP_LAST )")
+            upstream[$EP_IP]=$(( ${upstream[$EP_IP]:-0} + total ))
+        done
+    done
+    for address in "${!upstream[@]}"; do printf 'stage\tupstream\t%s\t%d\t0\n' "$address" "${upstream[$address]}"; done | LC_ALL=C sort
+}
+
+gtm_path_guard() {
+    command -v nft >/dev/null 2>&1 || return 0
+    nft list table inet gtm_guard 2>/dev/null | awk -v tag="comment \"gtm-$1-" '
+        !index($0, tag) || !index($0, "counter packets") { next }
+        { seen = 1; for (i = 1; i < NF; i++) { if ($i == "packets") p += $(i + 1); if ($i == "bytes") b += $(i + 1) } }
+        END { if (seen) printf "stage\tblocked\t-\t%.0f\t%.0f\n", p, b }'
+}
+
+gtm_connection_path() {
+    local id=$1 line found=0 family=4
+    [[ $id =~ ^F[0-9]{6}$ ]] || { gtm_error 'Invalid connection ID.'; return 2; }
+    gtm_load_records || return 1
+    for line in ${GTM_RECORDS[@]+"${GTM_RECORDS[@]}"}; do
+        gtm_record_validate "$line" || return 1
+        [[ $R_ID == "$id" ]] && { found=1; break; }
+    done
+    ((found)) || { gtm_error 'Connection not found.'; return 1; }
+    [[ $R_BIND != *:* ]] || family=6
+    printf 'engine\t%s\t%s\n' "$R_ENGINE" "$R_ENABLED"
+    [[ $R_ENABLED == 1 ]] || return 0
+    case $R_ENGINE in
+        nftables) gtm_path_nft "$id"; gtm_path_drops "$family";;
+        iptables) gtm_path_iptables "$id" "$family"; gtm_path_drops "$family";;
+        *) gtm_path_relay;;
+    esac
+    gtm_path_guard "$id"
 }

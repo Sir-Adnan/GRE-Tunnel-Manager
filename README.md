@@ -2,11 +2,11 @@
 
 # GRE Tunnel Manager
 
-v1.5.3 fixes nftables forwards on servers with Docker or UFW, forwards on servers with additional IPs or a changed IP, and applying server DNS on systemd-resolved. See the [Changelog](docs/CHANGELOG.md).
+v1.6.0 brings a one-line installer, the `gtm` command, trusted HTTPS with automatic renewal, a two-server wizard, latency history, Node offline alerts and two-factor sign-in. See the [Changelog](docs/CHANGELOG.md).
 
 ### Server links. Port forwarding. One place to manage them.
 
-A Bash manager with an optional web panel — built for TCP/UDP relays, VPN traffic and multi-server setups.
+A web panel with a Bash engine — built for TCP/UDP relays, VPN traffic and multi-server setups.
 
 [![Release](https://img.shields.io/github/v/release/Sir-Adnan/GRE-Tunnel-Manager?style=flat-square)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/releases/latest)
 [![Checks](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml/badge.svg)](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/actions/workflows/checks.yml)
@@ -22,12 +22,18 @@ A Bash manager with an optional web panel — built for TCP/UDP relays, VPN traf
 Run on **Debian or Ubuntu with systemd**:
 
 ```bash
-curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/gre.sh -o gre.sh && sudo bash gre.sh
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash
 ```
 
-Choose a method, enter the ports and destination, then review and apply. Names are optional; multiple ports such as `443,8443` or `8000-8003` work in one setup. To reopen the menu, run `sudo bash gre.sh` from the same folder.
+A one-minute setup asks for the address, HTTPS, port and login, then prints the panel address. For a one-liner without questions:
 
-Already root? Omit `sudo`. On IPv6-only servers, remove `--ipv4`. See the [user guide](docs/USER-GUIDE.md) for the full setup.
+```bash
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --domain panel.example.com --port 2053 --yes
+```
+
+Open the panel's TCP port in the server/provider firewall and sign in. To link this server to a foreign one, open **Connections → Two servers**: enter the foreign server's IP and the public ports, and the panel creates the GRE tunnel and the forward through it, then lists the values to enter on the other server. For a direct forward use **Connections → New connection**. Afterwards `sudo gtm` shows the status and handles updates, certificates, port, password, logs and removal ([Command line](docs/COMMAND-LINE.md)).
+
+Since v1.6.0 tunnels are managed only in the panel; the terminal menus are gone. Existing tunnels and forwards keep running, and `panel-install.sh` still accepts its earlier options. See the [user guide](docs/USER-GUIDE.md) for the full setup.
 
 ## Choose your connection
 
@@ -43,19 +49,11 @@ GRE is optional and does not encrypt traffic. It requires IP protocol **47** to 
 
 ## Web panel
 
-Quick HTTPS setup uses a self-signed certificate. To use trusted HTTPS with automatic renewal, connect an external Certbot/acme.sh client through the validated certificate install command and renewal hook. The panel displays the loaded certificate and supports reload without interrupting tunnels; see [HTTPS and certificate renewal](docs/HTTPS.md).
-
-Install directly, or select **Web Panel** in the terminal menu:
-
-```bash
-curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/panel-install.sh -o panel-install.sh && sudo bash panel-install.sh --quick
-```
-
-Quick setup detects the IP, chooses a free port and prints the address and generated login once. Allow that TCP port in the server/provider firewall. HTTPS is the default; verify the initial certificate fingerprint over SSH. Custom ports, domains and explicit HTTP are supported in the [installation guide](docs/WEB-PANEL.md#quick-and-custom-setup).
+The panel gets a trusted Let's Encrypt certificate for its domain or public IP and renews it automatically. Validation uses TCP port 80 for a few seconds, or Cloudflare DNS for a domain; if it cannot complete, the panel starts with a self-signed certificate and **Settings → Security** (or `sudo gtm https issue`) retries. Settings also offers two-factor sign-in, signed-in sessions and one-click updates. Renewal never interrupts tunnels. `--self-signed` and `--http` are available; see [HTTPS and certificates](docs/HTTPS.md) and the [installation guide](docs/WEB-PANEL.md#installation-and-login).
 
 The panel provides Persian/English layouts, mobile and desktop views, configuration inspection/editing and reviewed imports, setup presets, live server readings and optional per-connection traffic tracking. Its prebuilt Go executable includes the interface: **no Node.js, Python, compiler or database server is needed on managed servers**. Tunnel traffic runs independently of the panel.
 
-HAProxy, Realm and port forwards share one filtered **Connections** page, the overview lists anything that needs attention, and **Ctrl K** jumps to pages, connections and creation forms. **Signal** (dark) is the default look; Graphite, Aurora, Nettinx and Neutral are one click away.
+HAProxy, Realm and port forwards share one filtered **Connections** page, the overview lists anything that needs attention, and **Ctrl K** jumps to pages, connections and creation forms. Health monitoring keeps uptime, outages and a latency history per connection, and notifications reach Telegram or a webhook when a connection or a Node goes down. **Signal** (dark) is the default look; Graphite, Aurora, Nettinx and Neutral are one click away.
 
 ### Manage more than one server
 
@@ -68,7 +66,7 @@ Agents support inventory, coordinated GRE/FRP setup and optional read-only traff
 - **Start and operate:** [User guide](docs/USER-GUIDE.md) · [Backup and restore](docs/BACKUP-RESTORE.md)
 - **Configure:** [Setup presets](docs/CONNECTION-PROFILES.md) · [HAProxy](docs/HAPROXY.md) · [Configuration editor](docs/CONFIGURATION-EDITOR.md)
 - **Track usage:** [Traffic accounting](docs/TRAFFIC-ACCOUNTING.md) — resets, labels, history and optional quota pauses
-- **Maintain:** [Engine updates](docs/ENGINE-MAINTENANCE.md) · [Upgrade](docs/WEB-PANEL.md#existing-installations-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)
+- **Maintain:** [Engine updates](docs/ENGINE-MAINTENANCE.md) · [Update](docs/WEB-PANEL.md#updates-and-recovery) · [Remove the panel](docs/PANEL-REMOVAL.md) · [Changelog](docs/CHANGELOG.md)
 
 Quota pauses are opt-in and sampled; traffic can exceed the limit between checks.
 

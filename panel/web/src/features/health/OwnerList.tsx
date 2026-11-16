@@ -14,6 +14,7 @@ import { StatusPill, Sparkline, UptimeBars } from "./Indicators";
 import { DiagnoseDialog } from "@/features/diagnose/DiagnoseDialog";
 import { FailoverNotice, FlowDistribution, MTUTest, QualityTest } from "./TunnelTools";
 import type { FarSideCheck } from "./farSide";
+import { LatencyHistory } from "./LatencyHistory";
 import { dayLabel, milliseconds, percent, stamp, uptimeTone } from "./format";
 
 const kindKey = {
@@ -97,6 +98,9 @@ function Targets({
         endpoints={endpoints}
         timezone={timezone}
       />
+      {owner.targets.some((target) => target.kind !== "service") && (
+        <LatencyHistory owner={owner.owner} timezone={timezone} />
+      )}
       <div className="flex flex-col gap-2">
         <span className="text-xs text-muted-foreground">
           {t("healthLast30d").replace("{n}", String(owner.days.length))}

@@ -2,7 +2,7 @@ import { NodeTopology } from "./NodeTopology";
 import { pairAddress } from "./pair-address";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import { Choice, TextField } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -105,7 +105,7 @@ export function PairForm({
     try {
       await action();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }

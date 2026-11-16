@@ -31,19 +31,13 @@ Node.js, Python and Go compilers are not installed on managed servers. The Agent
 
 ## Enable the Controller
 
-Run on the updated panel host:
+Run on the panel host (or choose **Manage other servers** in `sudo gtm`):
 
 ```bash
-sudo bash node-install.sh --controller --url https://SERVER_IP:9443
+sudo gtm controller enable --url https://SERVER_IP:9443
 ```
 
-Or fetch the matching source installer in one command:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh) --controller --url https://SERVER_IP:9443
-```
-
-Use root or sudo with a saved installer. The panel must already support `gtm-panel nodes protocol` (prints `1`). A domain or IPv6 address also works; IPv6 URLs require brackets. Use `--listen '[::]:9443'` for an IPv6 control listener. DNS, NAT and provider firewall configuration remain operator responsibilities. Permit the chosen TCP port on the Controller only; no firewall rules are installed automatically. The browser port and Agent control port must be different listeners.
+The panel must already support `gtm-panel nodes protocol` (prints `1`); `sudo gtm update` brings it there. A domain or IPv6 address also works; IPv6 URLs require brackets. Use `--listen '[::]:9443'` for an IPv6 control listener. DNS, NAT and provider firewall configuration remain operator responsibilities. Permit the chosen TCP port on the Controller only; no firewall rules are installed automatically. The browser port and Agent control port must be different listeners.
 
 The default dedicated listener is `0.0.0.0:9443`, TLS 1.3 only. A private CA and server certificate are created independently of browser certificates. Browser HTTP remains supported; it never enables plaintext Agent traffic. Re-running installation preserves the Controller identity, endpoint, node identities and invitations. Changing the address/listen setting is not an automatic migration; plan DNS/certificate reconfiguration and preserve the CA.
 
@@ -56,21 +50,17 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
 3. Run on the other server:
 
    ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh) --agent
+   curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent
    ```
 
-   For an offline/local package, use:
-
-   ```bash
-   sudo bash node-install.sh --agent --package-dir /path/to/packages
-   ```
+   For an offline/local package, add `--package-dir /path/to/packages`. On a server that already has `gtm`, `sudo gtm agent install` does the same.
 
 4. Paste the code at the **hidden terminal prompt**. Do not put it in a URL, environment variable, command argument, issue or log. The Agent pins the Controller CA from this invitation before sending the secret. It generates its private key locally, submits a signed P-256 CSR and stores its issued identity privately.
 5. Refresh Nodes after the first report. Reports normally arrive every 60–70 seconds. Inventory is refreshed manually. Only active paired jobs use temporary browser polling.
 
-The default installer selects the matching v1.3.7 package and verifies its checksum/protocol before changing services.
+The installer selects the matching release and verifies its checksum and protocol before changing services. `sudo gtm update` updates an Agent like a panel, and `sudo gtm agent remove` removes it with its identity (revoke the Node on the Controller afterwards); removal waits while a paired operation is still pending.
 
-The Agent installer targets Debian/Ubuntu with systemd, x86_64/arm64, and requires existing `curl`, `tar`, `sha256sum`, `iproute2` and `util-linux` tools. It verifies matching release checksums and protocol support, creates the restricted `greagent` account, and installs an unprivileged outbound Agent plus a separate root **read-only** Unix broker. Controller and Agent identity creation run as their respective service users via `runuser`; the installer does not chown identity files inside service-writable directories. It installs no tunnel engine and changes no tunnel configuration. Do not install an Agent on the panel host; that host is already the local Node. Updates preserve identity and validate it before stopping an existing Agent. Installation shares the panel installer lock.
+The Agent installer targets Debian/Ubuntu with systemd, x86_64/arm64, and requires `curl`, `tar`, `sha256sum` and `iproute2`. It verifies matching release checksums and protocol support, creates the restricted `greagent` account, and installs an unprivileged outbound Agent plus a separate root **read-only** Unix broker. Controller and Agent identity creation run as their respective service users via `runuser`; the installer does not chown identity files inside service-writable directories. It installs no tunnel engine and changes no tunnel configuration. Do not install an Agent on the panel host; that host is already the local Node. Updates preserve identity and validate it before stopping an existing Agent. Installation shares the panel installer lock.
 
 ## What the page shows
 
@@ -95,7 +85,7 @@ sudo systemctl stop gre-manager-agent.service
 # Retain a restricted backup of the old identity outside the active path:
 sudo mv /var/lib/gre-manager-agent/identity.json /var/lib/gre-manager-agent/identity.revoked.json
 # Generate a new invitation in the panel, then run the matching installer again.
-sudo bash node-install.sh --agent --package-dir /path/to/packages
+curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent
 ```
 
 An initial enrollment response lost after Controller commit consumes the invitation; create a new one and revoke the unused identity. The installer does not reset identities automatically. Fatal identity/protocol failures stop the Agent instead of retrying indefinitely; systemd does not restart exit status 1. Fix the cause, then `sudo systemctl restart gre-manager-agent.service`. Transient connection failures retry within the running process.

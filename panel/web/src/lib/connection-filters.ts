@@ -97,3 +97,36 @@ export function creationEngines(filter: EngineFilter) {
       ? undefined
       : [filter];
 }
+
+/** How the Connections page orders its rows; "custom" is the saved drag order. */
+export const connectionSorts = ["custom", "name", "status", "engine"] as const;
+export type ConnectionSort = (typeof connectionSorts)[number];
+export function connectionSort(value: string | null): ConnectionSort {
+  return connectionSorts.includes(value as ConnectionSort)
+    ? (value as ConnectionSort)
+    : "custom";
+}
+
+// Problems first, then running, waiting and switched-off rows.
+const statusRank = (row: Pick<Listable, "status" | "enabled">) =>
+  ({ active: 1, configured: 2, disabled: 3 })[connectionStatus(row)] ?? 0;
+
+/**
+ * Sorts rows that are already in the saved order; ties keep that order, so a
+ * sort only groups and never loses the custom order.
+ */
+export function sortConnections<T extends Listable>(
+  rows: readonly T[],
+  sort: ConnectionSort,
+  locale = "en",
+): T[] {
+  if (sort === "custom") return [...rows];
+  const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
+  const compare: (a: T, b: T) => number =
+    sort === "name"
+      ? (a, b) => collator.compare(a.name || a.id, b.name || b.id)
+      : sort === "status"
+        ? (a, b) => statusRank(a) - statusRank(b)
+        : (a, b) => collator.compare(a.engine, b.engine);
+  return [...rows].sort(compare);
+}

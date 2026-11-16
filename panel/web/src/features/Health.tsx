@@ -140,7 +140,9 @@ export function Health({
   const { params, updateParams } = usePanelRoute();
   const { value: view, error, reload } = useHealthView();
   // ?settings=1 (from a connection or GRE form) opens the settings at once.
-  const [settingsOpen, setSettingsOpenState] = useState(() => params.get("settings") === "1");
+  const [settingsOpen, setSettingsOpenState] = useState(
+    () => params.get("settings") === "1",
+  );
   const setSettingsOpen = (open: boolean) => {
     setSettingsOpenState(open);
     if (!open && params.get("settings")) updateParams({ settings: "" });
@@ -250,7 +252,7 @@ export function Health({
             dir={locale === "fa" ? "rtl" : "ltr"}
             className="gap-5"
           >
-            <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&>button]:shrink-0">
+            <TabsList layout="fill">
               <TabsTrigger value="status">
                 <ListChecks />
                 {t("healthStatusTab")}

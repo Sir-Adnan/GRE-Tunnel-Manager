@@ -5,15 +5,11 @@
     @apply text-xs font-medium text-muted-foreground;
   }
   .page-title {
-    @apply text-2xl font-semibold leading-tight tracking-tight sm:text-[26px];
-  }
-  [lang="fa"] .page-title {
-    line-height: 1.5;
+    @apply text-title font-bold tracking-tight sm:text-display;
   }
 
   /* Cards: a hairline border, quiet elevation and, in styles that define one, a faint accent glow. */
   [data-slot="card"] {
-    box-shadow: var(--elevation-1);
     background-image: radial-gradient(
       120% 80% at 100% 0%,
       var(--surface-glow, transparent),
@@ -41,8 +37,8 @@
     @apply grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4;
   }
   .kpi {
-    @apply flex min-w-0 flex-col items-start gap-1.5 rounded-xl border bg-card p-4 text-start sm:p-5;
-    box-shadow: var(--elevation-1);
+    @apply surface flex min-w-0 flex-col items-start gap-1.5 rounded-xl text-start;
+    padding: calc(var(--card-pad) + 0.125rem) calc(var(--card-pad) + 0.25rem);
   }
   button.kpi {
     transition:
@@ -51,22 +47,41 @@
       box-shadow 200ms ease;
   }
   button.kpi:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
-    box-shadow: var(--elevation-2);
+    box-shadow:
+      inset 0 1px 0 var(--surface-edge),
+      0 0 0 1px color-mix(in srgb, var(--primary) 45%, var(--border)),
+      var(--elevation-2);
+  }
+  /* Trend line beside a live reading; time runs left to right in both directions, like the charts. */
+  .sparkline {
+    @apply mb-1 h-5 w-14 shrink-0 overflow-visible;
+  }
+  .sparkline.is-wide {
+    @apply m-0 h-6 w-full;
+  }
+  .sparkline path {
+    fill: none;
+    stroke: var(--primary-text);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
   }
   .kpi-label {
     @apply flex items-center gap-2 text-xs text-muted-foreground;
   }
   .kpi-value {
-    @apply max-w-full text-2xl font-semibold tracking-tight tabular-nums sm:text-[28px];
-    line-height: 1.2;
+    @apply max-w-full text-title font-semibold tracking-tight tabular-nums sm:text-display;
     overflow-wrap: anywhere;
   }
   .kpi-detail {
     @apply max-w-full truncate text-xs text-muted-foreground;
   }
   .kpi.is-alert {
-    border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
+    box-shadow:
+      inset 0 1px 0 var(--surface-edge),
+      0 0 0 1px color-mix(in srgb, var(--warning) 55%, var(--border)),
+      var(--elevation-card);
   }
   .kpi.is-alert .kpi-value,
   .kpi.is-alert .kpi-label svg {
@@ -116,6 +131,76 @@
     @apply relative inline-block size-2 shrink-0 rounded-full bg-success;
   }
 
+  /* Status in connection lists: a tinted icon chip, and the runtime badge colored by the same tone. */
+  .status-chip {
+    @apply grid size-9 shrink-0 place-items-center text-muted-foreground;
+    border-radius: calc(var(--radius) + 4px);
+    background: color-mix(in srgb, currentColor 13%, transparent);
+  }
+  [data-density="compact"] .status-chip {
+    @apply size-8;
+  }
+  .status-chip svg {
+    @apply size-4;
+  }
+  :is(.status-chip, .status-badge, .route-chain)[data-tone="ok"] {
+    --tone: var(--success-text);
+  }
+  :is(.status-chip, .status-badge, .route-chain)[data-tone="warn"] {
+    --tone: var(--warning-text);
+  }
+  :is(.status-chip, .status-badge, .route-chain)[data-tone="problem"] {
+    --tone: var(--destructive-text);
+  }
+  .status-chip:is([data-tone="ok"], [data-tone="warn"], [data-tone="problem"]) {
+    color: var(--tone);
+  }
+  .status-badge[data-tone] .status-dot {
+    background: var(--tone, var(--muted-foreground));
+  }
+
+  /* Route chain: entrance ports, a wire that carries the tone, destinations. The arrowhead points to the
+     inline end, so it reads right-to-left in Persian. */
+  .route-chain {
+    @apply flex min-w-0 max-w-full flex-wrap items-center gap-x-1.5 gap-y-1;
+  }
+  .chain-node {
+    @apply inline-flex min-w-0 max-w-full items-center rounded-md px-1.5 py-0.5 font-mono text-xs;
+    background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  }
+  .chain-node.is-target {
+    @apply px-1.5 py-0;
+  }
+  .chain-ports {
+    overflow-wrap: anywhere;
+  }
+  .chain-protocol {
+    @apply font-sans text-[11px] font-semibold text-muted-foreground;
+  }
+  .chain-wire {
+    @apply relative h-0.5 min-w-5 max-w-16 flex-1;
+    color: var(--tone, var(--muted-foreground));
+    background: repeating-linear-gradient(
+      90deg,
+      currentColor 0 4px,
+      transparent 4px 8px
+    );
+    opacity: 0.85;
+  }
+  .chain-wire::after {
+    content: "";
+    position: absolute;
+    inset-inline-end: -3px;
+    top: 50%;
+    translate: 0 -50%;
+    border-block: 4px solid transparent;
+    border-inline-start: 6px solid currentColor;
+  }
+  .route-chain[data-tone="off"] .chain-wire,
+  .route-chain[data-tone="pending"] .chain-wire {
+    opacity: 0.5;
+  }
+
   /* Connection lists */
   .engine-icon {
     @apply flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-xs font-semibold text-muted-foreground;
@@ -132,7 +217,7 @@
     @apply h-10 text-xs font-medium text-muted-foreground;
   }
   .table-frame td {
-    @apply py-3.5;
+    padding-block: var(--row-pad);
   }
   .table-frame tbody tr {
     transition: background-color 120ms ease;
@@ -290,6 +375,9 @@
   .command-group {
     @apply px-2 pt-3 pb-1 text-[11px] font-medium text-muted-foreground;
   }
+  .command-crumb {
+    @apply flex max-w-[45%] shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring;
+  }
   .command-item {
     @apply flex h-9 cursor-pointer items-center gap-3 rounded-md px-2.5 text-sm;
   }
@@ -377,6 +465,18 @@
   [data-slot="dropdown-menu-item"] {
     min-height: 44px;
   }
+  /* Smaller controls keep a comfortable finger target on phones. */
+  .segmented > button {
+    min-height: 40px;
+  }
+  [data-slot="button"][data-size="sm"] {
+    min-height: 36px;
+  }
+  [data-slot="button"][data-size="icon-sm"],
+  [data-slot="button"][data-size="icon-xs"] {
+    min-width: 36px;
+    min-height: 36px;
+  }
 }
 
 /* Responsive information, measured in available space rather than device models. */
@@ -384,24 +484,146 @@
   .field-label-row {
     @apply flex min-h-8 items-center gap-1;
   }
+  .field-optional {
+    @apply ms-1.5 text-xs font-normal text-muted-foreground;
+  }
+  .field-hint {
+    @apply text-xs leading-relaxed text-muted-foreground;
+  }
+  .field-error {
+    @apply flex items-start gap-1.5 text-xs leading-relaxed text-destructive [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0;
+  }
+  .error-summary {
+    @apply flex flex-col gap-2 rounded-xl border p-3 text-sm;
+    border-color: color-mix(in srgb, var(--destructive) 45%, var(--border));
+    background: color-mix(in srgb, var(--destructive) 8%, transparent);
+  }
+  .error-summary ul {
+    @apply flex flex-wrap gap-1.5;
+  }
+  .error-summary button {
+    @apply inline-flex min-h-8 items-center rounded-md border bg-background px-2.5 text-xs font-medium text-destructive outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring;
+  }
   .field-label-row > [data-slot="field-label"] {
     @apply min-w-0;
   }
   .field-label-row > button {
     @apply shrink-0;
   }
+  /* Connections toolbar: search on its own row on phones, then the two
+     filters, then the count with Select and Reorder. */
+  .connection-toolbar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .connection-search {
+    @apply relative min-w-0 flex-1 basis-full sm:max-w-80 sm:basis-48;
+  }
+  .connection-filter {
+    @apply min-w-0 flex-1 sm:w-44 sm:flex-none;
+  }
+  .connection-toolbar-end {
+    @apply flex min-w-0 basis-full items-center gap-2 sm:ms-auto sm:basis-auto;
+  }
+  .connection-cards {
+    @apply grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-3;
+  }
   .connection-card-header {
-    @apply flex flex-wrap items-start gap-2;
+    @apply flex min-w-0 items-center gap-3;
   }
   .connection-card-identity {
-    @apply flex min-w-0 flex-1 items-start gap-2;
-    flex-basis: 10rem;
+    @apply flex min-w-0 flex-1 flex-col items-start;
   }
-  .connection-card-facts {
-    @apply flex min-w-0 flex-col gap-2 text-sm;
+  .connection-card {
+    @apply surface flex min-w-0 flex-col rounded-xl transition-[box-shadow,background-color];
+    gap: var(--list-gap);
+    padding: var(--card-pad);
   }
-  .connection-card-facts > div {
-    @apply grid min-w-0 grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-2;
+  /* A long press selects, so the browser's own press menu stays out of it. */
+  @media (pointer: coarse) {
+    .connection-card {
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+  }
+  .connection-card[data-selecting] {
+    @apply cursor-pointer;
+  }
+  .connection-card[data-selected] {
+    background: color-mix(in srgb, var(--primary) 7%, var(--card));
+    box-shadow:
+      0 0 0 1.5px var(--primary),
+      var(--elevation-1);
+  }
+  .connection-card-check {
+    @apply size-5;
+  }
+
+  /* Reorder mode (components/ReorderList): one compact, numbered row per
+     item; Save and Cancel float in the selection bar's place. */
+  .reorder-panel {
+    @apply mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-3;
+    padding-bottom: 4.5rem;
+  }
+  .reorder-head {
+    @apply flex min-w-0 items-start gap-3 rounded-xl border border-dashed p-3 text-sm;
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    background: color-mix(in srgb, var(--primary) 5%, transparent);
+  }
+  .reorder-head-icon {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4;
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary-text);
+  }
+  .reorder-hint {
+    @apply mt-0.5 block text-caption text-muted-foreground;
+  }
+  .reorder-list {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+  .reorder-row {
+    @apply surface flex min-w-0 items-center gap-2 rounded-xl py-1.5 ps-1 pe-1.5;
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .reorder-row[data-dragging] {
+    @apply cursor-grabbing;
+    box-shadow:
+      0 0 0 1.5px var(--primary),
+      var(--elevation-3);
+  }
+  .reorder-row > .drag-handle {
+    @apply m-0;
+  }
+  .reorder-pos {
+    @apply flex h-6 min-w-6 shrink-0 items-center justify-center rounded-md border bg-muted/50 px-1 font-mono text-xs tabular-nums text-muted-foreground transition-colors;
+  }
+  .reorder-pos[data-moved] {
+    border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary-text);
+  }
+  .reorder-row .status-chip {
+    @apply size-8;
+  }
+  .reorder-text {
+    @apply flex min-w-0 flex-1 flex-col;
+  }
+  .reorder-meta {
+    @apply flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground;
+  }
+  /* On touch the handle sits at the far end, under the thumb. */
+  @media (pointer: coarse) {
+    .reorder-row > .drag-handle {
+      order: 9;
+    }
+  }
+  .connection-card-footer {
+    @apply -mb-1 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t pt-2;
+    border-color: var(--surface-line);
+  }
+  .connection-card-state {
+    @apply flex min-w-0 items-center gap-2;
   }
   .endpoint-value {
     overflow-wrap: anywhere;

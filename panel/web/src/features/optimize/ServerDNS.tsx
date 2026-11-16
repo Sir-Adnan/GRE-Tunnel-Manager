@@ -28,7 +28,7 @@ import { PageTitle } from "@/components/shared";
 import { Segmented } from "@/components/Segmented";
 import { Confirm, type ConfirmRequest } from "@/features/maintenance/Confirm";
 import { api } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { number } from "@/lib/format";
 import { useLoaded } from "@/features/operations/hooks";
 
@@ -154,7 +154,7 @@ export function ServerDNS({
         ...Object.fromEntries(out.map((p) => [p.server, p])),
       }));
     } catch (e) {
-      setTestError(e instanceof Error ? e.message : String(e));
+      setTestError(errorMessage(e));
     } finally {
       setTesting(false);
     }

@@ -2,11 +2,11 @@ import { useState } from "react";
 import { usePanelRoute } from "@/lib/use-panel-route";
 import {
   Download,
-  LogOut,
   ShieldCheck,
   Palette,
   Bell,
   Activity,
+  ArrowUpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,8 @@ import { MetricsExport } from "./settings/MetricsExport";
 import { AccessSecurity } from "./settings/AccessSecurity";
 import { AppearanceSettings } from "./settings/AppearanceSettings";
 import { settingsTab } from "./settings/navigation";
+import { Updates } from "./settings/Updates";
+import { SignInSecurity } from "./settings/SignInSecurity";
 
 export function Settings({
   run,
@@ -52,6 +54,7 @@ export function Settings({
     { id: "appearance", title: "appearance", icon: Palette },
     { id: "notifications", title: "settingsNotifications", icon: Bell },
     { id: "metrics", title: "settingsMetrics", icon: Activity },
+    { id: "updates", title: "settingsUpdates", icon: ArrowUpCircle },
   ];
   return (
     <div className="page-stack">
@@ -79,24 +82,10 @@ export function Settings({
         </TabsList>
         <TabsContent value="security" forceMount className="settings-panel">
           <AccessSecurity />
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("account")}</CardTitle>
-              <CardDescription>{t("passwordHelp")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="code-block" dir="ltr">
-                sudo gtm-panel reset-password{`\n`}sudo systemctl restart
-                gre-manager-panel
-              </pre>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" onClick={logout}>
-                <LogOut data-icon="inline-start" />
-                {t("signOut")}
-              </Button>
-            </CardFooter>
-          </Card>
+          <SignInSecurity logout={logout} />
+        </TabsContent>
+        <TabsContent value="updates" forceMount className="settings-panel">
+          <Updates />
         </TabsContent>
         <TabsContent value="appearance" forceMount className="settings-panel">
           <AppearanceSettings

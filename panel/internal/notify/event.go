@@ -24,16 +24,18 @@ const (
 	KindBackupFailed      = "backup-failed"
 	KindTest              = "test"
 	KindChangeReverted    = "change-reverted"
+	KindNodeOffline       = "node-offline"
+	KindNodeOnline        = "node-online"
 	// kindLimited summarizes deliveries skipped by the rate limit.
 	kindLimited = "limited"
 )
 
 // Kinds lists every kind in the order the settings show them.
-var Kinds = []string{KindDown, KindUp, KindFailover, KindRollback, KindChangeReverted, KindOptimizeKept, KindMaintenanceFailed, KindMaintenance, KindBackupFailed, KindBackup}
+var Kinds = []string{KindDown, KindUp, KindNodeOffline, KindNodeOnline, KindFailover, KindRollback, KindChangeReverted, KindOptimizeKept, KindMaintenanceFailed, KindMaintenance, KindBackupFailed, KindBackup}
 
 // DefaultKinds are delivered externally on a fresh installation: problems
 // and their recovery, not routine successes.
-var DefaultKinds = []string{KindDown, KindUp, KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed}
+var DefaultKinds = []string{KindDown, KindUp, KindNodeOffline, KindNodeOnline, KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed}
 
 const (
 	SeverityInfo     = "info"
@@ -70,7 +72,7 @@ func severityOf(kind string) string {
 	switch kind {
 	case KindDown:
 		return SeverityCritical
-	case KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed, KindFailover:
+	case KindRollback, KindChangeReverted, KindMaintenanceFailed, KindBackupFailed, KindFailover, KindNodeOffline:
 		return SeverityWarning
 	}
 	return SeverityInfo
@@ -99,6 +101,8 @@ var titles = map[string][2]string{
 	KindOptimizeKept:      {"Optimization kept: tunnels stayed healthy", "بهینه‌سازی ماند: تونل‌ها سالم ماندند"},
 	KindBackup:            {"Scheduled backup saved", "پشتیبان زمان‌بندی‌شده ذخیره شد"},
 	KindBackupFailed:      {"Scheduled backup failed", "پشتیبان زمان‌بندی‌شده ناموفق بود"},
+	KindNodeOffline:       {"Node %s is offline", "Node %s در دسترس نیست"},
+	KindNodeOnline:        {"Node %s is back online", "Node %s دوباره در دسترس است"},
 	KindTest:              {"Test notification from Traffic Manager", "اعلان آزمایشی از Traffic Manager"},
 	kindLimited:           {"Some notifications were not sent", "برخی اعلان‌ها ارسال نشدند"},
 }
@@ -140,6 +144,11 @@ func (e Event) localDetail(lang int) string {
 	switch {
 	case e.Kind == KindUp && a["seconds"] != "":
 		return pick("Down for ", "مدت قطعی: ") + duration(a["seconds"], lang)
+	case e.Kind == KindNodeOffline && a["seconds"] != "":
+		d := duration(a["seconds"], lang)
+		return pick("No report for "+d, "آخرین گزارش "+d+" پیش")
+	case e.Kind == KindNodeOnline && a["seconds"] != "":
+		return pick("Offline for ", "مدت قطع: ") + duration(a["seconds"], lang)
 	case e.Kind == KindFailover && a != nil && a["excluded"] == "":
 		return pick("Every destination receives new flows again.", "همهٔ مقصدها دوباره اتصال جدید می‌گیرند.")
 	case e.Kind == KindFailover && a["excluded"] != "":

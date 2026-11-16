@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Inventory } from "@/lib/api";
 import { usePoll } from "@/lib/use-poll";
+import { errorMessage } from "@/lib/i18n";
 
 /**
  * Server inventory for the signed-in page. Loads on sign-in, optionally refreshes every 30 s while visible
@@ -33,7 +34,7 @@ export function useInventory({
           setError("");
         }
       })
-      .catch((reason) => alive && setError(String(reason)));
+      .catch((reason) => alive && setError(errorMessage(reason)));
     return () => {
       alive = false;
     };
@@ -44,7 +45,7 @@ export function useInventory({
         const value = await api<Inventory>("inventory", undefined, signal);
         if (!signal.aborted) setInventory(value);
       } catch (reason) {
-        if (!signal.aborted) toast.error(String(reason));
+        if (!signal.aborted) toast.error(errorMessage(reason));
       }
     },
     {

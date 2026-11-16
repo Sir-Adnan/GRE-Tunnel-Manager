@@ -1,0 +1,356 @@
+/* Firewall page: findings, status tiles, connection rules, protection and
+   the sticky save bar. Tones use the theme's AA text tokens. */
+@layer components {
+  .fw-page {
+    --fw-ok: var(--color-success-text);
+    --fw-warn: var(--color-warning-text);
+    --fw-problem: var(--color-destructive-text);
+    --fw-muted: var(--muted-foreground);
+  }
+  .fw-section {
+    @apply flex min-w-0 flex-col gap-3;
+  }
+  .fw-section-head {
+    @apply flex items-center gap-1.5;
+  }
+  .fw-section-title {
+    @apply text-base font-semibold tracking-tight;
+  }
+
+  /* State pills and chips: a dot plus words, never color alone. */
+  .fw-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 text-xs leading-6 font-medium whitespace-nowrap;
+    --tone: var(--fw-muted);
+    color: var(--tone);
+    border-color: color-mix(in srgb, var(--tone) 35%, var(--border));
+    background: color-mix(in srgb, var(--tone) 8%, transparent);
+  }
+  .fw-pill[data-tone="ok"] {
+    --tone: var(--fw-ok);
+  }
+  .fw-pill[data-tone="warn"] {
+    --tone: var(--fw-warn);
+  }
+  .fw-pill[data-tone="problem"] {
+    --tone: var(--fw-problem);
+  }
+  .fw-pill-dot {
+    @apply size-1.5 shrink-0 rounded-full;
+    background: currentColor;
+  }
+  .fw-chips {
+    @apply flex min-w-0 flex-wrap items-center gap-1.5;
+  }
+  .fw-chip {
+    @apply inline-flex items-center gap-1 rounded-md border bg-muted/40 px-1.5 text-xs leading-6 text-muted-foreground;
+  }
+  .fw-chip[data-tone="problem"] {
+    color: var(--fw-problem);
+    border-color: color-mix(in srgb, var(--fw-problem) 30%, var(--border));
+  }
+
+  /* Findings */
+  .fw-clear {
+    @apply flex items-center gap-2 rounded-xl border px-4 py-3 text-sm;
+    color: var(--fw-ok);
+    border-color: color-mix(in srgb, var(--fw-ok) 30%, var(--border));
+    background: color-mix(in srgb, var(--fw-ok) 7%, var(--card));
+  }
+  .fw-findings {
+    @apply flex flex-col gap-2;
+  }
+  .fw-finding-list {
+    @apply flex flex-col gap-2;
+  }
+  .fw-finding {
+    @apply flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3;
+    --tone: var(--fw-warn);
+    border-color: color-mix(in srgb, var(--tone) 40%, var(--border));
+    border-inline-start-width: 3px;
+    border-inline-start-color: var(--tone);
+  }
+  .fw-finding[data-level="problem"] {
+    --tone: var(--fw-problem);
+  }
+  .fw-finding-icon {
+    @apply size-5 shrink-0;
+    color: var(--tone);
+  }
+  @media (max-width: 639px) {
+    .fw-finding > button {
+      @apply w-full;
+    }
+  }
+
+  /* Status tiles */
+  .fw-tiles {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  }
+  .fw-tile {
+    @apply flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4;
+    box-shadow: var(--elevation-1);
+  }
+  .fw-tile-head {
+    @apply flex items-center gap-2;
+  }
+  .fw-tile-icon {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4;
+    color: var(--primary-text);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+  .fw-tile[data-tone="warn"] .fw-tile-icon {
+    color: var(--fw-warn);
+    background: color-mix(in srgb, var(--fw-warn) 12%, transparent);
+  }
+  .fw-tile-title {
+    @apply min-w-0 flex-1 truncate text-sm font-medium;
+  }
+  .fw-tile-value:empty {
+    display: none;
+  }
+  .fw-tile-number {
+    @apply text-2xl font-semibold tabular-nums;
+  }
+  .fw-facts {
+    @apply flex flex-col gap-2 border-t pt-3 text-sm;
+  }
+  .fw-fact {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1;
+  }
+  .fw-fact dt {
+    @apply text-xs text-muted-foreground;
+  }
+  .fw-fact dd {
+    @apply min-w-0 text-end;
+  }
+  .fw-backend {
+    @apply inline-flex flex-wrap items-center justify-end gap-1.5;
+  }
+
+  /* Connections */
+  .fw-conn-list {
+    @apply flex flex-col gap-2;
+  }
+  .fw-conn {
+    @apply grid min-w-0 gap-3 rounded-xl border bg-card p-4 transition-colors;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fw-conn[data-focus] {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+  }
+  .fw-conn[data-enabled="false"] {
+    @apply opacity-75;
+  }
+  @media (min-width: 64rem) {
+    .fw-conn {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      align-items: center;
+    }
+  }
+  .fw-conn-main {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+  .fw-conn-title {
+    @apply flex min-w-0 items-center gap-2;
+  }
+  .fw-conn-path {
+    @apply text-xs text-muted-foreground;
+  }
+  .fw-port {
+    @apply inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs;
+  }
+  .fw-conn-access {
+    @apply flex min-w-0 flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between lg:border-t-0 lg:border-s lg:ps-4 lg:pt-0;
+  }
+  .fw-access-summary {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+  .fw-conn-actions {
+    @apply flex flex-wrap items-center gap-3 sm:justify-end;
+  }
+  .fw-switch {
+    @apply inline-flex min-h-9 cursor-pointer items-center gap-2;
+  }
+
+  /* Protection */
+  .fw-protect-card {
+    @apply flex flex-col divide-y rounded-xl border bg-card;
+  }
+  .fw-protect-row {
+    @apply flex items-start gap-4 p-4;
+  }
+  .fw-protect-row:is(.flex-col) {
+    @apply gap-2;
+  }
+
+  /* Access sheet */
+  .fw-sheet {
+    @apply data-[side=bottom]:max-h-[92dvh] data-[side=bottom]:rounded-t-2xl data-[side=right]:sm:max-w-md;
+  }
+  .fw-sheet-body {
+    @apply flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pb-4;
+  }
+  .fw-field {
+    @apply flex flex-col gap-2;
+  }
+  .fw-limits {
+    @apply grid gap-4 sm:grid-cols-2;
+  }
+  .fw-note {
+    @apply flex items-start gap-1.5 text-xs;
+    color: var(--fw-warn);
+  }
+  .fw-sheet-footer > button {
+    @apply flex-1 sm:flex-none;
+  }
+
+  /* Sticky save bar, above the phone's bottom navigation. */
+  .fw-savebar {
+    @apply sticky z-20 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl border p-3 sm:p-4;
+    bottom: 1rem;
+    background: color-mix(in srgb, var(--popover) 92%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px);
+    box-shadow: var(--elevation-3);
+  }
+  .fw-savebar-title {
+    @apply min-w-0 flex-1 text-sm font-medium;
+  }
+  .fw-savebar-window {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+  .fw-savebar-actions {
+    @apply flex gap-2;
+  }
+  @media (max-width: 767px) {
+    .fw-savebar {
+      bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    }
+    .fw-savebar-title,
+    .fw-savebar-window,
+    .fw-savebar-actions {
+      @apply w-full;
+    }
+    .fw-savebar-actions > button {
+      @apply flex-1;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fw-savebar {
+    animation: fw-rise 180ms ease-out;
+  }
+  @keyframes fw-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+
+/* IP addresses page: address rows, the IP-change sheet and job status.
+   Shares the firewall page's pills, chips and sheet layout. */
+@layer components {
+  .ip-page {
+    --fw-ok: var(--color-success-text);
+    --fw-warn: var(--color-warning-text);
+    --fw-problem: var(--color-destructive-text);
+    --fw-muted: var(--muted-foreground);
+  }
+  .ip-sheet {
+    --fw-ok: var(--color-success-text);
+    --fw-warn: var(--color-warning-text);
+    --fw-problem: var(--color-destructive-text);
+    --fw-muted: var(--muted-foreground);
+  }
+  .ip-actions {
+    @apply flex flex-wrap gap-2;
+  }
+  .ip-stale {
+    @apply flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3;
+    color: var(--fw-warn);
+    border-color: color-mix(in srgb, var(--fw-warn) 35%, var(--border));
+    background: color-mix(in srgb, var(--fw-warn) 7%, var(--card));
+  }
+  .ip-stale p {
+    color: var(--foreground);
+  }
+  .ip-stale p.text-muted-foreground {
+    color: var(--muted-foreground);
+  }
+  .ip-list {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .ip-row {
+    @apply flex min-w-0 flex-col gap-1 px-3 py-2.5;
+  }
+  .ip-row-main {
+    @apply flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1;
+  }
+  .ip-address {
+    @apply font-mono text-sm font-medium [overflow-wrap:anywhere];
+  }
+  .ip-row-uses {
+    @apply flex flex-col text-xs text-muted-foreground;
+  }
+  .ip-empty {
+    @apply flex flex-col items-start gap-3 rounded-lg border border-dashed p-4;
+  }
+  .ip-sheet {
+    @apply data-[side=right]:sm:max-w-lg;
+  }
+  .ip-pair {
+    @apply grid items-start gap-2;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+  /* Level with the controls, below the labels. */
+  .ip-pair-arrow {
+    @apply mt-9 size-4 text-muted-foreground rtl:rotate-180;
+  }
+  .ip-caption {
+    @apply text-xs;
+    color: var(--fw-muted);
+  }
+  .ip-caption[data-tone="problem"] {
+    color: var(--fw-problem);
+  }
+  .ip-caption[data-tone="ok"] {
+    color: var(--fw-ok);
+  }
+  .ip-move {
+    @apply flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm;
+  }
+  .ip-items {
+    @apply flex flex-col divide-y rounded-lg border;
+  }
+  .ip-item {
+    @apply flex min-w-0 items-center gap-3 px-3 py-2.5;
+  }
+  .ip-item[data-disabled] label {
+    @apply opacity-70;
+  }
+  .ip-checks {
+    @apply flex flex-col gap-1.5;
+  }
+  .ip-checks li {
+    @apply flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm;
+    color: var(--fw-problem);
+  }
+  .ip-checks li[data-ok="true"] {
+    color: var(--fw-ok);
+  }
+  .ip-job {
+    @apply flex flex-col gap-3 rounded-xl border p-3;
+    background: color-mix(in srgb, var(--muted) 40%, transparent);
+  }
+  @media (max-width: 479px) {
+    .ip-pair {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ip-pair-arrow {
+      @apply mx-auto mt-0 rotate-90 rtl:rotate-90;
+    }
+  }
+}

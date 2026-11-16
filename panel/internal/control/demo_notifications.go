@@ -15,6 +15,8 @@ func demoNotices(now time.Time) *notify.Center {
 	c.Host = "edge-01"
 	for _, e := range []notify.Event{
 		{Time: now.Add(-6 * time.Hour), Kind: notify.KindBackup, Detail: "gtm-20260105T033000.json · 4 connections", Args: map[string]string{"name": "gtm-20260105T033000.json", "connections": "4"}},
+		{Time: now.Add(-4 * time.Hour), Kind: notify.KindNodeOffline, Name: "Exit Amsterdam", Detail: "no report for 3m", Args: map[string]string{"seconds": "190", "node": "0123456789abcdef0123456789abcdef"}},
+		{Time: now.Add(-221 * time.Minute), Kind: notify.KindNodeOnline, Name: "Exit Amsterdam", Detail: "offline for 22m", Args: map[string]string{"seconds": "1320", "node": "0123456789abcdef0123456789abcdef"}},
 		{Time: now.Add(-3 * time.Hour), Kind: notify.KindMaintenance, Name: "Nightly relay restart", Args: map[string]string{"action": "restart", "count": "2"}},
 		{Time: now.Add(-62 * time.Minute), Kind: notify.KindDown, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "198.51.100.30 · timeout", Args: map[string]string{"endpoint": "198.51.100.30", "reason": "timeout"}},
 		{Time: now.Add(-55 * time.Minute), Kind: notify.KindUp, Owner: "F000002", Name: "WireGuard Stockholm", Detail: "down for 7m", Args: map[string]string{"seconds": "420"}},
@@ -22,7 +24,7 @@ func demoNotices(now time.Time) *notify.Center {
 	} {
 		c.Emit(e)
 	}
-	_ = c.MarkRead([]uint64{1, 2}, false)
+	_ = c.MarkRead([]uint64{1, 2, 3, 4}, false)
 	return c
 }
 

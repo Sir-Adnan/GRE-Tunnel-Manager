@@ -96,3 +96,22 @@ test("URL values are allowlisted and filtered views choose sensible creation eng
   assert.deepEqual(creationEngines("kernel"), ["nftables", "iptables"]);
   assert.equal(creationEngines("all"), undefined);
 });
+
+test("sorting groups rows and keeps the saved order for ties", async () => {
+  const { connectionSort, sortConnections } = await import("../src/lib/connection-filters.ts");
+  const base = { ports: "1", targets: [] };
+  const list = [
+    { ...base, id: "A", name: "Zeta 10", engine: "realm", enabled: true, status: "active" },
+    { ...base, id: "B", name: "alpha", engine: "haproxy", enabled: false },
+    { ...base, id: "C", name: "Zeta 9", engine: "nftables", enabled: true, status: "failed" },
+    { ...base, id: "D", name: "beta", engine: "haproxy", enabled: true },
+  ];
+  const ids = (rows) => rows.map((row) => row.id).join("");
+  assert.equal(ids(sortConnections(list, "custom")), "ABCD");
+  assert.equal(ids(sortConnections(list, "name")), "BDCA");
+  assert.equal(ids(sortConnections(list, "status")), "CADB");
+  assert.equal(ids(sortConnections(list, "engine")), "BDCA");
+  assert.equal(connectionSort("engine"), "engine");
+  assert.equal(connectionSort("bogus"), "custom");
+  assert.equal(connectionSort(null), "custom");
+});

@@ -106,7 +106,7 @@ gtm_pair_api() {
                 if [[ $actual == "$2" ]]; then
                     if [[ $operation == pair-verify ]]; then result=0
                     elif [[ $id == gre-tun-* ]]; then
-                        gtm_confirm() { return 0; }; gtm_link_delete "${id#gre-tun-}"; result=$?
+                        gtm_link_delete "${id#gre-tun-}"; result=$?
                     else gtm_reverse_delete "$id"; result=$?; fi
                 fi
             fi;;

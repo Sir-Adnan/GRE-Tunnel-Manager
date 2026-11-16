@@ -33,7 +33,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TextField } from "@/components/shared";
 import { api } from "@/lib/api";
 import { number, trafficBytes } from "@/lib/format";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { useLoaded } from "@/features/operations/hooks";
 import { stamp } from "@/features/health/format";
 import { Confirm, type ConfirmRequest } from "@/features/maintenance/Confirm";
@@ -103,7 +103,7 @@ function DownloadDialog({
               toast.success(t("backupDownloaded"));
               onClose();
             } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
+              setError(errorMessage(e));
             } finally {
               setBusy(false);
             }

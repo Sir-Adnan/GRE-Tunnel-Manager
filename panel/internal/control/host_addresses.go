@@ -15,6 +15,7 @@ import (
 type hostAddress struct {
 	iface string
 	addr  netip.Addr
+	bits  int
 }
 
 // containerInterface names bridges and veth pairs that container runtimes and
@@ -45,6 +46,16 @@ func defaultRouteInterface(r io.Reader) string {
 // bridges last and IPv4 before IPv6 within each group, keeping the kernel's
 // order otherwise. Loopback and link-local addresses are dropped.
 func orderHostAddresses(in []hostAddress, uplink string) []string {
+	kept := sortHostAddresses(in, uplink)
+	out := make([]string, 0, len(kept))
+	for _, a := range kept {
+		out = append(out, a.addr.String())
+	}
+	return out
+}
+
+// sortHostAddresses is orderHostAddresses keeping interface and prefix.
+func sortHostAddresses(in []hostAddress, uplink string) []hostAddress {
 	rank := func(a hostAddress) int {
 		switch {
 		case a.iface == uplink && uplink != "":
@@ -66,11 +77,7 @@ func orderHostAddresses(in []hostAddress, uplink string) []string {
 		}
 		return kept[i].addr.Is4() && !kept[j].addr.Is4()
 	})
-	out := make([]string, 0, len(kept))
-	for _, a := range kept {
-		out = append(out, a.addr.String())
-	}
-	return out
+	return kept
 }
 
 // localAddresses lists this server's addresses, uplink first.

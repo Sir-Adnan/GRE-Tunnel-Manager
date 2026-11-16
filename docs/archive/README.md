@@ -16,3 +16,5 @@ Use the [current guides](../README.md), [changelog](../CHANGELOG.md) and [roadma
 | [Phase 6](PHASE-6-REVIEW.md) | Remote summaries and compact dashboard |
 | [Phase 7](PHASE-7-REVIEW.md) | v1.3.1 configuration workflows and profiles |
 | [Form/setup refinement](UX-REFINEMENT.md) | Changes included in v1.3.2 |
+| [Hardening plan](HARDENING-PLAN.md) | v1.5.2 networking, TLS reload and settings hardening |
+| [Roadmap as of v1.5.3](ROADMAP-1.5.md) | Release-by-release scope up to v1.5.3 and the priorities set then |

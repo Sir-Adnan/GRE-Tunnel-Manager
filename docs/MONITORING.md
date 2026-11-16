@@ -9,6 +9,7 @@ The bell in the panel header lists events, newest first, grouped by day, with an
 | Event | Source | Severity |
 | --- | --- | --- |
 | A connection goes down / comes back | Health monitoring (owner status changes) | critical / info |
+| A Node stops reporting / reports again | The Controller's Node watcher ([below](#node-offline-notifications)) | warning / info |
 | Failover changes destinations | Health failover for kernel forwards | warning |
 | Optimization undone automatically / kept | The optimization watch (see [Optimization](OPTIMIZATION.md#automatic-undo)) | warning / info |
 | Maintenance finished / failed | Maintenance runs (dry runs excluded) | info / warning |
@@ -18,13 +19,19 @@ Each event carries its kind, an optional connection name, arguments for a locali
 
 ### Webhook and Telegram
 
-**Settings → Notification channels** sends selected kinds to a webhook, a Telegram bot, or both. Defaults: outages, recoveries, automatic undo, failed maintenance and failed backups.
+**Settings → Notification channels** sends selected kinds to a webhook, a Telegram bot, or both. Defaults: outages, recoveries, Nodes going offline and coming back, automatic undo, failed maintenance and failed backups.
 
 - **Webhook:** one `POST` per event with `Content-Type: application/json` and `User-Agent: gtm-panel/VERSION`. Body: `id`, `time`, `kind`, `severity`, `owner`, `name`, `detail`, `host`, and a ready message in `text` and `content` (Discord reads `content`, Slack and Mattermost read `text`). With a signing secret, `X-GTM-Signature: sha256=HEX` is the HMAC-SHA256 of the raw body.
 - **Telegram:** `sendMessage` to a chat ID (`-100…`) or `@channel`. A self-hosted Bot API server or relay can replace `https://api.telegram.org` when this server cannot reach Telegram.
 - Messages leave from this server through its default route; `HTTPS_PROXY` in the broker's environment is honored.
 - Delivery: three attempts (now, after 10 s, after 1 min), 15 s each. At most 20 messages per 10 minutes; the rest stay in the panel and one summary follows. Each event shows Sent, Not delivered or Rate limited.
 - The webhook URL, signing secret and bot token are stored root-only and never returned to the browser; leaving a field empty keeps the stored value, **Forget** removes it. **Send test** delivers a test event at once and reports failures per channel without echoing secrets.
+
+### Node offline notifications
+
+On a Controller, the panel compares Node states every 30 seconds. A Node that was online and has not reported for three minutes raises **Node … is offline** with the time since its last report; its next report raises **Node … is back online** with the outage length. The watcher reads the reports the Controller already holds in memory and sends nothing over the network. A Node is watched only after it has been seen online since the panel started, so a restart while a Node is down stays quiet until it returns; revoked and removed Nodes are dropped without a message.
+
+The unprivileged panel hands each change to the broker through the light action `notifications-node`, which accepts only a Node ID, a short printable name and a bounded duration. No browser route reaches it, and the read-only Agent broker refuses it. Fresh installations send both kinds to the external channels by default; an existing installation keeps its saved selection, so turn them on under **Settings → Notification channels**.
 
 ## Guided diagnosis
 
@@ -33,6 +40,14 @@ Each event carries its kind, an optional connection name, arguments for a locali
 | Connection | GRE tunnel |
 | --- | --- |
 | Enabled; IPv4/IPv6 forwarding (kernel forwards); kernel rules present (nftables table or iptables comments); failover exclusions; relay service active and port listening; connection-table pressure; route to each destination and whether its interface is down; a TCP connect (or, for UDP, a ping) to up to 8 destinations | Unit active; interface present and not down; local address still on the server; inner `/30` address; strict reverse-path filtering; an input policy that drops GRE (protocol 47) without an accept rule; connection-table pressure; ping to the peer's public address and through the tunnel |
+
+A connection's **Check** tab runs the same checklist below its live packet path (`gre.sh --api connection-path ID`). The path reads:
+- the owned nftables/iptables rule counters (kernel forwards);
+- `ss` socket counts (relays);
+- the drop counters in `inet gtm_guard`;
+- any iptables backend that drops forwards without the owned accept.
+
+It is read-only and runs only while the tab is open. The panel computes rates between samples. See [Web panel](WEB-PANEL.md#connections-and-configuration).
 
 The Bash engine (`gre.sh --api diagnose ID`) reports system checks and the endpoints to probe; the broker probes them with the health prober (3 s each, 8 s in total). The newest outage from Health is shown when monitoring is on. The far side's firewall can only be checked from that server; a paired Node reports it (below).
 

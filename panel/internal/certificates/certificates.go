@@ -1,6 +1,6 @@
-// Package certificates validates external TLS material and keeps the last valid
-// certificate available during renewal. It neither issues certificates nor runs
-// an ACME client, and exposes no private material through its status contract.
+// Package certificates validates TLS material and keeps the last valid
+// certificate available during renewal. Issuance lives in package issuer;
+// this package exposes no private material through its status contract.
 package certificates
 
 import (
@@ -34,6 +34,7 @@ type Status struct {
 	HostnameOK  bool      `json:"hostname_ok"`
 	Loaded      time.Time `json:"loaded,omitempty"`
 	LastError   string    `json:"last_error,omitempty"`
+	Renewal     *Renewal  `json:"renewal,omitempty"`
 }
 
 // ReadPEM accepts ACME clients' regular files and symlinked generations, but

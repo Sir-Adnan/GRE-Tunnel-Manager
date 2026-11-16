@@ -93,8 +93,8 @@ export const forwarding = {
     "ترتیب: مقصد اول، مقصد اصلی است",
   ],
   targetOrderHelp: [
-    "Drag to reorder (or focus the handle and use the arrow keys). Order is the failover priority.",
-    "برای تغییر ترتیب بکشید (یا روی دستگیره فوکوس کنید و از کلیدهای جهت استفاده کنید). ترتیب، اولویت جایگزینی خودکار است.",
+    "Tap a destination to edit it. Drag the handle or use ⋯ to reorder; with primary + backup the first one is the primary and the order is the failover priority.",
+    "برای ویرایش، روی مقصد بزنید. برای تغییر ترتیب، دستگیره را بکشید یا از ⋯ استفاده کنید؛ در حالت اصلی و پشتیبان، مقصد اول اصلی است و ترتیب، اولویت جایگزینی است.",
   ],
   dnsChecking: ["Checking the domain…", "در حال بررسی دامنه…"],
   dnsNoAddress: [
@@ -183,8 +183,8 @@ export const forwarding = {
 
   dragHandle: ["Move", "جابه‌جایی"],
   dragInstructions: [
-    "Drag the handle with the mouse or a finger. With the keyboard, focus the handle and use the arrow keys to move one place.",
-    "دستگیره را با ماوس یا انگشت بکشید. با صفحه‌کلید روی دستگیره فوکوس کنید و با کلیدهای جهت یک جایگاه جابه‌جا کنید.",
+    "Drag the handle with the mouse or a finger, or press and hold a row on a touch screen. With the keyboard, focus the handle and use the arrow keys to move one place.",
+    "دستگیره را با ماوس یا انگشت بکشید، یا در صفحه‌ی لمسی انگشت را روی ردیف نگه دارید. با صفحه‌کلید روی دستگیره فوکوس کنید و با کلیدهای جهت یک جایگاه جابه‌جا کنید.",
   ],
   dragPicked: ["Picked up item {n}.", "مورد {n} برداشته شد."],
   dragOver: ["Over position {n}.", "روی جایگاه {n}."],
@@ -200,5 +200,76 @@ export const forwarding = {
   orderSaveFailed: [
     "The new order could not be saved: {e}",
     "ترتیب جدید ذخیره نشد: {e}",
+  ],
+  // Connection form sections, method cards and field errors.
+  nextStep: ["Next: {step}", "بعدی: {step}"],
+  stepOf: ["Step {n} of {total}", "مرحله‌ی {n} از {total}"],
+  sectionMethod: ["Method", "روش انتقال"],
+  sectionMethodHelp: [
+    "What carries the traffic on this server.",
+    "چه چیزی ترافیک را روی این سرور جابه‌جا می‌کند.",
+  ],
+  engineBlurb_nftables: [
+    "In the kernel; fastest path and large port ranges.",
+    "در کرنل؛ سریع‌ترین مسیر و بازه‌های بزرگ پورت.",
+  ],
+  engineBlurb_iptables: [
+    "In the kernel; for servers that use iptables.",
+    "در کرنل؛ برای سرورهایی که iptables دارند.",
+  ],
+  engineBlurb_haproxy: [
+    "TCP proxy with health checks and graceful reloads.",
+    "پراکسی TCP با بررسی سلامت و بارگذاری بدون قطعی.",
+  ],
+  engineBlurb_realm: [
+    "Light relay for TCP and UDP.",
+    "رله‌ی سبک برای TCP و UDP.",
+  ],
+  sectionEntranceHelp: [
+    "The ports clients connect to on this server.",
+    "کاربران به کدام پورت‌های این سرور وصل می‌شوند.",
+  ],
+  protocolFixed: [
+    "{engine} carries {p} only.",
+    "{engine} فقط {p} را منتقل می‌کند.",
+  ],
+  sectionIdentity: ["Name and start", "نام و اجرا"],
+  sectionIdentityHelp: [
+    "All optional; the defaults suit most connections.",
+    "همه اختیاری‌اند؛ پیش‌فرض‌ها برای بیشتر اتصال‌ها مناسب‌اند.",
+  ],
+  sectionTargetsHelp: [
+    "The servers this connection sends traffic to.",
+    "سرورهایی که این اتصال ترافیک را به آن‌ها می‌فرستد.",
+  ],
+  sectionSpread: ["Traffic spread", "تقسیم ترافیک"],
+  sectionSpreadHelp: [
+    "How new connections are shared and how often domains are looked up.",
+    "اتصال‌های جدید چطور تقسیم شوند و دامنه‌ها هر چند وقت بررسی شوند.",
+  ],
+  sectionReview: ["Review", "بازبینی"],
+  sectionReviewHelp: [
+    "One look before saving.",
+    "پیش از ذخیره یک بار نگاه کنید.",
+  ],
+  tmplPick: [
+    "Pick one to fill the method, ports and destination shape; every field stays editable.",
+    "یکی را انتخاب کنید تا روش، پورت‌ها و شکل مقصد پر شوند؛ همه‌ی فیلدها قابل ویرایش می‌مانند.",
+  ],
+  routeNoPorts: ["No port yet", "هنوز پورتی وارد نشده"],
+  destinationsCount: ["Destinations: {n}", "{n} مقصد"],
+  fieldRequired: ["Fill in this field.", "این فیلد را پر کنید."],
+  fieldInvalid: ["This value is not valid.", "این مقدار معتبر نیست."],
+  fieldRange: [
+    "Enter a number from {min} to {max}.",
+    "عددی از {min} تا {max} وارد کنید.",
+  ],
+  fieldTooLong: [
+    "Use at most {n} characters.",
+    "حداکثر {n} نویسه وارد کنید.",
+  ],
+  fieldsToFix: [
+    "{n} fields need a fix:",
+    "{n} فیلد نیاز به اصلاح دارد:",
   ],
 } satisfies Messages;

@@ -14,7 +14,8 @@ class Phase5ManagementTests(unittest.TestCase):
     def test_haproxy_affinity_is_bounded_optional_and_roundtrips(self):
         row = record(engine='haproxy', strategy='roundrobin', targets='203.0.113.20:443@1,203.0.113.21:443@1', version='2')
         result = bash('IFS= read -r row\ngtm_record_validate "$row" || exit 1\n'
-                      'gtm_haproxy_render\ngtm_haproxy_options', row+'\tstick=source;stick_size=2048;stick_expire=120\n')
+                      'emitted=$(gtm_record_emit); [[ $emitted == "$row" ]] || exit 2\n'
+                      'gtm_haproxy_render', row+'\tstick=source;stick_size=2048;stick_expire=120\n')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('stick-table type ipv6 size 2048 expire 120s', result.stdout)
         self.assertIn('stick on src', result.stdout)

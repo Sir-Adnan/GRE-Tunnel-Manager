@@ -158,7 +158,7 @@ func (h *Hub) Traffic(id string) (TrafficView, error) {
 			if copy.Failure != "" {
 				v.Status = "degraded"
 			}
-			if h.now().Sub(o.seen) > 3*time.Minute {
+			if h.now().Sub(o.seen) > offlineAfter {
 				v.Status = "offline"
 			}
 		}

@@ -8,7 +8,7 @@ import {
   Server,
 } from "lucide-react";
 import { api, operate } from "@/lib/api";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -111,7 +111,7 @@ export function RestoreBackup({
               setReview(next);
               setReviewed(true);
             } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
+              setError(errorMessage(e));
             } finally {
               setBusy(false);
             }
@@ -333,7 +333,7 @@ export function RestoreBackup({
                     setReviewed(true);
                   } catch (e) {
                     setReviewed(false);
-                    setError(e instanceof Error ? e.message : String(e));
+                    setError(errorMessage(e));
                   } finally {
                     setBusy(false);
                   }
@@ -413,7 +413,7 @@ export function RestoreBackup({
                 } catch (e) {
                   setConfirm(false);
                   setReviewed(false);
-                  setError(e instanceof Error ? e.message : String(e));
+                  setError(errorMessage(e));
                 } finally {
                   setBusy(false);
                 }

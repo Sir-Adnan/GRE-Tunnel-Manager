@@ -103,6 +103,7 @@ gtm_api() {
         history) (($#<=1)) && gtm_history "$@";;
         history-restore) (($#==2)) && gtm_history_restore "$1" "$2";;
         diagnose) (($#==1)) && gtm_diagnose "$1";;
+        connection-path) (($#==1)) && gtm_connection_path "$1";;
         dns-resolve) (($#==2)) && [[ $2 == 4 || $2 == 6 ]] && gtm_dns_lookup "$1" "$2";;
         dns-cache) (($#==0)) && gtm_dns_view;;
         dns-policy) (($#==3)) || return 2; gtm_prepare && gtm_lock || return 1
@@ -111,6 +112,11 @@ gtm_api() {
             gtm_dns_refresh --force;;
         dns-refresh) (($#==0)) && gtm_dns_refresh --force;;
         dns-status|dns-apply|dns-restore) gtm_sysdns_api "$operation" "$@";;
+        firewall-status|firewall-apply|firewall-confirm|firewall-revert) gtm_guard_api "$operation" "$@";;
+        # IP change and additional addresses; see src/addresses.sh.
+        address-uses|address-replace|readdress-check|readdress-apply|extra-list|extra-add|extra-delete) gtm_address_api "$operation" "$@";;
+        # Retiring v13.x forwards, Simple GRE and old tuning files; see src/cleanup.sh.
+        legacy-scan|legacy-retire) gtm_legacy_api "$operation" "$@";;
         portfw-rules) (($#==0)) && gtm_portfw_rules;;
         # Maintenance: reapply owned kernel rules from saved state; clear one forward's flows.
         kernel-refresh) (($#==0)) && gtm_prepare && gtm_lock || return 2
@@ -145,9 +151,8 @@ gtm_api() {
                 optimize-undo) (($#==0)) || return 2;;
                 *) (($#==1)) || return 2;;
             esac
-            gtm_prepare && gtm_lock || return 2
             # The panel previews the change first; this call is the confirmation.
-            gtm_confirm() { return 0; }
+            gtm_prepare && gtm_lock || return 2
             case $operation in
                 optimize-apply) gtm_optimize_apply "${groups[@]}";;
                 optimize-undo) gtm_optimize_undo;;
@@ -163,12 +168,10 @@ gtm_api() {
             done
             # Explicit --api install authorizes these specific packages. No service
             # is enabled by this boundary; engine units are created only on apply.
-            gtm_confirm() { return 0; }
             for component in "$@"; do gtm_install_component "$component" || return 1; done;;
         gre-create) (($#==5)) && gtm_prepare && gtm_lock || return 2
             gtm_link_create "$@"; local result=$?; gtm_unlock; return "$result";;
         gre-delete) (($#==1)) && gtm_prepare && gtm_lock || return 2
-            gtm_confirm() { return 0; }
             gtm_link_delete "$1"; local result=$?; gtm_unlock; return "$result";;
         reverse-create) (($#==0)) && gtm_api_reverse;;
         reverse-delete) (($#==1)) && gtm_prepare && gtm_lock || return 2

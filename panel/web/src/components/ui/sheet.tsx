@@ -4,6 +4,7 @@ import { Dialog as SheetPrimitive } from "radix-ui";
 
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
+import { useSheetDrag } from "@/hooks/use-sheet-drag";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -55,6 +56,8 @@ function SheetContent({
   showCloseButton?: boolean;
   closeLabel?: string;
 }) {
+  const closer = React.useRef<HTMLButtonElement>(null);
+  const drag = useSheetDrag(() => closer.current?.click());
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -67,6 +70,11 @@ function SheetContent({
         )}
         {...props}
       >
+        {side === "bottom" && (
+          <div data-slot="sheet-grabber" aria-hidden {...drag}>
+            <SheetPrimitive.Close ref={closer} hidden tabIndex={-1} />
+          </div>
+        )}
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close data-slot="sheet-close" asChild>

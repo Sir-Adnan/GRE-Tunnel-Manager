@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   Globe2,
@@ -21,7 +21,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { FieldGroup } from "@/components/ui/field";
 import { Logo, TextField } from "@/components/shared";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
+import { errorText } from "@/lib/server-messages";
 import type { Session } from "@/lib/api";
 import { panelVersion } from "@/lib/version";
 import type { Preferences } from "@/lib/preferences";
@@ -42,14 +43,35 @@ export function Login({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Two-factor sign-in: the password was accepted and a code is needed.
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState("");
+  // Move focus to the code field for the second step (and after a wrong
+  // code), so typing continues without a click.
+  useEffect(() => {
+    if (needsCode && !busy) document.getElementById("code")?.focus();
+  }, [needsCode, busy]);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      setSession(await api<Session>("login", { username, password }));
+      setSession(
+        await api<Session>(
+          "login",
+          needsCode
+            ? { username, password, code: code.trim() }
+            : { username, password },
+        ),
+      );
     } catch (error) {
-      setError(String(error instanceof Error ? error.message : error));
+      if (error instanceof ApiError && error.codeRequired) {
+        setNeedsCode(true);
+        setCode("");
+      } else {
+        setError(errorText(error, t));
+        if (needsCode) setCode("");
+      }
     } finally {
       setBusy(false);
     }
@@ -109,26 +131,58 @@ export function Login({
                     <AlertDescription>{t("httpHelp")}</AlertDescription>
                   </Alert>
                 )}
-                <TextField
-                  id="username"
-                  label={t("username")}
-                  autoComplete="username"
-                  dir="ltr"
-                  value={username}
-                  onChange={(event) => setUsername(event.target.value)}
-                  required
-                  maxLength={40}
-                />
-                <TextField
-                  id="password"
-                  label={t("password")}
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                  maxLength={72}
-                />
+                {needsCode ? (
+                  <>
+                    <TextField
+                      id="code"
+                      label={t("loginCode")}
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      dir="ltr"
+                      className="font-mono tracking-widest"
+                      value={code}
+                      onChange={(event) => setCode(event.target.value)}
+                      required
+                      maxLength={32}
+                      description={t("loginCodeHelp")}
+                    />
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto self-start p-0"
+                      onClick={() => {
+                        setNeedsCode(false);
+                        setPassword("");
+                        setError("");
+                      }}
+                    >
+                      {t("loginCodeBack")}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <TextField
+                      id="username"
+                      label={t("username")}
+                      autoComplete="username"
+                      dir="ltr"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      required
+                      maxLength={40}
+                    />
+                    <TextField
+                      id="password"
+                      label={t("password")}
+                      type="password"
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      required
+                      maxLength={72}
+                    />
+                  </>
+                )}
                 {demo && (
                   <p className="text-xs text-muted-foreground">
                     {t("demoLogin")}

@@ -44,6 +44,7 @@ test("v1 settings move forward once and the old automatic Nettinx value becomes 
     style: "signal",
     mode: "light",
     refresh: true,
+    density: "comfortable",
   });
   savePreferences(storage, { ...migrated, style: "nettinx" });
   assert.equal(storage.data.has("gtm.preferences.v1"), false);
@@ -60,13 +61,30 @@ test("v1 styles other than the old default are kept", () => {
 
 test("tampered or unknown values cannot reach the document", () => {
   const parsed = parsePreferences(
-    { locale: "de", style: '"] body {', mode: "sepia", refresh: "yes" },
+    {
+      locale: "de",
+      style: '"] body {',
+      mode: "sepia",
+      refresh: "yes",
+      density: "tiny",
+    },
     styles,
   );
   assert.deepEqual(parsed, defaultPreferences);
   const broken = memoryStorage({ [preferencesKey]: "{not json" });
   assert.deepEqual(loadPreferences(broken, styles), defaultPreferences);
   assert.deepEqual(loadPreferences(undefined, styles), defaultPreferences);
+});
+
+test("density is kept when valid and older saved settings start comfortable", () => {
+  const storage = memoryStorage({
+    [preferencesKey]: JSON.stringify({ locale: "en", density: "compact" }),
+  });
+  assert.equal(loadPreferences(storage, styles).density, "compact");
+  const older = memoryStorage({
+    [preferencesKey]: JSON.stringify({ locale: "en", style: "graphite" }),
+  });
+  assert.equal(loadPreferences(older, styles).density, "comfortable");
 });
 
 test("blocked storage never breaks saving", () => {

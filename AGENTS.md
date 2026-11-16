@@ -6,7 +6,7 @@ This is a Bash tunnel/forwarding manager with an optional Go web panel. Read the
 
 - `src/` is the shell source; generate `gre.sh` with `python3 tools/build.py`.
 - `panel/internal/` owns Go contracts and control; `panel/web/src/` owns the interface.
-- The terminal menus and the panel share one Bash engine (`api`, `links`, `firewall`, `state`, `optimize`); new behavior goes into the engine, menus stay thin.
+- The panel is the interface; `gre.sh` is its Bash engine (`api`, `links`, `firewall`, `state`, `optimize`) with no terminal menus. New behavior goes into the engine behind a closed `--api` operation.
 - Python, Node.js and compilers are development tools, not managed-server requirements.
 
 ## Change contracts

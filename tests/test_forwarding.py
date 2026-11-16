@@ -168,6 +168,82 @@ exit 0
 ''', rows)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
+    # UFW can keep its FORWARD DROP in iptables-legacy while "iptables" is the
+    # nf_tables variant; packets pass both, so both need the owned accept.
+    LEGACY_DROP = r'''
+GTM_PROC_NET=$GTM_CONFIG_DIR/proc; mkdir -p "$GTM_PROC_NET"; printf 'filter\nnat\n' > "$GTM_PROC_NET/ip_tables_names"
+log() { printf '%s\n' "$*" >> "$GTM_CONFIG_DIR/calls"; }
+backend() { # name policy: an iptables stub that remembers hooked chains
+    local name=$1 policy=$2; shift 2
+    case $* in
+        -V) [[ $name == iptables ]] && printf 'iptables v1.8.10 (nf_tables)\n' || printf 'iptables v1.8.10 (legacy)\n';;
+        '-w 5 -S FORWARD') printf -- '-P FORWARD %s\n' "$policy";;
+        '-w 5 -S GTM_FWD') [[ -f $GTM_CONFIG_DIR/$name.loaded ]] && cat "$GTM_CONFIG_DIR/$name.loaded";;
+        *' -C '*) [[ -f "$GTM_CONFIG_DIR/$name.hook.${*: -1}" ]];;
+        *' -I '*) log "$name $*"; touch "$GTM_CONFIG_DIR/$name.hook.${*: -1}";;
+        *) return 1;;
+    esac
+}
+restore() { local name=$1; shift; [[ $* == *--test* ]] && { cat > /dev/null; return 0; }; tee -a "$GTM_CONFIG_DIR/$name.loaded" > /dev/null; log "$name-restore"; }
+iptables() { backend iptables ACCEPT "$@"; }; iptables-restore() { restore iptables "$@"; }
+iptables-legacy() { backend iptables-legacy DROP "$@"; }; iptables-legacy-restore() { restore iptables-legacy "$@"; }
+ip6tables() { return 1; }
+gtm_return_marks() { :; }; gtm_return_family_marks() { :; }
+'''
+
+    def test_every_dropping_iptables_backend_gets_the_forward_accept(self):
+        result = self.run_in(self.LEGACY_DROP+r'''
+gtm_load_records || exit 9
+[[ $(gtm_forward_guards 4) == $'iptables ACCEPT\niptables-legacy DROP' ]] || exit 10
+gtm_forward_guard_missing || exit 11
+[[ $(gtm_forward_guard_drops) == iptables-legacy ]] || exit 12
+gtm_iptables_apply 4 || exit 13
+# The default backend gets every table; the legacy one the filter accept only.
+grep -q 'gtm-F000001 -j ACCEPT' "$GTM_CONFIG_DIR/iptables-legacy.loaded" || exit 14
+grep -q '^\*nat' "$GTM_CONFIG_DIR/iptables-legacy.loaded" && exit 15
+grep -q '^\*nat' "$GTM_CONFIG_DIR/iptables.loaded" || exit 16
+grep -qx 'iptables-legacy -w 5 -t filter -I FORWARD 1 -j GTM_FWD' "$GTM_CONFIG_DIR/calls" || exit 17
+gtm_forward_guard_missing && exit 18
+# A firewall reload that flushes FORWARD is noticed.
+rm "$GTM_CONFIG_DIR/iptables-legacy.hook.GTM_FWD"
+gtm_forward_guard_missing || exit 19
+# Without loaded legacy tables nothing is probed there.
+: > "$GTM_PROC_NET/ip_tables_names"
+[[ $(gtm_forward_guards 4) == 'iptables ACCEPT' ]] || exit 20
+gtm_forward_guard_missing && exit 21
+exit 0
+''', [record(bind='0.0.0.0', port='2000', targets='203.0.113.5:3000@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_refresh_restores_a_flushed_forward_accept(self):
+        result = self.run_in(self.LEGACY_DROP+r'''
+gtm_prepare() { :; }; gtm_lock() { :; }; gtm_unlock() { :; }
+gtm_kernel_apply() { printf 'kernel\n' >> "$GTM_CONFIG_DIR/applied"; gtm_snat_detect && gtm_snat_save && gtm_iptables_apply 4; }
+gtm_dns_refresh 2>/dev/null && gtm_dns_refresh || exit 9
+[[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 1 ]] || exit 10
+# "ufw reload" flushes the legacy FORWARD chain; the next refresh restores it.
+rm "$GTM_CONFIG_DIR/iptables-legacy.hook.GTM_FWD"
+gtm_dns_refresh 2> "$GTM_CONFIG_DIR/err" || exit 11
+[[ $(wc -l < "$GTM_CONFIG_DIR/applied") == 2 && -f $GTM_CONFIG_DIR/iptables-legacy.hook.GTM_FWD ]] || exit 12
+grep -q 'forward accept was removed' "$GTM_CONFIG_DIR/err" || exit 13
+# The dropping backend alone keeps the refresh timer.
+gtm_snat_list() { :; }
+systemctl() { printf '%s\n' "$*" >> "$GTM_CONFIG_DIR/calls"; }
+gtm_dns_timer_sync && grep -qx 'enable --now gre-manager-dns.timer' "$GTM_CONFIG_DIR/calls" || exit 14
+exit 0
+''', [record(bind='0.0.0.0', port='2000', targets='203.0.113.5:3000@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
+    def test_forward_policy_diagnosis_names_the_dropping_backend(self):
+        result = self.run_in(self.LEGACY_DROP+r'''
+gtm_load_records && gtm_record_validate "${GTM_RECORDS[0]}" || exit 9
+gtm_diag_forward_policy 4 | grep -qx $'check\tforward-policy\tfail\tDROP (iptables-legacy)' || exit 10
+gtm_iptables_apply 4 && gtm_record_validate "${GTM_RECORDS[0]}" || exit 11
+gtm_diag_forward_policy 4 | grep -qx $'check\tforward-policy\tok\tDROP (iptables-legacy), owned accept installed' || exit 12
+exit 0
+''', [record(bind='0.0.0.0', port='2000', targets='203.0.113.5:3000@1')])
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
 
 class DomainTests(unittest.TestCase):
     def run_in(self, code, rows=()):
@@ -335,6 +411,33 @@ exit 0
 ''')
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
 
+    def test_resolved_drop_in_directory_is_readable_under_the_engine_umask(self):
+        result = self.run_in(r'''
+touch "$GTM_CONFIG_DIR/mode-probe"; chmod 640 "$GTM_CONFIG_DIR/mode-probe"
+[[ $(stat -c %a "$GTM_CONFIG_DIR/mode-probe") == 640 ]] || exit 77
+umask 077
+mkdir -p "$GTM_CONFIG_DIR/run/systemd/resolve"
+touch "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_CONFIG_DIR/resolved-on"
+ln -s "$GTM_CONFIG_DIR/run/systemd/resolve/stub-resolv.conf" "$GTM_RESOLV"
+printf 'nameserver 10.0.0.53\n' > "$GTM_RESOLVED_UPSTREAM"
+# resolved runs unprivileged: a new directory must be world-searchable.
+gtm_api dns-apply 1.1.1.1 || exit 10
+[[ $(stat -c %a "$GTM_RESOLVED_DIR") == 755 && $(stat -c %a "$GTM_RESOLVED_DIR/zz-gre-manager.conf") == 644 ]] || exit 11
+gtm_api dns-restore || exit 12
+# A directory an earlier release left unreadable, holding only our files, is repaired.
+chmod 700 "$GTM_RESOLVED_DIR"
+gtm_api dns-apply 1.1.1.1 && [[ $(stat -c %a "$GTM_RESOLVED_DIR") == 755 ]] || exit 13
+gtm_api dns-restore || exit 14
+# Another unreadable directory with files we do not own is reported, not changed.
+printf '[Resolve]\n' > "$GTM_RESOLVED_DIR/custom.conf"; chmod 700 "$GTM_RESOLVED_DIR"
+gtm_api dns-apply 1.1.1.1 2> "$GTM_CONFIG_DIR/err" && exit 15
+grep -q 'not readable by systemd-resolved' "$GTM_CONFIG_DIR/err" && [[ $(stat -c %a "$GTM_RESOLVED_DIR") == 700 ]] || exit 16
+exit 0
+''')
+        if result.returncode == 77:
+            self.skipTest('the work directory does not keep POSIX file modes')
+        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
     def test_resolved_resets_inherited_lists_and_recovers_failed_restart(self):
         result = self.run_in(r'''
 mkdir -p "$GTM_CONFIG_DIR/run/systemd/resolve" "$GTM_RESOLVED_DIR"
@@ -386,31 +489,6 @@ gtm_api dns-apply 1.1.1.1 1.0.0.1 || exit 17
 exit 0
 ''')
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-
-
-class TerminalTests(unittest.TestCase):
-    def rows(self, engine, stdin):
-        result = bash('gtm_form_save() { printf \'\\nROW:%s\\n\' "${GTM_FORM_ROWS[@]}"; }\ngtm_dns_lookup() { printf \'203.0.113.40\\n\'; }\n'
-                      f'gtm_new_forward {engine}', stdin)
-        self.assertEqual(result.returncode, 0, result.stdout[-1500:]+result.stderr)
-        return [line[4:].split('\t') for line in result.stdout.splitlines() if line.startswith('ROW:')]
-
-    def test_kernel_ranges_stay_one_record_with_mapped_ports(self):
-        rows = self.rows('nftables', '2000-2999,8443\n203.0.113.5\n3000\n1\n3\n3000-3999,443\n1\n')
-        self.assertEqual([(r[5], r[10]) for r in rows], [('2000-2999', '203.0.113.5:3000-3999@1'), ('8443', '203.0.113.5:443@1')])
-        rows = self.rows('iptables', '4000-4999\n203.0.113.6\n4000\n1\n2\n1\n')
-        self.assertEqual([(r[5], r[10]) for r in rows], [('4000-4999', '203.0.113.6:4000-4999@1')])
-
-    def test_domain_destination_is_checked_and_saved_as_a_name(self):
-        rows = self.rows('haproxy', '443\nBackend.Example.com\n8443\n1\n')
-        self.assertEqual(rows[0][10], 'backend.example.com:8443@1')
-
-    def test_dns_presets_match_the_panel(self):
-        import json
-        presets = json.loads((ROOT/'panel/internal/model/dns_presets.json').read_text(encoding='utf-8'))
-        result = bash('printf "%s\\n" "${GTM_SYSDNS_PRESETS[@]}"')
-        self.assertEqual(result.stdout.split('\n')[:-1], [p['name']+'|'+' '.join(p['servers']) for p in presets])
-        self.assertEqual(bash(' && '.join(f'gtm_sysdns_server {s}' for p in presets for s in p['servers']+p['ipv6'])).returncode, 0)
 
 
 class PortfwTests(unittest.TestCase):

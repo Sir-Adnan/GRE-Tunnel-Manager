@@ -1,11 +1,15 @@
 // Browser-local interface preferences. Framework-free so the parsing and migration rules are unit-tested.
 export type Locale = "fa" | "en";
 export type ModePreference = "light" | "dark" | "system";
+/** Spacing of rows, cards and page sections; colors and type sizes do not change. */
+export type Density = "comfortable" | "compact";
+export const densities: readonly Density[] = ["comfortable", "compact"];
 export type Preferences = {
   locale: Locale;
   style: string;
   mode: ModePreference;
   refresh: boolean;
+  density: Density;
 };
 
 export const preferencesKey = "gtm.preferences.v2";
@@ -18,6 +22,7 @@ export const defaultPreferences: Preferences = {
   style: "signal",
   mode: "dark",
   refresh: false,
+  density: "comfortable",
 };
 
 /** Validates every field; anything unknown falls back to the default instead of reaching the DOM. */
@@ -45,6 +50,9 @@ export function parsePreferences(
       ? (value.mode as ModePreference)
       : fallback.mode,
     refresh: value.refresh === true,
+    density: densities.includes(value.density as Density)
+      ? (value.density as Density)
+      : fallback.density,
   };
 }
 

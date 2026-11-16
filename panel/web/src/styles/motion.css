@@ -62,6 +62,23 @@
     transform: translateY(0) scale(1);
   }
 }
+/* The route chain's wire drifts toward the destination while nothing known blocks the connection. */
+@media (prefers-reduced-motion: no-preference) {
+  .route-chain[data-tone="ok"] .chain-wire {
+    animation: chain-flow 900ms linear infinite;
+  }
+  [dir="rtl"] .route-chain[data-tone="ok"] .chain-wire {
+    animation-direction: reverse;
+  }
+}
+@keyframes chain-flow {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: 8px;
+  }
+}
 @keyframes live-pulse {
   0% {
     opacity: 0.55;

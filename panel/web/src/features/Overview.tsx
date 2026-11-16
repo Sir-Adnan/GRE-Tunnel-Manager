@@ -17,6 +17,7 @@ import { attentionItems } from "@/lib/attention";
 import { engineCounts } from "@/lib/connection-filters";
 import { LiveTelemetry } from "./overview/LiveTelemetry";
 import { AttentionPanel } from "./overview/AttentionPanel";
+import { GettingStarted } from "./overview/GettingStarted";
 import { LocaleContext, useT } from "@/lib/i18n";
 import type { Connection, Inventory } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -65,37 +66,19 @@ function Kpi({
 
 /** Status first: what runs on this server, what needs attention, and live host load. */
 import type { ReactNode } from "react";
-import { toast } from "sonner";
-import { DragHandle, SortableArea, SortableItem } from "@/components/sortable";
-import { applyOrder, useOrder } from "@/lib/order";
-
 const blockNames: Record<string, string> = { kpi: "overviewBlockKpi", status: "overviewBlockStatus", recent: "recent" };
 
-/** The overview's main blocks in the order people set (drag the handle at the side). */
+/** The overview's main blocks, in a fixed order: counts, status, then recent changes. */
 function OverviewBlocks({ blocks }: { blocks: Record<string, ReactNode> }) {
   const t = useT();
-  const order = useOrder("overview");
-  const ids = applyOrder(Object.keys(blocks), order.ids, (id) => id);
   return (
-    <SortableArea
-      ids={ids}
-      onMove={(next) =>
-        void order.save(next).then((e) => {
-          if (e) toast.error(t("orderSaveFailed").replace("{e}", e));
-        })
-      }
-    >
-      {ids.map((id) => (
-        <SortableItem key={id} id={id}>
-          {(item) => (
-            <section ref={item.setNodeRef} style={item.style} className="overview-block" data-dragging={item.dragging || undefined} aria-label={t(blockNames[id])}>
-              <DragHandle handle={item.handle} label={t(blockNames[id])} className="overview-block-handle" />
-              {blocks[id]}
-            </section>
-          )}
-        </SortableItem>
+    <>
+      {Object.entries(blocks).map(([id, block]) => (
+        <section key={id} className="overview-block" aria-label={t(blockNames[id])}>
+          {block}
+        </section>
       ))}
-    </SortableArea>
+    </>
   );
 }
 
@@ -171,6 +154,11 @@ export function Overview({
           </Button>
         </div>
       </header>
+      <GettingStarted
+        connections={inventory.connections.length + inventory.resources.length}
+        add={add}
+        navigate={navigate}
+      />
       <OverviewBlocks
         blocks={{
           kpi: (

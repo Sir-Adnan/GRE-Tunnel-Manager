@@ -1,24 +1,28 @@
-# GRE Tunnel Manager v1.5.3
+# GRE Tunnel Manager v1.6.0
 
-This release fixes kernel forwarding on servers with Docker/UFW, additional IPs or a changed IP, and the server DNS error on systemd-resolved.
+The panel is now the only interface: a one-line installer, the `gtm` command, trusted HTTPS with automatic renewal, and browser tools for certificates, updates, two-factor sign-in and linking two servers. Existing tunnels, forwards and saved settings keep working.
 
-## Forwarding fixes
+## Install and manage
 
-- **nftables forwards behind Docker/UFW:** both set the iptables `FORWARD` policy to `DROP`. An accept in the manager's nftables table cannot override that drop, so nftables forwards silently stopped while iptables forwards kept working. When iptables is installed, each nftables forward now also gets scoped accepts in the owned `GTM_FWD` chain: only its own DNAT flows and their replies.
-- **Additional IPs and IP changes:** kernel `masquerade` used the first address of the egress interface instead of the route's preferred source. With an additional/floating IP or an old address still assigned, the destination (a VPN server abroad, for example) answered an address that never came back. When the egress interface holds several global IPv4 addresses, forwards that masquerade now SNAT to the route's preferred source. Single-address servers keep masquerade. A minute timer reapplies kernel rules when those addresses change.
-- **Diagnosis** reports the entrance address (a specific listen IP that left the server fails), the `FORWARD` policy with the owned accept, and the source address the destination sees.
+- **One-line install:** `curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash` verifies the release checksum and asks for the address, HTTPS, port and login in about a minute. Every answer is also an option, so `--domain … --port … --yes` installs without questions.
+- **`sudo gtm`** shows services, address, certificate, Nodes and updates, and runs `update`, `https`, `port`, `password`, `logs`, `2fa off`, `agent` and `remove`. Updates keep the previous release and restore it if the new one does not start.
+- **Trusted HTTPS built in:** Let's Encrypt for a domain or the server's public IP over port 80 (or Cloudflare DNS for domains), renewed automatically by a timer, with a self-signed fallback that never fails the installation.
+- **Terminal menus removed:** tunnels and forwards are managed in the panel; `gre.sh` remains its engine. Earlier installer options still work.
 
-## Server DNS
+## In the panel
 
-The systemd-resolved drop-in is now `zz-gre-manager.conf`, so named drop-ins such as `dns.conf` no longer override it. This caused "The resolver did not activate the selected DNS servers". The previous `90-gre-manager.conf` is migrated on the next apply or restore. Verification waits for resolved to settle, accepts newer `resolvectl` output and names any drop-in that still overrides the selection.
-
-## Panel
-
-- Server addresses list the default-route interface first and container bridges last.
-- Pairing pre-fills the saved public IP only while it is still assigned, otherwise the uplink's IPv4 address, so a changed server IP no longer proposes a GRE source that preflight rejects.
+- **Tunnel to a foreign server** (Connections → Two servers): enter the foreign server's IP and the public ports; the panel creates the GRE tunnel and the forward through it and lists the values to enter on the other server.
+- **Latency history** per monitored connection under Health: average, peak band, jitter and loss over 1 hour to 30 days, from data the monitor already keeps.
+- **Node offline notifications** in the panel, Telegram or a webhook when a Node stops reporting and when it returns.
+- **Settings → Security:** request, renew or replace the panel certificate; **two-factor sign-in** with an authenticator app and recovery codes; the list of signed-in browsers with sign-out.
+- **Settings → Updates:** the installed and latest release, release notes and a one-click update that survives the panel restart it causes.
+- **Get started** checklist on the Overview, **Firewall** and **IP addresses** pages (fixes for blocked traffic, access rules, abuse protection, moving everything after an IP change, additional IPs), and a **Check** tab with the live packet path for each connection.
+- Server messages appear in Persian or English, English pages use their own typography, and phones get larger touch targets.
 
 ## Upgrade
 
-Update the terminal script and run the current panel installer to load the matching **v1.5.3** executable/helper, then refresh the browser. Afterwards run **Maintenance → Refresh kernel rules** (or restart `gre-manager-forwarding.service`) so existing forwards receive the new rules, and apply Server DNS once more if it previously failed. Credentials, certificates and managed configuration are retained. Verify `SHA256SUMS`.
+On a server with an earlier release run `sudo gtm update` (v1.6.0 and later), or the one-line installer above, then refresh the browser. Credentials, certificates, connections and Nodes are retained. Notification channels keep their saved event selection; turn on the new Node events under **Settings → Notification channels**. Verify `SHA256SUMS`.
 
-Local verification covers the Python suite, Go race/vet, frontend build/lint/tests, ShellCheck and isolated namespace packet tests (including TCP/UDP through an nftables forward under `FORWARD DROP`) with nftables 1.1.6 and iptables-nft 1.8.11. Real Docker/UFW hosts, provider additional IPs and a live systemd-resolved restart remain deployment checks.
+Local verification covers the Python suite, Go race/vet, frontend build/lint/tests, ShellCheck, isolated namespace packet tests and installation, update, rollback, certificate, two-factor and removal runs in a disposable systemd container. A real Let's Encrypt order and renewal on a public server, provider firewalls and reboots remain deployment checks.
+
+New dependencies: Charm's Huh, Bubble Tea, Bubbles and Lip Gloss (terminal setup) and `rsc.io/qr` (two-factor QR code), with licenses in `LICENSES/GoDependencies.txt`.

@@ -49,6 +49,14 @@ test("events link to their page and render localized details", () => {
     eventDetail({ kind: "maintenance", args: { action: "restart", count: "2" } }, t, "en"),
     "Restart · 2 targets",
   );
+  assert.deepEqual(eventTarget({ kind: "node-offline" }), { page: "nodes" });
+  const offline = { kind: "node-offline", args: { seconds: "190" } };
+  assert.equal(eventDetail(offline, t, "en"), "No report for 3m");
+  assert.equal(eventDetail(offline, fa, "fa"), "آخرین گزارش 3 دقیقه پیش");
+  assert.equal(
+    eventDetail({ kind: "node-online", args: { seconds: "1320" } }, t, "en"),
+    "Offline for 22m",
+  );
   // Unknown shapes fall back to the raw detail.
   assert.equal(eventDetail({ kind: "backup-failed", detail: "disk full" }, t, "en"), "disk full");
 });

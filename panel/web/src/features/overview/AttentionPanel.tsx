@@ -17,7 +17,9 @@ export function AttentionPanel({
       ? navigate("connections", { connection: item.id })
       : item.kind === "engine"
         ? navigate("components")
-        : navigate(item.id.startsWith("gre") ? "gre" : "reverse");
+        : item.kind === "address"
+          ? navigate("addresses", { fix: item.id })
+          : navigate(item.id.startsWith("gre") ? "gre" : "reverse");
   return (
     <Card className="attention-card" data-state={items.length ? "alert" : "ok"}>
       <CardHeader>
@@ -50,7 +52,13 @@ export function AttentionPanel({
                   <span className="status-dot is-alert" aria-hidden />
                   <span className="min-w-0 flex-1 text-start">
                     <span className="block truncate font-medium">
-                      <bdi>{item.name}</bdi>
+                      {item.kind === "address" ? (
+                        <bdi dir="ltr" className="font-mono">
+                          {item.name}
+                        </bdi>
+                      ) : (
+                        <bdi>{item.name}</bdi>
+                      )}
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       {item.kind === "engine"

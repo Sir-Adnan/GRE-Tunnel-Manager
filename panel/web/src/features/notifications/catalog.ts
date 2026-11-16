@@ -23,6 +23,9 @@ export function eventTarget(e: NotifyEvent): {
     case "backup":
     case "backup-failed":
       return { page: "backups", params: { tab: "schedule" } };
+    case "node-offline":
+    case "node-online":
+      return { page: "nodes" };
   }
   return { page: "settings" };
 }
@@ -94,6 +97,14 @@ export function eventDetail(
   switch (e.kind) {
     case "up":
       if (a.seconds) return t("ntfDetail_up").replace("{d}", durationText(Number(a.seconds), locale));
+      break;
+    case "node-offline":
+    case "node-online":
+      if (a.seconds)
+        return t(`ntfDetail_${e.kind}`).replace(
+          "{d}",
+          durationText(Number(a.seconds), locale),
+        );
       break;
     case "down":
       if (a.endpoint)

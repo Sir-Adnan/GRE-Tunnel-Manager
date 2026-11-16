@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { usePoll } from "@/lib/use-poll";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes } from "@/lib/format";
 import { ActionButton, HelpTip } from "@/components/help";
 import { TextField } from "@/components/shared";
@@ -47,7 +47,7 @@ export function NodeTraffic({ node }: { node: Node }) {
           setError("");
         }
       } catch (e) {
-        if (!signal.aborted && request === latest.current) setError(String(e));
+        if (!signal.aborted && request === latest.current) setError(errorMessage(e));
       } finally {
         if (!signal.aborted && request === latest.current) setLoading(false);
       }

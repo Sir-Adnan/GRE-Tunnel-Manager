@@ -367,6 +367,37 @@
   .access-summary[data-state="expiring"] {
     border-inline-start-color: var(--warning);
   }
+  .access-summary[data-state="off"] {
+    border-inline-start-color: var(--muted-foreground);
+  }
+  /* Scanners need dark modules on light ground in every theme. */
+  .two-factor-qr {
+    @apply rounded-lg border bg-white p-2;
+    line-height: 0;
+  }
+
+  /* Getting started: first-run checklist on the overview */
+  .getting-started-meter {
+    @apply col-span-full mt-2 h-1.5 overflow-hidden rounded-full bg-muted;
+  }
+  .getting-started-meter > span {
+    @apply block h-full rounded-full;
+    background: var(--primary);
+  }
+  .getting-started-list {
+    @apply flex flex-col divide-y;
+  }
+  .getting-started-list > li {
+    @apply flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0;
+  }
+  .getting-started-list > li[data-done] p {
+    @apply text-muted-foreground;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .getting-started-meter > span {
+      transition: inline-size 300ms ease-out;
+    }
+  }
   .access-facts {
     @apply grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2;
   }

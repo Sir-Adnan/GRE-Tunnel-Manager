@@ -13,7 +13,7 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/
 import { Switch } from "@/components/ui/switch";
 import { CommandBlock } from "@/components/CommandBlock";
 import { operate } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { errorMessage, useT } from "@/lib/i18n";
 import { useLoaded } from "@/features/operations/hooks";
 
 type PrometheusView = {
@@ -44,7 +44,7 @@ export function MetricsExport() {
       setToken(next.token ?? "");
       await reload();
     } catch (e) {
-      setFailure(e instanceof Error ? e.message : String(e));
+      setFailure(errorMessage(e));
     } finally {
       setBusy(false);
     }

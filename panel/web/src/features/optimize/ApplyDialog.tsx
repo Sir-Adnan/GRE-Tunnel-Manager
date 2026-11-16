@@ -22,7 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { trafficBytes } from "@/lib/format";
-import { LocaleContext, useT } from "@/lib/i18n";
+import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import {
   customValid,
   flowTableBytes,
@@ -133,7 +133,7 @@ export function ApplyDialog({
           setResult({
             base,
             path,
-            error: e instanceof Error ? e.message : String(e),
+            error: errorMessage(e),
           });
       });
     return () => controller.abort();

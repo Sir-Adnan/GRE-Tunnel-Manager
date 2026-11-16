@@ -1,5 +1,5 @@
 # Shared pure validation and explicit command execution.
-GTM_VERSION=1.5.3
+GTM_VERSION=1.6.0
 
 gtm_error() { printf 'Error: %s\n' "$*" >&2; return 1; }
 
@@ -132,19 +132,12 @@ gtm_span_text() { if (( $1 == $2 )); then printf '%d' "$1"; else printf '%d%s%d'
 
 gtm_need() { command -v "$1" >/dev/null 2>&1 || gtm_error "Install the required tool first: $1"; }
 
-gtm_root() {
-    [[ ${GTM_DEMO:-0} == 0 ]] || { gtm_error 'Demo mode does not apply changes.'; return 1; }
-    (( EUID == 0 )) || gtm_error 'Run with sudo to change server settings.'
-}
+gtm_root() { (( EUID == 0 )) || gtm_error 'Run with sudo to change server settings.'; }
 
-gtm_pause() { [[ -t 0 ]] && { printf '\n'; read -r -p 'Enter to continue... ' _; }; return 0; }
-
-gtm_confirm() {
-    local answer
-    printf '\n  [1] Confirm\n  [0] Cancel\n'
-    gtm_default 'Select option' answer 0 || return 1
-    [[ $answer == 1 || $answer == y || $answer == Y || $answer == yes ]]
-}
+# The engine has no prompts: the caller reviewed the change (the panel shows
+# a preview first), so the request itself is the confirmation. Operations keep
+# calling this at the point where they commit, which documents that boundary.
+gtm_confirm() { return 0; }
 
 gtm_paths() {
     GTM_CONFIG_DIR=${GTM_CONFIG_DIR:-/etc/gre-manager}

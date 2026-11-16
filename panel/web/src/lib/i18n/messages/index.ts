@@ -17,6 +17,14 @@ import { tunnels } from "./tunnels";
 import { forwarding } from "./forwarding";
 import { serverdns } from "./serverdns";
 import { access } from "./access";
+import { firewall } from "./firewall";
+import { addresses } from "./addresses";
+import { check } from "./check";
+import { errorhelp } from "./errorhelp";
+import { templates } from "./templates";
+import { signin } from "./signin";
+import { server } from "./server";
+import { wizard } from "./wizard";
 
 export const modules = {
   access,
@@ -37,6 +45,14 @@ export const modules = {
   tunnels,
   forwarding,
   serverdns,
+  firewall,
+  addresses,
+  check,
+  errorhelp,
+  templates,
+  signin,
+  server,
+  wizard,
 };
 
 export const messages = {
@@ -58,4 +74,12 @@ export const messages = {
   ...tunnels,
   ...forwarding,
   ...serverdns,
+  ...firewall,
+  ...addresses,
+  ...check,
+  ...errorhelp,
+  ...templates,
+  ...signin,
+  ...server,
+  ...wizard,
 };

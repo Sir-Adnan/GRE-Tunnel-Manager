@@ -1,12 +1,12 @@
 # Remove the optional web panel
 
-Removal is available from **Web Panel → Remove Web Panel**, the installer's interactive update/remove menu on an existing installation, or with a downloaded installer:
+Choose **Remove panel** in `sudo gtm`, or run:
 
 ```bash
-sudo bash panel-install.sh --uninstall
+sudo gtm remove
 ```
 
-The script asks you to type `REMOVE`. Press Enter to cancel. `--uninstall` must be used alone; it does not download a package, install prerequisites or alter tunnel settings. The installed binary must support `gtm-panel uninstall-version` (`1`). Older packages may predate this command or current recovery guards; update to a matching executable and installer containing the current removal implementation. Downloading an installer alone does not replace an older executable or a published release/tag.
+`gtm` first runs every refusal check below without stopping anything, shows what is removed and kept, and asks you to type `REMOVE`; anything else cancels. `--yes` skips the question for automation. `install.sh --remove` and `panel-install.sh --uninstall` run the same removal from a freshly downloaded release, which also works for a v1.5.x installation without `gtm`. Removal never downloads engines, installs prerequisites or alters tunnel settings. The installed binary must support `gtm-panel uninstall-version` (`1`); older packages need `sudo gtm update` (or the installer) first.
 
 ## Removed and retained resources
 
@@ -17,19 +17,20 @@ Removed after validation:
 - Controller CA, enrollment/Node registry and resolved paired-job history in `/var/lib/gre-manager-nodes`. Previously enrolled Agents need enrollment again after reinstalling a Controller; remote Agent installations are not contacted or removed.
 - Panel traffic totals/checkpoints and its bounded audit files. Only `table inet gtm_panel_metrics` is removed from nftables.
 - Resolved root operation receipts, panel executable and installed Bash API helper.
+- The daily update check (`gre-manager-panel-update-check` service and timer, `update.json`), the record of the last update started from the panel (`update-run.json`), the two-factor settings (`two-factor.json`), the `/usr/local/bin/gtm` link and the `igre` compatibility script when it is the installer's own.
 
 Preserved: GRE/reverse units and configurations, forwarding records/backups, tunnel engine binaries, the standalone forwarding boot reconciler, the manager's NAT/MSS rules, host/provider firewall policies, global settings and existing conntrack sessions. Certificates outside the panel directory remain operator-owned. The inactive, restricted `grepanel` system account/group and system journal records remain; they create no running process. OS packages are not uninstalled. Systemd normally cleans its private runtime socket directory when the broker stops. This is control-plane removal, not network-resource removal.
 
 ## Refusals and recovery
 
-The current manifest includes health/maintenance state, notifications, metrics export, ordering, optimization watches, Safe Apply and the closed `snapshots/gtm-YYYYMMDDTHHMMSS.json` namespace, plus the optional `https.pem` bundle. Unknown files, subdirectories and links still block removal. Finish/keep/recover a pending Safe Apply change or active optimization recovery watch before removing the broker; removal does not silently discard recovery intent. External ACME sources and hooks remain operator-owned and need separate retirement.
+The current manifest includes health/maintenance state, notifications, metrics export, ordering, optimization watches, Safe Apply and the closed `snapshots/gtm-YYYYMMDDTHHMMSS.json` namespace, plus the optional `https.pem` bundle, `certificate.json`, the `acme/` account directory (`account.key`, `settings.json`, `cloudflare.token`) and the certificate renewal service and timer. Unknown files, subdirectories and links still block removal. Issued Let's Encrypt certificates are not revoked; they expire on their own. Finish/keep/recover a pending Safe Apply change or active optimization recovery watch before removing the broker; removal does not silently discard recovery intent. External ACME sources and hooks remain operator-owned and need separate retirement.
 
 The panel/Agent installer lock prevents concurrent installer operations. An Agent on the same host blocks removal because it can share the executable, helper and receipt journal. Unknown files, symlinks, customized executable service paths or files outside the closed manifest require local inspection. There is no recursive directory deletion.
 
-After confirmation the script stops the public process and broker, then validates the stopped Controller and exclusively checks the root operation journal. Pending confirmation, in-flight work, uncertain outcomes and `needs_attention` jobs block deletion, including after their authorization expires. Complete confirmation/recovery first. Confirmed or rolled-back connections remain as independent network resources; deleting their receipts does not delete them.
+After confirmation `gtm` stops the public process and broker, then validates the stopped Controller and exclusively checks the root operation journal. Pending confirmation, in-flight work, uncertain outcomes and `needs_attention` jobs block deletion, including after their authorization expires. Complete confirmation/recovery first. Confirmed or rolled-back connections remain as independent network resources; deleting their receipts does not delete them.
 
 The root preparation command is CLI-only, not an HTTP/broker operation. A failed nftables inventory is not mistaken for an absent counter table. A missing nft binary blocks removal when a metrics file exists; restore the tool and retry. If preparation refuses, files remain and previously active services are restarted. Service recovery failures are reported. Removal is not atomic across systemd and files: a later disable/delete/reload failure stops and reports failure, so inspect the remaining files and service state before retrying. No success message is printed for a partial failure.
 
 Back up private credentials, Controller identities, totals and audit if you need them later. The confirmation deliberately removes these files and creates no automatic secret copy elsewhere. To preserve identities and configurations, use **Stop Web Panel** instead of removal.
 
-Interrupted atomic writes named `.panel-<1–10 decimal digits>` in `/etc/gre-manager-panel` or `/var/lib/gre-manager-panel`, and `.tls-<1–10 decimal digits>` in `/etc/gre-manager-panel`, are recognized owned artifacts in v1.5.2. They are removed only as regular, non-symlink files after services stop and recovery checks pass. Other dotfiles still require inspection. Use the current installer and executable; an old cached installer retains its old manifest.
+Interrupted atomic writes named `.panel-<1–10 decimal digits>` in `/etc/gre-manager-panel` or `/var/lib/gre-manager-panel`, and `.tls-<1–10 decimal digits>` in `/etc/gre-manager-panel`, are recognized owned artifacts in v1.5.2. They are removed only as regular, non-symlink files after services stop and recovery checks pass. Other dotfiles still require inspection. Use the current release; an old cached installer retains its old manifest.

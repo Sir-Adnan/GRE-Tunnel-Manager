@@ -272,4 +272,22 @@ export const health = {
     "All monitored tunnels are up",
     "همهٔ تونل‌های پایش‌شده وصل هستند",
   ],
+  latTitle: ["Latency history", "تاریخچهٔ تأخیر"],
+  latHelp: [
+    "Average round trip of the health checks, its peak band and failed checks.",
+    "میانگین زمان رفت‌وبرگشت بررسی‌های سلامت، بازهٔ بیشینه و بررسی‌های ناموفق.",
+  ],
+  latRange: ["Range", "بازه"],
+  latRange_1h: ["1 hour", "1 ساعت"],
+  latRange_24h: ["24 hours", "24 ساعت"],
+  latRange_7d: ["7 days", "7 روز"],
+  latRange_30d: ["30 days", "30 روز"],
+  latMean: ["Average", "میانگین"],
+  latPeak: ["Peak", "بیشینه"],
+  latJitter: ["Jitter", "نوسان"],
+  latLoss: ["Loss", "اتلاف"],
+  latEmpty: [
+    "No checks in this range yet. History grows with every health check.",
+    "هنوز بررسی‌ای در این بازه نیست. تاریخچه با هر بررسی سلامت کامل‌تر می‌شود.",
+  ],
 } satisfies Messages;
