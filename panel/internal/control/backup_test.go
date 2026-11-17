@@ -137,6 +137,7 @@ func TestDemoBackupRecoveryPreservesSettingsAndRefusesOverwrite(t *testing.T) {
 	d.inventory.Connections = []model.Connection{}
 	d.metrics.Counters = map[string]Traffic{}
 	d.metrics.Policies = map[string]TrafficPolicy{}
+	d.metrics.Settings.Enabled = false
 	data, _ = d.Do(ctx, Request{Action: "backup-review", Backup: in})
 	json.Unmarshal(data, &review)
 	if in.Revision == review.Revision {

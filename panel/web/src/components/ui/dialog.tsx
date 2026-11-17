@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { quietOpenFocus } from "@/lib/focus";
 import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 
@@ -55,6 +56,7 @@ function DialogContent({
   closeLabel = "Close",
   scrollLayout = "content",
   mobileLayout = "sheet",
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
@@ -79,6 +81,10 @@ function DialogContent({
           className,
         )}
         {...props}
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event);
+          quietOpenFocus(event);
+        }}
       >
         {mobileLayout === "sheet" && (
           <div data-slot="sheet-grabber" aria-hidden {...drag}>

@@ -24,6 +24,7 @@ var actions = map[string]actionSpec{
 	"capabilities":                {read: true},
 	"metrics":                     {read: true},
 	"metrics-history":             {read: true},
+	"metrics-live":                {read: true},
 	"configuration":               {read: true},
 	"configuration-review":        {read: true},
 	"configuration-import-review": {read: true},

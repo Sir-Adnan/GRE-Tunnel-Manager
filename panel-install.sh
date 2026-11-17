@@ -2,7 +2,7 @@
 # Compatibility entry point. Since v1.6.0 install.sh installs the panel and
 # "gtm" maintains it; this script maps the earlier options onto them.
 set -euo pipefail
-PANEL_VERSION=1.6.1
+PANEL_VERSION=1.7.0
 PANEL_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 # Maps the earlier options; the panel kept a self-signed default unless

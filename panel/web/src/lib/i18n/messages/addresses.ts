@@ -35,7 +35,7 @@ export const addresses = {
     "اینترفیس اصلی اول آمده است. آی‌پی‌های داکر و کانتینرها نمایش داده نمی‌شوند.",
   ],
   ipNoAddresses: ["No global addresses were found.", "آی‌پی عمومی پیدا نشد."],
-  ipUplink: ["Main", "اصلی"],
+  ipUplink: ["Main IP", "آی‌پی اصلی"],
   ipUplinkInterface: [
     "Main interface (default route)",
     "اینترفیس اصلی (مسیر پیش‌فرض)",
@@ -51,8 +51,15 @@ export const addresses = {
     "{ip} is kept; it comes back after every restart.",
     "{ip} ماندگار شد و بعد از هر ری‌استارت برمی‌گردد.",
   ],
-  ipUnused: ["Not used by saved settings", "در تنظیمات ذخیره‌شده استفاده نشده"],
+  ipUnused: [
+    "Not used by any connection yet",
+    "هنوز در هیچ اتصالی استفاده نشده",
+  ],
   ipUsedBy: ["Used by {n}", "استفاده در {n} مورد"],
+  ipMainHelp: [
+    "The address the server uses for its own outgoing traffic (the first on the main interface).",
+    "آدرسی که سرور برای ترافیک خروجی خودش استفاده می‌کند (اولین آدرس روی اینترفیس اصلی).",
+  ],
   ipContainersHidden: [
     "Container addresses not shown: {n}.",
     "{n} آی‌پی کانتینر نمایش داده نشده است.",

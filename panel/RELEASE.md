@@ -1,6 +1,6 @@
-# GRE Tunnel Manager v1.6.1
+# GRE Tunnel Manager v1.7.0
 
-An installer that shows what it is doing, a fix for setups that stalled before the first screen, temporary-IP detection and a better panel on phones.
+See how fast every connection is moving right now, a redesigned Traffic page, and a panel that fits small phones better.
 
 ## Install
 
@@ -8,30 +8,24 @@ An installer that shows what it is doing, a fix for setups that stalled before t
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)"
 ```
 
-Without questions, for example HTTP with your own port and login:
-
-```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)" @ --http --port 8080 --user admin --password 'my-long-password' --yes
-```
-
 Every recipe and option: [Install, update and remove](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/INSTALL.md) ([فارسی](https://github.com/Sir-Adnan/GRE-Tunnel-Manager/blob/main/docs/fa/INSTALL.md)).
 
-## Fixed
+## New
 
-- **Setup could hang with nothing on screen** after "Package verified" under `curl … | sudo bash`. sudo (`use_pty`, the Ubuntu and Debian default) gives the script a terminal that receives no keystrokes. v1.6.0 queried that terminal's colors first and waited forever. Now the terminal is never queried, and the setup runs on the terminal sudo was started from, so questions can be answered again. `GTM_THEME=light` selects the light palette.
-- **Realm, FRP and rathole installation failed on Ubuntu and Debian:** the download's version check ran from `/run`, which these systems mount noexec. Downloads now stage under `/usr/local/lib/gre-manager`. rathole's `unzip` is installed when missing.
-- Package installs can no longer wait on a hidden debconf or needrestart question.
+- **Live speed per connection.** With usage collection on, every connection card and table row shows its current download and upload speed, refreshed every 2 seconds while the page is open. The speeds come from the kernel counters collection already keeps; nothing runs in the background and no traffic passes through the panel.
+- **Traffic page redesign:** live throughput with a one-minute chart, the busiest connections right now, this cycle's totals and top user, quota alerts, and each row's live speed and share of usage. With collection off, one card explains it and turns it on. GRE tunnels are listed but not added to totals, so forwarded bytes are never counted twice.
 
 ## Improved
 
-- **Progress you can see:** download progress bar, then one live line per step with a spinner, elapsed time, a step counter and the latest command output. Finished steps keep their duration. Output is shown in full only for a step that fails.
-- **Faster `--engines`:** one package-list refresh and one `apt-get` run for iptables, nftables, HAProxy and socat.
-- **Temporary IPs:** the IP addresses page marks an address added with `ip address add`, which a restart removes. **Keep after restart** makes it permanent.
-- **Phones:** routes no longer break across lines, and lists are not nested in a card. The top bar and page actions fit small screens. Editor rows show the whole address. Tested from 320 to 412 px wide.
-- **Docs:** one installation guide, a troubleshooting guide, a shorter README, and Persian guides for installation, use, troubleshooting, HTTPS and the firewall.
+- **Addresses stay whole.** A route never splits an IP address or port; narrow cards stack the route on two lines.
+- **Copy, don't select.** A long press selects text again (bulk selection is the **Select** button). Tap a destination to copy it.
+- **No keyboard on open.** Opening a connection or tunnel on a phone no longer focuses a field.
+- **Small phones:** spacing, icons, the header and the bottom bar scale down on narrow or zoomed screens, while text and touch targets stay readable.
+- **IP addresses:** roomier rows, copy buttons, and **Main IP** only on the real main address.
+- **DNS:** latency and the **Fastest**/**In use** tags no longer overlap.
 
 ## Upgrade
 
-`sudo gtm update`, or **Settings → Updates**. Settings, certificates, connections and Nodes are kept. Verify `SHA256SUMS`.
+`sudo gtm update`, or **Settings → Updates**. Settings, certificates, connections, traffic history and Nodes are kept. Verify `SHA256SUMS`.
 
-Local checks cover the Python and Go suites, frontend build/lint/tests, ShellCheck, installation in a disposable systemd container, and the panel at phone widths in both languages. A Let's Encrypt order, provider firewalls and reboots on a public server remain deployment checks.
+Local checks cover the Python and Go suites (race detector included), frontend build/lint/tests, ShellCheck, and the panel at 320 to 412 px and desktop widths in both languages. Live counters on a busy public server remain a deployment check.

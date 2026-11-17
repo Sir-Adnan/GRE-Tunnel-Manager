@@ -10,7 +10,7 @@
 # over to "gtm install", which asks a few questions (or takes the options
 # below) and sets up the web panel. Run with --help for every option.
 set -euo pipefail
-GTM_VERSION=1.6.1
+GTM_VERSION=1.7.0
 GTM_REPOSITORY=Sir-Adnan/GRE-Tunnel-Manager
 
 gtm_say() { printf '  %s\n' "$*"; }

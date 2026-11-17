@@ -81,6 +81,7 @@ export function SortableArea({
   onMove,
   onPreview,
   disabled,
+  pressToDrag = true,
   children,
 }: {
   ids: string[];
@@ -89,16 +90,20 @@ export function SortableArea({
   /** The order the list would have if dropped now; null when no drag runs. */
   onPreview?: (next: string[] | null) => void;
   disabled?: boolean;
+  /** A finger held on the row starts a drag (reorder lists). Off for form
+      rows, whose text a long press should select; they use the handle. */
+  pressToDrag?: boolean;
   children: ReactNode;
 }) {
   const t = useT();
   const [said, setSaid] = useState("");
-  const sensors = useSensors(
-    useSensor(HandleSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(PressSensor, {
-      activationConstraint: { delay: 260, tolerance: 8 },
-    }),
-  );
+  const handle = useSensor(HandleSensor, {
+    activationConstraint: { distance: 4 },
+  });
+  const press = useSensor(PressSensor, {
+    activationConstraint: { delay: 260, tolerance: 8 },
+  });
+  const sensors = useSensors(handle, ...(pressToDrag ? [press] : []));
   const position = (id: string | number) => ids.indexOf(String(id)) + 1;
   function start(event: DragStartEvent) {
     if (event.activatorEvent.type === "touchstart") navigator.vibrate?.(12);

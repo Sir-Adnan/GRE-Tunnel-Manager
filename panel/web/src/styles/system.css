@@ -3,9 +3,12 @@
 
 /* Five sizes cover the interface. Utilities: text-caption, text-body, text-sub, text-title, text-display. */
 @theme {
-  --text-caption: 0.75rem;
+  /* Small sizes keep a pixel floor when narrow phones shrink the root (base.css). */
+  --text-xs: max(0.75rem, 12px);
+  --text-sm: max(0.875rem, 13.5px);
+  --text-caption: max(0.75rem, 12px);
   --text-caption--line-height: 1.125rem;
-  --text-body: 0.875rem;
+  --text-body: max(0.875rem, 13.5px);
   --text-body--line-height: 1.375rem;
   --text-sub: 1rem;
   --text-sub--line-height: 1.5rem;

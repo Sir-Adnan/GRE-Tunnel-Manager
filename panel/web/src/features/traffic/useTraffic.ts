@@ -113,7 +113,31 @@ export function useTraffic(
       setBusy(false);
     }
   }
+  /** The overview's one-tap start: every supported connection, a week of history. */
+  async function enableAll() {
+    if (!metrics) return;
+    setBusy(true);
+    setError("");
+    try {
+      await run({
+        action: "metrics-configure",
+        metrics_revision: metrics.revision,
+        metrics: {
+          enabled: true,
+          interval: metrics.settings.interval || 60,
+          ids: [],
+          retention_hours: Math.max(metrics.settings.retention_hours || 0, 168),
+        },
+      });
+      accept(await api<Metrics>("metrics"), true);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
   return {
+    enableAll,
     metrics,
     enabled,
     setEnabled,

@@ -359,6 +359,7 @@ export function DestinationsStep({
       >
         <SortableArea
           ids={ids}
+          pressToDrag={false}
           onMove={(next) => move(next.map((id) => Number(id.slice(7))))}
         >
           <ol

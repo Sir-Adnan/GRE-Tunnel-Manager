@@ -33,6 +33,20 @@
   html[data-mode="light"] {
     color-scheme: light;
   }
+  /* Narrow phones (and phones whose system text or display size is enlarged,
+     which narrows the page) scale spacing, icons, the header and the bottom
+     bar with the root size. Text keeps a floor (system.css), inputs stay at
+     16px and touch targets at 44px (forms.css), so only the chrome tightens. */
+  @media (max-width: 25.99rem) {
+    html {
+      font-size: 15px;
+    }
+  }
+  @media (max-width: 22.49rem) {
+    html {
+      font-size: 14.5px;
+    }
+  }
   body {
     @apply bg-background text-foreground;
     margin: 0;

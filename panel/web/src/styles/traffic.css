@@ -1,0 +1,172 @@
+/* Traffic page: live throughput, the busiest connections, cycle totals and
+   the usage list's share bars. Received is green (success), sent is the
+   primary color, everywhere on this page and on connection cards. */
+@layer components {
+  .traffic-overview {
+    @apply grid min-w-0 items-stretch gap-4;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 64rem) {
+    .traffic-overview {
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    }
+    .traffic-overview > .traffic-tiles {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Collection off: one invitation, not an empty page. */
+  .traffic-off {
+    background:
+      radial-gradient(
+        120% 120% at 100% 0%,
+        color-mix(in srgb, var(--primary) 10%, transparent),
+        transparent 60%
+      ),
+      var(--card);
+  }
+  .traffic-off-icon {
+    @apply grid size-11 place-items-center rounded-xl [&_svg]:size-5;
+    color: var(--primary-text);
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+
+  /* Live throughput */
+  .traffic-live-state {
+    @apply inline-flex items-center gap-2 text-xs text-muted-foreground;
+  }
+  .traffic-live-state:not([data-ready]) .live-dot {
+    @apply bg-muted-foreground;
+  }
+  .traffic-readouts {
+    @apply grid grid-cols-2 gap-4;
+  }
+  .traffic-readout {
+    @apply flex min-w-0 flex-col gap-0.5;
+    --dir: var(--success-text);
+  }
+  .traffic-readout[data-dir="sent"] {
+    --dir: var(--primary-text);
+  }
+  .traffic-readout dt {
+    @apply flex items-center gap-1.5 text-xs text-muted-foreground [&_svg]:size-3.5;
+  }
+  .traffic-readout dt svg {
+    color: var(--dir);
+  }
+  .traffic-readout-value {
+    @apply font-mono text-title font-semibold tracking-tight tabular-nums sm:text-display;
+  }
+  .traffic-readout-detail {
+    @apply text-xs text-muted-foreground tabular-nums;
+  }
+  .traffic-chart {
+    @apply h-24 w-full overflow-hidden rounded-lg sm:h-28;
+    background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  }
+  .traffic-chart svg {
+    @apply block size-full;
+  }
+  .traffic-chart-grid {
+    stroke: var(--surface-line);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .traffic-chart-area {
+    fill: color-mix(in srgb, var(--success-text) 16%, transparent);
+  }
+  .traffic-chart-down,
+  .traffic-chart-up {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .traffic-chart-down {
+    stroke: var(--success-text);
+  }
+  .traffic-chart-up {
+    stroke: var(--primary-text);
+    stroke-dasharray: 4 3;
+  }
+
+  /* Busiest now: rank rows with a bar relative to the first. */
+  .traffic-rank {
+    @apply m-0 flex list-none flex-col gap-1 p-0;
+  }
+  .traffic-rank-row {
+    @apply grid w-full min-w-0 items-center gap-x-3 gap-y-1.5 rounded-lg px-2 py-2 text-start transition-colors outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .traffic-rank-name {
+    @apply flex min-w-0 items-center gap-2 text-sm font-medium;
+  }
+  .traffic-rank-rate {
+    @apply font-mono text-xs tabular-nums;
+  }
+  .traffic-rank-chevron {
+    @apply size-3.5 text-muted-foreground;
+  }
+  .traffic-rank-bar {
+    @apply h-1.5 overflow-hidden rounded-full;
+    grid-column: 1 / 2;
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+  .traffic-rank-bar > span {
+    @apply block h-full rounded-full transition-[inline-size] duration-500;
+    background: var(--primary);
+  }
+  .traffic-rank-spark {
+    grid-column: 2 / 4;
+    @apply h-4 w-16 justify-self-end;
+  }
+
+  /* Cycle totals */
+  .traffic-tiles {
+    @apply m-0 grid gap-3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 48rem) {
+    .traffic-tiles {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .traffic-tile {
+    @apply surface flex min-w-0 flex-col gap-1 rounded-xl;
+    padding: var(--card-pad);
+  }
+  .traffic-tile dt {
+    @apply flex items-center gap-1.5 text-xs text-muted-foreground [&_svg]:size-3.5;
+  }
+  .traffic-tile-value {
+    @apply truncate font-mono text-sub font-semibold tracking-tight tabular-nums sm:text-title;
+  }
+  .traffic-tile-value[data-text] {
+    @apply font-sans;
+  }
+  .traffic-tile-detail {
+    @apply truncate text-xs text-muted-foreground;
+  }
+  .traffic-tiles-note {
+    @apply col-span-full m-0 rounded-lg border px-3 py-2 text-xs;
+    color: var(--warning-text);
+    border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+  }
+
+  /* Usage list: share of the busiest row's cycle total. */
+  .usage-share {
+    @apply mt-1.5 block h-1 w-full max-w-28 overflow-hidden rounded-full;
+    background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  }
+  .usage-share > span {
+    @apply block h-full rounded-full;
+    background: color-mix(in srgb, var(--primary) 70%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .traffic-rank-bar > span {
+    transition: none;
+  }
+}

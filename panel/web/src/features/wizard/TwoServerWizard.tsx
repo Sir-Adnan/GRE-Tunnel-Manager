@@ -1,3 +1,4 @@
+import { autoFocusField } from "@/lib/focus";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -263,7 +264,7 @@ export function TwoServerWizard({
                     value={draft.remote}
                     error={error("remote")}
                     onChange={(e) => change("remote", e.target.value)}
-                    autoFocus
+                    autoFocus={autoFocusField()}
                   />
                   {inventory.host.addresses.length > 1 ? (
                     <Choice
@@ -343,7 +344,7 @@ export function TwoServerWizard({
                         value={draft.ports}
                         error={error("ports")}
                         onChange={(e) => change("ports", e.target.value)}
-                        autoFocus
+                        autoFocus={autoFocusField()}
                       />
                       <Choice
                         id="wiz-protocol"

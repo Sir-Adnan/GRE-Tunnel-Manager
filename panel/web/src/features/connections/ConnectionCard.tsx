@@ -1,12 +1,13 @@
 // One connection as a card (phones and narrow panes). Quiet by default: the
-// status, the route and the everyday actions. A long press or the toolbar's
-// "Select" turns every card into a selectable one; reordering has its own
-// list (components/ReorderList), so no card carries a drag handle.
+// status, the route, its live speed and the everyday actions. The toolbar's
+// "Select" turns every card into a selectable one. A long press is left to
+// the browser, so addresses and names can be selected and copied; reordering
+// has its own list (components/ReorderList), so no card carries a drag handle.
 import type { ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EngineGlyph, Status } from "@/components/shared";
 import { SwipeActions, type SwipeAction } from "@/components/SwipeActions";
-import { useLongPress } from "@/hooks/use-long-press";
+import { LiveRateBadge } from "@/features/traffic/live";
 import { engineName } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import type { Connection } from "@/lib/api";
@@ -24,7 +25,6 @@ export function ConnectionCard({
   selecting,
   selected,
   onSelectedChange,
-  onStartSelecting,
   onOpen,
 }: {
   row: Connection;
@@ -39,19 +39,15 @@ export function ConnectionCard({
   selecting: boolean;
   selected: boolean;
   onSelectedChange: (selected: boolean) => void;
-  /** A long press: enter selection mode with this card selected. */
-  onStartSelecting: () => void;
   onOpen: () => void;
 }) {
   const t = useT();
-  const press = useLongPress(onStartSelecting, !selecting);
   return (
     <SwipeActions start={swipe.start} end={swipe.end} disabled={selecting}>
       <article
         className="connection-card"
         data-selecting={selecting || undefined}
         data-selected={(selecting && selected) || undefined}
-        {...press}
         // While selecting, the whole card toggles; the checkbox stays the
         // control for keyboard and screen readers.
         onClick={
@@ -90,6 +86,7 @@ export function ConnectionCard({
               <bdi>{engineName(row.engine)}</bdi>
             </span>
           </div>
+          <LiveRateBadge id={row.id} className="is-stacked" />
         </div>
         <RouteChain connection={row} tone={tone} />
         {badges}

@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes, number } from "@/lib/format";
 import { archiveSamples } from "./history";
+import { trafficResources } from "./resources";
 import { UsageList } from "./UsageList";
 import { TrafficActions } from "./TrafficActions";
 import { QuotaStatus } from "./QuotaStatus";
@@ -55,22 +56,7 @@ export function TrafficWorkspace({
     [chosen, setChosen] = useState("");
   const { params, updateParams } = usePanelRoute();
   const chosenID = params.get("resource") || chosen;
-  const resources = [
-    ...inventory.connections.map((c) => ({
-      id: c.id,
-      name: c.name,
-      engine: c.engine,
-      port: c.ports,
-    })),
-    ...inventory.resources
-      .filter((r) => r.engine === "gre" || (r.role === "entrance" && r.port))
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        engine: r.engine,
-        port: r.port ? String(r.port) : r.interface || "",
-      })),
-  ];
+  const resources = trafficResources(inventory);
   const knownIDs = [
     ...new Set([
       ...resources.map((r) => r.id),

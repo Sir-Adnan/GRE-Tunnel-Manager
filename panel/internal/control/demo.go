@@ -53,7 +53,7 @@ func NewDemo() *Demo {
 		pool.Revision = model.Revision(rows[0])
 		d.inventory.Connections = append(d.inventory.Connections, pool)
 	}
-	d.metrics = MetricsView{Settings: MetricsSettings{Interval: 60, IDs: []string{}}, Counters: map[string]Traffic{}, Since: time.Now().UTC(), Policies: map[string]TrafficPolicy{}, History: map[string][]TrafficPoint{}, Cycles: map[string][]TrafficCycle{}}
+	d.metrics = demoMetrics(d.inventory, time.Now().UTC())
 	return d
 }
 func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
@@ -206,6 +206,8 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 	case "metrics":
 		m := Metrics{view: d.metrics}
 		result = m.Summary()
+	case "metrics-live":
+		result = demoLive(d.metrics.Settings, d.inventory, time.Now().UTC())
 	case "metrics-history":
 		m := Metrics{view: d.metrics}
 		archive, e := m.Archive(r.Traffic.ID)

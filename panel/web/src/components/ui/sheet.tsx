@@ -1,4 +1,5 @@
 import * as React from "react";
+import { quietOpenFocus } from "@/lib/focus";
 import { cn } from "cn";
 import { Dialog as SheetPrimitive } from "radix-ui";
 
@@ -50,6 +51,7 @@ function SheetContent({
   side = "right",
   showCloseButton = true,
   closeLabel = "Close",
+  onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
@@ -69,6 +71,10 @@ function SheetContent({
           className,
         )}
         {...props}
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event);
+          quietOpenFocus(event);
+        }}
       >
         {side === "bottom" && (
           <div data-slot="sheet-grabber" aria-hidden {...drag}>

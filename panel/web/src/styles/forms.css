@@ -458,8 +458,32 @@
   .dns-layout {
     @apply grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)];
   }
+  /* A provider: radio, then name and latency on one line, its servers (each
+     address whole, wrapping between them) and its tags on their own line, so
+     a tag never runs into the latency. */
   .dns-row {
-    @apply flex min-w-0 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:bg-muted/40;
+    @apply flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors hover:bg-muted/40;
+  }
+  .dns-row > .dns-radio {
+    @apply mt-[0.1875rem];
+  }
+  .dns-row-body {
+    @apply flex min-w-0 flex-1 flex-col gap-1;
+  }
+  .dns-row-top {
+    @apply flex min-w-0 items-center justify-between gap-3;
+  }
+  .dns-name {
+    @apply min-w-0 truncate text-sm font-medium;
+  }
+  .dns-servers {
+    @apply flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-muted-foreground;
+  }
+  .dns-servers > span {
+    @apply whitespace-nowrap;
+  }
+  .dns-tags {
+    @apply mt-1 flex flex-wrap items-center gap-1.5;
   }
   .dns-row[data-static] {
     @apply cursor-default py-2 hover:bg-transparent;
@@ -479,13 +503,30 @@
     box-shadow: inset 0 0 0 3px var(--background);
     background: var(--primary);
   }
+  /* Latency: the number, then a short meter (longer = slower). */
   .dns-latency {
-    @apply relative inline-flex min-w-24 shrink-0 items-center justify-end gap-1 text-xs tabular-nums;
+    @apply inline-flex shrink-0 items-center gap-2 text-xs font-medium tabular-nums;
+  }
+  .dns-latency::after {
+    content: "";
+    @apply h-1 w-8 shrink-0 rounded-full;
+    background: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .dns-latency:has(.dns-latency-bar)::after {
+    display: none;
   }
   .dns-latency-bar {
-    @apply absolute -bottom-1 end-0 h-0.5 rounded-full;
+    @apply relative order-last h-1 w-8 shrink-0 overflow-hidden rounded-full;
+    background: color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .dns-latency-bar::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: var(--fill, 0%);
+    border-radius: inherit;
     background: currentColor;
-    opacity: 0.5;
   }
   .dns-latency[data-state="good"] {
     @apply text-success-text;

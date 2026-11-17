@@ -25,6 +25,7 @@ import { templates } from "./templates";
 import { signin } from "./signin";
 import { server } from "./server";
 import { wizard } from "./wizard";
+import { live } from "./live";
 
 export const modules = {
   access,
@@ -53,6 +54,7 @@ export const modules = {
   signin,
   server,
   wizard,
+  live,
 };
 
 export const messages = {
@@ -82,4 +84,5 @@ export const messages = {
   ...signin,
   ...server,
   ...wizard,
+  ...live,
 };

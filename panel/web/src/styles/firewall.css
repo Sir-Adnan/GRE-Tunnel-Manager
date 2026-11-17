@@ -283,24 +283,33 @@
   .ip-list {
     @apply flex flex-col divide-y rounded-lg border;
   }
+  /* One address per row: the address (large, copyable), what it is, what
+     uses it. Rows breathe like list cards; on phones they keep 1rem sides. */
   .ip-row {
-    @apply flex min-w-0 flex-col gap-1 px-3 py-2.5;
+    @apply flex min-w-0 flex-col gap-2.5 px-4 py-3.5;
+  }
+  .ip-row-head {
+    @apply -my-1 flex min-w-0 items-center justify-between gap-2;
   }
   .ip-row-main {
     @apply flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1;
   }
   .ip-address {
-    @apply font-mono text-sm font-medium [overflow-wrap:anywhere];
+    @apply min-w-0 font-mono text-sub font-semibold tracking-tight [overflow-wrap:anywhere];
+  }
+  .ip-prefix {
+    @apply font-normal text-muted-foreground;
   }
   .ip-row-uses {
-    @apply flex flex-col text-xs text-muted-foreground;
+    @apply flex min-w-0 items-start gap-2 text-xs leading-5 text-muted-foreground [&>svg]:mt-0.5 [&>svg]:size-3.5 [&>svg]:shrink-0;
   }
   /* A hand-added address: why it matters, and the one-click fix. */
   .ip-temporary {
-    @apply flex flex-wrap items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs;
-    background: color-mix(in oklab, var(--fw-warn) 10%, transparent);
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-xs;
+    border-color: color-mix(in oklab, var(--fw-warn) 30%, transparent);
+    background: color-mix(in oklab, var(--fw-warn) 8%, transparent);
     p {
-      @apply flex min-w-0 flex-1 basis-56 items-start gap-1.5 leading-relaxed;
+      @apply m-0 flex min-w-0 flex-1 basis-56 items-start gap-2 leading-relaxed text-foreground;
     }
     p svg {
       @apply mt-0.5 size-3.5 shrink-0;

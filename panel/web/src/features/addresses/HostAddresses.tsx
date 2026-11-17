@@ -2,7 +2,7 @@
 // An address added by hand (nothing re-creates it at boot) is marked
 // temporary and can be kept in an owned unit with one click.
 import { useState } from "react";
-import { Pin, TriangleAlert } from "lucide-react";
+import { Copy, Link2, Network, Pin, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { fill } from "@/features/firewall/text";
 import { operate } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 import { errorMessage, useT } from "@/lib/i18n";
 import type { AddressReport, HostAddress } from "./model";
 
@@ -47,13 +48,18 @@ export function HostAddresses({
   const extra = new Set(report.extra.map((x) => x.address.split("/")[0]));
   const rows = report.addresses.filter((a) => !a.container);
   const containers = report.addresses.length - rows.length;
+  // The kernel lists the uplink's original address first: that one is the
+  // server's own source address. Others on the same interface are extras.
+  const main = rows.find(
+    (a) => a.uplink && !a.temporary && !extra.has(a.address),
+  )?.address;
   return (
     <Card>
       <CardHeader>
         <CardTitle>{t("ipServerAddresses")}</CardTitle>
         <CardDescription>{t("ipServerAddressesHelp")}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2">
+      <CardContent className="flex flex-col gap-3">
         {rows.length === 0 && (
           <p className="text-sm text-muted-foreground">{t("ipNoAddresses")}</p>
         )}
@@ -64,34 +70,43 @@ export function HostAddresses({
             );
             return (
               <li key={`${a.interface}-${a.address}`} className="ip-row">
-                <div className="ip-row-main">
+                <div className="ip-row-head">
                   <bdi dir="ltr" className="ip-address">
                     {a.address}
-                    <span className="text-muted-foreground">/{a.prefix}</span>
+                    <span className="ip-prefix">/{a.prefix}</span>
                   </bdi>
-                  <span className="fw-chips">
-                    <span className="fw-chip">
-                      <bdi dir="ltr">{a.interface}</bdi>
-                    </span>
-                    {a.uplink && (
-                      <span className="fw-pill" data-tone="ok">
-                        <span className="fw-pill-dot" aria-hidden />
-                        {t("ipUplink")}
-                      </span>
-                    )}
-                    {extra.has(a.address) && (
-                      <span className="fw-pill">
-                        <span className="fw-pill-dot" aria-hidden />
-                        {t("ipExtraBadge")}
-                      </span>
-                    )}
-                    {a.temporary && (
-                      <span className="fw-pill" data-tone="warn">
-                        <span className="fw-pill-dot" aria-hidden />
-                        {t("ipTemporary")}
-                      </span>
-                    )}
+                  <CopyIconButton text={a.address} />
+                </div>
+                <div className="fw-chips">
+                  <span
+                    className="fw-chip"
+                    title={a.uplink ? t("ipUplinkInterface") : undefined}
+                  >
+                    <Network aria-hidden className="size-3" />
+                    <bdi dir="ltr">{a.interface}</bdi>
                   </span>
+                  {a.address === main && (
+                    <span
+                      className="fw-pill"
+                      data-tone="ok"
+                      title={t("ipMainHelp")}
+                    >
+                      <span className="fw-pill-dot" aria-hidden />
+                      {t("ipUplink")}
+                    </span>
+                  )}
+                  {extra.has(a.address) && (
+                    <span className="fw-pill">
+                      <span className="fw-pill-dot" aria-hidden />
+                      {t("ipExtraBadge")}
+                    </span>
+                  )}
+                  {a.temporary && (
+                    <span className="fw-pill" data-tone="warn">
+                      <span className="fw-pill-dot" aria-hidden />
+                      {t("ipTemporary")}
+                    </span>
+                  )}
                 </div>
                 {a.temporary && (
                   <div className="ip-temporary">
@@ -110,25 +125,26 @@ export function HostAddresses({
                     </Button>
                   </div>
                 )}
-                <p className="ip-row-uses">
-                  {uses.length === 0
-                    ? t("ipUnused")
-                    : fill(t("ipUsedBy"), {
-                        n: uses.length,
-                      })}
-                  {uses.length > 0 && (
-                    <span className="fw-chips mt-1">
-                      {uses.slice(0, 4).map((u) => (
-                        <span key={`${u.kind}-${u.id}`} className="fw-chip">
-                          <bdi>{u.name}</bdi>
-                        </span>
-                      ))}
-                      {uses.length > 4 && (
-                        <span className="fw-chip">+{uses.length - 4}</span>
-                      )}
+                <div className="ip-row-uses">
+                  <Link2 aria-hidden />
+                  {uses.length === 0 ? (
+                    <span>{t("ipUnused")}</span>
+                  ) : (
+                    <span className="flex min-w-0 flex-col gap-1.5">
+                      <span>{fill(t("ipUsedBy"), { n: uses.length })}</span>
+                      <span className="fw-chips">
+                        {uses.slice(0, 4).map((u) => (
+                          <span key={`${u.kind}-${u.id}`} className="fw-chip">
+                            <bdi>{u.name}</bdi>
+                          </span>
+                        ))}
+                        {uses.length > 4 && (
+                          <span className="fw-chip">+{uses.length - 4}</span>
+                        )}
+                      </span>
                     </span>
                   )}
-                </p>
+                </div>
               </li>
             );
           })}
@@ -140,5 +156,26 @@ export function HostAddresses({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** A quiet icon button that copies an address and confirms with a toast. */
+function CopyIconButton({ text }: { text: string }) {
+  const t = useT();
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className="text-muted-foreground"
+      aria-label={`${t("copy")} ${text}`}
+      title={t("copy")}
+      onClick={async () => {
+        if (await copyText(text)) toast.success(`${t("copied")}: ${text}`);
+        else toast.error(t("copyFailed"));
+      }}
+    >
+      <Copy />
+    </Button>
   );
 }

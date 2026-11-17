@@ -272,6 +272,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.forward(w, r, control.Request{Action: "inventory"})
 	case r.URL.Path == "/api/metrics" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "metrics"})
+	case r.URL.Path == "/api/metrics/live" && r.Method == "GET":
+		s.forward(w, r, control.Request{Action: "metrics-live"})
 	case r.URL.Path == "/api/metrics/history" && r.Method == "GET":
 		s.forward(w, r, control.Request{Action: "metrics-history", Traffic: control.TrafficChange{ID: r.URL.Query().Get("id")}})
 	case strings.HasPrefix(r.URL.Path, "/api/jobs/") && r.Method == "GET":

@@ -18,6 +18,7 @@ import {
 } from "@/lib/connection-filters";
 import type { Connection, Inventory } from "@/lib/api";
 import { ConnectionTable } from "./ConnectionTable";
+import { LiveTrafficProvider } from "@/features/traffic/live";
 const ConfigurationImport = lazy(() =>
   import("../configuration/ConfigurationImport").then((m) => ({
     default: m.ConfigurationImport,
@@ -120,15 +121,17 @@ export function ConnectionWorkspace({
       />
       <Card className="list-shell">
         <CardContent>
-          <ConnectionTable
-            key={engine}
-            connections={connections}
-            onAdd={create}
-            onEdit={edit}
-            onDuplicate={duplicate}
-            run={run}
-            inventory={inventory}
-          />
+          <LiveTrafficProvider>
+            <ConnectionTable
+              key={engine}
+              connections={connections}
+              onAdd={create}
+              onEdit={edit}
+              onDuplicate={duplicate}
+              run={run}
+              inventory={inventory}
+            />
+          </LiveTrafficProvider>
         </CardContent>
       </Card>
       {wizard && (

@@ -10,7 +10,7 @@ Tunnels and forwards are managed in the web panel. Install it as described in [I
 | --- | --- |
 | Overview | Server status and the items that need attention |
 | Connections | iptables/nftables forwards, HAProxy and Realm relays: create, edit, balance, enable/disable |
-| Traffic usage · Health | Optional per-connection accounting, quotas, uptime and outage history |
+| Traffic usage · Health | Optional per-connection accounting: live speed of each connection, busiest connections, usage this cycle and quotas; uptime and outage history |
 | Nodes | Other servers, coordinated GRE/FRP setup between two servers |
 | GRE tunnels · Reverse tunnels | Server links and FRP/rathole reverse connections on this server |
 | Firewall · IP addresses | Host firewall and access rules; what uses each address, IP changes and additional IPs |

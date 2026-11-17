@@ -55,3 +55,8 @@ export function uptime(value: string, locale: Locale) {
     )
     .join(" · ");
 }
+
+/** "ip:port", with IPv6 in brackets, as typed into a client or `nc`. */
+export function endpointText(ip: string, port: number) {
+  return `${ip.includes(":") ? `[${ip}]` : ip}:${port}`;
+}

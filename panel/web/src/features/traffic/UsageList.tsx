@@ -18,6 +18,7 @@ import { LocaleContext, useT } from "@/lib/i18n";
 import { engineName, trafficBytes } from "@/lib/format";
 import { cycleUsage } from "./accounting";
 import { QuotaStatus } from "./QuotaStatus";
+import { LiveRateBadge } from "./live";
 import { TrafficActions } from "./TrafficActions";
 
 type UsageRow = {
@@ -100,8 +101,28 @@ export function UsageList(p: {
         )}
         {row.policy?.label && <> · {row.policy.label}</>}
       </span>
+      <LiveRateBadge id={row.id} />
     </div>
   );
+  // Each row's share of the busiest row's cycle total, as a quiet bar.
+  const totals = p.rows.map((r) => {
+    const v = r.counter ? cycleUsage(r.counter) : { received: 0, sent: 0 };
+    return v.received + v.sent;
+  });
+  const largest = Math.max(1, ...totals);
+  const share = (row: UsageRow) => {
+    const v = row.counter ? cycleUsage(row.counter) : undefined;
+    if (!v) return null;
+    return (
+      <span className="usage-share" aria-hidden>
+        <span
+          style={{
+            inlineSize: `${(100 * (v.received + v.sent)) / largest}%`,
+          }}
+        />
+      </span>
+    );
+  };
   const quota = (row: UsageRow) => (
     <QuotaStatus
       counter={row.counter}
@@ -180,6 +201,7 @@ export function UsageList(p: {
                   {(["received", "sent", "total"] as const).map((k) => (
                     <TableCell key={k}>
                       <bdi className="tabular-nums">{bytes(row, k)}</bdi>
+                      {k === "total" && share(row)}
                     </TableCell>
                   ))}
                   <TableCell>{quota(row)}</TableCell>
@@ -205,6 +227,7 @@ export function UsageList(p: {
                     <dt className="text-xs text-muted-foreground">{t(k)}</dt>
                     <dd className="mt-1 break-words tabular-nums">
                       <bdi>{bytes(row, k)}</bdi>
+                      {k === "total" && share(row)}
                     </dd>
                   </div>
                 ))}

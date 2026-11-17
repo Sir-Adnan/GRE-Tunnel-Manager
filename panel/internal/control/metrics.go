@@ -54,6 +54,10 @@ type Metrics struct {
 	view      MetricsView
 	signature string
 	nftActive bool
+	// Live rates (metrics_live.go): the last on-demand sample and the GRE
+	// interfaces collected at the last reconciliation.
+	live           liveState
+	liveInterfaces map[string]string
 }
 
 func NewMetrics(r Runner, path string) (*Metrics, error) {
@@ -286,6 +290,7 @@ func (m *Metrics) reconcile(ctx context.Context, inventory Inventory) error {
 		rules = metricsRules(inventory, m.view.Settings, quotaBlocks(m.view))
 	}
 	m.nftActive = rules != ""
+	m.rememberInterfaces(inventory)
 	signature := rules
 	for _, r := range inventory.Resources {
 		if r.Engine == "gre" && wanted(m.view.Settings.IDs, r.ID) {
@@ -339,23 +344,12 @@ func (m *Metrics) collect(ctx context.Context) error {
 	if e != nil {
 		return errors.New("cannot read metrics table; no totals were reset")
 	}
-	var data struct {
-		NFTables []struct {
-			Counter *struct {
-				Name  string `json:"name"`
-				Bytes uint64 `json:"bytes"`
-			} `json:"counter"`
-		} `json:"nftables"`
-	}
-	if e = json.Unmarshal([]byte(out), &data); e != nil {
+	counters, e := nftCounters(out)
+	if e != nil {
 		return e
 	}
 	now := time.Now().UTC()
-	for _, entry := range data.NFTables {
-		if entry.Counter == nil {
-			continue
-		}
-		name := entry.Counter.Name
+	for name, sample := range counters {
 		if !strings.HasSuffix(name, "_rx") && !strings.HasSuffix(name, "_tx") {
 			continue
 		}
@@ -367,7 +361,6 @@ func (m *Metrics) collect(ctx context.Context) error {
 			return errors.New("traffic archive full; forget removed resources")
 		}
 		v := m.view.Counters[id]
-		sample := entry.Counter.Bytes
 		v.Source = "nftables"
 		v.Updated = now
 		if strings.HasSuffix(name, "_rx") {

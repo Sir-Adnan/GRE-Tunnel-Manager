@@ -11,7 +11,7 @@ import {
   ServerCog,
   Zap,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,11 @@ function Latency({ probe }: { probe?: Probe }) {
     <span className="dns-latency" data-state={state}>
       <span
         className="dns-latency-bar"
-        style={{ inlineSize: `${Math.min(100, (probe.rtt_ms / 200) * 100)}%` }}
+        style={
+          {
+            "--fill": `${Math.max(8, Math.min(100, (probe.rtt_ms / 200) * 100))}%`,
+          } as CSSProperties
+        }
         aria-hidden
       />
       <bdi>
@@ -393,30 +397,43 @@ export function ServerDNS({
                         onChange={() => setChoice(p.id)}
                       />
                       <span className="dns-radio" aria-hidden />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2 text-sm font-medium">
-                          {p.name}
-                          {fastest === p.id && (
-                            <Badge className="gap-1" variant="secondary">
-                              <Zap className="size-3" aria-hidden />
-                              {t("dnsFastest")}
-                            </Badge>
-                          )}
-                          {view?.managed &&
+                      <span className="dns-row-body">
+                        <span className="dns-row-top">
+                          <span className="dns-name">{p.name}</span>
+                          <Latency probe={probes[p.servers[0]]} />
+                        </span>
+                        <bdi dir="ltr" className="dns-servers">
+                          {p.servers.map((s) => (
+                            <span key={s}>{s}</span>
+                          ))}
+                        </bdi>
+                        {(fastest === p.id ||
+                          (view?.managed &&
                             p.servers.every((s) =>
                               view.servers.includes(s),
-                            ) && (
-                              <Badge variant="outline">{t("dnsInUse")}</Badge>
+                            ))) && (
+                          <span className="dns-tags">
+                            {fastest === p.id && (
+                              <Badge className="gap-1" variant="secondary">
+                                <Zap className="size-3" aria-hidden />
+                                {t("dnsFastest")}
+                              </Badge>
                             )}
-                        </span>
-                        <bdi
-                          dir="ltr"
-                          className="block truncate font-mono text-xs text-muted-foreground"
-                        >
-                          {p.servers.join("  ·  ")}
-                        </bdi>
+                            {view?.managed &&
+                              p.servers.every((s) =>
+                                view.servers.includes(s),
+                              ) && (
+                                <Badge variant="outline" className="gap-1">
+                                  <CheckCircle2
+                                    className="size-3"
+                                    aria-hidden
+                                  />
+                                  {t("dnsInUse")}
+                                </Badge>
+                              )}
+                          </span>
+                        )}
                       </span>
-                      <Latency probe={probes[p.servers[0]]} />
                     </label>
                   ))}
                 {group === "iran" && (

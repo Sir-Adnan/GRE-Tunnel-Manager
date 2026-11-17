@@ -492,6 +492,11 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 			return nil, errors.New("metrics unavailable")
 		}
 		return m.Metrics.Archive(r.Traffic.ID)
+	case "metrics-live":
+		if m.Metrics == nil {
+			return nil, errors.New("metrics unavailable")
+		}
+		return m.Metrics.Live(ctx), nil
 	case "metrics-configure":
 		if m.Metrics == nil {
 			return nil, errors.New("metrics unavailable")

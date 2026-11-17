@@ -186,6 +186,18 @@ export type HostTelemetry = {
   interfaces: string[];
   error?: string;
 };
+/** Live per-connection throughput (GET metrics/live), bytes per second. */
+export type TrafficLive = {
+  time: string;
+  /** 0 until two samples exist (first view, after a pause or a reset). */
+  window_seconds: number;
+  enabled: boolean;
+  rates: Record<
+    string,
+    { received_per_second: number; sent_per_second: number }
+  >;
+  error?: string;
+};
 export type TrafficArchive = {
   id: string;
   history: {

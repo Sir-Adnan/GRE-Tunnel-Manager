@@ -547,15 +547,48 @@
     gap: var(--list-gap);
     padding: var(--card-pad);
   }
-  /* A long press selects, so the browser's own press menu stays out of it. */
-  @media (pointer: coarse) {
-    .connection-card {
-      -webkit-touch-callout: none;
-      user-select: none;
+  /* The card sizes its own route: below 26rem the route stacks (listener,
+     a short wire pointing down, destination), so an address always has the
+     card's full width and never splits. */
+  .connection-card {
+    container-type: inline-size;
+  }
+  @container (max-width: 26rem) {
+    .connection-card .route-chain {
+      @apply flex-col items-start gap-y-1;
+    }
+    .connection-card .route-chain > .chain-node.is-target {
+      @apply max-w-full;
+    }
+    .connection-card .chain-wire {
+      flex: none;
+      width: 2px;
+      height: 0.75rem;
+      min-width: 0;
+      max-width: none;
+      margin: 0;
+      margin-inline-start: 1rem;
+      background: repeating-linear-gradient(
+        180deg,
+        currentColor 0 3px,
+        transparent 3px 6px
+      );
+      animation: none;
+    }
+    .connection-card .chain-wire::after {
+      inset-inline-end: auto;
+      left: 50%;
+      top: auto;
+      bottom: -3px;
+      translate: -50% 0;
+      border-block: 0;
+      border-inline: 4px solid transparent;
+      border-top: 5px solid currentColor;
     }
   }
+  /* While selecting, a tap toggles the card, so text is not selected. */
   .connection-card[data-selecting] {
-    @apply cursor-pointer;
+    @apply cursor-pointer select-none;
   }
   .connection-card[data-selected] {
     background: color-mix(in srgb, var(--primary) 7%, var(--card));
@@ -634,12 +667,51 @@
   .connection-card-state {
     @apply flex min-w-0 items-center gap-2;
   }
+  /* An IPv4 address and a port each stay whole; only the gap between them
+     (a <wbr>) may break. IPv6 can be longer than a phone, so it may break. */
   .endpoint-value {
-    overflow-wrap: break-word;
     font-variant-numeric: tabular-nums;
   }
-  .endpoint-value > span:last-child {
+  .endpoint-value > span {
     white-space: nowrap;
+  }
+  .endpoint-value[data-v6] > span:first-child {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* A destination is a button: tap copies it (one address) or lists them. */
+  .endpoint-copy {
+    @apply inline-flex min-w-0 max-w-full cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm py-0.5 text-start font-mono text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring;
+    color: inherit;
+  }
+  .endpoint-copy:hover {
+    color: var(--primary-text, var(--primary));
+  }
+  .endpoint-copy-icon {
+    @apply size-3 shrink-0 text-muted-foreground opacity-60 transition-opacity;
+  }
+  .endpoint-copy:hover .endpoint-copy-icon,
+  .endpoint-copy:focus-visible .endpoint-copy-icon {
+    @apply opacity-100;
+  }
+  /* Live speed beside a connection: down and up, quiet when idle. */
+  .live-rate {
+    @apply inline-flex shrink-0 items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4 text-muted-foreground tabular-nums;
+  }
+  .live-rate.is-stacked {
+    @apply ms-auto flex-col items-end self-start pt-0.5;
+  }
+  .live-rate-dir {
+    @apply inline-flex items-center gap-0.5 whitespace-nowrap [&_svg]:size-3;
+  }
+  .live-rate-dir:first-child svg {
+    color: var(--success-text, var(--primary));
+  }
+  .live-rate-dir:last-child svg {
+    color: var(--primary-text, var(--primary));
+  }
+  .live-rate[data-idle] {
+    @apply opacity-60;
   }
   .settings-workspace {
     @apply min-w-0 gap-5;

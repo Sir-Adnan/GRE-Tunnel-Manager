@@ -51,6 +51,7 @@ import { useT } from "@/lib/i18n";
 import { toast } from "sonner";
 import { ReorderList } from "@/components/ReorderList";
 import { ConnectionCard } from "./ConnectionCard";
+import { LiveRateBadge } from "@/features/traffic/live";
 import { applyOrder, mergeOrder, useOrder } from "@/lib/order";
 import { useHealthView, useLoaded } from "@/features/operations/hooks";
 import { ConnectionBadges } from "@/features/check/ConnectionBadges";
@@ -395,10 +396,6 @@ export function ConnectionTable({
                     selecting={selecting}
                     selected={isSelected(row.id)}
                     onSelectedChange={(on) => setRowSelected(row.id, on)}
-                    onStartSelecting={() => {
-                      setSelecting(true);
-                      setRowSelected(row.id, true);
-                    }}
                     onOpen={() => updateParams({ connection: row.id }, true)}
                   />
                 ))}
@@ -502,6 +499,7 @@ export function ConnectionTable({
                               tone={toneOf(row)}
                             />
                           </span>
+                          <LiveRateBadge id={row.id} className="mt-1.5" />
                         </TableCell>
                         <TableCell>{actions(row)}</TableCell>
                       </TableRow>

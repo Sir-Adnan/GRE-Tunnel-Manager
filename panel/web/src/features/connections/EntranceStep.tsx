@@ -1,6 +1,7 @@
 // Step 1: what arrives here, as three short sections — the method (engine),
 // the entrance (ports, protocol and how several ports map to the remote side;
 // ranges stay one kernel rule) and the optional name, preset and start.
+import { autoFocusField } from "@/lib/focus";
 import { useContext } from "react";
 import {
   ArrowRight,
@@ -206,7 +207,7 @@ export function EntranceStep({
             }}
             onBlur={(event) => event.target.setCustomValidity(portsError)}
             required
-            autoFocus
+            autoFocus={autoFocusField()}
             maxLength={1024}
             error={portsError}
             description={

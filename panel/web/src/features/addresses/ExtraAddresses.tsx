@@ -1,6 +1,6 @@
 // Additional addresses kept by gtm-addr-N units: state, return route and removal.
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Route, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -72,10 +72,21 @@ export function ExtraAddresses({
           <ul className="ip-list">
             {report.extra.map((x) => (
               <li key={x.id} className="ip-row">
-                <div className="ip-row-main">
+                <div className="ip-row-head">
                   <bdi dir="ltr" className="ip-address">
                     {x.address}
                   </bdi>
+                  <ActionButton
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground"
+                    label={fill(t("ipExtraRemove"), { a: x.address })}
+                    onClick={() => setRemoving(x)}
+                  >
+                    <Trash2 />
+                  </ActionButton>
+                </div>
+                <div className="ip-row-main">
                   <span className="fw-chips">
                     <span className="fw-chip">
                       <bdi dir="ltr">{x.interface}</bdi>
@@ -91,27 +102,21 @@ export function ExtraAddresses({
                       )}
                     </span>
                   </span>
-                  <ActionButton
-                    variant="ghost"
-                    size="icon-sm"
-                    className="ms-auto"
-                    label={fill(t("ipExtraRemove"), { a: x.address })}
-                    onClick={() => setRemoving(x)}
-                  >
-                    <Trash2 />
-                  </ActionButton>
                 </div>
                 <p className="ip-row-uses">
-                  {x.gateway ? (
-                    <>
-                      {t("ipExtraOwnRoute")}{" "}
-                      <bdi dir="ltr" className="font-mono">
-                        {x.gateway}
-                      </bdi>
-                    </>
-                  ) : (
-                    t("ipExtraMainRoute")
-                  )}
+                  <Route aria-hidden />
+                  <span>
+                    {x.gateway ? (
+                      <>
+                        {t("ipExtraOwnRoute")}{" "}
+                        <bdi dir="ltr" className="font-mono">
+                          {x.gateway}
+                        </bdi>
+                      </>
+                    ) : (
+                      t("ipExtraMainRoute")
+                    )}
+                  </span>
                 </p>
               </li>
             ))}
