@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,59 @@ func TestTwoFactorSetupLoginAndSessions(t *testing.T) {
 	}
 	// Two-factor actions are never jobs.
 	if w = request(s, "/api/operations", `{"action":"two-factor-disable"}`, origin, session.CSRF, cookie); w.Code != 400 {
+		t.Fatal(w.Code)
+	}
+}
+
+func TestPasswordChangeKeepsCallerAndSignsOutOthers(t *testing.T) {
+	s := testServer(t)
+	s.Demo = false // apply the new password to this process, as a real panel does
+	const origin = "http://panel.local"
+	signIn := func(password string) (int, *http.Cookie, auth.Session) {
+		w := request(s, "/api/login", `{"username":"admin","password":"`+password+`"}`, origin, "", nil)
+		var out struct {
+			Session auth.Session `json:"session"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		if w.Code != 200 {
+			return w.Code, nil, out.Session
+		}
+		return w.Code, w.Result().Cookies()[0], out.Session
+	}
+	_, cookie, session := signIn("test-panel-password")
+	_, other, _ := signIn("test-panel-password")
+	change := func(body string) int {
+		return request(s, "/api/security/password", body, origin, session.CSRF, cookie).Code
+	}
+	// The demo broker's current password is demo-panel-12345.
+	if code := change(`{"current":"demo-panel-12345","next":"short"}`); code != 400 {
+		t.Fatal("short password accepted", code)
+	}
+	w := request(s, "/api/security/password", `{"current":"demo-panel-12345","next":"a-brand-new-password"}`, origin, session.CSRF, cookie)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"signed_out":1`) {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if w = request(s, "/api/security", "", "", "", cookie); w.Code != 200 {
+		t.Fatal("the browser that changed the password was signed out", w.Code)
+	}
+	if w = request(s, "/api/security", "", "", "", other); w.Code == 200 {
+		t.Fatal("another session survived the change")
+	}
+	if code, _, _ := signIn("test-panel-password"); code != 401 {
+		t.Fatal("old password still works", code)
+	}
+	if code, _, _ := signIn("a-brand-new-password"); code != 200 {
+		t.Fatal("new password refused", code)
+	}
+	// Five wrong current passwords pause changes for this session.
+	for i := 0; i < 5; i++ {
+		change(`{"current":"wrong-password-x","next":"another-new-password"}`)
+	}
+	if code := change(`{"current":"demo-panel-12345","next":"another-new-password"}`); code != 429 {
+		t.Fatal("guessing was not limited", code)
+	}
+	// Never a job through the operations endpoint.
+	if w = request(s, "/api/operations", `{"action":"panel-password"}`, origin, session.CSRF, cookie); w.Code != 400 {
 		t.Fatal(w.Code)
 	}
 }

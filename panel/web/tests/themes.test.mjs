@@ -71,3 +71,16 @@ test("Signal is the default everywhere a default is declared, and every preset i
     assert.ok(registry.includes(`\n    ${id}: {`), `${id} is registered`);
   }
 });
+
+test("Nettinx status tokens are added beside the exact import and read at WCAG AA", () => {
+  const [, light, dark] = modes(read("../src/experience/styles/nettinx/approved-overrides.css"));
+  const [base, baseDark] = modes(read("../src/experience/styles/nettinx/tokens.css"));
+  const status = ["primary-text", "destructive-text", "success", "success-foreground", "success-text", "warning", "warning-foreground", "warning-text", "info", "info-foreground", "info-text"];
+  for (const [mode, added, imported] of [["light", light, base], ["dark", dark, baseDark]]) {
+    assert.deepEqual(Object.keys(added).sort(), [...status].sort(), `${mode} adds only status tokens`);
+    for (const name of Object.keys(added)) assert.equal(imported[name], undefined, `${mode} leaves imported ${name} alone`);
+    const tokens = { ...imported, ...added };
+    for (const [text, surface, minimum] of pairs.filter(([text]) => status.includes(text)))
+      assert.ok(contrast(tokens[text], tokens[surface]) >= minimum, `nettinx/${mode} ${text} on ${surface}`);
+  }
+});

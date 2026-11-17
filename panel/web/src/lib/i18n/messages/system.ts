@@ -51,11 +51,6 @@ export const system = {
     "Refresh every 30 seconds; pauses when this tab is hidden.",
     "هر 30 ثانیه؛ با پنهان‌شدن تب متوقف می‌شود.",
   ],
-  account: ["Account & access", "حساب و دسترسی"],
-  passwordHelp: [
-    "Change the password over SSH with the command below. It restarts the panel and signs out every session.",
-    "برای تغییر رمز، دستور زیر را در SSH اجرا کنید. پنل دوباره راه‌اندازی می‌شود و همهٔ نشست‌ها خارج می‌شوند.",
-  ],
   exactTheme: [
     "Nettinx uses the original palette. Some original color pairs have limited contrast.",
     "رنگ‌های Nettinx مطابق تم اصلی هستند؛ کنتراست بعضی ترکیب‌ها محدود است.",

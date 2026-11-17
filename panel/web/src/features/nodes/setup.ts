@@ -1,3 +1,5 @@
+import { agentCommand as agentInstall } from "../../lib/commands.ts";
+
 /** Only literal addresses or domain names; never interpolate shell syntax. */
 export function controllerURL(input: string): string | undefined {
   const host = input.trim().replace(/^\[([^\]]+)\]$/, "$1");
@@ -13,14 +15,11 @@ export function controllerURL(input: string): string | undefined {
   }
 }
 
-export const installerDownload =
-  "curl -fsSL --ipv4 https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/node-install.sh -o node-install.sh";
-
+/** Run on the panel server: opens the Agent listener (TLS, port 9443). */
 export function controllerCommand(host: string): string | undefined {
   const url = controllerURL(host);
-  return url
-    ? `${installerDownload} && sudo bash node-install.sh --controller --url '${url}'`
-    : undefined;
+  return url ? `sudo gtm controller enable --url '${url}'` : undefined;
 }
 
-export const agentCommand = `${installerDownload} && sudo bash node-install.sh --agent`;
+export const agentCommand = agentInstall();
+export const agentTrafficCommand = agentInstall(["--traffic"]);

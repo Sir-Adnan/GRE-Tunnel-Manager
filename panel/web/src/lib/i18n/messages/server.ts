@@ -120,4 +120,16 @@ export const server = {
     "The update could not start: {e}",
     "به‌روزرسانی شروع نشد: {e}",
   ],
+  srvPasswordSame: [
+    "Choose a password different from the current one",
+    "رمز جدید باید با رمز فعلی فرق داشته باشد",
+  ],
+  srvPasswordThrottled: [
+    "Too many wrong passwords. Try again in 10 minutes.",
+    "رمز نادرست زیاد وارد شد. 10 دقیقهٔ دیگر دوباره امتحان کنید.",
+  ],
+  srvPasswordRestart: [
+    "The new password is saved, but the panel could not switch to it. Restart it with sudo systemctl restart gre-manager-panel and sign in with the new password.",
+    "رمز جدید ذخیره شد اما پنل نتوانست به آن سوییچ کند. با دستور sudo systemctl restart gre-manager-panel آن را دوباره راه‌اندازی کنید و با رمز جدید وارد شوید.",
+  ],
 } satisfies Messages;

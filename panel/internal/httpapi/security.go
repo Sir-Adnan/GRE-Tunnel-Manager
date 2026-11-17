@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,8 @@ type security struct {
 	mu        sync.Mutex
 	pending   map[string]pendingSecret // by session ID
 	remaining int                      // unused recovery codes
+	// wrong current passwords by session ID; five in ten minutes pause changes.
+	passwordFailures map[string][]time.Time
 }
 
 type pendingSecret struct {
@@ -180,9 +183,66 @@ func (s *Server) securityRoutes(w http.ResponseWriter, r *http.Request, session 
 		}
 		s.Auth.SetTwoFactor("")
 		reply(w, 200, s.securityView(r))
+	case r.URL.Path == "/api/security/password" && r.Method == "POST":
+		// The broker checks the current password (and code) and saves the new
+		// hash; this process then switches its own check and signs out every
+		// other session. No restart: the browser that changed it stays in.
+		var input control.PasswordInput
+		if !decodeLimit(w, r, &input, 1024) {
+			return
+		}
+		if len(input.Current) > 72 || len(input.Next) > 72 || len(input.Code) > 32 {
+			failure(w, 400, "incorrect password or code")
+			return
+		}
+		if !s.passwordAttempt(session.ID, false) {
+			failure(w, 429, "too many wrong passwords; try again in 10 minutes")
+			return
+		}
+		if _, e := s.Client.Do(r.Context(), control.Request{Action: "panel-password", Password: input}); e != nil {
+			if strings.HasPrefix(e.Error(), "incorrect") {
+				s.passwordAttempt(session.ID, true)
+			}
+			failure(w, 400, e.Error())
+			return
+		}
+		ended := 0
+		if !s.Demo {
+			var e error
+			if ended, e = s.Auth.SetPassword(r, input.Next); e != nil {
+				failure(w, 500, "the password was saved but the panel could not apply it; restart the panel")
+				return
+			}
+		}
+		reply(w, 200, map[string]any{"signed_out": ended, "security": s.securityView(r)})
 	default:
 		failure(w, 404, "not found")
 	}
+}
+
+// passwordAttempt reports whether the session may try a password change
+// (fewer than five wrong passwords or codes in ten minutes); failed records one.
+func (s *Server) passwordAttempt(id string, failed bool) bool {
+	s.security.mu.Lock()
+	defer s.security.mu.Unlock()
+	now, recent := time.Now(), []time.Time{}
+	for _, t := range s.security.passwordFailures[id] {
+		if now.Sub(t) < 10*time.Minute {
+			recent = append(recent, t)
+		}
+	}
+	if failed {
+		recent = append(recent, now)
+	}
+	if len(recent) == 0 {
+		delete(s.security.passwordFailures, id)
+	} else {
+		if s.security.passwordFailures == nil {
+			s.security.passwordFailures = map[string][]time.Time{}
+		}
+		s.security.passwordFailures[id] = recent
+	}
+	return len(recent) < 5
 }
 
 // loginReply explains a refused sign-in; code_required asks for step two.

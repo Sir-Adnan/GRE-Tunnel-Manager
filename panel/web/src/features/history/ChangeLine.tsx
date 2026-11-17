@@ -21,7 +21,9 @@ export function ChangeLine({ change }: { change: HistoryChange }) {
       <span className="sr-only">{t(`histKind_${change.kind}`)}</span>
       <EngineGlyph engine={change.engine} />
       <span className="min-w-0 flex-1">
-        <bdi className="hist-change-name">{change.name || change.id}</bdi>
+        <span className="hist-change-name">
+          <bdi>{change.name || change.id}</bdi>
+        </span>
         <span className="hist-change-what">
           {change.kind === "changed" && change.fields?.length
             ? change.fields
@@ -36,4 +38,3 @@ export function ChangeLine({ change }: { change: HistoryChange }) {
     </li>
   );
 }
-

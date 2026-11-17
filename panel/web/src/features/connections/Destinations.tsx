@@ -10,11 +10,6 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui/tooltip";
 import { HelpTip } from "@/components/help";
 import { copyText } from "@/lib/clipboard";
 import { endpointText } from "@/lib/format";
@@ -49,7 +44,6 @@ export function Destinations({ connection }: { connection: Connection }) {
   const t = useT(),
     copy = useCopy(),
     [open, setOpen] = useState(false);
-  const [tooltipOpen, setTooltipOpen] = useState(false);
   const first = connection.targets[0];
   if (!first) return <span>—</span>;
   if (connection.targets.length === 1)
@@ -103,29 +97,29 @@ export function Destinations({ connection }: { connection: Connection }) {
   );
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip open={!open && tooltipOpen} onOpenChange={setTooltipOpen}>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="endpoint-copy"
-              aria-label={`${t("viewDestinations")} · ${connection.name}`}
-            >
-              <Endpoint ip={first.ip} port={first.port} />
-              <Badge variant="secondary" className="shrink-0">
-                <bdi>+{connection.targets.length - 1}</bdi>
-              </Badge>
-              <ChevronDown aria-hidden className="endpoint-copy-icon" />
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent className="block max-w-[calc(100vw-2rem)] bg-popover p-4 text-popover-foreground">
-          {list(5, false)}
-        </TooltipContent>
-      </Tooltip>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="endpoint-copy"
+          aria-label={`${t("viewDestinations")} · ${connection.name}`}
+          aria-expanded={open}
+        >
+          <Endpoint ip={first.ip} port={first.port} />
+          <Badge variant="secondary" className="shrink-0">
+            <bdi>+{connection.targets.length - 1}</bdi>
+          </Badge>
+          <ChevronDown aria-hidden className="endpoint-copy-icon" />
+        </button>
+      </PopoverTrigger>
+      {/* Focus the list itself, not its first control: that is the weight
+          help, whose tooltip would otherwise open on top of the list. */}
       <PopoverContent
         className="w-88 max-w-[calc(100vw-2rem)] gap-3 p-4"
         align="start"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement | null)?.focus?.();
+        }}
       >
         <div className="flex items-center justify-between">
           <span className="font-medium">{t("destinations")}</span>

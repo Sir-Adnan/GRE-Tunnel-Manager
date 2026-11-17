@@ -23,9 +23,11 @@ No third server is required. Agent availability is separate from tunnel availabi
 
 ## Release availability
 
-Version **v1.3.7** includes inventory protocol 1, paired operations and optional traffic summaries. Default installers download that matching version. Earlier v1.3.0 packages predate Nodes and are rejected before services stop. Existing release assets are never overwritten.
+Every release since v1.3.7 includes inventory protocol 1, paired operations and optional traffic summaries; the Agent and the Controller should run the same release, which the default installer downloads. v1.3.0 packages predate Nodes and are rejected before services stop. Existing release assets are never overwritten.
 
-For offline/source packages, build using [DEVELOPMENT.md](DEVELOPMENT.md) and copy `gtm-panel-v1.3.7-linux-ARCH.tar.gz` plus `SHA256SUMS` to the target. Then use the installer with `--package-dir /path/to/packages`.
+For offline/source packages, build using [DEVELOPMENT.md](DEVELOPMENT.md) and copy `gtm-panel-vX.Y.Z-linux-ARCH.tar.gz` (the panel's version) plus `SHA256SUMS` to the target. Then use the installer with `--package-dir /path/to/packages`.
+
+The installer runs as `sudo bash -c "$(curl …)" @ --agent`: the script is downloaded completely first and keeps the terminal, so the hidden enrollment-code prompt can be answered. `curl … | sudo bash -s -- --agent` also works. The panel's Nodes guide, **Add server** dialog and Connect-two-servers card show the same commands with a copy button.
 
 Node.js, Python and Go compilers are not installed on managed servers. The Agent uses the same prebuilt Go executable; it does not serve embedded frontend assets or open an inbound port.
 
@@ -50,7 +52,7 @@ The signing key and registry are owned by `grepanel` in `/var/lib/gre-manager-no
 3. Run on the other server:
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent
+   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)" @ --agent
    ```
 
    For an offline/local package, add `--package-dir /path/to/packages`. On a server that already has `gtm`, `sudo gtm agent install` does the same.
@@ -85,7 +87,7 @@ sudo systemctl stop gre-manager-agent.service
 # Retain a restricted backup of the old identity outside the active path:
 sudo mv /var/lib/gre-manager-agent/identity.json /var/lib/gre-manager-agent/identity.revoked.json
 # Generate a new invitation in the panel, then run the matching installer again.
-curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)" @ --agent
 ```
 
 An initial enrollment response lost after Controller commit consumes the invitation; create a new one and revoke the unused identity. The installer does not reset identities automatically. Fatal identity/protocol failures stop the Agent instead of retrying indefinitely; systemd does not restart exit status 1. Fix the cause, then `sudo systemctl restart gre-manager-agent.service`. Transient connection failures retry within the running process.

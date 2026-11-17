@@ -36,6 +36,12 @@ export const exactMessages: Record<string, string> = {
   "incorrect code": "srvIncorrectCode",
   "incorrect password": "srvIncorrectPassword",
   "incorrect password or code": "srvIncorrectPasswordOrCode",
+  "choose a password different from the current one": "srvPasswordSame",
+  "too many wrong passwords; try again in 10 minutes": "srvPasswordThrottled",
+  "password must contain at least 8 characters and at most 72 UTF-8 bytes":
+    "passwordTooShort",
+  "the password was saved but the panel could not apply it; restart the panel":
+    "srvPasswordRestart",
   // Two-factor and sessions
   "two-factor sign-in is already on": "srvTwoFactorOn",
   "two-factor sign-in is already on; turn it off first": "srvTwoFactorOn",

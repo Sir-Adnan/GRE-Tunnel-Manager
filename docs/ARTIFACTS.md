@@ -115,7 +115,7 @@ Panel-only removal uses a closed file manifest and stopped-state journal checks.
 | `/usr/local/bin/gtm-panel` | Prebuilt optional Go executable; embedded frontend and the `gtm` command |
 | `/usr/local/bin/gtm` | Relative symbolic link to `gtm-panel`; created only when the path is free, removed with the panel or Agent. Another file at this path is kept and reported |
 | `/usr/local/lib/gre-manager/manager.sh` | Matching root-only Bash API helper |
-| `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths |
+| `/etc/gre-manager-panel/config.json` | Root:grepanel, mode 640 in mode-750 directory; listen/public address, protocol (omitted means HTTPS), username, bcrypt hash and optional TLS paths. The broker's `panel-password` action rewrites only the hash, atomically and with the same owner and mode |
 | `/etc/gre-manager-panel/server.{crt,key}` | Initial IP/domain-SAN self-signed certificate/key for HTTPS; key mode 640, root:grepanel |
 | `/etc/gre-manager-panel/https.pem` | Loaded full-chain/private-key bundle from `certificate issue`, `renew`, `install` or `self-signed`; root:grepanel mode 640, atomic replacement; loaded on validated reload. External ACME clients' own files stay outside panel ownership |
 | `/etc/gre-manager-panel/certificate.json` | Secret-free certificate source and renewal status (next renewal, last error) read by the public panel; root:grepanel mode 640 |

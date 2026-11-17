@@ -39,7 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CommandBlock } from "@/components/CommandBlock";
+import { ChangePassword } from "./ChangePassword";
 import { CopyButton } from "@/components/CopyButton";
 import { useLoaded } from "@/features/operations/hooks";
 import { api } from "@/lib/api";
@@ -238,18 +238,10 @@ export function SignInSecurity({ logout }: { logout: () => void }) {
 
             <Separator />
 
-            <section
-              className="flex flex-col gap-3"
-              aria-labelledby="password-title"
-            >
-              <h3 id="password-title" className="text-sm font-medium">
-                {t("account")}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {t("passwordHelp")}
-              </p>
-              <CommandBlock text="sudo gtm password" />
-            </section>
+            <ChangePassword
+              twoFactor={value.two_factor}
+              done={() => void reload()}
+            />
           </>
         )}
       </CardContent>

@@ -12,7 +12,6 @@ import { errorMessage, LocaleContext, useT } from "@/lib/i18n";
 import type { Inventory } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Field,
   FieldLabel,
@@ -31,7 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { MigrationFields } from "./MigrationFields";
-import { TextField } from "@/components/shared";
+import { FileField, TextField } from "@/components/shared";
 import { maxBackupBytes, migrationValues } from "./contract";
 import type { BackupReview, BackupInput } from "./contract";
 
@@ -76,6 +75,29 @@ export function RestoreBackup({
     setError("");
     setFinished(false);
     setWarning("");
+  };
+  // A new file starts a new review; the password typed so far is kept.
+  const chooseFile = async (file: File) => {
+    setArchive("");
+    setFilename("");
+    setReview(undefined);
+    setReviewed(false);
+    setError("");
+    if (file.size > maxBackupBytes) {
+      setError(t("backupFileLarge"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const content = await file.text();
+      JSON.parse(content);
+      setArchive(content);
+      setFilename(file.name);
+    } catch {
+      setError(t("backupInvalidFile"));
+    } finally {
+      setBusy(false);
+    }
   };
   if (finished)
     return (
@@ -127,38 +149,15 @@ export function RestoreBackup({
             </div>
           </div>
           <FieldGroup columns>
-            <Field>
-              <FieldLabel htmlFor="recovery-file">{t("backupFile")}</FieldLabel>
-              <Input
-                id="recovery-file"
-                type="file"
-                accept=".gtm-backup,application/json"
-                disabled={busy}
-                required
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  reset();
-                  if (!file) return;
-                  if (file.size > maxBackupBytes) {
-                    setError(t("backupFileLarge"));
-                    e.target.value = "";
-                    return;
-                  }
-                  setBusy(true);
-                  try {
-                    const content = await file.text();
-                    JSON.parse(content);
-                    setArchive(content);
-                    setFilename(file.name);
-                  } catch {
-                    setError(t("backupInvalidFile"));
-                    e.target.value = "";
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
-            </Field>
+            <FileField
+              id="recovery-file"
+              label={t("backupFile")}
+              accept=".gtm-backup,application/json"
+              disabled={busy}
+              required
+              fileName={filename}
+              onFile={(file) => void chooseFile(file)}
+            />
             <TextField
               id="recovery-password"
               label={t("backupPassword")}

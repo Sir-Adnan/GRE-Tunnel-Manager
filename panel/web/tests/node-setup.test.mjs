@@ -15,3 +15,15 @@ test("controller commands reject shell syntax and URL credential/path injection"
   assert.equal(controllerCommand(host), undefined, host);
  }
 });
+
+test("every copied installer command uses the download-then-run form that keeps the keyboard", async () => {
+ const { installCommand, agentCommand } = await import("../src/lib/commands.ts");
+ const { agentCommand: nodeAgent, agentTrafficCommand } = await import("../src/features/nodes/setup.ts");
+ const base = 'sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)"';
+ assert.equal(installCommand(), base);
+ assert.equal(agentCommand(["--operations"]), `${base} @ --agent --operations`);
+ assert.equal(nodeAgent, `${base} @ --agent`);
+ assert.equal(agentTrafficCommand, `${base} @ --agent --traffic`);
+ assert.equal(controllerCommand("panel.example.com"), "sudo gtm controller enable --url 'https://panel.example.com:9443'");
+ for (const command of [installCommand(), nodeAgent, agentTrafficCommand]) assert.doesNotMatch(command, /\| *sudo bash|node-install\.sh/);
+});

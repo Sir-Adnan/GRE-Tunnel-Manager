@@ -1,6 +1,7 @@
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import {
   ArrowUpRight,
+  FileUp,
   Check,
   CircleAlert,
   Copy,
@@ -164,6 +165,89 @@ export function TextField({
         aria-invalid={message ? true : props["aria-invalid"]}
         aria-describedby={noted ? noteId : props["aria-describedby"]}
       />
+      <FieldNote id={noteId} error={message} description={description} />
+    </Field>
+  );
+}
+/**
+ * A file picker that matches the text inputs beside it: same label row and
+ * height, a localized button and the chosen name instead of the browser's
+ * own "Choose File / No file chosen". A file can also be dropped on it.
+ */
+export function FileField({
+  id,
+  label,
+  help,
+  accept,
+  disabled,
+  required,
+  fileName,
+  description,
+  error,
+  onFile,
+}: {
+  id: string;
+  label: string;
+  help?: string;
+  accept?: string;
+  disabled?: boolean;
+  required?: boolean;
+  /** The chosen file's name, kept by the caller (cleared on reset). */
+  fileName?: string;
+  description?: ReactNode;
+  error?: string;
+  /** Receives the file; the input is cleared after, so the same file can be chosen again. */
+  onFile: (file: File) => void;
+}) {
+  const t = useT();
+  const formError = useFieldError(id);
+  const message = error || formError;
+  const [dragging, setDragging] = useState(false);
+  const noteId = `${id}-note`;
+  return (
+    <Field data-invalid={message ? true : undefined} data-inline-error>
+      <FieldHead id={id} label={label} help={help} />
+      <label
+        className="file-field"
+        data-dragging={dragging || undefined}
+        data-disabled={disabled || undefined}
+        data-chosen={fileName ? true : undefined}
+        onDragOver={(e) => {
+          if (disabled) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file && !disabled) onFile(file);
+        }}
+      >
+        <input
+          id={id}
+          type="file"
+          className="sr-only"
+          accept={accept}
+          disabled={disabled}
+          required={required && !fileName}
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message || description ? noteId : undefined}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) onFile(file);
+          }}
+        />
+        <FileUp aria-hidden className="file-field-icon" />
+        <span className="file-field-name">
+          {fileName ? <bdi>{fileName}</bdi> : t("noFileChosen")}
+        </span>
+        <span className="file-field-button" aria-hidden>
+          {fileName ? t("replaceFile") : t("chooseFile")}
+        </span>
+      </label>
       <FieldNote id={noteId} error={message} description={description} />
     </Field>
   );

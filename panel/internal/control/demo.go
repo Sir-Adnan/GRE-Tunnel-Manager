@@ -72,7 +72,7 @@ func (d *Demo) Do(ctx context.Context, r Request) (json.RawMessage, error) {
 		defer d.rememberChange(slices.Clone(d.inventory.Connections))
 	}
 	switch r.Action {
-	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover":
+	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover", "panel-password":
 		return d.adminDemo(r)
 	case "host-telemetry":
 		return json.Marshal(demoTelemetry())

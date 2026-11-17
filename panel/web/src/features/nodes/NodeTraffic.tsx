@@ -22,7 +22,9 @@ import {
   EmptyDescription,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CommandBlock } from "@/components/CommandBlock";
 import type { Node, NodeTrafficView } from "./types";
+import { agentTrafficCommand } from "./setup";
 
 export function NodeTraffic({ node }: { node: Node }) {
   const t = useT(),
@@ -141,13 +143,8 @@ export function NodeTraffic({ node }: { node: Node }) {
             <EmptyTitle>{t("nodeTrafficWaiting")}</EmptyTitle>
             <EmptyDescription>{t("nodeTrafficSetup")}</EmptyDescription>
           </EmptyHeader>
-          <code dir="ltr" className="code-block w-full overflow-auto text-xs">
-            sudo bash node-install.sh --agent --traffic --package-dir
-            /path/to/packages
-          </code>
-          <code dir="ltr" className="code-block w-full overflow-auto text-xs">
-            sudo gtm-panel nodes traffic --enable --interval 60
-          </code>
+          <CommandBlock text={agentTrafficCommand} />
+          <CommandBlock text="sudo gtm-panel nodes traffic --enable --interval 60" />
         </Empty>
       ) : (
         summary && (

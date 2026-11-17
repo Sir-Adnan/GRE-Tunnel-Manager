@@ -1,0 +1,146 @@
+/* Dashboard (Overview): host header, figures, connections with live speed,
+   server load, tunnel health and attention. See docs/INTERFACE.md. */
+@layer components {
+  /* Host header meta: short items that wrap as a group on phones. */
+  .host-meta-item {
+    @apply inline-flex min-w-0 items-center gap-1.5 [&>svg]:size-3.5;
+  }
+  .host-meta-item + .host-meta-item::before {
+    content: "·";
+    @apply me-0.5 text-muted-foreground/60;
+  }
+  .host-meta-item.is-address {
+    @apply gap-0.5;
+  }
+  .host-meta-item.is-address::before {
+    @apply me-1;
+  }
+
+  /* Figures: a muted tile is a feature that is off (one tap turns it on). */
+  .kpi.is-muted .kpi-value {
+    @apply text-muted-foreground;
+  }
+  .kpi-trend {
+    @apply mt-1 block w-full;
+  }
+  .kpi-trend .sparkline {
+    @apply h-7;
+  }
+  .kpi-rates {
+    @apply font-mono text-[11px];
+  }
+
+  /* Two columns on wide screens: connections and server load on the main
+     side, attention and tunnel health beside them. One column below. */
+  .dash-grid {
+    @apply grid min-w-0 items-start;
+    gap: var(--page-gap);
+  }
+  .dash-main,
+  .dash-side {
+    @apply flex min-w-0 flex-col;
+    gap: var(--page-gap);
+  }
+  @media (min-width: 80rem) {
+    .dash-grid {
+      grid-template-columns: minmax(0, 1.75fr) minmax(20rem, 1fr);
+    }
+  }
+
+  /* Connection rows: identity, route, live speed, state. The row is a route
+     host (components.css), so a narrow row stacks the route. */
+  .dash-conn-list {
+    @apply flex min-w-0 flex-col;
+  }
+  .dash-conn-row + .dash-conn-row {
+    border-top: 1px solid var(--surface-line);
+  }
+  .dash-conn-grid {
+    @apply grid min-w-0 items-center gap-x-3 gap-y-2;
+    padding-block: var(--row-pad);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "id actions"
+      "route live";
+  }
+  .dash-conn-id {
+    grid-area: id;
+    @apply flex min-w-0 items-center gap-2.5;
+  }
+  .dash-conn-route {
+    grid-area: route;
+    @apply min-w-0;
+  }
+  .dash-conn-live {
+    grid-area: live;
+    @apply justify-self-end;
+  }
+  .dash-conn-actions {
+    grid-area: actions;
+    @apply flex items-center gap-1 justify-self-end;
+  }
+  @container (min-width: 40rem) {
+    .dash-conn-grid {
+      grid-template-columns: minmax(9rem, 1fr) minmax(0, 1.5fr) 6.5rem auto;
+      grid-template-areas: "id route live actions";
+    }
+    .dash-conn-live {
+      justify-self: start;
+    }
+  }
+
+  /* Tunnel health: name and state, 24 hourly bars, uptime. */
+  .dash-health-list {
+    @apply flex flex-col;
+  }
+  .dash-health-row {
+    @apply relative grid items-center gap-x-3 gap-y-1.5 rounded-lg px-2 transition-colors;
+    padding-block: calc(var(--row-pad) * 0.75);
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "name uptime chevron"
+      "bars bars chevron";
+  }
+  .dash-health-row:hover {
+    background: var(--surface-hover);
+  }
+  .dash-health-row + .dash-health-row {
+    border-top: 1px solid var(--surface-line);
+  }
+  .dash-health-name {
+    grid-area: name;
+    @apply flex min-w-0 items-center gap-2 text-sm font-medium;
+  }
+  .dash-health-name bdi {
+    @apply truncate;
+  }
+  /* The name's button covers the row, so the whole row opens Health. */
+  .dash-health-link {
+    @apply min-w-0 truncate text-start outline-none;
+  }
+  .dash-health-link::after {
+    content: "";
+    @apply absolute inset-0 rounded-lg;
+  }
+  .dash-health-link:focus-visible::after {
+    @apply ring-2 ring-ring;
+  }
+  .dash-health-uptime {
+    grid-area: uptime;
+    @apply text-xs font-medium tabular-nums;
+  }
+  .dash-health-uptime[data-tone="warn"] {
+    color: var(--warning-text);
+  }
+  .dash-health-uptime[data-tone="bad"] {
+    color: var(--destructive-text);
+  }
+  .dash-health-bars {
+    grid-area: bars;
+    @apply h-3;
+  }
+  .dash-health-chevron {
+    grid-area: chevron;
+    @apply size-4 text-muted-foreground;
+  }
+}

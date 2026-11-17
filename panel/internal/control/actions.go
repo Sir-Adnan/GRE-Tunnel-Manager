@@ -67,6 +67,7 @@ var actions = map[string]actionSpec{
 	"two-factor-enable":  {light: true},
 	"two-factor-disable": {light: true},
 	"two-factor-recover": {light: true},
+	"panel-password":     {light: true},
 
 	"create":                     {public: true},
 	"update":                     {public: true},

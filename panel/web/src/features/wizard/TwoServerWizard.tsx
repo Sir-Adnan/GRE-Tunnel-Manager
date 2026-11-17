@@ -30,6 +30,7 @@ import { CommandBlock } from "@/components/CommandBlock";
 import { ErrorExplain } from "@/components/ErrorExplain";
 import type { Inventory } from "@/lib/api";
 import { creationOptions } from "@/lib/creation-defaults";
+import { installCommand } from "@/lib/commands";
 import { errorMessage, useT } from "@/lib/i18n";
 import { useCopyText } from "@/lib/use-copy-text";
 import { useDiscardChanges } from "@/lib/use-discard-changes";
@@ -46,8 +47,6 @@ import {
 import type { Protocol, WizardDraft, WizardErrors } from "./model";
 
 const steps = ["wizStepTunnel", "wizStepForward", "wizStepReview"] as const;
-const installCommand =
-  "curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash";
 
 type Task = "tunnel" | "forward";
 type TaskState = "waiting" | "running" | "done" | "failed";
@@ -503,7 +502,7 @@ function FarSide({ far }: { far: ReturnType<typeof farSide> }) {
       <ol className="wizard-far-steps">
         <li>
           <p>{t("wizFarInstall")}</p>
-          <CommandBlock text={installCommand} />
+          <CommandBlock text={installCommand()} />
         </li>
         <li>
           <p>{t("wizFarGRE")}</p>

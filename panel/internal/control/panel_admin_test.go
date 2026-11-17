@@ -12,6 +12,7 @@ import (
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/config"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/release"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/twofactor"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // adminRunner records argv and answers by command name.
@@ -174,7 +175,7 @@ func TestPanelActionsAreClassified(t *testing.T) {
 			t.Fatal(action, "must be a job")
 		}
 	}
-	for _, action := range []string{"two-factor-enable", "two-factor-disable", "two-factor-recover"} {
+	for _, action := range []string{"two-factor-enable", "two-factor-disable", "two-factor-recover", "panel-password"} {
 		if PublicOperation(action) || !LightAction(action) {
 			t.Fatal(action, "must use its dedicated sign-in route")
 		}
@@ -184,5 +185,55 @@ func TestPanelActionsAreClassified(t *testing.T) {
 	}
 	if _, e := (&Manager{Runner: &adminRunner{}}).Execute(context.Background(), Request{Action: "certificate-renew"}); e == nil {
 		t.Fatal("an Agent broker ran a panel action")
+	}
+}
+
+func TestChangePasswordChecksCurrentAndCode(t *testing.T) {
+	a, runner := newAdmin(t)
+	ctx := context.Background()
+	if _, _, e := config.Create(a.ConfigPath, config.Options{Listen: "127.0.0.1", Port: 38653, Username: "admin", Password: "long-example-password", Protocol: "http"}); e != nil {
+		t.Fatal(e)
+	}
+	change := func(in PasswordInput) error {
+		_, e := a.execute(ctx, runner, Request{Action: "panel-password", Password: in})
+		return e
+	}
+	for _, in := range []PasswordInput{
+		{Current: "wrong-password-here", Next: "brand-new-password"},
+		{Current: "long-example-password", Next: "short"},
+		{Current: "long-example-password", Next: "long-example-password"},
+	} {
+		if change(in) == nil {
+			t.Fatal("accepted", in.Next)
+		}
+	}
+	// With two-factor sign-in on, a code is required; a refused new password
+	// never spends a recovery code.
+	secret, _ := twofactor.NewSecret()
+	code, _ := twofactor.Code(secret, twofactor.Step(time.Now()))
+	result, e := a.execute(ctx, runner, Request{Action: "two-factor-enable", TwoFactor: TwoFactorInput{Secret: secret, Code: code}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	codes := result.(TwoFactorResult).Recovery
+	if change(PasswordInput{Current: "long-example-password", Next: "brand-new-password"}) == nil {
+		t.Fatal("changed without a code")
+	}
+	if change(PasswordInput{Current: "long-example-password", Next: "short", Code: codes[0]}) == nil {
+		t.Fatal("accepted a short password")
+	}
+	if e = change(PasswordInput{Current: "long-example-password", Next: "brand-new-password", Code: codes[0]}); e != nil {
+		t.Fatal(e)
+	}
+	s, _, _ := twofactor.Load(a.TwoFactorPath)
+	if len(s.Recovery) != 9 {
+		t.Fatal("recovery code not spent exactly once", len(s.Recovery))
+	}
+	c, e := config.Load(a.ConfigPath)
+	if e != nil || c.Username != "admin" || !strings.HasSuffix(c.Listen, ":38653") || bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte("brand-new-password")) != nil {
+		t.Fatal("password not saved or other settings changed", e)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatal("a password change must not run commands", runner.calls)
 	}
 }

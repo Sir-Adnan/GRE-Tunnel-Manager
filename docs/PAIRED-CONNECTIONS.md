@@ -19,7 +19,7 @@ This feature is included in v1.3.3. Use matching release packages on Controller/
    On a server without an Agent yet:
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh | sudo bash -s -- --agent --operations
+   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sir-Adnan/GRE-Tunnel-Manager/main/install.sh)" @ --agent --operations
    ```
 
 4. Enter a fresh hidden invitation only for a new identity; upgrades preserve existing enrollment. Confirm `gtm-panel nodes operations-version` prints `1` on both sides.

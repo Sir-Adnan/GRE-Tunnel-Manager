@@ -121,3 +121,10 @@
     padding-bottom: calc(6rem + env(safe-area-inset-bottom));
   }
 }
+
+/* Compact density also tightens the page frame, not only cards and rows. */
+@layer components {
+  [data-density="compact"] .page-container {
+    @apply py-4 lg:py-5;
+  }
+}

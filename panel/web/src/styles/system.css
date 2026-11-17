@@ -32,6 +32,7 @@
   --card-pad: 1rem;
   --card-pad-sm: 0.75rem;
   --row-pad: 0.875rem;
+  --cell-pad: 0.5rem;
   --page-gap: 1.5rem;
   --list-gap: 0.75rem;
 }
@@ -42,10 +43,14 @@
     0 1px 2px color-mix(in srgb, #000 30%, transparent),
     0 10px 24px -12px color-mix(in srgb, #000 55%, transparent);
 }
-[data-style][data-density="compact"] {
+:is(
+  [data-style][data-density="compact"],
+  [data-density="compact"] [data-style]
+) {
   --card-pad: 0.75rem;
   --card-pad-sm: 0.625rem;
   --row-pad: 0.5rem;
+  --cell-pad: 0.25rem;
   --page-gap: 1rem;
   --list-gap: 0.5rem;
 }
@@ -53,7 +58,10 @@
   [data-style] {
     --page-gap: 1.25rem;
   }
-  [data-style][data-density="compact"] {
+  :is(
+    [data-style][data-density="compact"],
+    [data-density="compact"] [data-style]
+  ) {
     --page-gap: 0.875rem;
   }
 }

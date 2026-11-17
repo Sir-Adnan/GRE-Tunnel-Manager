@@ -4,3 +4,36 @@
 [data-style="nettinx"] {
   --button-primary-foreground: #0a0c10;
 }
+
+/* User-requested on 2026-11-17 (v1.7.1): status tokens the tweakcn import does not define.
+   Charts, live rates, health bars and status words read these directly, so without them
+   they rendered blank under Nettinx. None of the imported tokens above is changed; these
+   only add success/warning/info hues (Tailwind emerald/amber/blue, which Nettinx's own
+   chart palette already uses) and *-text shades that pass WCAG AA on Nettinx's surfaces.
+   tests/themes.test.mjs checks the pairs. */
+[data-style="nettinx"] {
+  --primary-text: #c2410c;
+  --destructive-text: #b91c1c;
+  --success: #059669;
+  --success-foreground: #0a0c10;
+  --success-text: #047857;
+  --warning: #f59e0b;
+  --warning-foreground: #0a0c10;
+  --warning-text: #b45309;
+  --info: #2563eb;
+  --info-foreground: #ffffff;
+  --info-text: #1d4ed8;
+}
+[data-style="nettinx"][data-mode="dark"] {
+  --primary-text: #ff791a;
+  --destructive-text: #f87171;
+  --success: #10b981;
+  --success-foreground: #0a0c10;
+  --success-text: #34d399;
+  --warning: #f59e0b;
+  --warning-foreground: #0a0c10;
+  --warning-text: #fbbf24;
+  --info: #3b82f6;
+  --info-foreground: #0a0c10;
+  --info-text: #60a5fa;
+}

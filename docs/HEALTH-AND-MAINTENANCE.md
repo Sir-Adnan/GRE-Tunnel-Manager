@@ -80,6 +80,8 @@ Health itself changes no kernel setting. The hints link to the [Optimization](OP
 
 A round with ten destinations opens ten short TCP connections or pings and reads a few `/proc` files; HAProxy destinations cost one stats-socket read per instance instead. Failover adds a 5-second round for the selected forwards' destinations only, and a kernel rule reapply only when a destination changes state. Inventory, which runs the Bash helper and `systemctl show`, is refreshed at most every 30 seconds. History is one bounded JSON file written every five minutes and on each status change. Probe parallelism is limited to eight and each probe times out after three seconds.
 
+The **Status** tab can show **All**, only **Problems** (down or degraded) or only **Healthy** rows, each with its count, and searches names and addresses once there are more than five; problems are always listed first. The dashboard repeats the worst six in its **Tunnel health** card with their last 24 hours. Filtering is view-only and changes no setting.
+
 ## Maintenance plans
 
 A plan combines one action, a scope, one trigger and optional guards. Plans run only while **Scheduled maintenance** is on; **Run now** works either way and skips the guards.

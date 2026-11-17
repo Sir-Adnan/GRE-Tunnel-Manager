@@ -65,6 +65,15 @@ type TwoFactorInput struct {
 	Password string `json:"password,omitempty"`
 }
 
+// PasswordInput changes the panel password from a signed-in browser: the
+// current password, the new one and, while two-factor sign-in is on, a code
+// (or a recovery code).
+type PasswordInput struct {
+	Current string `json:"current,omitempty"`
+	Next    string `json:"next,omitempty"`
+	Code    string `json:"code,omitempty"`
+}
+
 // UpdateView is the update state shown in the panel.
 type UpdateView struct {
 	Current   string        `json:"current"`
@@ -104,6 +113,8 @@ func (a *PanelAdmin) execute(ctx context.Context, runner Runner, r Request) (any
 		return a.disableTwoFactor(r.TwoFactor)
 	case "two-factor-recover":
 		return a.recover(r.TwoFactor)
+	case "panel-password":
+		return map[string]bool{"ok": true}, a.changePassword(r.Password)
 	}
 	return nil, errors.New("unknown panel action")
 }
@@ -308,6 +319,57 @@ func (a *PanelAdmin) recover(in TwoFactorInput) (result TwoFactorResult, e error
 		return result, e
 	}
 	return TwoFactorResult{Remaining: len(s.Recovery)}, nil
+}
+
+// changePassword replaces the password hash in config.json (root:grepanel,
+// 0640, written atomically). The username, port and everything else stay.
+// The panel keeps running: the HTTP layer switches its in-memory hash and
+// signs out the other sessions itself, so no restart is needed.
+func (a *PanelAdmin) changePassword(in PasswordInput) (e error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	defer func() { a.audit("panel-password", e) }()
+	c, e := config.Load(a.ConfigPath)
+	if e != nil {
+		return e
+	}
+	// The new password is checked first, so a refused one never spends a
+	// single-use recovery code.
+	if e = config.ValidatePassword(in.Next); e != nil {
+		return e
+	}
+	if len(in.Current) > 72 || bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte(in.Current)) != nil {
+		return errors.New("incorrect password")
+	}
+	if in.Next == in.Current {
+		return errors.New("choose a password different from the current one")
+	}
+	s, on, e := twofactor.Load(a.TwoFactorPath)
+	if e != nil {
+		return e
+	}
+	if on {
+		if len(in.Code) > 32 {
+			return errors.New("incorrect code")
+		}
+		if _, ok := twofactor.Verify(s.Secret, in.Code, a.now(), -1); !ok {
+			if !s.UseRecovery(in.Code) {
+				return errors.New("incorrect code")
+			}
+			if e = twofactor.Save(a.TwoFactorPath, a.ConfigPath, s); e != nil {
+				return e
+			}
+		}
+	}
+	hash, e := bcrypt.GenerateFromPassword([]byte(in.Next), 12)
+	if e != nil {
+		return e
+	}
+	c.PasswordHash = string(hash)
+	if e = c.Validate(); e != nil {
+		return e
+	}
+	return config.Save(a.ConfigPath, c, 0640)
 }
 
 func (a *PanelAdmin) audit(action string, e error) {

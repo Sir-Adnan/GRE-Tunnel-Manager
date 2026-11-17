@@ -14,6 +14,8 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import { CommandBlock } from "@/components/CommandBlock";
+import { agentCommand } from "@/lib/commands";
 import type { Node } from "./types";
 import { PairForm } from "./PairForm";
 
@@ -211,7 +213,12 @@ export function PairedConnections({ nodes }: { nodes: Node[] }) {
           {t("refresh")}
         </Button>
         {choices.length < 2 && (
-          <p className="text-xs text-muted-foreground">{t("pairEnableHelp")}</p>
+          <div className="flex w-full min-w-0 flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              {t("pairEnableHelp")}
+            </p>
+            <CommandBlock text={agentCommand(["--operations"])} />
+          </div>
         )}
       </CardFooter>
       {open && (

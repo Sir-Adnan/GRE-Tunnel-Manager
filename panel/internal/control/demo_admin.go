@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/config"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/release"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/twofactor"
 	"github.com/Sir-Adnan/GRE-Tunnel-Manager/panel/internal/version"
@@ -95,6 +96,24 @@ func (d *Demo) adminDemo(r Request) (json.RawMessage, error) {
 		}
 		a.twoFactor = nil
 		return json.Marshal(TwoFactorResult{})
+	case "panel-password":
+		// The demo checks the same rules but keeps its password, so the
+		// documented demo sign-in always works after a restart.
+		if e := config.ValidatePassword(r.Password.Next); e != nil {
+			return nil, e
+		}
+		if r.Password.Current != demoPassword {
+			return nil, errors.New("incorrect password")
+		}
+		if r.Password.Next == r.Password.Current {
+			return nil, errors.New("choose a password different from the current one")
+		}
+		if a.twoFactor != nil {
+			if _, ok := twofactor.Verify(a.twoFactor.Secret, r.Password.Code, now, -1); !ok && !a.twoFactor.UseRecovery(r.Password.Code) {
+				return nil, errors.New("incorrect code")
+			}
+		}
+		return json.Marshal(map[string]bool{"ok": true})
 	case "two-factor-recover":
 		if a.twoFactor == nil || !a.twoFactor.UseRecovery(r.TwoFactor.Code) {
 			return nil, errors.New("incorrect code")

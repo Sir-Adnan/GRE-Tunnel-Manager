@@ -8,7 +8,7 @@ Tunnels and forwards are managed in the web panel. Install it as described in [I
 
 | Panel page | Purpose |
 | --- | --- |
-| Overview | Server status and the items that need attention |
+| Overview | Live dashboard: server status, live traffic, connections with their speed, tunnel health and the items that need attention |
 | Connections | iptables/nftables forwards, HAProxy and Realm relays: create, edit, balance, enable/disable |
 | Traffic usage · Health | Optional per-connection accounting: live speed of each connection, busiest connections, usage this cycle and quotas; uptime and outage history |
 | Nodes | Other servers, coordinated GRE/FRP setup between two servers |
@@ -17,7 +17,7 @@ Tunnels and forwards are managed in the web panel. Install it as described in [I
 | Maintenance · Optimization | Scheduled refresh/restart, conntrack pressure; opt-in kernel and network-card settings |
 | Tunnel engines | Install and update iptables/nftables, HAProxy, Realm, FRP and rathole |
 | Change history · Backup & restore | Restore points for managed forwards; encrypted portable backups |
-| Settings | Language, appearance, HTTPS certificate, two-factor sign-in and sessions, notifications, metrics export and updates |
+| Settings | Language, appearance, HTTPS certificate, password, two-factor sign-in and sessions, notifications, metrics export and updates |
 
 **Ctrl K** (or the search button on phones) jumps to any page, connection or creation form.
 

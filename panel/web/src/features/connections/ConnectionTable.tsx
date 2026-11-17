@@ -406,7 +406,7 @@ export function ConnectionTable({
                     <col style={{ width: 44 }} />
                     <col style={{ width: "26%" }} />
                     <col />
-                    <col style={{ width: 128 }} />
+                    <col style={{ width: 144 }} />
                     <col style={{ width: 148 }} />
                   </colgroup>
                   <TableHeader>
@@ -499,7 +499,10 @@ export function ConnectionTable({
                               tone={toneOf(row)}
                             />
                           </span>
-                          <LiveRateBadge id={row.id} className="mt-1.5" />
+                          <LiveRateBadge
+                            id={row.id}
+                            className="is-column mt-1.5"
+                          />
                         </TableCell>
                         <TableCell>{actions(row)}</TableCell>
                       </TableRow>

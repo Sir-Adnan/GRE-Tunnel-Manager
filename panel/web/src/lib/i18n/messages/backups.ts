@@ -113,8 +113,8 @@ export const backups = {
   ],
   backupRestored: ["Your setup is restored", "تنظیمات بازیابی شد"],
   backupNextSteps: [
-    "Install any missing engines, check local IPs and interfaces, and copy external certificates. Start GRE and reverse services from their menus, enable the forwards you need, then turn traffic collection back on. Update the peer server if the public IP changed.",
-    "موتورهای لازم را نصب کنید، آی‌پی و رابط شبکه را بررسی کنید و گواهی‌های خارجی را منتقل کنید. سپس سرویس‌های GRE و معکوس را از منوی خودشان روشن کنید، فورواردهای لازم را فعال کنید و ثبت مصرف را دوباره روشن کنید. اگر آی‌پی عمومی عوض شده، تنظیمات سرور مقابل را هم تغییر دهید.",
+    "Install any missing engines, check local IPs and interfaces, and copy external certificates. Start GRE and reverse services from their pages, enable the forwards you need, then turn traffic collection back on. Update the peer server if the public IP changed.",
+    "موتورهای لازم را نصب کنید، آی‌پی و رابط شبکه را بررسی کنید و گواهی‌های خارجی را منتقل کنید. سپس سرویس‌های GRE و معکوس را از صفحهٔ خودشان روشن کنید، فورواردهای لازم را فعال کنید و ثبت مصرف را دوباره روشن کنید. اگر آی‌پی عمومی عوض شده، تنظیمات سرور مقابل را هم تغییر دهید.",
   ],
   backupChooseAnother: ["Choose another backup", "انتخاب بکاپ دیگر"],
 } satisfies Messages;

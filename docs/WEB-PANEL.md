@@ -34,6 +34,8 @@ These are broker jobs with fixed commands; the browser sends only the address, e
 
 The same card lists the browsers signed in now (browser, system, address, last activity) and signs out one or all others. Sessions stay memory-only: they end after four hours and whenever the panel restarts.
 
+**Change password** in the same card asks for the current password, the new one twice and, while two-factor sign-in is on, a code or recovery code. The broker checks them, writes the new bcrypt hash to `config.json` (same owner and mode, written atomically) and the running panel switches to it at once: no restart, the browser that changed it stays signed in and every other session is signed out. The new password follows the installer's rule (8–72 bytes, no control characters) and must differ from the current one; five wrong passwords or codes within ten minutes pause changes for that session. A refused new password never spends a recovery code. `sudo gtm password` remains the way back in when the password is lost.
+
 The secret and the hashes of unused recovery codes are stored in `/etc/gre-manager-panel/two-factor.json` (root-owned, readable by the panel group, like the password hash). Only the broker writes it; codes cannot be replayed within their 30-second window. Damaged settings stop the panel from starting rather than accepting the password alone.
 
 ### Updates and recovery
@@ -126,6 +128,8 @@ Both pages are off by default and cost nothing while off. **Health** checks ever
 
 Connection and GRE forms set monitoring, failover and notifications per owner, and offer to turn health checks on when they are off; **Safe apply** reverts a change after 2–10 minutes unless it is confirmed in the banner. See [Health and maintenance](HEALTH-AND-MAINTENANCE.md#choices-in-the-forms).
 
+The **Status** tab filters rows by **All**, **Problems** (down or degraded) and **Healthy**, each with its count, and searches by name or address once there are more than five; rows with problems always come first. Every column except the name and the hour bars has a fixed width, so the bars line up from row to row.
+
 Each Health row also offers **Diagnose** (a read-only "why isn't it working?" checklist) and, for GRE, a **Quality test** (latency, jitter, loss); tunnels a Node also reports show whether the far side reaches them. See [Monitoring](MONITORING.md).
 
 ## Optimization
@@ -174,7 +178,9 @@ The visible dashboard requests a sample every 2 seconds by default; choose 1, 2,
 
 Until every step is done, a **Get started** checklist sits under the header: trusted HTTPS, two-factor sign-in, a first connection, health monitoring, scheduled backups and Telegram or webhook alerts. Each step reads the server's real state and links to its page; the card can be hidden in this browser.
 
-The overview starts with the server's status: host name, OS and primary address, then four tiles for connections, running services, items that need attention and uptime/load. **Needs attention** lists, first, local addresses that saved settings still use but the server no longer has (after an IP change), then enabled services in a failed or stopped state and engines that enabled connections use but that are not installed; each entry opens the related page. It is derived from inventory, not a separate health check.
+The overview is a live command center. The header names the server with its OS, uptime and load and its main address (copy with one tap; **+n** lists every address, each copyable). Four figures follow, each opening its page: **Live traffic** (combined received and sent with a one-minute line, from usage collection; GRE tunnels are left out because forwards over them carry the same bytes), **Connections** (running of enabled services), **Health · 24 h** (uptime and how many are up, from health monitoring) and **Needs attention**. A figure whose feature is off says so and opens the page that turns it on.
+
+Below, on wide screens in two columns: your connections (up to six, each with its live speed and its route, which stacks listener above destination on narrow rows instead of splitting an address), the server's live load, **Needs attention** and **Tunnel health** (worst first, each with its last 24 hours as small bars and its uptime). One live-traffic poll (every 2 seconds while the page is open) and one health read serve the whole page. **Needs attention** lists, first, local addresses that saved settings still use but the server no longer has (after an IP change), then enabled services in a failed or stopped state and engines that enabled connections use but that are not installed; each entry opens the related page. It is derived from inventory, not a separate health check.
 
 The sidebar groups **Workspace** (Overview, Connections, Traffic, Health), **Network** (Nodes, GRE, Reverse tunnels, Firewall, IP addresses) and **System** (Maintenance, Optimization, Tunnel engines, Backup & restore, Settings). Phones keep Overview, Connections, Traffic and Nodes in the bottom bar.
 

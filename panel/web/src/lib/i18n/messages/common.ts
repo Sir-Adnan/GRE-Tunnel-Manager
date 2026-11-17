@@ -1,5 +1,4 @@
 // Shell, navigation, shared controls, statuses and words used by several features.
-import { panelVersion } from "../../version";
 import type { Messages } from "./types";
 
 export const common = {
@@ -365,32 +364,10 @@ export const common = {
   ],
   capabilities: ["Capabilities", "قابلیت‌ها"],
   nodes: ["Nodes", "سرورها"],
-  nodesReadOnly: [
-    "Remote Agents are read-only by default. Use Connect two servers for explicitly enabled paired operations. Existing tunnel menus still manage this panel host only.",
-    "ایجنت‌های راه دور پیش‌فرض فقط‌خواندنی‌اند. برای عملیات مجاز از بخش اتصال دو سرور استفاده کنید. منوهای قبلی تونل همچنان فقط سرور پنل را مدیریت می‌کنند.",
-  ],
-  controllerOptional: [
-    "Agents are optional. Enable the Controller only when you need other servers in this panel.",
-    "نصب ایجنت اختیاری است. برای دیدن سرورهای دیگر، بخش کنترل‌کننده را فعال کنید.",
-  ],
   node_online: ["Connected", "متصل"],
   node_offline: ["Connection lost", "ارتباط قطع است"],
   node_waiting: ["Waiting for Agent", "در انتظار ایجنت"],
   node_degraded: ["Inventory unavailable", "اطلاعات در دسترس نیست"],
-  controllerRole: ["Controller setup", "راه‌اندازی کنترل‌کننده"],
-  controllerGuide: [
-    "After installing the updated panel, run node-install.sh --controller with its reachable HTTPS URL. It opens a separate TLS-only control listener (default 9443). Permit that TCP port; browser HTTP remains independent.",
-    "پس از نصب پنل به‌روز، نصب‌کنندهٔ نود را در حالت کنترل‌کننده با آدرس HTTPS قابل دسترس اجرا کنید. پورت جداگانهٔ رمزگذاری‌شده، پیش‌فرض 9443 است. این پورت TCP را باز کنید؛ حالت HTTP مرورگر مستقل است.",
-  ],
-  agentGuide: [
-    "Create a code here, run the one-command Agent installer on each other server, and paste the code at its hidden prompt. The Agent connects outward; no inbound Agent port is opened. Only managed inventory is sent, never tunnel keys or raw configuration files.",
-    "اینجا کد بسازید، نصب‌کنندهٔ تک‌دستوری ایجنت را روی هر سرور دیگر اجرا کنید و کد را در ورودی مخفی وارد کنید. اتصال از سمت ایجنت برقرار می‌شود و پورت ورودی جدیدی روی آن باز نمی‌شود. فقط اطلاعات مدیریت‌شده ارسال می‌شود؛ کلید تونل و فایل خام تنظیمات ارسال نمی‌شود.",
-  ],
-  connectionRecovery: ["Recovery and connection loss", "بازیابی و قطع ارتباط"],
-  nodeReleaseHelp: [
-    `These features are included in v${panelVersion}. See docs/NODES.md for installation. Paired GRE/FRP creation requires installing the Agent with --operations; existing local tunnel menus remain local.`,
-    `این قابلیت‌ها در نسخهٔ ${panelVersion} هستند. روش نصب در راهنمای NODES آمده است. ساخت هماهنگ GRE و FRP به نصب ایجنت با گزینهٔ ‎--operations نیاز دارد؛ منوهای قبلی تونل محلی می‌مانند.`,
-  ],
   help: ["Help", "راهنما"],
   toggleSidebar: ["Toggle navigation", "باز و بسته‌کردن منو"],
   connectionEngine: ["Tunnel engine", "موتور اتصال"],
@@ -590,4 +567,10 @@ export const common = {
   ],
   transport: ["Transport", "روش انتقال"],
   group: ["Load balancing group", "گروه لودبالانس"],
+  chooseFile: ["Choose file", "انتخاب فایل"],
+  noFileChosen: [
+    "No file chosen · or drop it here",
+    "فایلی انتخاب نشده · یا اینجا رها کنید",
+  ],
+  replaceFile: ["Replace", "تغییر فایل"],
 } satisfies Messages;

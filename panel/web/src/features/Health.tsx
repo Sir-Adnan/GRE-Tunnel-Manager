@@ -34,7 +34,7 @@ import { useHealthView } from "@/features/operations/hooks";
 import type { HealthSettings, HealthView } from "@/features/operations/types";
 import { HealthSettingsDialog } from "./health/HealthSettingsDialog";
 import { OutageList } from "./health/OutageList";
-import { OwnerList } from "./health/OwnerList";
+import { StatusList } from "./health/StatusList";
 import { farSideChecks } from "./health/farSide";
 import { useLoaded } from "@/features/operations/hooks";
 import type { Listing } from "@/features/nodes/types";
@@ -281,7 +281,7 @@ export function Health({
                   {enabled ? t("healthNoTargets") : t("healthWaiting")}
                 </p>
               ) : (
-                <OwnerList
+                <StatusList
                   owners={view.owners}
                   time={view.time}
                   timezone={view.timezone}

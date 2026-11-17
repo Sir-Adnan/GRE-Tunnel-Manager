@@ -225,9 +225,6 @@
   .table-frame th {
     @apply h-10 text-xs font-medium text-muted-foreground;
   }
-  .table-frame td {
-    padding-block: var(--row-pad);
-  }
   .table-frame tbody tr {
     transition: background-color 120ms ease;
   }
@@ -547,20 +544,22 @@
     gap: var(--list-gap);
     padding: var(--card-pad);
   }
-  /* The card sizes its own route: below 26rem the route stacks (listener,
+  /* A route host (connection card, dashboard row) sizes its own route: below
+     26rem the route stacks (listener,
      a short wire pointing down, destination), so an address always has the
      card's full width and never splits. */
+  .route-host,
   .connection-card {
     container-type: inline-size;
   }
   @container (max-width: 26rem) {
-    .connection-card .route-chain {
+    :is(.route-host, .connection-card) .route-chain {
       @apply flex-col items-start gap-y-1;
     }
-    .connection-card .route-chain > .chain-node.is-target {
+    :is(.route-host, .connection-card) .route-chain > .chain-node.is-target {
       @apply max-w-full;
     }
-    .connection-card .chain-wire {
+    :is(.route-host, .connection-card) .chain-wire {
       flex: none;
       width: 2px;
       height: 0.75rem;
@@ -575,7 +574,7 @@
       );
       animation: none;
     }
-    .connection-card .chain-wire::after {
+    :is(.route-host, .connection-card) .chain-wire::after {
       inset-inline-end: auto;
       left: 50%;
       top: auto;
@@ -697,6 +696,9 @@
   /* Live speed beside a connection: down and up, quiet when idle. */
   .live-rate {
     @apply inline-flex shrink-0 items-center gap-x-2 gap-y-0.5 font-mono text-[11px] leading-4 text-muted-foreground tabular-nums;
+  }
+  .live-rate.is-column {
+    @apply flex-col items-start gap-y-0.5;
   }
   .live-rate.is-stacked {
     @apply ms-auto flex-col items-end self-start pt-0.5;

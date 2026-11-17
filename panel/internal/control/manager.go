@@ -142,6 +142,7 @@ type Request struct {
 	Order           OrderInput       `json:"order,omitzero"`
 	Certificate     CertificateInput `json:"certificate,omitzero"`
 	TwoFactor       TwoFactorInput   `json:"two_factor,omitzero"`
+	Password        PasswordInput    `json:"password,omitzero"`
 	// Protect applies health monitoring choices made in a connection or GRE form.
 	Protect *Protection `json:"protect,omitempty"`
 	// SafeMinutes arms an automatic revert of this change unless confirmed.
@@ -308,7 +309,7 @@ func (m *Manager) Execute(ctx context.Context, r Request) (any, error) {
 		return map[string]bool{"ok": true}, nil
 	case "host-telemetry":
 		return m.telemetry.Sample(), nil
-	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover":
+	case "panel-update", "panel-update-check", "panel-update-install", "certificate-issue", "certificate-renew", "certificate-self-signed", "two-factor-enable", "two-factor-disable", "two-factor-recover", "panel-password":
 		if m.Admin == nil {
 			return nil, errors.New("panel administration is unavailable on this broker")
 		}

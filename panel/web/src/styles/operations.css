@@ -124,8 +124,8 @@
   @media (min-width: 1280px) {
     .health-row-main {
       grid-template-columns:
-        minmax(10rem, 1.2fr) auto minmax(8rem, 1fr)
-        auto auto;
+        minmax(10rem, 1.2fr) 12.5rem minmax(8rem, 1fr)
+        14rem 7.5rem;
       grid-template-areas: "name latency hours uptime expand";
     }
   }
@@ -464,5 +464,43 @@
   .weekly-report,
   .weekly-report * {
     box-shadow: none !important;
+  }
+}
+
+/* Health rows line up across the list: every column but the name and the
+   hour bars has a fixed width, so a shorter latency or "100%" never shifts
+   the bars of one row against the next. */
+@layer components {
+  .health-latency > :last-child {
+    @apply min-w-[4.5rem] text-end;
+  }
+  .uptime-triple {
+    @apply gap-2;
+  }
+  .uptime-triple > div {
+    @apply w-[4.25rem];
+  }
+  .health-expand {
+    @apply min-w-0;
+  }
+  .health-row-main {
+    padding: var(--card-pad);
+  }
+}
+
+/* Health status toolbar: filter with counts, an all-clear note, search. */
+@layer components {
+  .health-toolbar {
+    @apply flex flex-wrap items-center gap-x-3 gap-y-2;
+  }
+  .health-search {
+    @apply ms-auto;
+  }
+  .health-all-clear {
+    @apply inline-flex items-center gap-1.5 text-xs font-medium;
+    color: var(--success-text);
+  }
+  .health-all-clear svg {
+    @apply size-4;
   }
 }

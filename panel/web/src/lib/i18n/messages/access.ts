@@ -146,4 +146,35 @@ export const access = {
     "Use the same install command in the client's deploy hook after each successful renewal. The panel copies one private bundle and reloads only its public service. See docs/HTTPS.md for complete Certbot and acme.sh examples.",
     "همین دستور نصب را در deploy hook ابزار قرار دهید تا پس از هر تمدید موفق اجرا شود. پنل یک فایل خصوصی کپی می‌کند و فقط سرویس عمومی خود را دوباره بارگذاری می‌کند. نمونه‌های کامل Certbot و acme.sh در docs/HTTPS.md آمده‌اند.",
   ],
+  passwordTitle: ["Password", "رمز عبور پنل"],
+  passwordIntro: [
+    "Change it here. Every other signed-in browser is signed out; this one stays in.",
+    "رمز را همین‌جا عوض کنید. بقیهٔ مرورگرهای واردشده خارج می‌شوند و این مرورگر وارد می‌ماند.",
+  ],
+  passwordChange: ["Change password", "تغییر رمز"],
+  passwordCurrent: ["Current password", "رمز فعلی"],
+  passwordNew: ["New password", "رمز جدید"],
+  passwordConfirm: ["Repeat the new password", "تکرار رمز جدید"],
+  passwordNewHelp: [
+    "At least 8 characters. A long phrase is stronger than a short complex word.",
+    "دست‌کم 8 کاراکتر. یک عبارت بلند از یک کلمهٔ کوتاه پیچیده امن‌تر است.",
+  ],
+  passwordTooShort: [
+    "Use 8 to 72 characters, without control characters",
+    "از 8 تا 72 کاراکتر استفاده کنید، بدون کاراکتر کنترلی",
+  ],
+  passwordMismatch: ["The two new passwords differ", "دو رمز جدید یکی نیستند"],
+  passwordEnter: ["Fill this in", "این بخش را پر کنید"],
+  passwordChanged: ["Password changed", "رمز تغییر کرد"],
+  passwordChangedOthers: [
+    "Password changed. {n} other sessions were signed out.",
+    "رمز تغییر کرد. {n} نشست دیگر خارج شد.",
+  ],
+  passwordForgot: [
+    "Forgot it? On the server, sudo gtm password sets a new one.",
+    "رمز را فراموش کرده‌اید؟ روی سرور، sudo gtm password رمز جدید می‌گذارد.",
+  ],
+  passwordStrength_weak: ["Weak", "ضعیف"],
+  passwordStrength_fair: ["Fair", "متوسط"],
+  passwordStrength_strong: ["Strong", "قوی"],
 } satisfies Messages;

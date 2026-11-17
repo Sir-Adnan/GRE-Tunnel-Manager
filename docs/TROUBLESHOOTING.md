@@ -40,6 +40,8 @@ sudo gtm password        # set a new password; every session signs out
 sudo gtm 2fa off         # turn two-factor sign-in off
 ```
 
+To change a password you still know, use **Settings → Security → Sign-in → Change password** in the panel: no SSH, no restart, and only the other browsers are signed out.
+
 ## An additional IP disappears after a restart
 
 An address added with `ip address add` lives only until the next restart; connections on it stop afterwards. The **IP addresses** page marks such an address **Temporary**: **Keep after restart** stores it in a small systemd unit that adds it again at every boot. To add a new additional IP, use **IP addresses → Add IP** instead of the command. See [IP addresses](IP-ADDRESSES.md).

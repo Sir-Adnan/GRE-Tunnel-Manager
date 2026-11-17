@@ -132,9 +132,10 @@ func (s *Store) LoginWithCode(w http.ResponseWriter, r *http.Request, user, pass
 	a.Count++
 	a.Until = now.Add(5 * time.Minute)
 	s.attempts[ip] = a
+	hash := s.hash
 	s.mu.Unlock()
 	// Always check a password hash even if the username is wrong.
-	validPassword := bcrypt.CompareHashAndPassword([]byte(s.hash), []byte(password)) == nil
+	validPassword := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 	u1, u2 := sha256.Sum256([]byte(user)), sha256.Sum256([]byte(s.user))
 	if !validPassword || subtle.ConstantTimeCompare(u1[:], u2[:]) != 1 {
 		return Session{}, errors.New("incorrect username or password")
@@ -269,6 +270,20 @@ func (s *Store) Sessions(r *http.Request) []SessionInfo {
 		return list[i].LastSeen.After(list[j].LastSeen)
 	})
 	return list
+}
+
+// SetPassword switches the sign-in check to a new password after the broker
+// saved it, and signs out every session except the caller's. It returns how
+// many sessions ended.
+func (s *Store) SetPassword(r *http.Request, password string) (int, error) {
+	hash, e := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if e != nil {
+		return 0, e
+	}
+	s.mu.Lock()
+	s.hash = string(hash)
+	s.mu.Unlock()
+	return s.Revoke(r, ""), nil
 }
 
 // Revoke signs out one other session by ID, or every other session when id

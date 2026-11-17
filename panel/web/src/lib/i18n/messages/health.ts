@@ -290,4 +290,13 @@ export const health = {
     "No checks in this range yet. History grows with every health check.",
     "هنوز بررسی‌ای در این بازه نیست. تاریخچه با هر بررسی سلامت کامل‌تر می‌شود.",
   ],
+  healthFilterLabel: ["Show", "نمایش"],
+  healthFilterAll: ["All", "همه"],
+  healthFilterProblems: ["Problems", "مشکل‌دار"],
+  healthFilterUp: ["Healthy", "سالم"],
+  healthFilterEmpty: [
+    "Nothing matches this filter. Choose All to see every connection.",
+    "موردی با این فیلتر نیست. برای دیدن همه، «همه» را انتخاب کنید.",
+  ],
+  healthAllClear: ["Every check is passing", "همهٔ بررسی‌ها موفق است"],
 } satisfies Messages;

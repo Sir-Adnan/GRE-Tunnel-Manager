@@ -6,9 +6,8 @@ import { useDiscardChanges } from "@/lib/use-discard-changes";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Choice } from "@/components/shared";
+import { Choice, FileField } from "@/components/shared";
 import { targetPorts } from "@/lib/ports";
 import { HelpTip } from "@/components/help";
 import {
@@ -43,6 +42,7 @@ export function ConfigurationImport({
       ["haproxy", "realm"].includes(engine) ? engine : "json",
     );
   const [text, setText] = useState(""),
+    [fileName, setFileName] = useState(""),
     [activate, setActivate] = useState(false),
     [review, setReview] = useState<Review>(),
     [busy, setBusy] = useState(false),
@@ -171,30 +171,23 @@ export function ConfigurationImport({
                   </Alert>
                 ) : (
                 <>
-                <Field>
-                  <div className="flex items-center gap-2">
-                    <FieldLabel htmlFor="import-file">
-                      {t("configFile")}
-                    </FieldLabel>
-                    <HelpTip>{t("importScopeHelp")}</HelpTip>
-                  </div>
-                  <Input
-                    id="import-file"
-                    type="file"
-                    accept=".cfg,.conf,.toml,.json,.txt"
-                    disabled={busy}
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      if (f.size > 65536) {
-                        setError(t("configFileTooLarge"));
-                        return;
-                      }
-                      setText(await f.text());
-                      invalidate();
-                    }}
-                  />
-                </Field>
+                <FileField
+                  id="import-file"
+                  label={t("configFile")}
+                  help={t("importScopeHelp")}
+                  accept=".cfg,.conf,.toml,.json,.txt"
+                  disabled={busy}
+                  fileName={fileName}
+                  onFile={async (f) => {
+                    if (f.size > 65536) {
+                      setError(t("configFileTooLarge"));
+                      return;
+                    }
+                    setText(await f.text());
+                    setFileName(f.name);
+                    invalidate();
+                  }}
+                />
                 <Field>
                   <FieldLabel htmlFor="import-text">
                     {t("configText")}
